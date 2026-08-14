@@ -121,85 +121,44 @@ Manusの設計をSQLite用に正規化して採用する。
 2. **コンテキスト注入**: 推論時に重要度の高い知見（上位5件）をシステムプロンプトへ自動挿入。
 
 ### 5.3 Tools for Agent
-- **Calendar & Task Manager**: `add_event`, `get_upcoming_events`, `create_task`, `list_tasks`, `complete_task`
-- **Sticky Note Manager**: `create_note`, `list_notes`, `update_note`, `delete_note`
+- **Calendar & Task Manager**: `create_event_tool`, `get_upcoming_events_tool`, `create_task_tool`, `list_tasks_tool`, `complete_task_tool`
+- **Sticky Note Manager**: `create_sticky_note_tool`
 - **MentisDB Long-Term Memory**: `remember_user_insight_tool`, `get_user_insights_tool`
-- **Vision & Screen Recognition (MiniCPM型)**: `capture_screen()`, `analyze_active_window()`, `locate_gui_elements()`
+- **Vision & Screen Recognition (MiniCPM型)**: `capture_screen_tool`, `analyze_screen_error_tool`
+- **Proactive Health & Care**: `proactive_engine.py` による45分作業・夕方の自律声掛け
+- **Google Workspace (Calendar & Gmail)**: `get_google_calendar_events_tool`, `create_google_calendar_event_tool`, `search_gmail_messages_tool`
+- **iCalendar (.ics) Sync**: `export_calendar_ics_tool`（Google/Outlook対応）
 - **MCP Extensibility**: 外部MCPサーバーから動的に取得された任意ツール群
 
 ### 5.4 MCP (Model Context Protocol) クライアント連携アーキテクチャ 🌟
-Anthropic提唱の標準規格「MCP」クライアント機能を内蔵し、外部サービス（Notion, GitHub, Google Drive, Slack, Filesystem, Playwright 等）とプラグイン感覚で接続可能にする。
+Anthropic提唱の標準規格「MCP」クライアント機能を内蔵し、外部サービス（Notion, GitHub, Google Drive, Slack, Filesystem, Playwright 等）とプラグイン感覚で接続可能。
+- **動的カスタム追加・削除UI**: 設定画面「⚙」から「➕ 新規追加」ダイアログで、コマンド（`npx`, `uvx`, `python` 等）と引数を自由に入力して即座にツールバインド可能。
+- **設定永続化**: `mcp_config.json` にカスタムサーバー設定が自動保存され、次回起動時にも復元。
 
-```mermaid
-graph LR
-    subgraph NeoSecretary ["ネオ秘書くん (Core Engine)"]
-        Agent["LangGraph Agent"]
-        MCP_Manager["MCP Client Manager (mcp_config.json)"]
-        Agent <--> MCP_Manager
-    end
-
-    subgraph MCPServers ["外部 MCP サーバー群"]
-        MCP1["GitHub MCP (Issue/PR操作)"]
-        MCP2["Notion / Obsidian MCP (ナレッジ検索)"]
-        MCP3["Filesystem MCP (ローカルファイル管理)"]
-        MCP4["Browser/Playwright MCP (Web自律操作)"]
-    end
-
-    MCP_Manager <== "JSON-RPC / stdio" ==> MCP1
-    MCP_Manager <== "JSON-RPC / stdio" ==> MCP2
-    MCP_Manager <== "JSON-RPC / stdio" ==> MCP3
-    MCP_Manager <== "JSON-RPC / stdio" ==> MCP4
-```
-
-- **設定UI**: 設定ダイアログから `mcp_config.json` を編集・有効化トグル可能。
-- **動的ツールバインド**: 起動時に接続されたMCPサーバーのツール定義（JSON Schema）を自動で LangGraph の `tools` リストへ注入。
-
-## 6. スマートフォン専用コンパニオン連携（Desk Pet Device / Bluetoothダイレクト接続）
+## 6. スマートフォン専用コンパニオン連携（Desk Pet Device / PWA ＆ ローカル同期サーバー）
 
 古いスマートフォン（Android / iOS）を机の傍らに置き、**「外付けスマートディスプレイ／相棒端末」** として活用するアーキテクチャ。
-外出先（カフェやコワーキングスペース）での公衆Wi-Fiセキュリティリスク・通信遮断を完全排除するため、**Bluetooth（BLE / RFCOMM）によるダイレクト接続** を採用する。
+- **PWAフロントエンド (`web_pet/`)**:
+  - GameBoy風レトロ筐体デザイン、32x32ドット絵アニメーション（待機/瞬き/思考中/笑顔）。
+  - ワンタップTODO完了チェック、つつきリアクション。
+  - スマホのブラウザから「ホーム画面に追加」するだけでネイティブアプリ化。
+  - **動的接続設定**: 画面右上「⚙」からPCのIPアドレス（例: `http://192.168.1.15:8765`）をいつでも変更可能。
+- **PC側 ローカル同期サーバー (`local_sync_server.py`)**:
+  - ポート `8765` で静的ファイル配信 ＆ `/api/status`, `/api/action` を軽量提供。
+  - Web Bluetooth (BLE) および ローカルWi-Fi の両対応。
 
-```mermaid
-graph LR
-    subgraph PC ["PC (ネオ秘書くん本体)"]
-        Core["Core Engine (LangGraph + SQLite)"]
-        BT_Server["Bluetooth GATT/Serial Server (BLE / RFCOMM)"]
-        AI_Agents["Codex / Antigravity (バックグラウンド作業)"]
-        Core --- BT_Server
-        AI_Agents -. 状況通知 .-> Core
-    end
-
-    subgraph Phone ["古いスマホ (専用ペット端末)"]
-        PhoneApp["ドット絵ペット PWA (Web Bluetooth) / App"]
-        PhoneApp <== "Bluetooth ダイレクト通信 (公衆WiFi不要・安全)" ==> BT_Server
-        PhoneApp --> Notify["リアルタイム進捗通知 (「●●完了！次進める？」)"]
-        PhoneApp --> Approve["Human-in-the-Loop 承認ボタン"]
-    end
-```
-
-### 特徴と利点:
-1. **公衆Wi-Fi不要（ゼロトラスト＆高セキュリティ）**: PCとスマホがBluetoothで直接1対1通信するため、出先の公衆Wi-Fiやテザリングを介さず安全・確実に動く。
-2. **PC作業画面の100%解放**: PCの画面を一切邪魔せず、机の横のスマホ画面上でペットがリアクション。
-3. **AIエージェントの作業状況のリアルタイム報告**: CodexやAntigravityの長時間の作業（コーディング・テスト）中にスマホ上で通知・ワンタップ承認。
-
-## 7. MiniCPM と ネオ秘書くん の機能差分 ＆ 取り込み方針 🌟
-
-MiniCPM (MiniCPM-V / MiniCPM-o / OpenBMB Mascot) との比較と、ネオ秘書くんで取り込むべき機能の設計方針。
-
-| 機能軸 | MiniCPM (OpenBMB) | ネオ秘書くん（現在 ➔ 取り込み後） | 取り込み方針 / 実装アプローチ |
-| :--- | :--- | :--- | :--- |
-| **GUI Grounding (画面要素座標特定)** | 高精度（画面内のボタンや入力欄のピクセル座標を特定） | 🔲 未実装 ➔ **Phase 6で実装** | 画面キャプチャ画像をVisionモデルに渡し、クリックすべき座標を特定して自動操作支援 |
-| **リアルタイム画面見守り (Video/Screen Stream)** | 毎秒数フレームの映像を連続処理 | 🔲 未実装 ➔ **定期インターバル監視** | 5分〜10分ごとにアクティブウィンドウをスキャンし「ボス、詰まってませんか？」と声掛け |
-| **音声対話 (End-to-End Voice)** | 音声入出力（低遅延ストリーミング） | 🔲 未実装 ➔ **Whisper / TTS連携** | 隙間時間のハンズフリー操作向けに音声入力・読み上げ機能を追加 |
-| **長期知見記憶 (MentisDB型)** | なし（セッションごとの対話のみ） | ✅ **完全実装済み** | 秘書くんの独自強み。ボスのルールや生活リズムを永久記憶して賢くなる |
-| **MCP 外部アプリ拡張** | なし（モデル単体） | 🌟 **設計追加 (Phase 4)** | GitHub, Notion, Filesystem など無限のツールをプラグイン接続 |
+## 7. Google Workspace (Googleカレンダー ＆ Gmail) ダイレクト連携 🌟
+- **モジュール**: `google_workspace_tools.py`
+- **OAuth2 Token Flow**: `google_credentials.json` をプロジェクト直下に配置するだけで、Google公式APIを通じたスケジュール参照・登録、および未読メール検索・要約が可能。
+- **セーフフォールバック**: 認証ファイル未配置時はローカル手帳およびiCalendarエクスポートへ自動フォールバック。
 
 ## 8. 将来ロードマップ
 1. **Phase 1: デスクトップ常駐MVP [✅ 完了]**
 2. **Phase 2: Multi-LLM Factory ＆ 代表的モデル動的選択 [✅ 完了]**
 3. **Phase 3: MentisDB型・長期記憶エンジン ＆ ドット絵ペット化 [✅ 完了]**
-4. **Phase 4: TODOタスク管理 [✅ 完了] ＆ MCP連携設定機能 [🚧 次期着手]**
-5. **Phase 5: Bluetoothダイレクト・スマホ専用ペット端末連携 (Desk Pet)**
-6. **Phase 6: MiniCPM型 画面見守り (Vision) ＆ GUI操作支援**
+4. **Phase 4: TODOタスク手帳統合 ＆ MCP動的管理設定UI [✅ 完了]**
+5. **Phase 5: MiniCPM型 画面見守り (Vision) ＆ 自律プロアクティブ健康ケア ＆ スマホDesk Pet PWA [✅ 完了]**
+6. **Phase 6: Google Workspace Direct連携 ＆ iCalendar (.ics) 同期 [✅ 完了]**
+7. **Phase 7: ポモドーロタイマー ＆ 習慣トラッカー ＆ 音声入出力 (Whisper/TTS) [🚧 次期着手]**
 
 
