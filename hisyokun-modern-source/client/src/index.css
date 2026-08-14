@@ -1,0 +1,378 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import url('https://fonts.googleapis.com/css2?family=DotGothic16&display=swap');
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+  
+  /* 秘書くん2 Retro Theme Colors */
+  --color-retro-folder: oklch(0.75 0.12 70);
+  --color-retro-folder-dark: oklch(0.65 0.14 65);
+  --color-retro-paper: oklch(0.95 0.02 85);
+  --color-retro-paper-lines: oklch(0.85 0.03 220);
+  --color-retro-tab: oklch(0.80 0.10 75);
+  --color-retro-accent: oklch(0.55 0.15 25);
+  --color-retro-text: oklch(0.25 0.02 50);
+  --color-retro-text-muted: oklch(0.45 0.02 50);
+  --color-retro-rivet: oklch(0.50 0.08 60);
+  --color-retro-shadow: oklch(0.30 0.05 50);
+  
+  /* Sticky note colors */
+  --color-sticky-yellow: oklch(0.95 0.08 95);
+  --color-sticky-pink: oklch(0.90 0.10 10);
+  --color-sticky-blue: oklch(0.90 0.08 230);
+  --color-sticky-green: oklch(0.90 0.10 140);
+  
+  /* Calendar event colors */
+  --color-event-red: oklch(0.60 0.20 25);
+  --color-event-blue: oklch(0.55 0.15 250);
+  --color-event-green: oklch(0.60 0.15 145);
+  --color-event-purple: oklch(0.55 0.15 300);
+  --color-event-orange: oklch(0.70 0.15 55);
+  
+  --font-retro: 'DotGothic16', 'MS PGothic', sans-serif;
+}
+
+:root {
+  /* Retro folder theme - warm browns and creams */
+  --primary: oklch(0.65 0.14 65);
+  --primary-foreground: oklch(0.98 0.01 85);
+  --sidebar-primary: oklch(0.65 0.14 65);
+  --sidebar-primary-foreground: oklch(0.98 0.01 85);
+  --chart-1: oklch(0.60 0.20 25);
+  --chart-2: oklch(0.60 0.15 145);
+  --chart-3: oklch(0.55 0.15 250);
+  --chart-4: oklch(0.70 0.15 55);
+  --chart-5: oklch(0.55 0.15 300);
+  --radius: 0.25rem;
+  --background: oklch(0.92 0.02 80);
+  --foreground: oklch(0.25 0.02 50);
+  --card: oklch(0.95 0.02 85);
+  --card-foreground: oklch(0.25 0.02 50);
+  --popover: oklch(0.98 0.01 85);
+  --popover-foreground: oklch(0.25 0.02 50);
+  --secondary: oklch(0.85 0.05 75);
+  --secondary-foreground: oklch(0.25 0.02 50);
+  --muted: oklch(0.90 0.03 80);
+  --muted-foreground: oklch(0.45 0.02 50);
+  --accent: oklch(0.80 0.10 75);
+  --accent-foreground: oklch(0.25 0.02 50);
+  --destructive: oklch(0.55 0.20 25);
+  --destructive-foreground: oklch(0.98 0.01 85);
+  --border: oklch(0.75 0.08 70);
+  --input: oklch(0.85 0.05 75);
+  --ring: oklch(0.65 0.14 65);
+  --sidebar: oklch(0.75 0.12 70);
+  --sidebar-foreground: oklch(0.25 0.02 50);
+  --sidebar-accent: oklch(0.80 0.10 75);
+  --sidebar-accent-foreground: oklch(0.25 0.02 50);
+  --sidebar-border: oklch(0.60 0.10 65);
+  --sidebar-ring: oklch(0.65 0.14 65);
+}
+
+.dark {
+  --primary: var(--color-blue-700);
+  --primary-foreground: var(--color-blue-50);
+  --sidebar-primary: var(--color-blue-500);
+  --sidebar-primary-foreground: var(--color-blue-50);
+  --background: oklch(0.141 0.005 285.823);
+  --foreground: oklch(0.85 0.005 65);
+  --card: oklch(0.21 0.006 285.885);
+  --card-foreground: oklch(0.85 0.005 65);
+  --popover: oklch(0.21 0.006 285.885);
+  --popover-foreground: oklch(0.85 0.005 65);
+  --secondary: oklch(0.24 0.006 286.033);
+  --secondary-foreground: oklch(0.7 0.005 65);
+  --muted: oklch(0.274 0.006 286.033);
+  --muted-foreground: oklch(0.705 0.015 286.067);
+  --accent: oklch(0.274 0.006 286.033);
+  --accent-foreground:  oklch(0.92 0.005 65);
+  --destructive: oklch(0.704 0.191 22.216);
+  --destructive-foreground: oklch(0.985 0 0);
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 15%);
+  --ring: oklch(0.488 0.243 264.376);
+  --chart-1: var(--color-blue-300);
+  --chart-2: var(--color-blue-500);
+  --chart-3: var(--color-blue-600);
+  --chart-4: var(--color-blue-700);
+  --chart-5: var(--color-blue-800);
+  --sidebar: oklch(0.21 0.006 285.885);
+  --sidebar-foreground: oklch(0.85 0.005 65);
+  --sidebar-accent: oklch(0.274 0.006 286.033);
+  --sidebar-accent-foreground:  oklch(0.985 0 0);
+  --sidebar-border: oklch(1 0 0 / 10%);
+  --sidebar-ring: oklch(0.488 0.243 264.376);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-family: var(--font-retro), sans-serif;
+  }
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]),
+  [type="button"]:not(:disabled),
+  [type="submit"]:not(:disabled),
+  [type="reset"]:not(:disabled),
+  a[href],
+  select:not(:disabled),
+  input[type="checkbox"]:not(:disabled),
+  input[type="radio"]:not(:disabled) {
+    @apply cursor-pointer;
+  }
+}
+
+@layer components {
+  /**
+   * Custom container utility that centers content and adds responsive padding.
+   *
+   * This overrides Tailwind's default container behavior to:
+   * - Auto-center content (mx-auto)
+   * - Add responsive horizontal padding
+   * - Set max-width for large screens
+   *
+   * Usage: <div className="container">...</div>
+   *
+   * For custom widths, use max-w-* utilities directly:
+   * <div className="max-w-6xl mx-auto px-4">...</div>
+   */
+  .container {
+    width: 100%;
+    margin-left: auto;
+    margin-right: auto;
+    padding-left: 1rem; /* 16px - mobile padding */
+    padding-right: 1rem;
+  }
+
+  .flex {
+    min-height: 0;
+    min-width: 0;
+  }
+
+  @media (min-width: 640px) {
+    .container {
+      padding-left: 1.5rem; /* 24px - tablet padding */
+      padding-right: 1.5rem;
+    }
+  }
+
+  @media (min-width: 1024px) {
+    .container {
+      padding-left: 2rem; /* 32px - desktop padding */
+      padding-right: 2rem;
+      max-width: 1280px; /* Standard content width */
+    }
+  }
+}
+
+@layer components {
+  /* Retro folder container */
+  .retro-folder {
+    background: linear-gradient(135deg, var(--color-retro-folder) 0%, var(--color-retro-folder-dark) 100%);
+    border: 2px solid var(--color-retro-folder-dark);
+    border-radius: 0 8px 8px 8px;
+    box-shadow: 
+      inset 0 1px 0 rgba(255, 255, 255, 0.3),
+      3px 3px 8px rgba(0, 0, 0, 0.3);
+    position: relative;
+  }
+
+  .retro-folder-tab {
+    position: absolute;
+    top: -24px;
+    left: 0;
+    width: 100px;
+    height: 24px;
+    background: var(--color-retro-tab);
+    border: 2px solid var(--color-retro-folder-dark);
+    border-bottom: none;
+    border-radius: 8px 8px 0 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    font-weight: bold;
+  }
+
+  /* Retro paper style */
+  .retro-paper {
+    background: var(--color-retro-paper);
+    border: 1px solid var(--color-retro-folder-dark);
+    box-shadow: 
+      inset 0 0 20px rgba(0, 0, 0, 0.05),
+      2px 2px 5px rgba(0, 0, 0, 0.1);
+  }
+
+  .retro-paper-lined {
+    background-image: repeating-linear-gradient(
+      transparent,
+      transparent 23px,
+      var(--color-retro-paper-lines) 23px,
+      var(--color-retro-paper-lines) 24px
+    );
+    background-position: 0 8px;
+  }
+
+  /* Retro rivet decoration */
+  .retro-rivet {
+    width: 12px;
+    height: 12px;
+    background: radial-gradient(circle at 30% 30%, 
+      var(--color-retro-folder) 0%, 
+      var(--color-retro-rivet) 50%, 
+      var(--color-retro-shadow) 100%);
+    border-radius: 50%;
+    box-shadow: 
+      inset -1px -1px 2px rgba(0, 0, 0, 0.3),
+      1px 1px 2px rgba(0, 0, 0, 0.2);
+  }
+
+  /* Retro button style */
+  .retro-button {
+    background: linear-gradient(180deg, var(--color-retro-folder) 0%, var(--color-retro-folder-dark) 100%);
+    border: 2px outset var(--color-retro-folder);
+    padding: 4px 12px;
+    cursor: pointer;
+    transition: all 0.1s;
+  }
+
+  .retro-button:hover {
+    background: linear-gradient(180deg, var(--color-retro-tab) 0%, var(--color-retro-folder) 100%);
+  }
+
+  .retro-button:active {
+    border-style: inset;
+    transform: translate(1px, 1px);
+  }
+
+  /* Sticky note style */
+  .sticky-note {
+    background: var(--color-sticky-yellow);
+    box-shadow: 
+      2px 2px 8px rgba(0, 0, 0, 0.2),
+      0 0 1px rgba(0, 0, 0, 0.1);
+    transform: rotate(-1deg);
+    transition: transform 0.2s, box-shadow 0.2s;
+  }
+
+  .sticky-note:hover {
+    transform: rotate(0deg) scale(1.02);
+    box-shadow: 
+      4px 4px 12px rgba(0, 0, 0, 0.25),
+      0 0 2px rgba(0, 0, 0, 0.1);
+  }
+
+  .sticky-note.pink { background: var(--color-sticky-pink); }
+  .sticky-note.blue { background: var(--color-sticky-blue); }
+  .sticky-note.green { background: var(--color-sticky-green); }
+
+  /* Calendar day cell */
+  .calendar-day {
+    background: var(--color-retro-paper);
+    border: 1px solid var(--color-retro-folder-dark);
+    min-height: 80px;
+    transition: background 0.2s;
+  }
+
+  .calendar-day:hover {
+    background: var(--color-retro-tab);
+  }
+
+  .calendar-day.today {
+    background: linear-gradient(135deg, var(--color-retro-tab) 0%, var(--color-retro-folder) 100%);
+    border: 2px solid var(--color-retro-accent);
+  }
+
+  .calendar-day.other-month {
+    background: oklch(0.90 0.01 80);
+    opacity: 0.6;
+  }
+
+  /* Event chip */
+  .event-chip {
+    padding: 2px 6px;
+    border-radius: 2px;
+    font-size: 11px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    cursor: pointer;
+    transition: transform 0.1s;
+  }
+
+  .event-chip:hover {
+    transform: scale(1.02);
+  }
+
+  /* Message memo widget (伝言メモ風) */
+  .message-memo {
+    background: var(--color-retro-paper);
+    border: 2px solid var(--color-retro-folder-dark);
+    border-radius: 4px;
+    box-shadow: 
+      inset 0 0 10px rgba(0, 0, 0, 0.05),
+      3px 3px 6px rgba(0, 0, 0, 0.15);
+    position: relative;
+  }
+
+  /* Custom scrollbar for retro feel */
+  ::-webkit-scrollbar {
+    width: 12px;
+    height: 12px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: var(--color-retro-paper);
+    border: 1px solid var(--color-retro-folder-dark);
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: var(--color-retro-folder);
+    border: 1px solid var(--color-retro-folder-dark);
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--color-retro-folder-dark);
+  }
+}

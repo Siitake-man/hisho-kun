@@ -1,0 +1,39 @@
+{
+  "mcpServers": {
+    "filesystem": {
+      "name": "ローカルファイル操作",
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-filesystem",
+        "."
+      ],
+      "env": {},
+      "enabled": false,
+      "description": "PC内のファイル読み書き・検索を可能にします"
+    },
+    "fetch": {
+      "name": "Webページ取得 (Fetch)",
+      "command": "uvx",
+      "args": [
+        "mcp-server-fetch"
+      ],
+      "env": {},
+      "enabled": true,
+      "description": "URLから最新のWebページ内容をテキスト取得します"
+    },
+    "github": {
+      "name": "GitHub連携",
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-github"
+      ],
+      "env": {
+        "GITHUB_PERSONAL_ACCESS_TOKEN": ""
+      },
+      "enabled": true,
+      "description": "GitHubのIssue確認やPR操作を行います"
+    }
+  }
+}
