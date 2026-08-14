@@ -17,6 +17,107 @@ logger = logging.getLogger(__name__)
 ctk.set_appearance_mode("light")  # レトロモダンなクリーム色をベースにするため
 ctk.set_default_color_theme("green") # デフォルトテーマ（後でカスタムカラーに変更可能）
 
+class AddMCPServerDialog(ctk.CTkToplevel):
+    """
+    ユーザーが任意のMCPサーバー（Google Calendar, Notion, Slack等）を追加するためのダイアログ。
+    """
+    def __init__(self, parent_settings, *args, **kwargs):
+        super().__init__(parent_settings, *args, **kwargs)
+        self.parent_settings = parent_settings
+        self.title("➕ 新規MCPサーバーの追加")
+        self.geometry("420x460")
+        self.resizable(False, False)
+        
+        self.bg_color = "#F5F5DC"
+        self.primary_color = "#A67B5B"
+        self.text_color = "#4A3B32"
+        self.configure(fg_color=self.bg_color)
+        
+        self.font_title = ("DotGothic16", 13, "bold") if "DotGothic16" in tk.font.families() else ("Meiryo UI", 11, "bold")
+        self.font_body = ("DotGothic16", 11) if "DotGothic16" in tk.font.families() else ("Meiryo UI", 10)
+        self.font_small = ("Meiryo UI", 9)
+        
+        self._build_ui()
+
+    def _build_ui(self):
+        pad = 12
+        ctk.CTkLabel(self, text="➕ 新しいMCPサーバーを追加", font=self.font_title, text_color=self.primary_color).pack(pady=(12, 6))
+        
+        form = ctk.CTkFrame(self, fg_color="transparent")
+        form.pack(fill="both", expand=True, padx=pad, pady=4)
+        
+        # 1. サーバーID
+        ctk.CTkLabel(form, text="サーバー識別子 (例: google-calendar):", font=self.font_body, text_color=self.text_color, anchor="w").pack(fill="x")
+        self.entry_id = ctk.CTkEntry(form, placeholder_text="google-calendar")
+        self.entry_id.pack(fill="x", pady=(0, 6))
+        
+        # 2. 表示名
+        ctk.CTkLabel(form, text="表示名 (例: Google カレンダー連携):", font=self.font_body, text_color=self.text_color, anchor="w").pack(fill="x")
+        self.entry_name = ctk.CTkEntry(form, placeholder_text="Google カレンダー連携")
+        self.entry_name.pack(fill="x", pady=(0, 6))
+        
+        # 3. 実行コマンド (command)
+        ctk.CTkLabel(form, text="実行コマンド (例: npx, uvx, python):", font=self.font_body, text_color=self.text_color, anchor="w").pack(fill="x")
+        self.entry_cmd = ctk.CTkEntry(form, placeholder_text="npx")
+        self.entry_cmd.insert(0, "npx")
+        self.entry_cmd.pack(fill="x", pady=(0, 6))
+        
+        # 4. 引数 (args)
+        ctk.CTkLabel(form, text="引数 (スペース区切り, 例: -y @modelcontextprotocol/server-xxx):", font=self.font_body, text_color=self.text_color, anchor="w").pack(fill="x")
+        self.entry_args = ctk.CTkEntry(form, placeholder_text="-y @modelcontextprotocol/server-google-calendar")
+        self.entry_args.pack(fill="x", pady=(0, 6))
+        
+        # 5. 説明
+        ctk.CTkLabel(form, text="概要・説明 (省略可):", font=self.font_body, text_color=self.text_color, anchor="w").pack(fill="x")
+        self.entry_desc = ctk.CTkEntry(form, placeholder_text="Googleカレンダーの予定を参照・登録します")
+        self.entry_desc.pack(fill="x", pady=(0, 10))
+        
+        # 登録ボタン
+        btn_add = ctk.CTkButton(
+            self,
+            text="✨ MCPサーバーを登録",
+            font=self.font_title,
+            fg_color=self.primary_color,
+            hover_color="#8B634A",
+            height=36,
+            command=self._on_submit
+        )
+        btn_add.pack(fill="x", padx=pad, pady=(0, 14))
+
+    def _on_submit(self):
+        s_id = self.entry_id.get().strip()
+        name = self.entry_name.get().strip() or s_id
+        cmd = self.entry_cmd.get().strip()
+        args_str = self.entry_args.get().strip()
+        desc = self.entry_desc.get().strip()
+        
+        if not s_id or not cmd:
+            return
+            
+        args_list = args_str.split() if args_str else []
+        
+        from mcp_manager import get_mcp_manager, MCPServerConfig
+        mcp_mgr = get_mcp_manager()
+        
+        conf = MCPServerConfig(
+            name=name,
+            command=cmd,
+            args=args_list,
+            env={},
+            enabled=True,
+            description=desc
+        )
+        
+        mcp_mgr.add_or_update_server(s_id, conf)
+        
+        # 設定画面を再描画して閉じる
+        parent = self.parent_settings
+        parent_gui = parent.parent_gui
+        self.destroy()
+        parent.destroy()
+        SettingsWindow(parent_gui)
+
+
 class SettingsWindow(ctk.CTkToplevel):
     """
     APIキーやLLM接続先を設定し、利用可能なモデル一覧を動的取得・選択するための設定ウィンドウ。
@@ -179,8 +280,23 @@ class SettingsWindow(ctk.CTkToplevel):
         mcp_mgr = get_mcp_manager()
         server_configs = mcp_mgr.get_server_configs()
         
-        sec4 = ctk.CTkLabel(content, text="🔌 外部MCPサーバー連携 (プラグイン)", font=self.font_title, text_color=self.primary_color, anchor="w")
-        sec4.pack(fill="x", pady=(5, 2))
+        mcp_header_box = ctk.CTkFrame(content, fg_color="transparent")
+        mcp_header_box.pack(fill="x", pady=(5, 2))
+        
+        sec4 = ctk.CTkLabel(mcp_header_box, text="🔌 外部MCPサーバー連携 (プラグイン)", font=self.font_title, text_color=self.primary_color)
+        sec4.pack(side="left")
+        
+        btn_add_mcp = ctk.CTkButton(
+            mcp_header_box,
+            text="➕ 新規追加",
+            width=80,
+            height=24,
+            font=self.font_small,
+            fg_color=self.primary_color,
+            hover_color="#8B634A",
+            command=self._open_add_mcp_dialog
+        )
+        btn_add_mcp.pack(side="right")
         
         mcp_desc = ctk.CTkLabel(
             content, 
@@ -193,9 +309,12 @@ class SettingsWindow(ctk.CTkToplevel):
 
         self.mcp_checkboxes = {}
         for s_id, conf in server_configs.items():
+            row_frame = ctk.CTkFrame(content, fg_color="#F9F6F0", corner_radius=6)
+            row_frame.pack(fill="x", pady=2, padx=2)
+            
             cb_var = tk.BooleanVar(value=conf.enabled)
             cb = ctk.CTkCheckBox(
-                content,
+                row_frame,
                 text=f"{conf.name} ({s_id})",
                 variable=cb_var,
                 font=self.font_body,
@@ -203,7 +322,21 @@ class SettingsWindow(ctk.CTkToplevel):
                 fg_color=self.primary_color,
                 hover_color="#8B634A"
             )
-            cb.pack(anchor="w", pady=3)
+            cb.pack(side="left", padx=8, pady=6)
+            
+            # デフォルトプリセット以外は削除ボタンを表示
+            if s_id not in ("filesystem", "fetch", "github"):
+                btn_del = ctk.CTkButton(
+                    row_frame,
+                    text="🗑",
+                    width=26,
+                    height=24,
+                    font=("Meiryo UI", 10),
+                    fg_color="#C62828",
+                    hover_color="#B71C1C",
+                    command=lambda sid=s_id: self._delete_mcp_server(sid)
+                )
+                btn_del.pack(side="right", padx=6)
             
             if conf.description:
                 ctk.CTkLabel(
@@ -231,6 +364,19 @@ class SettingsWindow(ctk.CTkToplevel):
             command=self._on_save
         )
         btn_save.pack(side="bottom", fill="x", padx=20, pady=12)
+
+    def _open_add_mcp_dialog(self):
+        """MCPサーバー新規追加ダイアログを開く"""
+        dialog = AddMCPServerDialog(self)
+        dialog.focus()
+
+    def _delete_mcp_server(self, server_id: str):
+        """MCPサーバー設定を削除"""
+        from mcp_manager import get_mcp_manager
+        mcp_mgr = get_mcp_manager()
+        if mcp_mgr.delete_server(server_id):
+            self.destroy()
+            SettingsWindow(self.parent_gui)
 
     def _fetch_models(self, provider: str):
         """APIから利用可能なモデル一覧を動的に探索・取得"""

@@ -65,6 +65,11 @@ from vision_tools import (
 from ics_tools import (
     export_calendar_ics_tool
 )
+from google_workspace_tools import (
+    get_google_calendar_events_tool,
+    create_google_calendar_event_tool,
+    search_gmail_messages_tool
+)
 
 # AIが使える道具一覧を登録
 tools = [
@@ -78,7 +83,10 @@ tools = [
     complete_task_tool,
     capture_screen_tool,
     analyze_screen_error_tool,
-    export_calendar_ics_tool
+    export_calendar_ics_tool,
+    get_google_calendar_events_tool,
+    create_google_calendar_event_tool,
+    search_gmail_messages_tool
 ]
 tool_node = ToolNode(tools)
 

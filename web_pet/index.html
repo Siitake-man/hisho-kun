@@ -231,7 +231,10 @@
   <div class="device-casing">
     <div class="device-header">
       <span class="device-title">🤖 NEO SECRETARY</span>
-      <span class="status-badge" id="status-badge">ONLINE</span>
+      <div style="display: flex; gap: 6px; align-items: center;">
+        <span class="status-badge" id="status-badge">ONLINE</span>
+        <button style="background: none; border: none; font-size: 14px; cursor: pointer; color: #FFF;" onclick="openSettingsModal()">⚙</button>
+      </div>
     </div>
 
     <div class="screen">
@@ -269,6 +272,19 @@
       <div class="action-buttons">
         <button class="round-btn" onclick="refreshData()">B</button>
         <button class="round-btn" style="background: linear-gradient(145deg, #457B9D, #1D3557);" onclick="quickCompleteTopTask()">A</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 接続先設定モーダル -->
+  <div id="settings-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.7); justify-content: center; align-items: center; z-index: 999;">
+    <div style="background: #FDFBF7; border: 3px solid #4A3B32; border-radius: 16px; padding: 16px; width: 90%; max-width: 340px; display: flex; flex-direction: column; gap: 10px;">
+      <h3 style="font-size: 14px; color: #4A3B32;">⚙ PC接続先設定</h3>
+      <p style="font-size: 11px; color: #6D4C41;">PCのIPアドレスが変わった場合はここで変更できます。</p>
+      <input type="text" id="server-url-input" placeholder="http://192.168.1.15:8765" style="padding: 8px; font-size: 12px; border: 2px solid #4A3B32; border-radius: 6px; width: 100%;">
+      <div style="display: flex; gap: 8px; justify-content: flex-end; margin-top: 6px;">
+        <button onclick="closeSettingsModal()" style="padding: 6px 12px; border-radius: 6px; border: 1px solid #4A3B32; background: #E0D8C8; cursor: pointer;">キャンセル</button>
+        <button onclick="saveServerUrl()" style="padding: 6px 12px; border-radius: 6px; border: 1px solid #4A3B32; background: #5B8A72; color: #FFF; font-weight: bold; cursor: pointer;">保存</button>
       </div>
     </div>
   </div>

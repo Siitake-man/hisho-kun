@@ -150,10 +150,37 @@ function renderList() {
   }
 }
 
+function getServerBaseUrl() {
+  const customUrl = localStorage.getItem('neo_secretary_server_url');
+  if (customUrl) return customUrl.replace(/\/$/, '');
+  return '';
+}
+
+function openSettingsModal() {
+  document.getElementById('server-url-input').value = localStorage.getItem('neo_secretary_server_url') || window.location.origin;
+  document.getElementById('settings-modal').style.display = 'flex';
+}
+
+function closeSettingsModal() {
+  document.getElementById('settings-modal').style.display = 'none';
+}
+
+function saveServerUrl() {
+  const inputVal = document.getElementById('server-url-input').value.trim();
+  if (inputVal) {
+    localStorage.setItem('neo_secretary_server_url', inputVal);
+  } else {
+    localStorage.removeItem('neo_secretary_server_url');
+  }
+  closeSettingsModal();
+  fetchSyncData();
+}
+
 // PC側ローカル同期APIからのデータ取得
 async function fetchSyncData() {
+  const baseUrl = getServerBaseUrl();
   try {
-    const res = await fetch('/api/status');
+    const res = await fetch(`${baseUrl}/api/status`);
     if (!res.ok) throw new Error('Offline');
     const data = await res.json();
 
@@ -179,8 +206,9 @@ async function fetchSyncData() {
 
 // タスク完了API呼び出し
 async function completeTask(taskId) {
+  const baseUrl = getServerBaseUrl();
   try {
-    await fetch('/api/action', {
+    await fetch(`${baseUrl}/api/action`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: 'complete_task', task_id: taskId })
