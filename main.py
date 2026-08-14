@@ -40,7 +40,16 @@ class NeoSecretaryApp:
         self.thread_id = "default_user_session"
         self.config = {"configurable": {"thread_id": self.thread_id}}
 
-        # 3. UIのイベント紐付け
+        # 3. 自律プロアクティブ見守りエンジンの初期化
+        from proactive_engine import get_care_engine
+        self.care_engine = get_care_engine(notify_callback=self._on_proactive_care)
+
+        # 4. スマホ専用ペット端末 (Desk Pet) ローカル同期サーバーの起動
+        from local_sync_server import get_sync_server
+        self.sync_server = get_sync_server()
+        self.sync_server.start()
+
+        # 5. UIのイベント紐付け
         # ユーザーが入力欄で「Enterキー」を押したときの処理を登録
         self.gui.input_entry.bind("<Return>", self._on_submit)
         
@@ -50,12 +59,21 @@ class NeoSecretaryApp:
         # 起動時に一度だけDBから付箋を読み込んで画面に表示する
         self.gui.refresh_sticky_notes()
 
+    def _on_proactive_care(self, message: str, pet_state: str = "happy"):
+        """プロアクティブ見守りエンジンからの自律通知ハンドラ"""
+        logger.info("プロアクティブ声掛けをUIに反映します")
+        self.gui.update_message(message)
+        self.gui.set_pet_state(pet_state, duration_ms=5000)
+
     def _on_submit(self, event=None):
         """ユーザーが入力をしてEnterを押した時に呼ばれる"""
         user_text = self.gui.entry_var.get().strip()
         if not user_text:
             return
             
+        # ユーザー操作を記録
+        self.care_engine.record_user_activity()
+        
         # 入力後、すぐに入力欄を空にする（UX向上）
         self.gui.entry_var.set("")
         
@@ -117,6 +135,7 @@ async def async_mainloop(app: NeoSecretaryApp):
     自前で更新ループを回します。
     """
     logger.info("非同期メインループを開始します")
+    loop_tick = 0
     
     while True:
         try:
@@ -128,7 +147,13 @@ async def async_mainloop(app: NeoSecretaryApp):
             # 1. UI側で発生したイベント（クリックや文字入力）を処理・再描画
             app.gui.root.update()
             
-            # 2. ほんの僅かな時間（0.01秒）だけ処理を手放し、LLM推論等のAsyncioタスク群を動かす
+            # 2. 定期的なプロアクティブ見守りチェック（約10秒 = 1000 tick ごと）
+            loop_tick += 1
+            if loop_tick >= 1000:
+                loop_tick = 0
+                app.care_engine.check_and_trigger_care()
+            
+            # 3. ほんの僅かな時間（0.01秒）だけ処理を手放し、LLM推論等のAsyncioタスク群を動かす
             await asyncio.sleep(0.01)
             
         except tk.TclError:

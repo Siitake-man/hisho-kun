@@ -1,0 +1,9 @@
+{
+  "name": "ネオ秘書くん Desk Pet",
+  "short_name": "秘書くん",
+  "start_url": "index.html",
+  "display": "standalone",
+  "background_color": "#2B2D42",
+  "theme_color": "#5B8A72",
+  "orientation": "portrait"
+}
