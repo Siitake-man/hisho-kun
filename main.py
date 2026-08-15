@@ -46,8 +46,8 @@ class NeoSecretaryApp:
 
         # 4. スマホ専用ペット端末 (Desk Pet) ローカル同期サーバーの起動
         from local_sync_server import get_sync_server
-        self.sync_server = get_sync_server()
-        self.sync_server.start()
+        self.sync_server = get_sync_server(gui=self.gui)
+        self.sync_server.start(gui=self.gui)
 
         # 5. UIのイベント紐付け
         # ユーザーが入力欄で「Enterキー」を押したときの処理を登録

@@ -125,8 +125,44 @@
   ],
   "lm_studio": [
     {
-      "id": "local-model",
-      "name": "local-model (稼働中モデル)"
+      "id": "lfm2.5-2.6b",
+      "name": "lfm2.5-2.6b"
+    },
+    {
+      "id": "dkavocadoo/antares-1b",
+      "name": "dkavocadoo/antares-1b"
+    },
+    {
+      "id": "mattjoyce/antares-1b",
+      "name": "mattjoyce/antares-1b"
+    },
+    {
+      "id": "minicpm5-1b-claude-opus-fable5-v2-thinking@f16",
+      "name": "minicpm5-1b-claude-opus-fable5-v2-thinking@f16"
+    },
+    {
+      "id": "minicpm5-1b-claude-opus-fable5-v2-thinking@q8_0",
+      "name": "minicpm5-1b-claude-opus-fable5-v2-thinking@q8_0"
+    },
+    {
+      "id": "minicpm5-1b",
+      "name": "minicpm5-1b"
+    },
+    {
+      "id": "google/gemma-4-12b-qat",
+      "name": "google/gemma-4-12b-qat"
+    },
+    {
+      "id": "lfm2.5-8b-a1b",
+      "name": "lfm2.5-8b-a1b"
+    },
+    {
+      "id": "google/gemma-4-e4b",
+      "name": "google/gemma-4-e4b"
+    },
+    {
+      "id": "text-embedding-nomic-embed-text-v1.5",
+      "name": "text-embedding-nomic-embed-text-v1.5"
     }
   ]
 }

@@ -3,13 +3,15 @@ Neo-Secretary データベースモジュール
 
 SQLiteデータベースの初期化、Pydanticモデル定義、CRUD操作を提供します。
 Manus仕様準拠の recurrence_rule (JSON形式) を含む、型安全なデータベース層です。
+contextlib.contextmanager による接続管理を一元化し、例外時の自動ロールバックとリソースリーク防止を徹底しています。
 """
 
 import logging
 import sqlite3
 import json
+from contextlib import contextmanager
 from datetime import datetime
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Generator
 from pathlib import Path
 
 from pydantic import BaseModel, Field, validator
@@ -20,6 +22,36 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
+
+
+# =============================================================================
+# データベース接続コンテキストマネージャ (Connection Lifecycle Management)
+# =============================================================================
+
+@contextmanager
+def get_db_connection(db_path: str = "neo_secretary.db") -> Generator[sqlite3.Connection, None, None]:
+    """
+    SQLiteデータベース接続を一元管理するコンテキストマネージャ。
+    
+    ブロックを正常に抜けた場合は自動的に commit() を行い、
+    例外が発生した場合は自動的に rollback() を実行して安全に close() します。
+    
+    Args:
+        db_path: データベースファイルのパス
+        
+    Yields:
+        sqlite3.Connection: データベース接続オブジェクト
+    """
+    conn = sqlite3.connect(db_path, timeout=15.0)
+    try:
+        yield conn
+        conn.commit()
+    except Exception as e:
+        conn.rollback()
+        logger.error(f"データベース操作エラー (ロールバック実行): {e}")
+        raise
+    finally:
+        conn.close()
 
 
 # =============================================================================
@@ -176,8 +208,7 @@ def init_db(db_path: str = "neo_secretary.db") -> None:
     Raises:
         sqlite3.Error: データベース操作でエラーが発生した場合
     """
-    try:
-        conn = sqlite3.connect(db_path)
+    with get_db_connection(db_path) as conn:
         cursor = conn.cursor()
         
         # categoriesテーブル
@@ -189,7 +220,7 @@ def init_db(db_path: str = "neo_secretary.db") -> None:
                 icon TEXT NOT NULL
             )
         """)
-        logger.info("categoriesテーブルを作成しました")
+        logger.info("categoriesテーブルを確認/作成しました")
         
         # eventsテーブル
         cursor.execute("""
@@ -206,7 +237,7 @@ def init_db(db_path: str = "neo_secretary.db") -> None:
                 FOREIGN KEY (category_id) REFERENCES categories (id)
             )
         """)
-        logger.info("eventsテーブルを作成しました")
+        logger.info("eventsテーブルを確認/作成しました")
         
         # sticky_notesテーブル
         cursor.execute("""
@@ -221,7 +252,7 @@ def init_db(db_path: str = "neo_secretary.db") -> None:
                 is_minimized INTEGER NOT NULL DEFAULT 0
             )
         """)
-        logger.info("sticky_notesテーブルを作成しました")
+        logger.info("sticky_notesテーブルを確認/作成しました")
 
         # user_insightsテーブル (MentisDB型 長期知見記憶)
         cursor.execute("""
@@ -235,7 +266,7 @@ def init_db(db_path: str = "neo_secretary.db") -> None:
                 updated_at INTEGER NOT NULL
             )
         """)
-        logger.info("user_insightsテーブルを作成しました")
+        logger.info("user_insightsテーブルを確認/作成しました")
 
         # tasksテーブル (TODOタスク)
         cursor.execute("""
@@ -252,16 +283,9 @@ def init_db(db_path: str = "neo_secretary.db") -> None:
                 FOREIGN KEY (parent_id) REFERENCES tasks (id)
             )
         """)
-        logger.info("tasksテーブルを作成しました")
+        logger.info("tasksテーブルを確認/作成しました")
         
-        conn.commit()
-        logger.info(f"データベース初期化完了: {db_path}")
-        
-    except sqlite3.Error as e:
-        logger.error(f"データベース初期化エラー: {e}")
-        raise
-    finally:
-        conn.close()
+    logger.info(f"データベース初期化完了: {db_path}")
 
 
 # =============================================================================
@@ -282,26 +306,16 @@ def create_category(category: Category, db_path: str = "neo_secretary.db") -> in
     Raises:
         sqlite3.Error: データベース操作でエラーが発生した場合
     """
-    try:
-        conn = sqlite3.connect(db_path)
+    with get_db_connection(db_path) as conn:
         cursor = conn.cursor()
-        
         cursor.execute("""
             INSERT INTO categories (name, color, icon)
             VALUES (?, ?, ?)
         """, (category.name, category.color, category.icon))
         
-        conn.commit()
         category_id = cursor.lastrowid
         logger.info(f"カテゴリを作成しました: ID={category_id}, name={category.name}")
-        
         return category_id
-        
-    except sqlite3.Error as e:
-        logger.error(f"カテゴリ作成エラー: {e}")
-        raise
-    finally:
-        conn.close()
 
 
 def get_category(category_id: int, db_path: str = "neo_secretary.db") -> Optional[Category]:
@@ -315,10 +329,8 @@ def get_category(category_id: int, db_path: str = "neo_secretary.db") -> Optiona
     Returns:
         カテゴリ情報（存在しない場合はNone）
     """
-    try:
-        conn = sqlite3.connect(db_path)
+    with get_db_connection(db_path) as conn:
         cursor = conn.cursor()
-        
         cursor.execute("SELECT * FROM categories WHERE id = ?", (category_id,))
         row = cursor.fetchone()
         
@@ -330,12 +342,6 @@ def get_category(category_id: int, db_path: str = "neo_secretary.db") -> Optiona
                 icon=row[3]
             )
         return None
-        
-    except sqlite3.Error as e:
-        logger.error(f"カテゴリ取得エラー: {e}")
-        raise
-    finally:
-        conn.close()
 
 
 def get_all_categories(db_path: str = "neo_secretary.db") -> List[Category]:
@@ -348,10 +354,8 @@ def get_all_categories(db_path: str = "neo_secretary.db") -> List[Category]:
     Returns:
         カテゴリのリスト
     """
-    try:
-        conn = sqlite3.connect(db_path)
+    with get_db_connection(db_path) as conn:
         cursor = conn.cursor()
-        
         cursor.execute("SELECT * FROM categories")
         rows = cursor.fetchall()
         
@@ -362,12 +366,6 @@ def get_all_categories(db_path: str = "neo_secretary.db") -> List[Category]:
         
         logger.info(f"{len(categories)}件のカテゴリを取得しました")
         return categories
-        
-    except sqlite3.Error as e:
-        logger.error(f"カテゴリ一覧取得エラー: {e}")
-        raise
-    finally:
-        conn.close()
 
 
 # =============================================================================
@@ -390,11 +388,8 @@ def create_event(event: Event, db_path: str = "neo_secretary.db") -> int:
     Raises:
         sqlite3.Error: データベース操作でエラーが発生した場合
     """
-    try:
-        conn = sqlite3.connect(db_path)
+    with get_db_connection(db_path) as conn:
         cursor = conn.cursor()
-        
-        # recurrence_ruleをJSON文字列に変換
         recurrence_rule_json = json.dumps(event.recurrence_rule) if event.recurrence_rule else None
         
         cursor.execute("""
@@ -408,17 +403,9 @@ def create_event(event: Event, db_path: str = "neo_secretary.db") -> int:
             event.recurrence_type, recurrence_rule_json, event.category_id, event.google_event_id
         ))
         
-        conn.commit()
         event_id = cursor.lastrowid
         logger.info(f"予定を作成しました: ID={event_id}, title={event.title}")
-        
         return event_id
-        
-    except sqlite3.Error as e:
-        logger.error(f"予定作成エラー: {e}")
-        raise
-    finally:
-        conn.close()
 
 
 def get_event(event_id: int, db_path: str = "neo_secretary.db") -> Optional[Event]:
@@ -434,17 +421,13 @@ def get_event(event_id: int, db_path: str = "neo_secretary.db") -> Optional[Even
     Returns:
         予定情報（存在しない場合はNone）
     """
-    try:
-        conn = sqlite3.connect(db_path)
+    with get_db_connection(db_path) as conn:
         cursor = conn.cursor()
-        
         cursor.execute("SELECT * FROM events WHERE id = ?", (event_id,))
         row = cursor.fetchone()
         
         if row:
-            # recurrence_ruleをJSONから辞書に変換
             recurrence_rule = json.loads(row[6]) if row[6] else None
-            
             return Event(
                 id=row[0],
                 title=row[1],
@@ -457,12 +440,6 @@ def get_event(event_id: int, db_path: str = "neo_secretary.db") -> Optional[Even
                 google_event_id=row[8]
             )
         return None
-        
-    except sqlite3.Error as e:
-        logger.error(f"予定取得エラー: {e}")
-        raise
-    finally:
-        conn.close()
 
 
 def get_upcoming_events(days: int = 7, db_path: str = "neo_secretary.db") -> List[Event]:
@@ -476,11 +453,8 @@ def get_upcoming_events(days: int = 7, db_path: str = "neo_secretary.db") -> Lis
     Returns:
         予定のリスト（開始時刻の昇順）
     """
-    try:
-        conn = sqlite3.connect(db_path)
+    with get_db_connection(db_path) as conn:
         cursor = conn.cursor()
-        
-        # 現在時刻から指定日数後までのUnix Timestamp（ミリ秒）を計算
         now_ms = int(datetime.now().timestamp() * 1000)
         future_ms = now_ms + (days * 24 * 60 * 60 * 1000)
         
@@ -491,7 +465,6 @@ def get_upcoming_events(days: int = 7, db_path: str = "neo_secretary.db") -> Lis
         """, (now_ms, future_ms))
         
         rows = cursor.fetchall()
-        
         events = []
         for row in rows:
             recurrence_rule = json.loads(row[6]) if row[6] else None
@@ -507,14 +480,8 @@ def get_upcoming_events(days: int = 7, db_path: str = "neo_secretary.db") -> Lis
                 google_event_id=row[8]
             ))
         
-        logger.info(f"今後{days}日間の予定を{len(events)}件取得しました")
+        logger.debug(f"今後{days}日間の予定を{len(events)}件取得しました")
         return events
-        
-    except sqlite3.Error as e:
-        logger.error(f"予定一覧取得エラー: {e}")
-        raise
-    finally:
-        conn.close()
 
 
 # =============================================================================
@@ -531,14 +498,9 @@ def create_sticky_note(note: StickyNote, db_path: str = "neo_secretary.db") -> i
     
     Returns:
         作成された付箋のID
-    
-    Raises:
-        sqlite3.Error: データベース操作でエラーが発生した場合
     """
-    try:
-        conn = sqlite3.connect(db_path)
+    with get_db_connection(db_path) as conn:
         cursor = conn.cursor()
-        
         cursor.execute("""
             INSERT INTO sticky_notes (
                 content, color, position_x, position_y,
@@ -550,17 +512,9 @@ def create_sticky_note(note: StickyNote, db_path: str = "neo_secretary.db") -> i
             note.width, note.height, int(note.is_minimized)
         ))
         
-        conn.commit()
         note_id = cursor.lastrowid
         logger.info(f"付箋を作成しました: ID={note_id}")
-        
         return note_id
-        
-    except sqlite3.Error as e:
-        logger.error(f"付箋作成エラー: {e}")
-        raise
-    finally:
-        conn.close()
 
 
 def get_all_sticky_notes(db_path: str = "neo_secretary.db") -> List[StickyNote]:
@@ -573,10 +527,8 @@ def get_all_sticky_notes(db_path: str = "neo_secretary.db") -> List[StickyNote]:
     Returns:
         付箋のリスト
     """
-    try:
-        conn = sqlite3.connect(db_path)
+    with get_db_connection(db_path) as conn:
         cursor = conn.cursor()
-        
         cursor.execute("SELECT * FROM sticky_notes")
         rows = cursor.fetchall()
         
@@ -596,12 +548,6 @@ def get_all_sticky_notes(db_path: str = "neo_secretary.db") -> List[StickyNote]:
         
         logger.info(f"{len(notes)}件の付箋を取得しました")
         return notes
-        
-    except sqlite3.Error as e:
-        logger.error(f"付箋一覧取得エラー: {e}")
-        raise
-    finally:
-        conn.close()
 
 
 def update_sticky_note(note: StickyNote, db_path: str = "neo_secretary.db") -> bool:
@@ -611,10 +557,8 @@ def update_sticky_note(note: StickyNote, db_path: str = "neo_secretary.db") -> b
     if note.id is None:
         raise ValueError("更新には付箋のIDが必要です")
         
-    try:
-        conn = sqlite3.connect(db_path)
+    with get_db_connection(db_path) as conn:
         cursor = conn.cursor()
-        
         cursor.execute("""
             UPDATE sticky_notes
             SET content = ?, color = ?, position_x = ?, position_y = ?,
@@ -625,46 +569,27 @@ def update_sticky_note(note: StickyNote, db_path: str = "neo_secretary.db") -> b
             note.width, note.height, int(note.is_minimized), note.id
         ))
         
-        conn.commit()
         success = cursor.rowcount > 0
         if success:
             logger.info(f"付箋を更新しました: ID={note.id}")
         else:
             logger.warning(f"更新対象の付箋が見つかりません: ID={note.id}")
-            
         return success
-        
-    except sqlite3.Error as e:
-        logger.error(f"付箋更新エラー: {e}")
-        raise
-    finally:
-        conn.close()
 
 
 def delete_sticky_note(note_id: int, db_path: str = "neo_secretary.db") -> bool:
     """
     指定したIDの付箋をデータベースから完全に削除します。
     """
-    try:
-        conn = sqlite3.connect(db_path)
+    with get_db_connection(db_path) as conn:
         cursor = conn.cursor()
-        
         cursor.execute("DELETE FROM sticky_notes WHERE id = ?", (note_id,))
-        conn.commit()
-        
         success = cursor.rowcount > 0
         if success:
             logger.info(f"付箋を削除しました: ID={note_id}")
         else:
             logger.warning(f"削除対象の付箋が見つかりません: ID={note_id}")
-            
         return success
-        
-    except sqlite3.Error as e:
-        logger.error(f"付箋削除エラー: {e}")
-        raise
-    finally:
-        conn.close()
 
 
 # =============================================================================
@@ -682,10 +607,8 @@ def create_user_insight(insight: UserInsight, db_path: str = "neo_secretary.db")
     Returns:
         作成された知見のID
     """
-    try:
-        conn = sqlite3.connect(db_path)
+    with get_db_connection(db_path) as conn:
         cursor = conn.cursor()
-        
         cursor.execute("""
             INSERT INTO user_insights (category, content, context_tags, importance, created_at, updated_at)
             VALUES (?, ?, ?, ?, ?, ?)
@@ -698,15 +621,9 @@ def create_user_insight(insight: UserInsight, db_path: str = "neo_secretary.db")
             insight.updated_at
         ))
         
-        conn.commit()
         insight_id = cursor.lastrowid
         logger.info(f"ユーザー知見を保存しました: ID={insight_id}, [{insight.category}] {insight.content[:30]}...")
         return insight_id
-    except sqlite3.Error as e:
-        logger.error(f"ユーザー知見保存エラー: {e}")
-        raise
-    finally:
-        conn.close()
 
 
 def get_user_insights(
@@ -727,10 +644,8 @@ def get_user_insights(
     Returns:
         UserInsightオブジェクトのリスト
     """
-    try:
-        conn = sqlite3.connect(db_path)
+    with get_db_connection(db_path) as conn:
         cursor = conn.cursor()
-        
         if category:
             cursor.execute("""
                 SELECT id, category, content, context_tags, importance, created_at, updated_at
@@ -761,11 +676,6 @@ def get_user_insights(
                 updated_at=r[6]
             ))
         return insights
-    except sqlite3.Error as e:
-        logger.error(f"ユーザー知見取得エラー: {e}")
-        return []
-    finally:
-        conn.close()
 
 
 def delete_user_insight(insight_id: int, db_path: str = "neo_secretary.db") -> bool:
@@ -779,18 +689,13 @@ def delete_user_insight(insight_id: int, db_path: str = "neo_secretary.db") -> b
     Returns:
         削除成功時はTrue
     """
-    try:
-        conn = sqlite3.connect(db_path)
+    with get_db_connection(db_path) as conn:
         cursor = conn.cursor()
         cursor.execute("DELETE FROM user_insights WHERE id = ?", (insight_id,))
-        conn.commit()
-        logger.info(f"ユーザー知見を削除しました: ID={insight_id}")
-        return True
-    except sqlite3.Error as e:
-        logger.error(f"ユーザー知見削除エラー: {e}")
-        return False
-    finally:
-        conn.close()
+        success = cursor.rowcount > 0
+        if success:
+            logger.info(f"ユーザー知見を削除しました: ID={insight_id}")
+        return success
 
 
 # =============================================================================
@@ -808,10 +713,8 @@ def create_task(task: Task, db_path: str = "neo_secretary.db") -> int:
     Returns:
         作成されたタスクのID
     """
-    try:
-        conn = sqlite3.connect(db_path)
+    with get_db_connection(db_path) as conn:
         cursor = conn.cursor()
-        
         cursor.execute("""
             INSERT INTO tasks (title, description, due_date, priority, status, parent_id, created_at, updated_at)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
@@ -826,15 +729,9 @@ def create_task(task: Task, db_path: str = "neo_secretary.db") -> int:
             task.updated_at
         ))
         
-        conn.commit()
         task_id = cursor.lastrowid
         logger.info(f"タスクを作成しました: ID={task_id}, title={task.title}")
         return task_id
-    except sqlite3.Error as e:
-        logger.error(f"タスク作成エラー: {e}")
-        raise
-    finally:
-        conn.close()
 
 
 def get_tasks(
@@ -855,10 +752,8 @@ def get_tasks(
     Returns:
         Taskオブジェクトのリスト
     """
-    try:
-        conn = sqlite3.connect(db_path)
+    with get_db_connection(db_path) as conn:
         cursor = conn.cursor()
-        
         if status:
             cursor.execute("""
                 SELECT id, title, description, due_date, priority, status, parent_id, created_at, updated_at
@@ -891,11 +786,6 @@ def get_tasks(
                 updated_at=r[8]
             ))
         return tasks
-    except sqlite3.Error as e:
-        logger.error(f"タスク取得エラー: {e}")
-        return []
-    finally:
-        conn.close()
 
 
 def complete_task(task_id: int, db_path: str = "neo_secretary.db") -> bool:
@@ -909,37 +799,27 @@ def complete_task(task_id: int, db_path: str = "neo_secretary.db") -> bool:
     Returns:
         更新成功時はTrue
     """
-    try:
-        conn = sqlite3.connect(db_path)
+    with get_db_connection(db_path) as conn:
         cursor = conn.cursor()
         now = int(datetime.now().timestamp() * 1000)
         cursor.execute("UPDATE tasks SET status = 'completed', updated_at = ? WHERE id = ?", (now, task_id))
-        conn.commit()
-        logger.info(f"タスクを完了にしました: ID={task_id}")
-        return cursor.rowcount > 0
-    except sqlite3.Error as e:
-        logger.error(f"タスク完了更新エラー: {e}")
-        return False
-    finally:
-        conn.close()
+        success = cursor.rowcount > 0
+        if success:
+            logger.info(f"タスクを完了にしました: ID={task_id}")
+        return success
 
 
 def delete_task(task_id: int, db_path: str = "neo_secretary.db") -> bool:
     """
     タスクを削除します。
     """
-    try:
-        conn = sqlite3.connect(db_path)
+    with get_db_connection(db_path) as conn:
         cursor = conn.cursor()
         cursor.execute("DELETE FROM tasks WHERE id = ?", (task_id,))
-        conn.commit()
-        logger.info(f"タスクを削除しました: ID={task_id}")
-        return cursor.rowcount > 0
-    except sqlite3.Error as e:
-        logger.error(f"タスク削除エラー: {e}")
-        return False
-    finally:
-        conn.close()
+        success = cursor.rowcount > 0
+        if success:
+            logger.info(f"タスクを削除しました: ID={task_id}")
+        return success
 
 
 # =============================================================================
@@ -947,24 +827,21 @@ def delete_task(task_id: int, db_path: str = "neo_secretary.db") -> bool:
 # =============================================================================
 
 if __name__ == "__main__":
-    # データベース初期化
     print("=== データベース初期化 ===")
     init_db()
     
-    # サンプルカテゴリ作成
     print("\n=== カテゴリ作成 ===")
     work_category = Category(name="仕事", color="#A67B5B", icon="work")
     work_id = create_category(work_category)
     print(f"作成されたカテゴリID: {work_id}")
     
-    # サンプル予定作成
     print("\n=== 予定作成 ===")
     now = int(datetime.now().timestamp() * 1000)
     event = Event(
         title="プロジェクト会議",
         description="Neo-Secretaryの設計レビュー",
         start_time=now,
-        end_time=now + (60 * 60 * 1000),  # 1時間後
+        end_time=now + (60 * 60 * 1000),
         recurrence_type="weekly",
         recurrence_rule={"days": ["月", "水", "金"], "time": "10:00"},
         category_id=work_id
@@ -972,21 +849,9 @@ if __name__ == "__main__":
     event_id = create_event(event)
     print(f"作成された予定ID: {event_id}")
     
-    # 予定取得
     print("\n=== 予定取得 ===")
     retrieved_event = get_event(event_id)
-    print(f"取得した予定: {retrieved_event.title}")
-    print(f"繰り返しルール: {retrieved_event.recurrence_rule}")
-    
-    # 付箋作成
-    print("\n=== 付箋作成 ===")
-    note = StickyNote(
-        content="データベース実装完了！",
-        color="#FFEB3B",
-        position_x=200,
-        position_y=200
-    )
-    note_id = create_sticky_note(note)
-    print(f"作成された付箋ID: {note_id}")
+    if retrieved_event:
+        print(f"取得した予定: {retrieved_event.title}")
     
     print("\n=== すべての操作が完了しました ===")

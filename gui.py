@@ -17,6 +17,223 @@ logger = logging.getLogger(__name__)
 ctk.set_appearance_mode("light")  # レトロモダンなクリーム色をベースにするため
 ctk.set_default_color_theme("green") # デフォルトテーマ（後でカスタムカラーに変更可能）
 
+class QRCodeConnectionDialog(ctk.CTkToplevel):
+    """
+    スマホ専用Desk Pet ＆ 承認コクピットへワンタップ接続するための
+    QRコード生成 ＆ 社内ユーザー向け接続ガイドダイアログ。
+    """
+    def __init__(self, parent_gui, *args, **kwargs):
+        super().__init__(parent_gui.root, *args, **kwargs)
+        self.parent_gui = parent_gui
+        self.title("📱 スマホDesk Pet ＆ 承認コクピット接続")
+        self.geometry("480x620")
+        self.resizable(False, False)
+        
+        self.bg_color = "#F5F5DC"
+        self.primary_color = "#A67B5B"
+        self.text_color = "#4A3B32"
+        self.configure(fg_color=self.bg_color)
+        
+        self.font_title = ("DotGothic16", 14, "bold") if "DotGothic16" in tk.font.families() else ("Meiryo UI", 12, "bold")
+        self.font_body = ("DotGothic16", 11) if "DotGothic16" in tk.font.families() else ("Meiryo UI", 10)
+        self.font_small = ("Meiryo UI", 9)
+        self.font_mono = ("Consolas", 10)
+        
+        self.qr_image_tk = None
+        self._build_ui()
+
+    def _get_local_ips(self) -> list:
+        """PCの利用可能なローカルIPアドレス一覧を取得"""
+        import socket
+        ips = []
+        try:
+            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            s.connect(("8.8.8.8", 80))
+            main_ip = s.getsockname()[0]
+            s.close()
+            ips.append(main_ip)
+        except Exception:
+            pass
+            
+        try:
+            hostname = socket.gethostname()
+            for ip in socket.gethostbyname_ex(hostname)[2]:
+                if ip not in ips and not ip.startswith("127."):
+                    ips.append(ip)
+        except Exception:
+            pass
+            
+        if not ips:
+            ips.append("127.0.0.1")
+        return ips
+
+    def _build_ui(self):
+        pad = 12
+        # ヘッダー
+        ctk.CTkLabel(self, text="📱 スマホを机上のペット端末にする", font=self.font_title, text_color=self.primary_color).pack(pady=(12, 4))
+        ctk.CTkLabel(self, text="カメラでQRコードをかざすだけで、スマホが承認コクピットになります！", font=self.font_small, text_color="#7A6B62").pack()
+        
+        # IPセレクタ
+        self.ips = self._get_local_ips()
+        self.selected_ip_var = tk.StringVar(value=self.ips[0])
+        
+        ip_frame = ctk.CTkFrame(self, fg_color="transparent")
+        ip_frame.pack(fill="x", padx=pad, pady=(8, 4))
+        ctk.CTkLabel(ip_frame, text="接続IP:", font=self.font_body, text_color=self.text_color).pack(side="left", padx=(0, 6))
+        
+        ip_menu = ctk.CTkOptionMenu(
+            ip_frame,
+            values=self.ips,
+            variable=self.selected_ip_var,
+            command=self._on_ip_change,
+            fg_color=self.primary_color,
+            button_color="#8B634A",
+            height=28
+        )
+        ip_menu.pack(side="left", fill="x", expand=True)
+
+        # QRコード表示フレーム
+        self.qr_frame = ctk.CTkFrame(self, fg_color="#FFFFFF", border_color="#A67B5B", border_width=2, corner_radius=10)
+        self.qr_frame.pack(pady=8, padx=pad)
+        
+        self.qr_label = tk.Label(self.qr_frame, bg="#FFFFFF")
+        self.qr_label.pack(padx=12, pady=12)
+
+        # URLテキスト ＆ コピー
+        url_box = ctk.CTkFrame(self, fg_color="transparent")
+        url_box.pack(fill="x", padx=pad, pady=2)
+        
+        self.url_var = tk.StringVar(value=f"http://{self.ips[0]}:8765")
+        self.url_entry = ctk.CTkEntry(url_box, textvariable=self.url_var, font=self.font_mono, height=28, state="readonly")
+        self.url_entry.pack(side="left", fill="x", expand=True, padx=(0, 6))
+        
+        # 📶 リアルタイム接続ステータス ＆ 呼び出しテスト ＆ PCペット復帰
+        status_box = ctk.CTkFrame(self, fg_color="#FFFFFF", border_color="#A67B5B", border_width=1.5, corner_radius=8)
+        status_box.pack(fill="x", padx=pad, pady=4)
+        
+        self.link_status_label = ctk.CTkLabel(
+            status_box,
+            text="🔴 スマホ未接続（アクセス待機中...）",
+            font=("Meiryo UI", 10, "bold"),
+            text_color="#C62828"
+        )
+        self.link_status_label.pack(side="left", padx=8, pady=6)
+        
+        btn_frame = ctk.CTkFrame(status_box, fg_color="transparent")
+        btn_frame.pack(side="right", padx=6, pady=4)
+        
+        self.btn_show_pc = ctk.CTkButton(
+            btn_frame,
+            text="🖥️ PCペット表示",
+            width=90,
+            height=26,
+            font=self.font_small,
+            fg_color="#5B8A72",
+            command=self.parent_gui.show_pc_pet
+        )
+        self.btn_show_pc.pack(side="left", padx=(0, 4))
+        
+        self.btn_buzz = ctk.CTkButton(
+            btn_frame,
+            text="📲 呼出テスト",
+            width=80,
+            height=26,
+            font=self.font_small,
+            fg_color="#A67B5B",
+            state="disabled",
+            command=self._send_buzz_test
+        )
+        self.btn_buzz.pack(side="left")
+
+        # 🔰 社内ユーザー向け接続ガイド
+        guide_box = ctk.CTkFrame(self, fg_color="#EFEBE9", border_color="#D7CCC8", border_width=1, corner_radius=8)
+        guide_box.pack(fill="both", expand=True, padx=pad, pady=(4, 10))
+        
+        ctk.CTkLabel(guide_box, text="🔰 初めての接続ガイド（社内・外出先）", font=("Meiryo UI", 10, "bold"), text_color=self.primary_color).pack(anchor="w", padx=8, pady=(6, 2))
+        
+        guide_text = (
+            "【Wi-Fi接続（社内・自宅）】\n"
+            "  PCとスマホを同じWi-Fiに繋ぎ、上のQRコードをカメラで読み取るだけ！\n\n"
+            "【Bluetooth接続（外出先・Wi-Fi不要）】★オススメ\n"
+            "  1. PCとスマホをBluetoothで「ペアリング」します。\n"
+            "  2. スマホのBluetooth設定で「インターネット共有(PAN)」をONにします。\n"
+            "  3. QRコードを読み取るだけで、オフラインで直接通信が完結します！"
+        )
+        ctk.CTkLabel(guide_box, text=guide_text, font=self.font_small, text_color="#4E342E", justify="left", wraplength=430).pack(anchor="w", padx=8, pady=(0, 6))
+        
+        self._render_qr()
+        self._poll_link_status()
+
+    def _render_qr(self):
+        """選択中のIPアドレスからQRコードを生成して描画"""
+        url = self.url_var.get()
+        try:
+            import qrcode
+            qr = qrcode.QRCode(
+                version=1,
+                error_correction=qrcode.constants.ERROR_CORRECT_L,
+                box_size=5,
+                border=1,
+            )
+            qr.add_data(url)
+            qr.make(fit=True)
+            pil_img = qr.make_image(fill_color="#4A3B32", back_color="#FFFFFF").convert("RGB")
+            self.qr_image_tk = ImageTk.PhotoImage(pil_img)
+            self.qr_label.configure(image=self.qr_image_tk, text="")
+        except ImportError:
+            # qrcodeライブラリ未インストール時のフォールバック
+            self.qr_label.configure(
+                text=f"【URL】\n{url}\n\n（スマホのブラウザで上記を開いてください）",
+                font=("Meiryo UI", 10, "bold"),
+                fg="#4A3B32"
+            )
+
+    def _on_ip_change(self, selected_ip):
+        self.url_var.set(f"http://{selected_ip}:8765")
+        self._render_qr()
+
+    def _copy_url(self):
+        self.clipboard_clear()
+        self.clipboard_append(self.url_var.get())
+
+    def _send_buzz_test(self):
+        """PCからスマホへ呼び出し信号を送信"""
+        import urllib.request
+        try:
+            req = urllib.request.Request("http://localhost:8765/api/test_buzz", data=b"{}", headers={"Content-Type": "application/json"})
+            urllib.request.urlopen(req, timeout=1.0)
+            self.link_status_label.configure(text="📲 スマホへ呼び出し信号を送信しました！")
+        except Exception as e:
+            logger.error(f"Buzzテストエラー: {e}")
+
+    def _poll_link_status(self):
+        """ローカル同期サーバーのリンク状態を定期確認"""
+        if not self.winfo_exists():
+            return
+            
+        try:
+            from local_sync_server import get_link_monitor
+            status = get_link_monitor().get_status()
+            if status["connected"]:
+                dev = status["device_name"]
+                sec = status["seconds_ago"]
+                self.link_status_label.configure(
+                    text=f"🟢 接続中: {dev} (最終通信: {sec}秒前)",
+                    text_color="#2E7D32"
+                )
+                self.btn_buzz.configure(state="normal")
+            else:
+                self.link_status_label.configure(
+                    text="🔴 スマホ未接続（アクセス待機中...）",
+                    text_color="#C62828"
+                )
+                self.btn_buzz.configure(state="disabled")
+        except Exception as e:
+            pass
+            
+        self.after(1500, self._poll_link_status)
+
+
 class AddMCPServerDialog(ctk.CTkToplevel):
     """
     ユーザーが任意のMCPサーバー（Google Calendar, Notion, Slack等）を追加するためのダイアログ。
@@ -944,22 +1161,33 @@ class NeoSecretaryGUI:
         self.input_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 5))
         
         # -------------------------------------------------------------
-        # キャラクター画像部分 (Pixel Art Mascot Module)
+        # キャラクター画像部分 (Pixel Art Mascot Module 2.0)
         # -------------------------------------------------------------
         self.char_canvas = tk.Canvas(
             self.main_container, 
             width=140, 
             height=140, 
             bg=transparent_color,
-            highlightthickness=0
+            highlightthickness=0,
+            cursor="hand2"
         )
         self.char_canvas.pack(side=tk.BOTTOM, pady=(0, 5))
         
         # ドット絵アセットのロードとアニメーション初期化
-        self.pet_state = "idle"  # 'idle', 'thinking', 'happy'
+        self.pet_state = "idle"  # 'idle', 'thinking', 'happy', 'focus', 'sleepy', 'alarm_ask', 'pet_love', 'cheer'
         self.anim_tick = 0
         self.mascot_images: Dict[str, ImageTk.PhotoImage] = {}
         self.mascot_img_item = None
+        
+        # 視線追従用の追跡変数
+        self.last_mouse_dir = "center"
+        self.is_hovered = False
+        
+        # ポモドーロタイマー管理変数
+        self.pomodoro_active = False
+        self.pomodoro_remaining_seconds = 0
+        self.pomodoro_is_break = False
+        
         self._load_mascot_assets()
         self._render_mascot("idle_1")
         self._schedule_animation()
@@ -967,10 +1195,20 @@ class NeoSecretaryGUI:
     def _load_mascot_assets(self):
         """ドット絵スプライト画像をロード（存在しない場合は自動生成）"""
         assets_dir = Path(__file__).parent / "assets"
-        required = ["idle_1.png", "idle_2.png", "thinking_1.png", "thinking_2.png", "happy.png"]
+        all_sprites = [
+            "idle_1", "idle_2",
+            "look_left", "look_right", "look_up", "look_down",
+            "thinking_1", "thinking_2",
+            "happy",
+            "focus_1", "focus_2",
+            "sleepy_1", "sleepy_2",
+            "alarm_ask",
+            "pet_love",
+            "cheer"
+        ]
         
         # 欠損ファイルがあれば自動生成
-        missing = [f for f in required if not (assets_dir / f).exists()]
+        missing = [f"{s}.png" for s in all_sprites if not (assets_dir / f"{s}.png").exists()]
         if missing:
             try:
                 import generate_mascot_assets
@@ -978,8 +1216,8 @@ class NeoSecretaryGUI:
             except Exception as e:
                 logger.error(f"マスコットアセット自動生成エラー: {e}")
 
-        # 画像の読み込み
-        for name in ["idle_1", "idle_2", "thinking_1", "thinking_2", "happy"]:
+        # 全画像の読み込み
+        for name in all_sprites:
             p = assets_dir / f"{name}.png"
             if p.exists():
                 try:
@@ -997,43 +1235,136 @@ class NeoSecretaryGUI:
             else:
                 self.char_canvas.itemconfig(self.mascot_img_item, image=img)
         else:
-            # フォールバック描画（画像が無い場合）
+            # フォールバック描画
             self.char_canvas.delete("fallback")
             self.char_canvas.create_oval(20, 20, 120, 120, fill="#A67B5B", outline="#4A3B32", width=3, tags="fallback")
             self.char_canvas.create_text(70, 70, text="秘書くん", fill="#FFFFFF", font=("Meiryo UI", 12, "bold"), tags="fallback")
 
     def _schedule_animation(self):
-        """アニメーションの定期実行ループ"""
+        """アニメーションの定期実行ループ (MiniCPM級 豊かな感情・視線・ポモドーロ)"""
         self.anim_tick += 1
+        delay = 500
         
+        # 1. ポモドーロタイマーカウント処理
+        if self.pomodoro_active and self.pomodoro_remaining_seconds > 0:
+            if self.anim_tick % 2 == 0:  # 約1秒ごと (500ms * 2)
+                self.pomodoro_remaining_seconds -= 1
+                mins = self.pomodoro_remaining_seconds // 60
+                secs = self.pomodoro_remaining_seconds % 60
+                mode_label = "☕ 休憩" if self.pomodoro_is_break else "🍅 集中"
+                self.header_title.configure(text=f"🤖 ネオ秘書くん [{mode_label} {mins:02d}:{secs:02d}]")
+                
+                if self.pomodoro_remaining_seconds <= 0:
+                    self._on_pomodoro_completed()
+        
+        # 2. 状態に応じたスプライトレンダリング
         if self.pet_state == "idle":
-            # 待機中: 普段は idle_1、6フレームに1回だけ一瞬瞬き（idle_2）
-            if self.anim_tick % 7 == 0:
+            if self.is_hovered:
+                # カーソルが乗っている時は嬉しそうに目を細める
+                self._render_mascot("happy")
+                delay = 300
+            elif self.anim_tick % 8 == 0:
+                # 8フレームに1回瞬き
                 self._render_mascot("idle_2")
+                delay = 300
             else:
-                self._render_mascot("idle_1")
-            delay = 500
+                # マウス位置に応じた視線追従
+                if self.last_mouse_dir == "left":
+                    self._render_mascot("look_left")
+                elif self.last_mouse_dir == "right":
+                    self._render_mascot("look_right")
+                elif self.last_mouse_dir == "up":
+                    self._render_mascot("look_up")
+                elif self.last_mouse_dir == "down":
+                    self._render_mascot("look_down")
+                else:
+                    self._render_mascot("idle_1")
+                delay = 400
 
         elif self.pet_state == "thinking":
-            # 思考中: アンテナを点滅（thinking_1 ⇄ thinking_2）
+            # 思考中: アンテナを点滅
             frame = "thinking_1" if (self.anim_tick % 2 == 0) else "thinking_2"
+            self._render_mascot(frame)
+            delay = 300
+
+        elif self.pet_state == "focus":
+            # 集中作業中: カタカタキーボード入力
+            frame = "focus_1" if (self.anim_tick % 2 == 0) else "focus_2"
             self._render_mascot(frame)
             delay = 350
 
-        elif self.pet_state == "happy":
-            # 笑顔: happy フレーム
-            self._render_mascot("happy")
+        elif self.pet_state == "sleepy":
+            # 居眠り: Zzz…
+            frame = "sleepy_1" if (self.anim_tick % 2 == 0) else "sleepy_2"
+            self._render_mascot(frame)
+            delay = 600
+
+        elif self.pet_state == "alarm_ask":
+            # 承認要請アラート: 挙手ポーズ
+            self._render_mascot("alarm_ask")
+            delay = 400
+
+        elif self.pet_state == "pet_love":
+            # なでなで触感: ハートマーク
+            self._render_mascot("pet_love")
             delay = 500
+
+        elif self.pet_state in ("happy", "cheer"):
+            self._render_mascot(self.pet_state)
+            delay = 400
+
+        # 📱 スマホ接続時のPCペット自動最小化チェック (withdraw で完全非表示)
+        if getattr(self, 'auto_minimize_on_link', False):
+            try:
+                from local_sync_server import get_link_monitor
+                is_linked = get_link_monitor().is_connected()
+                if is_linked and not getattr(self, '_was_linked_minimized', False):
+                    self._was_linked_minimized = True
+                    logger.info("📱 スマホ接続を検知: PC画面占有ゼロ化のためPCペットを非表示(withdraw)にします")
+                    self.root.withdraw()
+                elif not is_linked and getattr(self, '_was_linked_minimized', False):
+                    self._was_linked_minimized = False
+                    logger.info("📱 スマホ切断を検知: PCペットを再表示(deiconify)します")
+                    self.root.deiconify()
+            except Exception:
+                pass
 
         # 次のフレームを予約
         self.root.after(delay, self._schedule_animation)
+
+    def toggle_auto_minimize(self):
+        """スマホ接続時の自動最小化設定をトグル"""
+        self.auto_minimize_on_link = not getattr(self, 'auto_minimize_on_link', False)
+        status_str = "有効" if self.auto_minimize_on_link else "無効"
+        
+        if self.auto_minimize_on_link:
+            try:
+                from local_sync_server import get_link_monitor
+                if get_link_monitor().is_connected():
+                    self._was_linked_minimized = True
+                    self.root.withdraw()
+                    return
+            except Exception:
+                pass
+        else:
+            self._was_linked_minimized = False
+            self.root.deiconify()
+            
+        self.update_message(f"📱 スマホ接続時のPCペット自動最小化を【{status_str}】にしました！")
+
+    def show_pc_pet(self):
+        """非表示になっているPCペットを画面に再表示"""
+        self._was_linked_minimized = False
+        self.root.deiconify()
+        self.root.lift()
+        self.update_message("ボス！PC画面に戻ってきました！✨")
 
     def set_pet_state(self, state: str, duration_ms: int = 0):
         """
         ペットの状態を変更します。
         
         Args:
-            state: 'idle', 'thinking', 'happy'
+            state: 'idle', 'thinking', 'happy', 'focus', 'sleepy', 'alarm_ask', 'pet_love', 'cheer'
             duration_ms: 指定ミリ秒後に自動で 'idle' に戻す（0なら維持）
         """
         self.pet_state = state
@@ -1041,31 +1372,130 @@ class NeoSecretaryGUI:
         
         if state == "thinking":
             self._render_mascot("thinking_1")
+        elif state == "focus":
+            self._render_mascot("focus_1")
         elif state == "happy":
             self._render_mascot("happy")
+        elif state == "pet_love":
+            self._render_mascot("pet_love")
+        elif state == "alarm_ask":
+            self._render_mascot("alarm_ask")
+        elif state == "sleepy":
+            self._render_mascot("sleepy_1")
+        elif state == "cheer":
+            self._render_mascot("cheer")
         else:
             self._render_mascot("idle_1")
 
         if duration_ms > 0:
-            self.root.after(duration_ms, lambda: self.set_pet_state("idle"))
+            self.root.after(duration_ms, lambda: self.set_pet_state("idle" if not self.pomodoro_active else "focus"))
 
+    # =========================================================================
+    # 🍅 ポモドーロタイマー機能
+    # =========================================================================
+    def start_pomodoro(self, work_minutes: int = 25):
+        """ポモドーロ集中タイマーを開始"""
+        self.pomodoro_active = True
+        self.pomodoro_is_break = False
+        self.pomodoro_remaining_seconds = work_minutes * 60
+        self.set_pet_state("focus")
+        self.update_message(f"🍅 ポモドーロ集中モードを開始しました！（{work_minutes}分間）\nボス、一緒に集中してやり切りましょう！🔥")
+
+    def _on_pomodoro_completed(self):
+        """ポモドーロまたは休憩の完了時処理"""
+        if not self.pomodoro_is_break:
+            # 集中作業終了 ➔ 5分休憩へ
+            self.pomodoro_is_break = True
+            self.pomodoro_remaining_seconds = 5 * 60
+            self.set_pet_state("cheer", duration_ms=4000)
+            self.update_message("🎉 25分間の集中作業、大変お疲れさまでした！✨\n5分間のリフレッシュ休憩に入りましょう🍵 伸びをしてくださいね！")
+        else:
+            # 休憩終了
+            self.pomodoro_active = False
+            self.header_title.configure(text="🤖 ネオ秘書くん")
+            self.set_pet_state("happy", duration_ms=3000)
+            self.update_message("⏰ 休憩時間が終了しました！\n次の作業に向けて準備ができたらお声がけください！💪")
+
+    def stop_pomodoro(self):
+        """ポモドーロタイマーを停止"""
+        self.pomodoro_active = False
+        self.pomodoro_remaining_seconds = 0
+        self.header_title.configure(text="🤖 ネオ秘書くん")
+        self.set_pet_state("idle")
+        self.update_message("ポモドーロタイマーを終了しました。")
+
+    # =========================================================================
+    # 🖱️ マウスイベント ＆ 触感インタラクション
+    # =========================================================================
     def _bind_events(self):
-        """マウスイベント（ドラッグ移動や右クリックメニュー）のバインド"""
+        """マウスイベント（ドラッグ移動、視線追従、なでなで、右クリックメニュー）のバインド"""
         
-        # ウィンドウのドラッグ移動イベント（タイトルバーを消したため自前で実装）
-        self.char_canvas.bind("<ButtonPress-1>", self._start_move)
+        # ドラッグ移動
+        self.char_canvas.bind("<ButtonPress-1>", self._on_pet_click)
         self.char_canvas.bind("<B1-Motion>", self._do_move)
+        self.char_canvas.bind("<ButtonRelease-1>", self._on_pet_release)
         
-        # 右クリック（WindowsではButton-3, MacではButton-2）をキャンバス全体および全アイテムにバインド
+        # ホバー触感 ＆ 視線追跡
+        self.char_canvas.bind("<Enter>", self._on_mouse_enter)
+        self.char_canvas.bind("<Leave>", self._on_mouse_leave)
+        self.char_canvas.bind("<Motion>", self._on_mouse_motion)
+        self.root.bind("<Motion>", self._on_window_motion)
+        
+        # 右クリック
         self.char_canvas.bind("<Button-3>", self._show_context_menu)
         self.char_canvas.tag_bind("all", "<Button-3>", self._show_context_menu)
         
-        # カレンダーウィンドウおよび設定ウィンドウのインスタンスを保持する変数
+        # サブウィンドウ管理
         self.calendar_window = None
         self.settings_window = None
-        
-        # 付箋ウィンドウを管理する辞書 (note_id -> StickyNoteWindow)
         self.sticky_windows = {}
+
+    def _on_mouse_enter(self, event):
+        """カーソルがペットに乗った時の触感反応"""
+        self.is_hovered = True
+
+    def _on_mouse_leave(self, event):
+        """カーソルが離れた時の反応"""
+        self.is_hovered = False
+        self.last_mouse_dir = "center"
+
+    def _on_mouse_motion(self, event):
+        """キャンバス内でのマウス位置から視線方向を計算"""
+        cx, cy = 70, 70
+        dx = event.x - cx
+        dy = event.y - cy
+        
+        if abs(dx) > abs(dy):
+            self.last_mouse_dir = "left" if dx < -15 else ("right" if dx > 15 else "center")
+        else:
+            self.last_mouse_dir = "up" if dy < -15 else ("down" if dy > 15 else "center")
+
+    def _on_window_motion(self, event):
+        """ウィンドウ全体でのマウス視線追跡"""
+        if not self.is_hovered and self.pet_state == "idle":
+            # キャンバスの相対位置を計算
+            canv_x = self.char_canvas.winfo_x() + 70
+            canv_y = self.char_canvas.winfo_y() + 70
+            dx = event.x - canv_x
+            dy = event.y - canv_y
+            
+            if abs(dx) > abs(dy):
+                self.last_mouse_dir = "left" if dx < -20 else ("right" if dx > 20 else "center")
+            else:
+                self.last_mouse_dir = "up" if dy < -20 else ("down" if dy > 20 else "center")
+
+    def _on_pet_click(self, event):
+        """クリック（なでなで）またはドラッグ開始"""
+        self._start_move(event)
+        if not self.pomodoro_active and self.pet_state in ("idle", "happy"):
+            # なでなで触感リアクション（ハートマーク💖）
+            self.set_pet_state("pet_love", duration_ms=2500)
+            self.update_message("えへへ、くすぐったいです！🥰\nボス、いつもお疲れさまです！")
+
+    def _on_pet_release(self, event):
+        """ドラッグ終了"""
+        if self.pet_state == "alarm_ask" and not getattr(self, '_waiting_approval', False):
+            self.set_pet_state("idle")
 
     def _build_context_menu(self):
         """最新のプロバイダ・モデル選択状態を反映したメニューを動的に生成"""
@@ -1074,6 +1504,18 @@ class NeoSecretaryGUI:
         
         menu = tk.Menu(self.root, tearoff=0, bg="#F5F5DC", fg="#4A3B32", font=("Meiryo UI", 10))
         menu.add_command(label="📔 統合手帳（予定・TODO・知見）", command=self._open_calendar)
+        menu.add_command(label="📱 スマホDesk Pet接続 (QRコード)", command=self._open_qr_connection)
+        
+        auto_min = getattr(self, 'auto_minimize_on_link', False)
+        min_prefix = "☑ " if auto_min else "☐ "
+        menu.add_command(label=f"{min_prefix}スマホ接続時にPCペットを自動最小化", command=self.toggle_auto_minimize)
+        
+        # ポモドーロ開始/停止
+        if not self.pomodoro_active:
+            menu.add_command(label="🍅 ポモドーロ集中開始 (25分)", command=lambda: self.start_pomodoro(25))
+        else:
+            menu.add_command(label="⏹ ポモドーロタイマー停止", command=self.stop_pomodoro)
+            
         menu.add_separator()
         
         # LLMモデル切り替えサブメニュー
@@ -1101,6 +1543,13 @@ class NeoSecretaryGUI:
         menu.add_separator()
         menu.add_command(label="❌ 終了", command=self.root.destroy)
         return menu
+
+    def _open_qr_connection(self):
+        """スマホDesk Pet接続用のQRコードダイアログを開く"""
+        if getattr(self, 'qr_dialog', None) is None or not self.qr_dialog.winfo_exists():
+            self.qr_dialog = QRCodeConnectionDialog(self)
+        else:
+            self.qr_dialog.focus()
 
     def _show_menu_from_btn(self):
         """⚙ボタンクリックでメニューを表示"""

@@ -2,19 +2,22 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>ネオ秘書くん Desk Pet</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>ネオ秘書くん Desk Pet & 承認コクピット</title>
   <link rel="manifest" href="manifest.json">
-  <meta name="theme-color" content="#5B8A72">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="theme-color" content="#D4A373">
   <style>
     :root {
       --bg-casing: #D4A373;
       --bg-screen: #FDFBF7;
       --border-dark: #4A3B32;
       --text-main: #4A3B32;
-      --accent: #5B8A72;
-      --accent-hover: #456B58;
-      --tab-active: #CCD5AE;
+      --accent-green: #2E7D32;
+      --accent-red: #C62828;
+      --accent-blue: #1565C0;
+      --accent-yellow: #F57F17;
     }
 
     * {
@@ -25,270 +28,470 @@
       -webkit-user-select: none;
     }
 
-    body {
-      background-color: #2B2D42;
+    html, body {
+      width: 100vw;
+      height: 100vh;
+      height: 100dvh;
+      overflow: hidden;
+      background-color: #1A1C23;
       font-family: 'DotGothic16', 'Courier New', Courier, monospace, sans-serif;
       display: flex;
       justify-content: center;
       align-items: center;
-      min-height: 100vh;
       color: var(--text-main);
-      padding: 12px;
     }
 
-    /* レトロゲーム機風の筐体 */
+    /* 筐体（全画面フィット） */
     .device-casing {
       background: linear-gradient(145deg, #E6BA8B, #C29160);
-      border: 4px solid var(--border-dark);
-      border-radius: 24px;
-      padding: 16px;
-      width: 100%;
-      max-width: 420px;
-      box-shadow: 0 12px 24px rgba(0,0,0,0.4), inset 0 2px 4px rgba(255,255,255,0.4);
+      border: 2px solid var(--border-dark);
+      border-radius: 8px;
+      padding: 4px 6px;
+      width: 100vw;
+      height: 100vh;
+      height: 100dvh;
       display: flex;
       flex-direction: column;
-      gap: 12px;
+      gap: 3px;
     }
 
+    /* ヘッダー */
     .device-header {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      padding: 0 6px;
+      padding: 0 2px;
+      height: 22px;
+      flex-shrink: 0;
     }
 
     .device-title {
-      font-size: 16px;
+      font-size: 11px;
       font-weight: bold;
       color: #FDFBF7;
       text-shadow: 1px 1px 0 var(--border-dark);
-      letter-spacing: 1px;
+      letter-spacing: 0.5px;
+    }
+
+    .header-widgets {
+      display: flex;
+      gap: 3px;
+      align-items: center;
+    }
+
+    .clock-badge {
+      font-size: 10px;
+      font-weight: bold;
+      background-color: #2B2D42;
+      color: #00E676;
+      padding: 1px 4px;
+      border-radius: 3px;
+      border: 1px solid var(--border-dark);
+      font-family: monospace;
+    }
+
+    /* ポモドーロ・ヘッダーボタン */
+    .pomodoro-badge {
+      font-size: 9.5px;
+      font-weight: bold;
+      background-color: #E65100;
+      color: #FFF;
+      padding: 1px 5px;
+      border-radius: 4px;
+      border: 1px solid var(--border-dark);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 2px;
+    }
+
+    .pomodoro-badge.break {
+      background-color: #2E7D32;
+    }
+
+    .pomodoro-badge.idle {
+      background-color: #5D4037;
     }
 
     .status-badge {
-      font-size: 11px;
-      background-color: var(--accent);
+      font-size: 8px;
+      background-color: #2E7D32;
       color: #FFF;
-      padding: 3px 8px;
-      border-radius: 12px;
-      border: 1px solid var(--border-dark);
+      padding: 1px 4px;
+      border-radius: 4px;
+      font-weight: bold;
+    }
+
+    .btn-header {
+      background: rgba(0,0,0,0.15);
+      border: 1px solid rgba(255,255,255,0.4);
+      color: #FFF;
+      font-size: 10px;
+      padding: 2px 5px;
+      border-radius: 3px;
+      cursor: pointer;
     }
 
     /* 液晶スクリーン */
     .screen {
       background-color: var(--bg-screen);
-      border: 3px solid var(--border-dark);
-      border-radius: 12px;
-      padding: 12px;
+      border: 1.5px solid var(--border-dark);
+      border-radius: 6px;
+      padding: 4px 6px;
       display: flex;
       flex-direction: column;
-      gap: 10px;
-      box-shadow: inset 0 4px 8px rgba(0,0,0,0.15);
-      min-height: 380px;
+      gap: 3px;
+      flex: 1;
+      overflow: hidden;
+      position: relative;
     }
 
-    /* 吹き出し */
+    /* スリープ防止バナー */
+    .wake-banner {
+      background: #FFF3E0;
+      border: 1px dashed #FF9800;
+      border-radius: 4px;
+      padding: 2px 4px;
+      font-size: 9.5px;
+      font-weight: bold;
+      color: #E65100;
+      text-align: center;
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+
+    /* 画面分割レイアウト */
+    .screen-layout {
+      display: grid;
+      grid-template-columns: 160px 1fr;
+      gap: 6px;
+      flex: 1;
+      overflow: hidden;
+    }
+
+    @media (orientation: portrait) {
+      .screen-layout {
+        display: flex;
+        flex-direction: column;
+      }
+      .pet-stage {
+        height: 80px !important;
+      }
+    }
+
+    /* 左ペイン（ペット ＆ セリフ） */
+    .left-pane {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+      justify-content: center;
+      align-items: center;
+      flex-shrink: 0;
+    }
+
     .bubble {
       background: #FFFFFF;
-      border: 2px solid var(--border-dark);
-      border-radius: 8px;
-      padding: 10px;
-      font-size: 13px;
-      line-height: 1.5;
-      position: relative;
-      max-height: 110px;
+      border: 1px solid var(--border-dark);
+      border-radius: 4px;
+      padding: 3px 5px;
+      font-size: 9px;
+      line-height: 1.2;
+      width: 100%;
+      text-align: center;
+      max-height: 40px;
       overflow-y: auto;
     }
 
-    /* ドット絵ペット表示エリア */
     .pet-stage {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      height: 75px;
+      cursor: pointer;
+      position: relative;
+    }
+
+    /* ペット動画 */
+    .pet-video {
+      width: 68px;
+      height: 68px;
+      image-rendering: pixelated;
+      object-fit: contain;
+    }
+
+    #pet-canvas {
+      display: none;
+    }
+
+    .scene-badge {
+      position: absolute;
+      bottom: -2px;
+      font-size: 8px;
+      font-weight: bold;
+      background: rgba(255, 255, 255, 0.9);
+      border: 1px solid var(--border-dark);
+      padding: 0 4px;
+      border-radius: 4px;
+      color: #6D4C41;
+      white-space: nowrap;
+    }
+
+    /* 右ペイン（承認カード ＆ タスク） */
+    .right-pane {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+      flex: 1;
+      overflow: hidden;
+    }
+
+    /* ⚠️ 承認要請カード (Agent Bridge Alert) */
+    .approval-card {
+      display: none;
+      background: #FFF8E1;
+      border: 2.5px solid #FF8F00;
+      border-radius: 6px;
+      padding: 6px 8px;
+      animation: pulseAlert 1.2s infinite alternate;
+      flex-shrink: 0;
+      margin-bottom: 2px;
+    }
+
+    @keyframes pulseAlert {
+      from { box-shadow: 0 0 2px rgba(255, 143, 0, 0.4); }
+      to { box-shadow: 0 0 14px rgba(255, 143, 0, 0.9); }
+    }
+
+    .approval-header {
+      display: flex;
+      justify-content: space-between;
+      font-size: 11px;
+      font-weight: bold;
+      color: #D84315;
+    }
+
+    .approval-cmd {
+      background: #2B2D42;
+      color: #00E676;
+      font-family: monospace;
+      padding: 5px 6px;
+      border-radius: 4px;
+      font-size: 11px;
+      word-break: break-all;
+      margin: 3px 0 5px 0;
+    }
+
+    .btn-approve-big {
+      background: linear-gradient(145deg, #43A047, #2E7D32);
+      color: #FFF;
+      font-size: 13px;
+      font-weight: bold;
+      padding: 8px 12px;
+      border: 1.5px solid var(--border-dark);
+      border-radius: 5px;
+      cursor: pointer;
       display: flex;
       justify-content: center;
       align-items: center;
-      height: 140px;
+      gap: 5px;
+      width: 100%;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    }
+
+    .btn-approve-big:active {
+      transform: translateY(1px);
+    }
+
+    .approval-sub-actions {
+      display: flex;
+      gap: 5px;
+      margin-top: 4px;
+    }
+
+    .btn-reject {
+      flex: 1;
+      background: #E53935;
+      color: #FFF;
+      font-size: 10px;
+      font-weight: bold;
+      padding: 5px;
+      border: 1px solid var(--border-dark);
+      border-radius: 3px;
       cursor: pointer;
     }
 
-    .pet-canvas {
-      width: 128px;
-      height: 128px;
-      image-rendering: pixelated;
-      transition: transform 0.1s;
+    .btn-explain {
+      flex: 1;
+      background: #1E88E5;
+      color: #FFF;
+      font-size: 10px;
+      font-weight: bold;
+      padding: 5px;
+      border: 1px solid var(--border-dark);
+      border-radius: 3px;
+      cursor: pointer;
     }
 
-    .pet-stage:active .pet-canvas {
-      transform: scale(0.92);
-    }
-
-    /* タブ切り替え */
+    /* タブ ＆ リスト */
     .tab-bar {
       display: flex;
-      gap: 4px;
-      border-bottom: 2px solid var(--border-dark);
-      padding-bottom: 4px;
+      gap: 2px;
+      border-bottom: 1.5px solid var(--border-dark);
+      padding-bottom: 1px;
+      flex-shrink: 0;
     }
 
     .tab-btn {
       flex: 1;
-      padding: 6px;
-      font-size: 12px;
+      padding: 2px;
+      font-size: 9.5px;
       font-weight: bold;
       background-color: #E9EDC9;
-      border: 2px solid var(--border-dark);
-      border-radius: 6px 6px 0 0;
+      border: 1px solid var(--border-dark);
+      border-radius: 3px 3px 0 0;
       color: var(--text-main);
       cursor: pointer;
       text-align: center;
     }
 
     .tab-btn.active {
-      background-color: var(--accent);
+      background-color: var(--accent-green);
       color: #FFF;
     }
 
-    /* タスク/予定リスト */
     .content-list {
       flex: 1;
       overflow-y: auto;
       display: flex;
       flex-direction: column;
-      gap: 6px;
-      max-height: 140px;
+      gap: 2px;
     }
 
     .item-card {
       background: #FFF;
-      border: 1.5px solid var(--border-dark);
-      border-radius: 6px;
-      padding: 6px 8px;
-      font-size: 12px;
+      border: 1px solid var(--border-dark);
+      border-radius: 3px;
+      padding: 3px 6px;
+      font-size: 9px;
       display: flex;
       align-items: center;
       justify-content: space-between;
     }
 
     .btn-action {
-      background: var(--accent);
+      background: var(--accent-green);
       color: #FFF;
       border: 1px solid var(--border-dark);
-      padding: 3px 8px;
-      border-radius: 4px;
-      font-size: 11px;
+      padding: 1px 5px;
+      border-radius: 2px;
+      font-size: 8.5px;
       cursor: pointer;
-    }
-
-    /* 物理ボタン風フッター */
-    .controls {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 6px 12px;
-    }
-
-    .d-pad {
-      display: grid;
-      grid-template-columns: 28px 28px 28px;
-      grid-template-rows: 28px 28px 28px;
-      gap: 2px;
-    }
-
-    .d-btn {
-      background: #4A3B32;
-      border: 1px solid #2B2D42;
-      border-radius: 4px;
-      cursor: pointer;
-    }
-
-    .action-buttons {
-      display: flex;
-      gap: 12px;
-    }
-
-    .round-btn {
-      width: 44px;
-      height: 44px;
-      background: linear-gradient(145deg, #E63946, #C1121F);
-      border: 2px solid var(--border-dark);
-      border-radius: 50%;
-      color: #FFF;
-      font-weight: bold;
-      font-size: 14px;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      box-shadow: 0 4px 6px rgba(0,0,0,0.3);
-      cursor: pointer;
-    }
-
-    .round-btn:active {
-      transform: translateY(2px);
-      box-shadow: 0 2px 4px rgba(0,0,0,0.3);
     }
   </style>
 </head>
-<body>
+<body onclick="handleGlobalInteraction()" ontouchstart="handleGlobalInteraction()">
+
+  <canvas id="pet-canvas" width="32" height="32"></canvas>
 
   <div class="device-casing">
+    <!-- ヘッダー -->
     <div class="device-header">
       <span class="device-title">🤖 NEO SECRETARY</span>
-      <div style="display: flex; gap: 6px; align-items: center;">
-        <span class="status-badge" id="status-badge">ONLINE</span>
-        <button style="background: none; border: none; font-size: 14px; cursor: pointer; color: #FFF;" onclick="openSettingsModal()">⚙</button>
+      <div class="header-widgets">
+        <span class="clock-badge" id="clock-display">12:00:00</span>
+        <!-- 🍅 ポモドーロ操作バッジ -->
+        <span class="pomodoro-badge idle" id="pomodoro-badge" onclick="togglePomodoro()">🍅 集中開始 (25分)</span>
+        <span class="status-badge" id="status-badge">LINKED</span>
+        <button class="btn-header" onclick="toggleFullscreen()">📺 全画面</button>
+        <button class="btn-header" onclick="openSettingsModal()">⚙</button>
       </div>
     </div>
 
+    <!-- 液晶スクリーン -->
     <div class="screen">
-      <!-- 吹き出し -->
-      <div class="bubble" id="pet-message">
-        ボス、お疲れ様です！<br>
-        今日も絶好調でサポートしますよ！
+      <!-- 🔋 スリープ防止バナー -->
+      <div class="wake-banner" id="wake-banner" onclick="activateKeepAwake()">
+        👆 画面をタップして常時画面ON ＆ 承認モードを起動
       </div>
 
-      <!-- ドット絵ペットキャンバス -->
-      <div class="pet-stage" onclick="pokePet()">
-        <canvas id="pet-canvas" width="32" height="32" class="pet-canvas"></canvas>
-      </div>
+      <div class="screen-layout">
+        <!-- 左ペイン: ペット動画 ＆ メッセージ -->
+        <div class="left-pane">
+          <div class="bubble" id="pet-message">
+            ボス、見守っています！✨
+          </div>
 
-      <!-- タブ切り替え -->
-      <div class="tab-bar">
-        <div class="tab-btn active" id="tab-todo" onclick="switchTab('todo')">📋 TODO (<span id="todo-count">0</span>)</div>
-        <div class="tab-btn" id="tab-calendar" onclick="switchTab('calendar')">📅 今日の予定</div>
-      </div>
+          <div class="pet-stage" onclick="pokePet()">
+            <video id="pet-video" class="pet-video" autoplay playsinline webkit-playsinline loop muted></video>
+            <span class="scene-badge" id="scene-badge">✨ 待機中</span>
+          </div>
+        </div>
 
-      <!-- リスト領域 -->
-      <div class="content-list" id="content-list">
-        <div class="item-card">データを読み込み中...</div>
-      </div>
-    </div>
+        <!-- 右ペイン: 承認要請カード ＆ タスク/予定 -->
+        <div class="right-pane">
+          <!-- ⚠️ 承認要請カード -->
+          <div class="approval-card" id="approval-card">
+            <div class="approval-header">
+              <span id="approval-agent">🤖 Codex</span>
+              <span style="color: #D84315;">⚠️ コマンド承認要請</span>
+            </div>
+            <div style="font-size: 10.5px; color: #4A3B32; font-weight: bold;" id="approval-summary">
+              コマンド実行の許可要請
+            </div>
+            <div class="approval-cmd" id="approval-cmd">git push origin main</div>
+            
+            <button class="btn-approve-big" onclick="respondApproval('approve')">
+              <span>✓</span> 承認して実行を許可
+            </button>
+            <div class="approval-sub-actions">
+              <button class="btn-reject" onclick="respondApproval('reject')">✕ 拒否</button>
+              <button class="btn-explain" onclick="respondApproval('explain')">💬 説明要求</button>
+            </div>
+          </div>
 
-    <!-- 物理ボタン風装飾 ＆ クイックアクション -->
-    <div class="controls">
-      <div class="d-pad">
-        <div></div><button class="d-btn" onclick="pokePet()"></button><div></div>
-        <button class="d-btn" onclick="fetchSyncData()"></button><div></div><button class="d-btn" onclick="fetchSyncData()"></button>
-        <div></div><button class="d-btn" onclick="pokePet()"></button><div></div>
-      </div>
+          <!-- タブ -->
+          <div class="tab-bar">
+            <div class="tab-btn active" id="tab-todo" onclick="switchTab('todo')">📋 TODO (<span id="todo-count">0</span>)</div>
+            <div class="tab-btn" id="tab-calendar" onclick="switchTab('calendar')">📅 予定</div>
+          </div>
 
-      <div class="action-buttons">
-        <button class="round-btn" onclick="refreshData()">B</button>
-        <button class="round-btn" style="background: linear-gradient(145deg, #457B9D, #1D3557);" onclick="quickCompleteTopTask()">A</button>
+          <!-- リスト -->
+          <div class="content-list" id="content-list">
+            <div class="item-card">データを読み込み中...</div>
+          </div>
+        </div>
       </div>
     </div>
   </div>
 
-  <!-- 接続先設定モーダル -->
-  <div id="settings-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.7); justify-content: center; align-items: center; z-index: 999;">
-    <div style="background: #FDFBF7; border: 3px solid #4A3B32; border-radius: 16px; padding: 16px; width: 90%; max-width: 340px; display: flex; flex-direction: column; gap: 10px;">
-      <h3 style="font-size: 14px; color: #4A3B32;">⚙ PC接続先設定</h3>
-      <p style="font-size: 11px; color: #6D4C41;">PCのIPアドレスが変わった場合はここで変更できます。</p>
-      <input type="text" id="server-url-input" placeholder="http://192.168.1.15:8765" style="padding: 8px; font-size: 12px; border: 2px solid #4A3B32; border-radius: 6px; width: 100%;">
-      <div style="display: flex; gap: 8px; justify-content: flex-end; margin-top: 6px;">
-        <button onclick="closeSettingsModal()" style="padding: 6px 12px; border-radius: 6px; border: 1px solid #4A3B32; background: #E0D8C8; cursor: pointer;">キャンセル</button>
-        <button onclick="saveServerUrl()" style="padding: 6px 12px; border-radius: 6px; border: 1px solid #4A3B32; background: #5B8A72; color: #FFF; font-weight: bold; cursor: pointer;">保存</button>
+  <!-- ⚙ 設定モーダル -->
+  <div id="settings-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.8); justify-content: center; align-items: center; z-index: 999;">
+    <div style="background: #FDFBF7; border: 2.5px solid #4A3B32; border-radius: 10px; padding: 10px; width: 90%; max-width: 320px; display: flex; flex-direction: column; gap: 6px;">
+      <h3 style="font-size: 12px; color: #4A3B32;">⚙ PC接続 ＆ 画面設定</h3>
+      <p style="font-size: 9px; color: #6D4C41;">PC同期URL:</p>
+      <input type="text" id="server-url-input" placeholder="http://10.176.213.116:8765" style="padding: 5px; font-size: 10px; border: 1.5px solid #4A3B32; border-radius: 4px; width: 100%;">
+      
+      <button onclick="testPing(); closeSettingsModal();" style="padding: 5px; border-radius: 4px; border: 1px solid #4A3B32; background: #E9EDC9; font-size: 10px; font-weight: bold; cursor: pointer; color: #4A3B32;">
+        📶 PCとの疎通テスト (Ping実行)
+      </button>
+
+      <button onclick="toggleFullscreen(); closeSettingsModal();" style="padding: 5px; border-radius: 4px; border: 1.5px solid #1565C0; background: #E3F2FD; font-size: 10px; font-weight: bold; cursor: pointer; color: #1565C0;">
+        📺 アドレスバーを消す (全画面モード)
+      </button>
+
+      <div style="background: #EFEBE9; padding: 5px; border-radius: 4px; font-size: 8.5px; color: #4E342E; line-height: 1.3;">
+        <b>💡 専用端末化の究極技（Android設定）:</b><br>
+        Androidの「設定」→「端末情報」→「ビルド番号を7回連打」して開発者オプションを出し、<b>「充電中は画面をスリープにしない」</b>をONにすると、完全な常時表示ペット端末になります！
+      </div>
+
+      <div style="display: flex; gap: 4px; justify-content: flex-end; margin-top: 2px;">
+        <button onclick="closeSettingsModal()" style="padding: 4px 8px; border-radius: 4px; border: 1px solid #4A3B32; background: #E0D8C8; font-size: 10px; cursor: pointer;">閉じる</button>
+        <button onclick="saveServerUrl()" style="padding: 4px 8px; border-radius: 4px; border: 1px solid #4A3B32; background: #2E7D32; color: #FFF; font-weight: bold; font-size: 10px; cursor: pointer;">保存</button>
       </div>
     </div>
   </div>
 
-  <script src="pet.js"></script>
+  <script src="pet.js?v=5.0"></script>
 </body>
 </html>
