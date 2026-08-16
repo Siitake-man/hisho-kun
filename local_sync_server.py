@@ -265,6 +265,10 @@ class DeskPetSyncHandler(SimpleHTTPRequestHandler):
                 pet_state = "alarm_ask" if pending_req else ("focus" if (pomodoro_active and not pomodoro_is_break) else "idle")
                 default_msg = "ボス！エージェントからコマンド実行の許可要請が届いています！" if pending_req else ("集中タイムです！ボス、一緒に頑張りましょう！🔥" if (pomodoro_active and not pomodoro_is_break) else "ボス、いつもお疲れ様です！スマホからも見守っていますよ！")
                 
+                from suggest_engine import get_suggestion_engine
+                suggest_eng = get_suggestion_engine()
+                suggestions_data = suggest_eng.generate_suggestions()
+                
                 payload = {
                     "status": "ok",
                     "pet_state": pet_state,
@@ -272,6 +276,8 @@ class DeskPetSyncHandler(SimpleHTTPRequestHandler):
                     "pending_approval": pending_req,
                     "tasks": _cached_tasks_data,
                     "events": _cached_events_data,
+                    "suggestions": suggestions_data,
+                    "suggest_config": suggest_eng.config,
                     "pomodoro": {
                         "active": pomodoro_active,
                         "is_break": pomodoro_is_break,
@@ -429,17 +435,32 @@ class DeskPetSyncHandler(SimpleHTTPRequestHandler):
                     gui = get_gui_instance()
                     if gui:
                         mins = int(data.get("minutes", 25))
-                        gui.root.after(0, lambda: gui.start_pomodoro(mins))
+                        gui.post_action(gui.start_pomodoro, mins)
                         logger.info(f"📱 スマホ側からポモドーロ開始を受信: {mins}分")
                         self.wfile.write(json.dumps({"status": "success", "action": "start_pomodoro"}).encode("utf-8"))
                         return
                 elif action == "stop_pomodoro":
                     gui = get_gui_instance()
                     if gui:
-                        gui.root.after(0, gui.stop_pomodoro)
+                        gui.post_action(gui.stop_pomodoro)
                         logger.info("📱 スマホ側からポモドーロ停止を受信")
                         self.wfile.write(json.dumps({"status": "success", "action": "stop_pomodoro"}).encode("utf-8"))
                         return
+                elif action == "show_pc_pet":
+                    gui = get_gui_instance()
+                    if gui:
+                        gui.post_action(gui.show_pc_pet)
+                        logger.info("📱 スマホ側からPCペット再表示要求を受信")
+                        self.wfile.write(json.dumps({"status": "success", "action": "show_pc_pet"}).encode("utf-8"))
+                        return
+                elif action == "toggle_suggest_source":
+                    source_key = data.get("source_key")
+                    enabled = data.get("enabled", True)
+                    from suggest_engine import get_suggestion_engine
+                    get_suggestion_engine().toggle_source(source_key, enabled)
+                    logger.info(f"📱 スマホ側からサジェスト設定変更を受信: {source_key}={enabled}")
+                    self.wfile.write(json.dumps({"status": "success", "source_key": source_key, "enabled": enabled}).encode("utf-8"))
+                    return
                 elif action == "ping_test":
                     logger.info(f"📶 スマホからPingテスト受信 ({client_ip})")
                     self.wfile.write(json.dumps({"status": "pong", "server_time": int(time.time() * 1000)}).encode("utf-8"))

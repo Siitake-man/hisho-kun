@@ -17,47 +17,54 @@ description: ネオ秘書くんにおける開発タスクをグラフ構造（D
 2. **`codebase-memory-mcp` インデックス同期**: `index_repository` を呼び出して最新化。
 3. **仕様・規約の確認**: `DESIGN_SPEC.md`, `AI_RULES.md`, `機能ロードマップ.md` を参照。
 
-### Phase 1: 依存関係グラフ（DAG）の構築と「偽のエッジ」排除
+### Phase 1: 依存関係グラフ（DAG）の構築と「事前シグネチャ特定」
+ 
+ タスク依頼を受けた際、単一ループでの直列試行錯誤を禁止し、以下の「ノード」と「エッジ」を定義する。
+ 
+ 1. **入出力契約（Contract）の明示 ＆ グラフ検索**:
+    - `search_graph` / `get_code_snippet` を実行し、呼び出し対象の正確なメソッド名・型・引数シグネチャを確定させる（推測による記述は厳禁）。
+ 2. **偽のエッジ（Fake Edges）の削除**: 例えば「DBスキーマ変更とGUIデザイン調整」など独立したタスクは並列（Fan-out）ノードとして分離。
+ 3. **DAG構造の宣言**: 実行前に以下のフォーマットでユーザーに提示し合意を得る：
+    ```
+    [Task Input]
+        ├── 🔵 Node A: DB / Data Layer (Contract: Pydanticモデル & CRUD関数)
+        ├── 🔵 Node B: LLM Factory / Agent Layer (Contract: LangGraph State & Tools)
+        └── 🔵 Node C: GUI / Pet UI Layer (Contract: CustomTkinter Event & Window)
+    [Verification Tier]
+        ├── 🛡️ Verifier 1 (Contract & Spec Audit): 独立検証
+        ├── 🛡️ Verifier 2 (Type & Import Execution): python -m py_compile *.py
+        ├── 🛡️ Verifier 3 (Side-effect & Threading Audit): asyncio / Tkinter競合検証
+        └── 🛡️ Verifier 4 (Graph Impact & Reference Audit): detect_changes & trace_path による未解決参照検証
+    [Synthesize Tier]
+        └── 🟣 Node Reduce: 成果物の統合・main.py結合確認
+    ```
+ 
+ ### Phase 2: 並列ノード（Fan-out）の実行
+ 
+ - 各並列ノードは「5分でコミット・確認可能なサイズ」にマイクロタスク化して実行する。
+ - コード検索には `codebase-memory-mcp` (`search_graph`, `trace_path`) を優先使用する。
+ 
+ ### Phase 3: 独立検証者（Verifier Nodes）による多角検証
+ 
+ 1. **Verifier 1 (仕様適合・契約検証)**: 各モジュールの成果物が `DESIGN_SPEC.md` および `AGENTS.md` を満たしているかチェック。
+ 2. **Verifier 2 (構文・型・インポート検証)**: Python構文チェック・インポート検証。
+ 3. **Verifier 3 (副作用・非同期競合スキャン)**: `asyncio` メインループと Tkinter GUI スレッドのデッドロックやブロッキングがないか検証。
+ 4. **Verifier 4 (グラフ影響範囲・参照整合性検証 🌟)**:
+    - `detect_changes` で変更による波及影響をスキャン。
+    - `trace_path` で呼び出しチェーンに未定義参照（`AttributeError` や `ImportError`）がないことを自動検証。
+ 
+ ### Phase 4: 成果物統合（Synthesize / Reduce）
+ 
+ 全 Verifier のパスを確認後、成果物を統合する。
+ 
+ 1. 最終結合確認（モジュール間疎通）
+ 2. ユーザーへ「日本語結論ファースト」で成果報告と習得スキルの提示。
+ 
+ ---
+ 
+ ## 留意事項
+ - **PowerShell互換**: コマンド連結時は必ずセミコロン `;` を使用すること。
+ - **5分粒度ルール**: タスクは隙間時間の5分で確認できる粒度に保つこと。
+ - **完全なコード出力**: 省略コメント (`# TODO`, `# ...`) を排除し、完全なプロダクションコードを出力すること。
+ - **推測コードの禁止**: メソッド名や属性名は必ずグラフ検索で実在を確認すること。
 
-タスク依頼を受けた際、単一ループでの直列試行錯誤を禁止し、以下の「ノード」と「エッジ」を定義する。
-
-1. **入出力契約（Contract）の明示**: 各モジュール（GUI / Agent / Tools / DB / LLM Factory）のインターフェース契約を定義。
-2. **偽のエッジ（Fake Edges）の削除**: 例えば「DBスキーマ変更とGUIデザイン調整」など独立したタスクは並列（Fan-out）ノードとして分離。
-3. **DAG構造の宣言**: 実行前に以下のフォーマットでユーザーに提示し合意を得る：
-   ```
-   [Task Input]
-       ├── 🔵 Node A: DB / Data Layer (Contract: Pydanticモデル & CRUD関数)
-       ├── 🔵 Node B: LLM Factory / Agent Layer (Contract: LangGraph State & Tools)
-       └── 🔵 Node C: GUI / Pet UI Layer (Contract: CustomTkinter Event & Window)
-   [Verification Tier]
-       ├── 🛡️ Verifier 1 (Contract & Spec Audit): 独立検証
-       ├── 🛡️ Verifier 2 (Type & Import Execution): python -m py_compile *.py
-       └── 🛡️ Verifier 3 (Side-effect & Threading Audit): asyncio / Tkinter競合検証
-   [Synthesize Tier]
-       └── 🟣 Node Reduce: 成果物の統合・main.py結合確認
-   ```
-
-### Phase 2: 並列ノード（Fan-out）の実行
-
-- 各並列ノードは「5分でコミット・確認可能なサイズ」にマイクロタスク化して実行する。
-- コード検索には `codebase-memory-mcp` (`search_graph`, `trace_path`) を優先使用する。
-
-### Phase 3: 独立検証者（Verifier Nodes）による多角検証
-
-1. **Verifier 1 (仕様適合・契約検証)**: 各モジュールの成果物が `DESIGN_SPEC.md` および `AI_RULES.md` を満たしているかチェック。
-2. **Verifier 2 (構文・型・インポート検証)**: Python構文チェック・インポート検証。
-3. **Verifier 3 (副作用・非同期競合スキャン)**: `asyncio` メインループと Tkinter GUI スレッドのデッドロックやブロッキングがないか検証。
-
-### Phase 4: 成果物統合（Synthesize / Reduce）
-
-全 Verifier のパスを確認後、成果物を統合する。
-
-1. 最終結合確認（モジュール間疎通）
-2. ユーザーへ「日本語結論ファースト」で成果報告と習得スキルの提示。
-
----
-
-## 留意事項
-- **PowerShell互換**: コマンド連結時は必ずセミコロン `;` を使用すること。
-- **5分粒度ルール**: タスクは隙間時間の5分で確認できる粒度に保つこと。
-- **完全なコード出力**: 省略コメント (`# TODO`, `# ...`) を排除し、完全なプロダクションコードを出力すること。

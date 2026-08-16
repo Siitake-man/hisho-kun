@@ -4,6 +4,7 @@
 CustomTkinterを用いたUIコンポーネント。
 背景透過のキャラクターウィンドウと、会話用の吹き出しUIを提供します。
 """
+import queue
 import customtkinter as ctk
 import tkinter as tk
 from typing import Callable, Optional, Dict
@@ -145,6 +146,23 @@ class QRCodeConnectionDialog(ctk.CTkToplevel):
         )
         self.btn_buzz.pack(side="left")
 
+        # 📱 スマホ接続時の自動非表示トグルスイッチ
+        opt_box = ctk.CTkFrame(self, fg_color="#F5F5DC", border_color="#A67B5B", border_width=1, corner_radius=6)
+        opt_box.pack(fill="x", padx=pad, pady=3)
+        
+        self.auto_hide_var = tk.BooleanVar(value=getattr(self.parent_gui, 'auto_minimize_on_link', False))
+        self.chk_auto_hide = ctk.CTkCheckBox(
+            opt_box,
+            text="📱 スマホ接続時にPCペットを自動非表示にする（画面占有ゼロ化）",
+            variable=self.auto_hide_var,
+            font=("Meiryo UI", 9.5, "bold"),
+            text_color="#4A3B32",
+            fg_color="#A67B5B",
+            hover_color="#8B634A",
+            command=self._on_toggle_auto_hide
+        )
+        self.chk_auto_hide.pack(side="left", padx=8, pady=4)
+
         # 🔰 社内ユーザー向け接続ガイド
         guide_box = ctk.CTkFrame(self, fg_color="#EFEBE9", border_color="#D7CCC8", border_width=1, corner_radius=8)
         guide_box.pack(fill="both", expand=True, padx=pad, pady=(4, 10))
@@ -191,6 +209,12 @@ class QRCodeConnectionDialog(ctk.CTkToplevel):
     def _on_ip_change(self, selected_ip):
         self.url_var.set(f"http://{selected_ip}:8765")
         self._render_qr()
+
+    def _on_toggle_auto_hide(self):
+        """スマホ接続時の自動非表示設定を反映"""
+        val = self.auto_hide_var.get()
+        self.parent_gui.auto_minimize_on_link = val
+        logger.info(f"スマホ接続時PCペット自動非表示設定: {val}")
 
     def _copy_url(self):
         self.clipboard_clear()
@@ -328,11 +352,84 @@ class AddMCPServerDialog(ctk.CTkToplevel):
         mcp_mgr.add_or_update_server(s_id, conf)
         
         # 設定画面を再描画して閉じる
-        parent = self.parent_settings
-        parent_gui = parent.parent_gui
+        if hasattr(self.parent_settings, "_render_mcp_servers"):
+            self.parent_settings._render_mcp_servers()
         self.destroy()
-        parent.destroy()
-        SettingsWindow(parent_gui)
+
+
+class SuggestSettingsDialog(ctk.CTkToplevel):
+    """サジェストソースの個別ON/OFF設定ダイアログ"""
+    def __init__(self, parent_gui, *args, **kwargs):
+        super().__init__(parent_gui.root, *args, **kwargs)
+        self.parent_gui = parent_gui
+        self.title("💡 サジェストソース設定")
+        self.geometry("380x430")
+        self.resizable(False, False)
+        
+        self.bg_color = "#F5F5DC"
+        self.primary_color = "#A67B5B"
+        self.text_color = "#4A3B32"
+        self.configure(fg_color=self.bg_color)
+        
+        from suggest_engine import get_suggestion_engine
+        self.engine = get_suggestion_engine()
+        self.config = self.engine.config
+        
+        self.font_title = ("DotGothic16", 13, "bold") if "DotGothic16" in tk.font.families() else ("Meiryo UI", 11, "bold")
+        self.font_body = ("Meiryo UI", 10)
+        self.font_small = ("Meiryo UI", 8.5)
+        
+        self._build_ui()
+
+    def _build_ui(self):
+        pad = 14
+        ctk.CTkLabel(self, text="💡 インテリジェント・サジェスト設定", font=self.font_title, text_color=self.primary_color).pack(pady=(12, 4))
+        ctk.CTkLabel(self, text="画面中央に表示する情報のソースを個別に選べます", font=self.font_small, text_color="#7A6B62").pack(pady=(0, 8))
+        
+        scroll = ctk.CTkScrollableFrame(self, fg_color="#FFFFFF", border_color="#A67B5B", border_width=1.5, corner_radius=8)
+        scroll.pack(fill="both", expand=True, padx=pad, pady=4)
+        
+        sources = self.config.get("sources", {})
+        self.check_vars = {}
+        
+        for key, info in sources.items():
+            card = ctk.CTkFrame(scroll, fg_color="#FDFBF7", corner_radius=6, border_color="#E0D8C8", border_width=1)
+            card.pack(fill="x", pady=4, padx=4)
+            
+            var = tk.BooleanVar(value=info.get("enabled", True))
+            self.check_vars[key] = var
+            
+            chk = ctk.CTkCheckBox(
+                card,
+                text=info.get("name", key),
+                variable=var,
+                font=("Meiryo UI", 10, "bold"),
+                text_color=self.text_color,
+                fg_color=self.primary_color,
+                hover_color="#8B634A",
+                command=lambda k=key, v=var: self._on_toggle(k, v)
+            )
+            chk.pack(anchor="w", padx=8, pady=(6, 2))
+            
+            desc = info.get("description", "")
+            if desc:
+                ctk.CTkLabel(card, text=desc, font=self.font_small, text_color="#6D4C41", anchor="w").pack(fill="x", padx=28, pady=(0, 6))
+
+        btn_close = ctk.CTkButton(
+            self,
+            text="設定を保存して閉じる",
+            font=("Meiryo UI", 10, "bold"),
+            fg_color=self.primary_color,
+            hover_color="#8B634A",
+            height=32,
+            command=self.destroy
+        )
+        btn_close.pack(fill="x", padx=pad, pady=10)
+
+    def _on_toggle(self, key, var):
+        self.engine.toggle_source(key, var.get())
+        if hasattr(self.parent_gui, '_update_suggestion_card'):
+            self.parent_gui._update_suggestion_card()
 
 
 class SettingsWindow(ctk.CTkToplevel):
@@ -567,6 +664,22 @@ class SettingsWindow(ctk.CTkToplevel):
             self.mcp_checkboxes[s_id] = cb_var
             
         ctk.CTkLabel(content, text="", height=5).pack()
+
+        # =====================================================================
+        # 5. 外部サービス連携 (Google Calendar / Slack)
+        # =====================================================================
+        sec_ext = ctk.CTkLabel(content, text="🌐 外部サービス連携 (Google / Slack)", font=self.font_title, text_color=self.primary_color, anchor="w")
+        sec_ext.pack(fill="x", pady=(10, 2))
+        
+        ctk.CTkLabel(content, text="Googleカレンダー ID / メールアドレス:", font=self.font_body, text_color=self.text_color, anchor="w").pack(fill="x")
+        self.entry_google_cal = ctk.CTkEntry(content, placeholder_text="primary または your_email@gmail.com")
+        self.entry_google_cal.insert(0, os.getenv("GOOGLE_CALENDAR_ID", "primary"))
+        self.entry_google_cal.pack(fill="x", pady=(0, 4))
+        
+        ctk.CTkLabel(content, text="Slack Webhook URL (通知/サジェスト連携):", font=self.font_body, text_color=self.text_color, anchor="w").pack(fill="x")
+        self.entry_slack_webhook = ctk.CTkEntry(content, placeholder_text="https://hooks.slack.com/services/...", show="*")
+        self.entry_slack_webhook.insert(0, os.getenv("SLACK_WEBHOOK_URL", ""))
+        self.entry_slack_webhook.pack(fill="x", pady=(0, 10))
         
         # =====================================================================
         # 保存ボタン
@@ -634,7 +747,7 @@ class SettingsWindow(ctk.CTkToplevel):
         factory = get_llm_factory()
         mcp_mgr = get_mcp_manager()
         
-        # 1. LLM設定の保存
+        # 1. LLM設定 ＆ 外部連携の保存
         new_settings = {
             "OPENCODE_API_KEY": self.entry_opencode_key.get().strip(),
             "OPENCODE_BASE_URL": self.entry_opencode_url.get().strip(),
@@ -643,6 +756,8 @@ class SettingsWindow(ctk.CTkToplevel):
             "GEMINI_MODEL": self.combo_gemini_model.get().strip(),
             "LM_STUDIO_BASE_URL": self.entry_lm_url.get().strip(),
             "LM_STUDIO_MODEL": self.combo_lm_model.get().strip(),
+            "GOOGLE_CALENDAR_ID": self.entry_google_cal.get().strip(),
+            "SLACK_WEBHOOK_URL": self.entry_slack_webhook.get().strip(),
         }
         
         saved_llm = factory.save_settings(new_settings)
@@ -653,7 +768,7 @@ class SettingsWindow(ctk.CTkToplevel):
         for s_id, var in self.mcp_checkboxes.items():
             mcp_mgr.update_server_status(s_id, var.get())
 
-        self.parent_gui.update_message("⚙ AI設定 ＆ MCP連携を保存・適用しました！")
+        self.parent_gui.update_message("⚙ AI設定 ＆ 外部連携（Google/Slack/MCP）を保存・適用しました！")
         self.destroy()
 
 
@@ -721,25 +836,70 @@ class CalendarWindow(ctk.CTkToplevel):
     # 📅 予定タブ
     # =========================================================================
     def _build_events_tab(self):
+        # 表示期間切り替えバー (月間 / 週間 / 日間)
+        view_bar = ctk.CTkFrame(self.tab_events, fg_color="transparent")
+        view_bar.pack(fill="x", padx=5, pady=(2, 6))
+
+        self.event_view_seg = ctk.CTkSegmentedButton(
+            view_bar,
+            values=["🗓️ 月間 (30日)", "📅 週間 (7日)", "☀️ 日間 (今日)"],
+            selected_color=self.primary_color,
+            selected_hover_color="#8B634A",
+            unselected_color="#E0D8C8",
+            unselected_hover_color="#D5CBB8",
+            text_color=self.text_color,
+            font=("Meiryo UI", 9.5, "bold"),
+            command=self._on_event_view_change
+        )
+        self.event_view_seg.set("🗓️ 月間 (30日)")
+        self.event_view_seg.pack(side="left")
+
         # スクロール領域
         self.events_scroll = ctk.CTkScrollableFrame(self.tab_events, fg_color="transparent")
-        self.events_scroll.pack(fill="both", expand=True, padx=5, pady=5)
+        self.events_scroll.pack(fill="both", expand=True, padx=5, pady=2)
+
+    def _on_event_view_change(self, value):
+        self.load_events(getattr(self, 'all_cached_events', []))
 
     def load_events(self, events: list):
-        """予定一覧を描画"""
+        """予定一覧を描画（月間・週間・日間に対応）"""
+        self.all_cached_events = events
         for widget in self.events_scroll.winfo_children():
             widget.destroy()
             
         if not events:
-            lbl = ctk.CTkLabel(self.events_scroll, text="直近30日間に予定はありません。", font=self.font_body, text_color="#8D6E63")
+            lbl = ctk.CTkLabel(self.events_scroll, text="予定はありません。", font=self.font_body, text_color="#8D6E63")
             lbl.pack(pady=30)
             return
             
         import datetime
         from collections import defaultdict
         
-        grouped = defaultdict(list)
+        now = datetime.datetime.now()
+        start_of_today = datetime.datetime(now.year, now.month, now.day)
+        mode = self.event_view_seg.get() if hasattr(self, 'event_view_seg') else "🗓️ 月間 (30日)"
+
+        filtered_events = []
         for e in events:
+            dt = datetime.datetime.fromtimestamp(e.start_time / 1000)
+            if "日間" in mode:
+                if dt.date() == now.date():
+                    filtered_events.append(e)
+            elif "週間" in mode:
+                week_end = start_of_today + datetime.timedelta(days=7)
+                if start_of_today <= dt < week_end:
+                    filtered_events.append(e)
+            else:
+                filtered_events.append(e)
+
+        if not filtered_events:
+            period_name = "今日" if "日間" in mode else ("今週" if "週間" in mode else "今月")
+            lbl = ctk.CTkLabel(self.events_scroll, text=f"{period_name}の予定はありません ☕", font=self.font_body, text_color="#8D6E63")
+            lbl.pack(pady=30)
+            return
+
+        grouped = defaultdict(list)
+        for e in filtered_events:
             dt = datetime.datetime.fromtimestamp(e.start_time / 1000)
             date_str = dt.strftime("%Y年%m月%d日 (%a)")
             grouped[date_str].append((e, dt))
@@ -764,6 +924,7 @@ class CalendarWindow(ctk.CTkToplevel):
                 
                 if getattr(e, 'description', None):
                     ctk.CTkLabel(card, text=e.description, font=self.font_small, text_color="#7A6B62", anchor="w", wraplength=420).pack(fill="x", padx=8, pady=(0, 4))
+
 
     # =========================================================================
     # 📋 TODOタスクタブ
@@ -1039,13 +1200,13 @@ class StickyNoteWindow(tk.Toplevel):
 
 class NeoSecretaryGUI:
     def __init__(self):
-        # 1. メインウィンドウの設定
+        # 1. メインウィンドウの設定 (スマートコックピット 2.0)
         self.root = ctk.CTk()
         self.root.title("ネオ秘書くん")
         
         # ウィンドウサイズと位置の設定（画面右下付近）
         window_width = 340
-        window_height = 430
+        window_height = 440
         screen_width = self.root.winfo_screenwidth()
         screen_height = self.root.winfo_screenheight()
         
@@ -1065,12 +1226,28 @@ class NeoSecretaryGUI:
         # タイトルバーを消して完全なフローティングウィンドウにする
         self.root.overrideredirect(True)
 
+        # スレッドセーフなアクションキュー
+        self._action_queue = queue.Queue()
+
         # UI要素の構築
         self._build_ui(transparent_color)
         self._bind_events()
 
+    def post_action(self, func, *args):
+        """別スレッド（HTTPサーバー等）から安全にメインGUIスレッドへ処理をキューイング"""
+        self._action_queue.put((func, args))
+
+    def process_action_queue(self):
+        """メインループ内で定期的にキューを安全に消化"""
+        while not self._action_queue.empty():
+            try:
+                func, args = self._action_queue.get_nowait()
+                func(*args)
+            except Exception as e:
+                logger.error(f"Action Queue 実行エラー: {e}")
+
     def _build_ui(self, transparent_color: str):
-        """UIコンポーネント（キャラクター画像、吹き出し）の構築"""
+        """UIコンポーネント（キャラクター画像、吹き出し、入力欄）の構築"""
         
         # 全体のコンテナ（透過色）
         self.main_container = tk.Frame(self.root, bg=transparent_color)
@@ -1079,7 +1256,6 @@ class NeoSecretaryGUI:
         # -------------------------------------------------------------
         # 吹き出し部分 (Speech Bubble)
         # -------------------------------------------------------------
-        # 透過色の境界漏れを防ぐため corner_radius=4、黒寄りのブラウン枠線
         self.bubble_frame = ctk.CTkFrame(
             self.main_container,
             fg_color="#FFFFFF",      # 白背景
@@ -1109,7 +1285,7 @@ class NeoSecretaryGUI:
         )
         self.header_title.pack(side=tk.LEFT, padx=(8, 0))
 
-        # ヘッダー右側: ⚙ メニューボタン
+        # ヘッダー右側: 📔 手帳ボタン ＆ ⚙ メニューボタン
         self.menu_btn = ctk.CTkButton(
             self.bubble_header,
             text="⚙",
@@ -1123,14 +1299,28 @@ class NeoSecretaryGUI:
         )
         self.menu_btn.pack(side=tk.RIGHT, padx=4)
 
-        # 吹き出し本文のテキスト表示用（長文でも入力欄を潰さないスクロール対応テキストボックス）
+        self.btn_open_calendar = ctk.CTkButton(
+            self.bubble_header,
+            text="📔 手帳",
+            width=50,
+            height=20,
+            font=("Meiryo UI", 9, "bold"),
+            fg_color="#A67B5B",
+            text_color="#FFFFFF",
+            hover_color="#8B634A",
+            corner_radius=3,
+            command=self._open_calendar
+        )
+        self.btn_open_calendar.pack(side=tk.RIGHT, padx=2)
+
+
+        # 吹き出し本文のテキスト表示用
         font_style = ("DotGothic16", 13) if "DotGothic16" in tk.font.families() else ("Meiryo UI", 11)
-        
         self.message_box = ctk.CTkTextbox(
             self.bubble_frame,
             font=font_style,
-            text_color="#4A3B32",    # ダークブラウンの文字
-            fg_color="#FFFFFF",      # 白背景
+            text_color="#4A3B32",
+            fg_color="#FFFFFF",
             border_width=0,
             corner_radius=0,
             wrap="word",
@@ -1154,27 +1344,39 @@ class NeoSecretaryGUI:
             placeholder_text="秘書くんに指示する...",
             font=font_style,
             text_color="#4A3B32",
-            fg_color="#F5F5DC",      # クリーム色
-            border_color="#A67B5B",  # ブラウン
+            fg_color="#F5F5DC",
+            border_color="#A67B5B",
             height=32
         )
         self.input_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 5))
-        
+
+
         # -------------------------------------------------------------
-        # キャラクター画像部分 (Pixel Art Mascot Module 2.0)
+        # 6. キャラクター画像 ＆ サークルメニュー (Radial Action Menu)
         # -------------------------------------------------------------
+        self.char_container = tk.Frame(self.main_container, bg=transparent_color, width=340, height=210)
+        self.char_container.pack(side=tk.BOTTOM, pady=(0, 2))
+        self.char_container.pack_propagate(False)
+
         self.char_canvas = tk.Canvas(
-            self.main_container, 
-            width=140, 
-            height=140, 
+            self.char_container, 
+            width=340, 
+            height=210, 
             bg=transparent_color,
             highlightthickness=0,
             cursor="hand2"
         )
-        self.char_canvas.pack(side=tk.BOTTOM, pady=(0, 5))
+        self.char_canvas.pack(fill=tk.BOTH, expand=True)
+
+        # サークルメニュー用ボタン群
+        self.circle_menu_active = False
+        self.circle_menu_buttons = []
+        self._build_radial_menu()
         
-        # ドット絵アセットのロードとアニメーション初期化
-        self.pet_state = "idle"  # 'idle', 'thinking', 'happy', 'focus', 'sleepy', 'alarm_ask', 'pet_love', 'cheer'
+        # ドット絵アセットのロードとアニメーション初期化 (Pixel Art 2.0 & PetAnimator)
+        from pet_animator import PetAnimator
+        self.animator = PetAnimator(on_frame_change=self._render_mascot)
+        self.pet_state = "idle"
         self.anim_tick = 0
         self.mascot_images: Dict[str, ImageTk.PhotoImage] = {}
         self.mascot_img_item = None
@@ -1192,19 +1394,132 @@ class NeoSecretaryGUI:
         self._render_mascot("idle_1")
         self._schedule_animation()
 
+    def _build_radial_menu(self):
+        """サークルメニューのボタン群を構築（広々とした半径100px配置）"""
+        btn_configs = [
+            {"icon": "📔", "cmd": self._on_circle_calendar, "color": "#A67B5B", "dx": -100, "dy": 5, "title": "📔 統合手帳（予定・TODO・知見）", "desc": "カレンダー・TODOタスク・知見ノートを開きます。"},
+            {"icon": "🍅", "cmd": self._on_circle_pomodoro, "color": "#E53935", "dx": -72, "dy": -70, "title": "🍅 ポモドーロ集中タイマー", "desc": "25分間の集中タイマーを開始/停止します。"},
+            {"icon": "📱", "cmd": self._on_circle_mobile, "color": "#5B8A72", "dx": 0, "dy": -100, "title": "📱 スマホDesk Pet接続", "desc": "スマホ画面と連携するQRコードを表示します。"},
+            {"icon": "💡", "cmd": self._on_circle_suggest, "color": "#F57F17", "dx": 72, "dy": -70, "title": "💡 サジェストソース設定", "desc": "予定やTODOの自動サジェスト項目を設定します。"},
+            {"icon": "⚙", "cmd": self._on_circle_settings, "color": "#7A6B62", "dx": 100, "dy": 5, "title": "⚙ アプリ・LLM設定", "desc": "AIモデルやAPIキー、連携設定を開きます。"}
+        ]
+        
+        self.circle_menu_buttons = []
+        for cfg in btn_configs:
+            btn = ctk.CTkButton(
+                self.char_container,
+                text=cfg["icon"],
+                width=36,
+                height=36,
+                corner_radius=18,
+                font=("Meiryo UI", 14, "bold"),
+                fg_color=cfg["color"],
+                hover_color="#2E1C14",
+                command=cfg["cmd"]
+            )
+            # マウスホバーで吹き出しに機能名と説明を表示
+            btn.bind("<Enter>", lambda e, title=cfg["title"], desc=cfg["desc"]: self._on_circle_btn_hover(title, desc))
+            btn.bind("<Leave>", lambda e: self._on_circle_btn_leave())
+            self.circle_menu_buttons.append({"btn": btn, "dx": cfg["dx"], "dy": cfg["dy"]})
+
+    def _on_circle_btn_hover(self, title: str, desc: str):
+        """サークルボタンホバー時に吹き出しへ詳細説明を表示"""
+        if self.circle_menu_active:
+            self.update_message(f"【{title}】\n{desc}")
+
+    def _on_circle_btn_leave(self):
+        """マウスが離れた時に吹き出しを戻す"""
+        if self.circle_menu_active:
+            self.update_message("えへへ、くすぐったいです！🥰\nボス、呼び出したい機能を選んでくださいね！")
+
+    def toggle_circle_menu(self):
+        """サークルメニューの展開/収納アニメーションをトグル"""
+        if self.circle_menu_active:
+            self._animate_circle_menu(step=4, forward=False)
+        else:
+            self._animate_circle_menu(step=1, forward=True)
+
+    def _animate_circle_menu(self, step: int, forward: bool):
+        """放射状アニメーションのステップ進行"""
+        cx, cy = 170, 135
+        max_steps = 4
+        progress = step / float(max_steps)
+
+        if forward:
+            self.circle_menu_active = True
+            for item in self.circle_menu_buttons:
+                btn = item["btn"]
+                x = int(cx + item["dx"] * progress - 18)
+                y = int(cy + item["dy"] * progress - 18)
+                btn.place(x=x, y=y)
+                btn.lift()
+            
+            if step < max_steps:
+                self.root.after(20, lambda: self._animate_circle_menu(step + 1, forward=True))
+        else:
+            for item in self.circle_menu_buttons:
+                btn = item["btn"]
+                x = int(cx + item["dx"] * progress - 18)
+                y = int(cy + item["dy"] * progress - 18)
+                btn.place(x=x, y=y)
+            
+            if step > 0:
+                self.root.after(20, lambda: self._animate_circle_menu(step - 1, forward=False))
+            else:
+                self.circle_menu_active = False
+                for item in self.circle_menu_buttons:
+                    item["btn"].place_forget()
+
+    def _on_circle_calendar(self):
+        self.toggle_circle_menu()
+        self._open_calendar()
+
+    def _on_circle_pomodoro(self):
+        self.toggle_circle_menu()
+        if self.pomodoro_active:
+            self.stop_pomodoro()
+        else:
+            self.start_pomodoro(25)
+
+    def _on_circle_mobile(self):
+        self.toggle_circle_menu()
+        self._open_qr_connection()
+
+    def _on_circle_suggest(self):
+        self.toggle_circle_menu()
+        SuggestSettingsDialog(self)
+
+    def _on_circle_settings(self):
+        self.toggle_circle_menu()
+        self._open_settings()
+
+
+
+
+
     def _load_mascot_assets(self):
         """ドット絵スプライト画像をロード（存在しない場合は自動生成）"""
         assets_dir = Path(__file__).parent / "assets"
         all_sprites = [
+            # 基本・視線
             "idle_1", "idle_2",
             "look_left", "look_right", "look_up", "look_down",
+            # 思考・リアクション
             "thinking_1", "thinking_2",
             "happy",
             "focus_1", "focus_2",
             "sleepy_1", "sleepy_2",
             "alarm_ask",
             "pet_love",
-            "cheer"
+            "cheer",
+            # 新規自律モーション (Idle Actions)
+            "tea_1", "tea_2",
+            "reading_1", "reading_2",
+            "stretch_1", "stretch_2",
+            # 新規共感リアクション (Context Reactions)
+            "celebrate_1", "celebrate_2", "celebrate_3",
+            "care_1", "care_2",
+            "night_1", "night_2"
         ]
         
         # 欠損ファイルがあれば自動生成
@@ -1231,87 +1546,46 @@ class NeoSecretaryGUI:
         img = self.mascot_images.get(frame_name)
         if img:
             if self.mascot_img_item is None:
-                self.mascot_img_item = self.char_canvas.create_image(70, 70, image=img)
+                self.mascot_img_item = self.char_canvas.create_image(170, 135, image=img)
             else:
+                self.char_canvas.coords(self.mascot_img_item, 170, 135)
                 self.char_canvas.itemconfig(self.mascot_img_item, image=img)
         else:
             # フォールバック描画
             self.char_canvas.delete("fallback")
-            self.char_canvas.create_oval(20, 20, 120, 120, fill="#A67B5B", outline="#4A3B32", width=3, tags="fallback")
-            self.char_canvas.create_text(70, 70, text="秘書くん", fill="#FFFFFF", font=("Meiryo UI", 12, "bold"), tags="fallback")
+            self.char_canvas.create_oval(120, 85, 220, 185, fill="#A67B5B", outline="#4A3B32", width=3, tags="fallback")
+            self.char_canvas.create_text(170, 135, text="秘書くん", fill="#FFFFFF", font=("Meiryo UI", 12, "bold"), tags="fallback")
 
     def _schedule_animation(self):
-        """アニメーションの定期実行ループ (MiniCPM級 豊かな感情・視線・ポモドーロ)"""
+        """アニメーションの定期実行ループ (PetAnimator 連携による自律＆共感アニメーション)"""
         self.anim_tick += 1
-        delay = 500
+        delay = 350
         
         # 1. ポモドーロタイマーカウント処理
         if self.pomodoro_active and self.pomodoro_remaining_seconds > 0:
-            if self.anim_tick % 2 == 0:  # 約1秒ごと (500ms * 2)
+            if self.anim_tick % 2 == 0:
                 self.pomodoro_remaining_seconds -= 1
                 mins = self.pomodoro_remaining_seconds // 60
                 secs = self.pomodoro_remaining_seconds % 60
                 mode_label = "☕ 休憩" if self.pomodoro_is_break else "🍅 集中"
-                self.header_title.configure(text=f"🤖 ネオ秘書くん [{mode_label} {mins:02d}:{secs:02d}]")
+                if hasattr(self, 'header_title') and self.header_title.winfo_exists():
+                    self.header_title.configure(text=f"🤖 ネオ秘書くん [{mode_label} {mins:02d}:{secs:02d}]")
                 
                 if self.pomodoro_remaining_seconds <= 0:
                     self._on_pomodoro_completed()
-        
-        # 2. 状態に応じたスプライトレンダリング
-        if self.pet_state == "idle":
-            if self.is_hovered:
-                # カーソルが乗っている時は嬉しそうに目を細める
-                self._render_mascot("happy")
-                delay = 300
-            elif self.anim_tick % 8 == 0:
-                # 8フレームに1回瞬き
-                self._render_mascot("idle_2")
-                delay = 300
-            else:
-                # マウス位置に応じた視線追従
-                if self.last_mouse_dir == "left":
-                    self._render_mascot("look_left")
-                elif self.last_mouse_dir == "right":
-                    self._render_mascot("look_right")
-                elif self.last_mouse_dir == "up":
-                    self._render_mascot("look_up")
-                elif self.last_mouse_dir == "down":
-                    self._render_mascot("look_down")
-                else:
-                    self._render_mascot("idle_1")
-                delay = 400
 
-        elif self.pet_state == "thinking":
-            # 思考中: アンテナを点滅
-            frame = "thinking_1" if (self.anim_tick % 2 == 0) else "thinking_2"
-            self._render_mascot(frame)
+        # 2. カーソルホバー時のなでなで優先処理
+        if self.is_hovered and self.animator.current_state == "idle":
+            self._render_mascot("happy")
             delay = 300
-
-        elif self.pet_state == "focus":
-            # 集中作業中: カタカタキーボード入力
-            frame = "focus_1" if (self.anim_tick % 2 == 0) else "focus_2"
-            self._render_mascot(frame)
+        elif self.last_mouse_dir in ("left", "right", "up", "down") and self.animator.current_state == "idle" and not self.is_hovered:
+            # 待機中かつマウス移動時は視線追従
+            self._render_mascot(f"look_{self.last_mouse_dir}")
             delay = 350
-
-        elif self.pet_state == "sleepy":
-            # 居眠り: Zzz…
-            frame = "sleepy_1" if (self.anim_tick % 2 == 0) else "sleepy_2"
-            self._render_mascot(frame)
-            delay = 600
-
-        elif self.pet_state == "alarm_ask":
-            # 承認要請アラート: 挙手ポーズ
-            self._render_mascot("alarm_ask")
-            delay = 400
-
-        elif self.pet_state == "pet_love":
-            # なでなで触感: ハートマーク
-            self._render_mascot("pet_love")
-            delay = 500
-
-        elif self.pet_state in ("happy", "cheer"):
-            self._render_mascot(self.pet_state)
-            delay = 400
+        else:
+            # 3. PetAnimatorによるフレーム進行（お茶、読書、ストレッチ、タスク完了ジャンプ等）
+            frame_name = self.animator.tick()
+            self._render_mascot(frame_name)
 
         # 📱 スマホ接続時のPCペット自動最小化チェック (withdraw で完全非表示)
         if getattr(self, 'auto_minimize_on_link', False):
@@ -1329,8 +1603,9 @@ class NeoSecretaryGUI:
             except Exception:
                 pass
 
-        # 次のフレームを予約
+        # 次のフレームを予約 (単一タイマー)
         self.root.after(delay, self._schedule_animation)
+
 
     def toggle_auto_minimize(self):
         """スマホ接続時の自動最小化設定をトグル"""
@@ -1361,34 +1636,21 @@ class NeoSecretaryGUI:
 
     def set_pet_state(self, state: str, duration_ms: int = 0):
         """
-        ペットの状態を変更します。
+        ペットの状態を変更します（PetAnimator 連携）。
         
         Args:
-            state: 'idle', 'thinking', 'happy', 'focus', 'sleepy', 'alarm_ask', 'pet_love', 'cheer'
+            state: 'idle', 'thinking', 'happy', 'focus', 'sleepy', 'alarm_ask', 'pet_love', 'cheer', 'celebrate', 'care', 'tea', 'reading', 'stretch', 'night'
             duration_ms: 指定ミリ秒後に自動で 'idle' に戻す（0なら維持）
         """
         self.pet_state = state
         self.anim_tick = 0
+        dur_sec = duration_ms / 1000.0 if duration_ms > 0 else 0.0
         
-        if state == "thinking":
-            self._render_mascot("thinking_1")
-        elif state == "focus":
-            self._render_mascot("focus_1")
-        elif state == "happy":
-            self._render_mascot("happy")
-        elif state == "pet_love":
-            self._render_mascot("pet_love")
-        elif state == "alarm_ask":
-            self._render_mascot("alarm_ask")
-        elif state == "sleepy":
-            self._render_mascot("sleepy_1")
-        elif state == "cheer":
-            self._render_mascot("cheer")
+        if hasattr(self, 'animator'):
+            self.animator.set_state(state, duration_sec=dur_sec)
         else:
-            self._render_mascot("idle_1")
+            self._render_mascot(state if state in self.mascot_images else "idle_1")
 
-        if duration_ms > 0:
-            self.root.after(duration_ms, lambda: self.set_pet_state("idle" if not self.pomodoro_active else "focus"))
 
     # =========================================================================
     # 🍅 ポモドーロタイマー機能
@@ -1412,7 +1674,8 @@ class NeoSecretaryGUI:
         else:
             # 休憩終了
             self.pomodoro_active = False
-            self.header_title.configure(text="🤖 ネオ秘書くん")
+            if hasattr(self, 'header_title') and self.header_title.winfo_exists():
+                self.header_title.configure(text="🤖 ネオ秘書くん")
             self.set_pet_state("happy", duration_ms=3000)
             self.update_message("⏰ 休憩時間が終了しました！\n次の作業に向けて準備ができたらお声がけください！💪")
 
@@ -1420,9 +1683,12 @@ class NeoSecretaryGUI:
         """ポモドーロタイマーを停止"""
         self.pomodoro_active = False
         self.pomodoro_remaining_seconds = 0
-        self.header_title.configure(text="🤖 ネオ秘書くん")
+        if hasattr(self, 'header_title') and self.header_title.winfo_exists():
+            self.header_title.configure(text="🤖 ネオ秘書くん")
         self.set_pet_state("idle")
         self.update_message("ポモドーロタイマーを終了しました。")
+
+
 
     # =========================================================================
     # 🖱️ マウスイベント ＆ 触感インタラクション
@@ -1474,8 +1740,8 @@ class NeoSecretaryGUI:
         """ウィンドウ全体でのマウス視線追跡"""
         if not self.is_hovered and self.pet_state == "idle":
             # キャンバスの相対位置を計算
-            canv_x = self.char_canvas.winfo_x() + 70
-            canv_y = self.char_canvas.winfo_y() + 70
+            canv_x = self.char_canvas.winfo_x() + 170
+            canv_y = self.char_canvas.winfo_y() + 135
             dx = event.x - canv_x
             dy = event.y - canv_y
             
@@ -1485,12 +1751,14 @@ class NeoSecretaryGUI:
                 self.last_mouse_dir = "up" if dy < -20 else ("down" if dy > 20 else "center")
 
     def _on_pet_click(self, event):
-        """クリック（なでなで）またはドラッグ開始"""
+        """クリック時のサークルメニュー展開と、なでなでリアクション"""
         self._start_move(event)
+        self.toggle_circle_menu()
         if not self.pomodoro_active and self.pet_state in ("idle", "happy"):
             # なでなで触感リアクション（ハートマーク💖）
             self.set_pet_state("pet_love", duration_ms=2500)
-            self.update_message("えへへ、くすぐったいです！🥰\nボス、いつもお疲れさまです！")
+            self.update_message("えへへ、くすぐったいです！🥰\nボス、呼び出したい機能を選んでくださいね！")
+
 
     def _on_pet_release(self, event):
         """ドラッグ終了"""
@@ -1539,6 +1807,7 @@ class NeoSecretaryGUI:
             llm_menu.add_cascade(label=f"{prov_prefix}{p_info['name']}", menu=p_sub)
             
         menu.add_cascade(label="🧠 LLMモデル切り替え", menu=llm_menu)
+        menu.add_command(label="💡 サジェストソース設定", command=lambda: SuggestSettingsDialog(self))
         menu.add_command(label="⚙ API・MCP設定", command=self._open_settings)
         menu.add_separator()
         menu.add_command(label="❌ 終了", command=self.root.destroy)
@@ -1649,7 +1918,30 @@ class NeoSecretaryGUI:
             self.calendar_window.refresh_all_data()
             self.calendar_window.focus()
 
+    def open_task_calendar_window(self):
+        """統合手帳ウィンドウを開く（公開エイリアス）"""
+        self._open_calendar()
 
+    def show_pc_pet(self):
+        """PC側のペットウィンドウを表示・最前面化する"""
+        try:
+            self._was_linked_minimized = False
+            self.root.deiconify()
+            self.root.lift()
+            self.root.attributes("-topmost", True)
+            self.update_message("🖥️ スマホからPC画面に呼び出されました！✨")
+            self.set_pet_state("happy", duration_ms=3000)
+            logger.info("PCペットを画面上に再表示しました")
+        except Exception as e:
+            logger.error(f"show_pc_pet エラー: {e}")
+
+    def hide_pc_pet(self):
+        """PC側のペットウィンドウを非表示（最小化）にする"""
+        try:
+            self.root.withdraw()
+            logger.info("PCペットを非表示にしました")
+        except Exception as e:
+            logger.error(f"hide_pc_pet エラー: {e}")
 
     def update_message(self, text: str):
         """吹き出しのメッセージを更新するメソッド（スクロール対応）"""

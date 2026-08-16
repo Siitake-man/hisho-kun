@@ -281,31 +281,103 @@ def create_sprite(state: str) -> Image.Image:
     draw_pixel_block(draw, 15, 21, COLOR_TIE, scale)
 
     # -------------------------------------------------------------
-    # 8. 手足（状態に応じたポーズ）
+    # 8. 手足・小道具・新アクションポーズ (Pixel Art 2.0 拡張)
     # -------------------------------------------------------------
-    if state == "happy":
-        # 両手を振る
-        draw_pixel_block(draw, 6, 13, COLOR_BODY_LIGHT, scale)
-        draw_pixel_block(draw, 6, 14, COLOR_OUTLINE, scale)
-        draw_pixel_block(draw, 25, 13, COLOR_BODY_LIGHT, scale)
-        draw_pixel_block(draw, 25, 14, COLOR_OUTLINE, scale)
+    COLOR_CUP = (121, 85, 72, 255)            # 湯呑みブラウン
+    COLOR_TEA_GREEN = (102, 187, 106, 255)    # お茶グリーン
+    COLOR_BOOK = (66, 165, 245, 255)          # 本の青表紙
+    COLOR_PAGE = (255, 255, 255, 255)         # 白いページ
+    COLOR_CONFETTI_1 = (255, 87, 34, 255)     # クラッカー紙吹雪 (オレンジ)
+    COLOR_CONFETTI_2 = (156, 39, 176, 255)    # クラッカー紙吹雪 (紫)
+    COLOR_CONFETTI_3 = (0, 200, 83, 255)      # クラッカー紙吹雪 (緑)
+    COLOR_NIGHTCAP = (92, 107, 192, 255)      # ナイトキャップ (インディゴ)
+    COLOR_POMPOM = (255, 235, 59, 255)        # キャップの先のポンポン (黄)
+
+    # 8-A. ナイトキャップ (night 状態)
+    if "night" in state:
+        # 三角ナイトキャップ
+        for nx, ny in [(10, 4), (11, 4), (12, 4), (13, 3), (14, 3), (15, 3), (16, 2), (17, 2), (18, 2), (19, 1)]:
+            draw_pixel_block(draw, nx, ny, COLOR_NIGHTCAP, scale)
+        draw_pixel_block(draw, 20, 1, COLOR_POMPOM, scale)
+        draw_pixel_block(draw, 21, 2, COLOR_POMPOM, scale)
+
+    # 8-B. クラッカー紙吹雪 (celebrate 状態)
+    if "celebrate" in state:
+        # 飛び散る紙吹雪とキラキラ
+        draw_pixel_block(draw, 4, 3, COLOR_CONFETTI_1, scale)
+        draw_pixel_block(draw, 5, 4, COLOR_CONFETTI_1, scale)
+        draw_pixel_block(draw, 26, 4, COLOR_CONFETTI_2, scale)
+        draw_pixel_block(draw, 27, 3, COLOR_CONFETTI_2, scale)
+        draw_pixel_block(draw, 15, 0, COLOR_CONFETTI_3, scale)
+        draw_pixel_block(draw, 16, 1, COLOR_SPARKLE, scale)
+        if state == "celebrate_2":
+            draw_pixel_block(draw, 3, 7, COLOR_SPARKLE, scale)
+            draw_pixel_block(draw, 28, 7, COLOR_CONFETTI_1, scale)
+
+    # 8-C. 手と持ち物
+    if state in ("happy", "celebrate_1", "celebrate_2", "celebrate_3"):
+        # 両手を高く上げてジャンプ！
+        draw_pixel_block(draw, 5, 11, COLOR_BODY_LIGHT, scale)
+        draw_pixel_block(draw, 5, 12, COLOR_OUTLINE, scale)
+        draw_pixel_block(draw, 26, 11, COLOR_BODY_LIGHT, scale)
+        draw_pixel_block(draw, 26, 12, COLOR_OUTLINE, scale)
+
+    elif "tea" in state or "care" in state:
+        # お茶の湯呑みを持って飲む・差し出す
+        draw_pixel_block(draw, 11, 18, COLOR_BODY_LIGHT, scale)
+        draw_pixel_block(draw, 20, 18, COLOR_BODY_LIGHT, scale)
+        # 湯呑み (14-17, 18-21)
+        for cx in range(14, 18):
+            draw_pixel_block(draw, cx, 19, COLOR_CUP, scale)
+            draw_pixel_block(draw, cx, 20, COLOR_CUP, scale)
+            draw_pixel_block(draw, cx, 21, COLOR_OUTLINE, scale)
+        draw_pixel_block(draw, 15, 18, COLOR_TEA_GREEN, scale)
+        draw_pixel_block(draw, 16, 18, COLOR_TEA_GREEN, scale)
+        # 湯気 (tea_2 or care_2)
+        if state in ("tea_2", "care_2"):
+            draw_pixel_block(draw, 14, 16, COLOR_FACE, scale)
+            draw_pixel_block(draw, 15, 15, COLOR_FACE, scale)
+            draw_pixel_block(draw, 17, 16, COLOR_FACE, scale)
+            draw_pixel_block(draw, 18, 15, COLOR_FACE, scale)
+
+    elif "reading" in state:
+        # 本を開いて読んでいる
+        draw_pixel_block(draw, 10, 19, COLOR_BODY_LIGHT, scale)
+        draw_pixel_block(draw, 21, 19, COLOR_BODY_LIGHT, scale)
+        # 本の開いたページ
+        for bx in range(12, 20):
+            draw_pixel_block(draw, bx, 20, COLOR_PAGE, scale)
+            draw_pixel_block(draw, bx, 21, COLOR_BOOK, scale)
+        draw_pixel_block(draw, 15, 20, COLOR_OUTLINE, scale)
+        draw_pixel_block(draw, 16, 20, COLOR_OUTLINE, scale)
+
+    elif "stretch" in state:
+        # ぐーんと伸びる手足
+        if state == "stretch_1":
+            draw_pixel_block(draw, 5, 14, COLOR_BODY_LIGHT, scale)
+            draw_pixel_block(draw, 26, 14, COLOR_BODY_LIGHT, scale)
+        else:
+            draw_pixel_block(draw, 5, 8, COLOR_BODY_LIGHT, scale)
+            draw_pixel_block(draw, 26, 8, COLOR_BODY_LIGHT, scale)
+
     elif state == "cheer":
-        # 右手を高く突き上げる（ガッツポーズ）
+        # ガッツポーズ
         draw_pixel_block(draw, 7, 17, COLOR_BODY_LIGHT, scale)
         draw_pixel_block(draw, 25, 11, COLOR_BODY_LIGHT, scale)
         draw_pixel_block(draw, 25, 12, COLOR_OUTLINE, scale)
+
     elif state == "alarm_ask":
-        # 片手を挙げて注目を促す (・ω・)ノ
+        # 片手を挙げて注目
         draw_pixel_block(draw, 7, 17, COLOR_BODY_LIGHT, scale)
         draw_pixel_block(draw, 25, 12, COLOR_BODY_LIGHT, scale)
         draw_pixel_block(draw, 26, 11, COLOR_BODY_LIGHT, scale)
         draw_pixel_block(draw, 26, 12, COLOR_OUTLINE, scale)
+
     elif "focus" in state:
-        # PCキーボードをカタカタ入力する手
+        # ノートPCカタカタ
         hand_y = 18 if state == "focus_1" else 19
         draw_pixel_block(draw, 12, hand_y, COLOR_BODY_LIGHT, scale)
         draw_pixel_block(draw, 19, (hand_y - 1 if state == "focus_2" else hand_y), COLOR_BODY_LIGHT, scale)
-        # 小型ノートPCのドット絵
         for px in range(13, 19):
             draw_pixel_block(draw, px, 21, COLOR_OUTLINE, scale)
             draw_pixel_block(draw, px, 20, COLOR_FACE, scale)
@@ -315,25 +387,36 @@ def create_sprite(state: str) -> Image.Image:
         draw_pixel_block(draw, 24, 17, COLOR_BODY_LIGHT, scale)
 
     # 足
-    draw_pixel_block(draw, 11, 24, COLOR_OUTLINE, scale)
-    draw_pixel_block(draw, 12, 24, COLOR_BODY_LIGHT, scale)
-    draw_pixel_block(draw, 19, 24, COLOR_BODY_LIGHT, scale)
-    draw_pixel_block(draw, 20, 24, COLOR_OUTLINE, scale)
+    foot_y = 23 if "celebrate" in state else 24
+    draw_pixel_block(draw, 11, foot_y, COLOR_OUTLINE, scale)
+    draw_pixel_block(draw, 12, foot_y, COLOR_BODY_LIGHT, scale)
+    draw_pixel_block(draw, 19, foot_y, COLOR_BODY_LIGHT, scale)
+    draw_pixel_block(draw, 20, foot_y, COLOR_OUTLINE, scale)
 
     return img
 
 def main():
     """全スプライトを生成して assets/ フォルダに保存"""
     states = [
+        # 基本・視線
         "idle_1", "idle_2",
         "look_left", "look_right", "look_up", "look_down",
+        # 思考・リアクション
         "thinking_1", "thinking_2",
         "happy",
         "focus_1", "focus_2",
         "sleepy_1", "sleepy_2",
         "alarm_ask",
         "pet_love",
-        "cheer"
+        "cheer",
+        # 新規自律モーション (Idle Actions)
+        "tea_1", "tea_2",
+        "reading_1", "reading_2",
+        "stretch_1", "stretch_2",
+        # 新規共感リアクション (Context Reactions)
+        "celebrate_1", "celebrate_2", "celebrate_3",
+        "care_1", "care_2",
+        "night_1", "night_2"
     ]
     for s in states:
         img = create_sprite(s)
@@ -343,3 +426,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

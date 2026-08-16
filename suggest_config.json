@@ -1,0 +1,29 @@
+{
+  "sources": {
+    "calendar": {
+      "name": "📅 予定・会議リマインド",
+      "enabled": true,
+      "description": "直近の予定や次の会議の開始前リマインド"
+    },
+    "high_priority_tasks": {
+      "name": "🔥 重要TODOタスク",
+      "enabled": true,
+      "description": "今日期限や高優先度の未完了タスク"
+    },
+    "proactive_care": {
+      "name": "🍵 健康・集中見守り",
+      "enabled": true,
+      "description": "45分作業時の休憩提案や夕方のリフレッシュ"
+    },
+    "boss_insights": {
+      "name": "🧠 開発知見・マインドセット",
+      "enabled": true,
+      "description": "MentisDBに蓄積されたボスのルールや天風哲学のTips"
+    },
+    "news_topics": {
+      "name": "🌐 関心ニュース・AIトレンド",
+      "enabled": true,
+      "description": "登録キーワードやAI最新動向のトピック"
+    }
+  }
+}

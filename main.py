@@ -144,7 +144,8 @@ async def async_mainloop(app: NeoSecretaryApp):
                 logger.info("ウィンドウが閉じられました。アプリを終了します。")
                 break
                 
-            # 1. UI側で発生したイベント（クリックや文字入力）を処理・再描画
+            # 1. UI側で発生したイベント（クリックや文字入力）および別スレッドアクションを処理・再描画
+            app.gui.process_action_queue()
             app.gui.root.update()
             
             # 2. 定期的なプロアクティブ見守りチェック（約10秒 = 1000 tick ごと）

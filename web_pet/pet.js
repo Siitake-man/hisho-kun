@@ -1,13 +1,15 @@
 /**
- * ネオ秘書くん Desk Pet ＆ Agent Bridge Cockpit ロジック (pet.js v5.0)
- * ポモドーロ双方向同期 ＆ 多彩な自律生活シーン ＆ 動画スリープ完全防止
+ * ネオ秘書くん Desk Pet ＆ Agent Bridge Cockpit ロジック (pet.js v6.0)
+ * インテリジェント・サジェスト ＆ オンデマンド手帳 ＆ ポモドーロ双方向同期
  */
 
-let currentTab = 'todo';
-let petState = 'idle'; // 'idle', 'focus', 'happy', 'alarm_ask', 'pet_love', 'cheer', 'life_tea', 'life_study', 'life_workout', 'life_sleep', 'life_tv', 'life_clean'
+let petState = 'idle';
 let animTick = 0;
 let tasksData = [];
 let eventsData = [];
+let suggestionsData = [];
+let suggestConfig = {};
+let suggestIndex = 0;
 let currentApprovalRequest = null;
 let currentPomodoro = { active: false, is_break: false, remaining_seconds: 0, mode_label: "" };
 let wakeLock = null;
@@ -15,29 +17,58 @@ let lastPingMs = 0;
 let isKeepAwakeActive = false;
 let isFetching = false;
 let audioWakeCtx = null;
-let petStreamBound = false;
+let canvas = null;
+let ctx = null;
 
-const canvas = document.getElementById('pet-canvas');
-const ctx = canvas.getContext('2d');
-ctx.imageSmoothingEnabled = false;
+function initCanvas() {
+  canvas = document.getElementById('pet-canvas');
+  if (canvas) {
+    ctx = canvas.getContext('2d');
+    if (ctx) ctx.imageSmoothingEnabled = false;
+  }
+}
+initCanvas();
+window.addEventListener('DOMContentLoaded', initCanvas);
+
+// =============================================================================
+// ⏰ 大型デジタル時計の更新ループ (1秒ごと)
+// =============================================================================
+function updateClock() {
+  const now = new Date();
+  const h = String(now.getHours()).padStart(2, '0');
+  const m = String(now.getMinutes()).padStart(2, '0');
+  const s = String(now.getSeconds()).padStart(2, '0');
+  const clockEl = document.getElementById('clock-display');
+  if (clockEl) {
+    clockEl.innerText = `${h}:${m}:${s}`;
+  }
+}
+setInterval(updateClock, 1000);
+updateClock();
 
 // =============================================================================
 // 📺 全画面（フルスクリーン）モード
 // =============================================================================
-function toggleFullscreen() {
-  if (!document.fullscreenElement && !document.webkitFullscreenElement) {
-    const docEl = document.documentElement;
-    if (docEl.requestFullscreen) {
-      docEl.requestFullscreen().catch(() => {});
-    } else if (docEl.webkitRequestFullscreen) {
-      docEl.webkitRequestFullscreen();
+async function toggleFullscreen() {
+  const docEl = document.documentElement;
+  try {
+    if (!document.fullscreenElement && !document.webkitFullscreenElement) {
+      if (docEl.requestFullscreen) {
+        await docEl.requestFullscreen();
+      } else if (docEl.webkitRequestFullscreen) {
+        await docEl.webkitRequestFullscreen();
+      } else if (docEl.msRequestFullscreen) {
+        await docEl.msRequestFullscreen();
+      }
+    } else {
+      if (document.exitFullscreen) {
+        await document.exitFullscreen();
+      } else if (document.webkitExitFullscreen) {
+        await document.webkitExitFullscreen();
+      }
     }
-  } else {
-    if (document.exitFullscreen) {
-      document.exitFullscreen().catch(() => {});
-    } else if (document.webkitExitFullscreen) {
-      document.webkitExitFullscreen();
-    }
+  } catch (err) {
+    console.warn("全画面切り替えエラー:", err);
   }
   activateKeepAwake();
 }
@@ -48,444 +79,213 @@ function toggleFullscreen() {
 const spriteNames = [
   'idle_1', 'idle_2', 'look_left', 'look_right', 'look_up', 'look_down',
   'thinking_1', 'thinking_2', 'happy', 'focus_1', 'focus_2',
-  'sleepy_1', 'sleepy_2', 'alarm_ask', 'pet_love', 'cheer'
+  'sleepy_1', 'sleepy_2', 'alarm_ask', 'pet_love', 'cheer',
+  'tea_1', 'tea_2', 'reading_1', 'reading_2', 'stretch_1', 'stretch_2',
+  'celebrate_1', 'celebrate_2', 'celebrate_3', 'care_1', 'care_2', 'night_1', 'night_2'
 ];
 
 const spriteCache = {};
 
 function preloadSprites() {
-  const baseUrl = getServerBaseUrl();
+  const baseUrl = (typeof getServerBaseUrl === 'function') ? getServerBaseUrl() : '';
   spriteNames.forEach(name => {
     const img = new Image();
-    img.crossOrigin = "anonymous";
-    img.src = `${baseUrl}/assets/${name}.png?v=5.0`;
+    img.src = `${baseUrl}/assets/${name}.png?v=8.0`;
     img.onload = () => {
       spriteCache[name] = img;
+      if (name === 'idle_1' && ctx) {
+        drawPixelPet(petState, animTick);
+      }
+    };
+    img.onerror = (e) => {
+      console.warn(`スプライト読込失敗: ${name}`, e);
     };
   });
 }
 preloadSprites();
 
-// =============================================================================
-// 🎨 スプライト描画エンジン ＆ ペット動画ストリームバインド
-// =============================================================================
-function bindPetVideoStream() {
-  if (petStreamBound) return;
-  const video = document.getElementById('pet-video');
-  if (video && canvas.captureStream) {
-    try {
-      const stream = canvas.captureStream(10); // 10 fps
-      video.srcObject = stream;
-      video.play().then(() => {
-        petStreamBound = true;
-      }).catch(() => {});
-    } catch (e) {}
-  }
-}
-
 function drawPixelPet(state, tick) {
-  ctx.clearRect(0, 0, 32, 32);
+  if (!ctx) initCanvas();
+  if (!ctx) return;
+  ctx.imageSmoothingEnabled = false;
+  ctx.clearRect(0, 0, 64, 64);
 
   let targetSprite = 'idle_1';
   if (state === 'alarm_ask') {
     targetSprite = 'alarm_ask';
   } else if (state === 'pet_love') {
     targetSprite = 'pet_love';
-  } else if (state === 'happy' || state === 'life_tv') {
+  } else if (state === 'celebrate') {
+    const celFrames = ['celebrate_1', 'celebrate_2', 'celebrate_3', 'celebrate_2'];
+    targetSprite = celFrames[tick % celFrames.length];
+  } else if (state === 'care') {
+    targetSprite = (tick % 2 === 0) ? 'care_1' : 'care_2';
+  } else if (state === 'night') {
+    targetSprite = (tick % 2 === 0) ? 'night_1' : 'night_2';
+  } else if (state === 'focus') {
+    targetSprite = (tick % 2 === 0) ? 'focus_1' : 'focus_2';
+  } else if (state === 'happy') {
     targetSprite = 'happy';
+  } else if (state === 'thinking') {
+    targetSprite = (tick % 2 === 0) ? 'thinking_1' : 'thinking_2';
+  } else if (state === 'sleepy') {
+    targetSprite = (tick % 2 === 0) ? 'sleepy_1' : 'sleepy_2';
   } else if (state === 'cheer') {
     targetSprite = 'cheer';
-  } else if (state === 'focus' || state === 'life_study' || state === 'life_workout' || state === 'life_clean') {
-    targetSprite = (tick % 2 === 0) ? 'focus_1' : 'focus_2';
-  } else if (state === 'life_sleep' || state.includes('sleep')) {
-    targetSprite = (tick % 2 === 0) ? 'sleepy_1' : 'sleepy_2';
   } else if (state === 'life_tea') {
-    targetSprite = (tick % 4 === 0) ? 'happy' : 'idle_1';
-  } else if (state.includes('thinking')) {
-    targetSprite = (tick % 2 === 0) ? 'thinking_1' : 'thinking_2';
+    targetSprite = (tick % 2 === 0) ? 'tea_1' : 'tea_2';
+  } else if (state === 'life_study') {
+    targetSprite = (tick % 2 === 0) ? 'reading_1' : 'reading_2';
+  } else if (state === 'life_workout') {
+    targetSprite = (tick % 2 === 0) ? 'stretch_1' : 'stretch_2';
+  } else if (state === 'life_sleep') {
+    targetSprite = (tick % 2 === 0) ? 'night_1' : 'night_2';
   } else {
-    targetSprite = (tick % 8 === 0) ? 'idle_2' : 'idle_1';
+    targetSprite = (tick % 2 === 0) ? 'idle_1' : 'idle_2';
   }
 
-  if (spriteCache[targetSprite]) {
-    ctx.drawImage(spriteCache[targetSprite], 0, 0, 32, 32);
+  const img = spriteCache[targetSprite];
+  if (img && img.complete && img.naturalWidth > 0) {
+    ctx.drawImage(img, 0, 0, 64, 64);
   } else {
-    ctx.fillStyle = "#A67B5B";
-    ctx.fillRect(8, 8, 16, 15);
-    ctx.fillStyle = "#F5F5DC";
-    ctx.fillRect(10, 11, 12, 10);
-    ctx.fillStyle = "#4A3B32";
-    ctx.fillRect(12, 13, 2, 2);
-    ctx.fillRect(19, 13, 2, 2);
-    ctx.fillStyle = "#E6D235";
-    ctx.fillRect(15, 19, 2, 3);
-  }
-
-  if (!petStreamBound) {
-    bindPetVideoStream();
+    // フォールバックドット絵描画
+    ctx.fillStyle = '#A67B5B';
+    ctx.beginPath();
+    ctx.arc(32, 32, 24, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#4A3B32';
+    ctx.fillRect(24, 26, 4, 4);
+    ctx.fillRect(36, 26, 4, 4);
   }
 }
 
+// 350msごとにアニメーション進行
 setInterval(() => {
   animTick++;
   drawPixelPet(petState, animTick);
-}, 300);
+}, 350);
+
 
 // =============================================================================
-// 🔋 スリープ完全防止エンジン (Active Video ＋ Audio Stream ＋ WakeLock)
+// 💡 インテリジェント・サジェストの表示とローテーション
 // =============================================================================
-async function activateKeepAwake() {
-  isKeepAwakeActive = true;
-  bindPetVideoStream();
-
-  if ('wakeLock' in navigator) {
-    try {
-      wakeLock = await navigator.wakeLock.request('screen');
-    } catch (err) {}
-  }
-  
-  try {
-    const AudioContext = window.AudioContext || window.webkitAudioContext;
-    if (AudioContext && !audioWakeCtx) {
-      audioWakeCtx = new AudioContext();
-      const osc = audioWakeCtx.createOscillator();
-      const gain = audioWakeCtx.createGain();
-      gain.gain.value = 0.00001;
-      osc.connect(gain);
-      gain.connect(audioWakeCtx.destination);
-      osc.start();
-    }
-    if (audioWakeCtx && audioWakeCtx.state === 'suspended') {
-      audioWakeCtx.resume();
-    }
-  } catch (e) {}
-
-  const banner = document.getElementById('wake-banner');
-  if (banner) {
-    banner.innerText = "🟢 常時画面ON アクティブ（スリープ防止中）";
-    banner.style.background = "#E8F5E9";
-    banner.style.borderColor = "#4CAF50";
-    banner.style.color = "#2E7D32";
-  }
-}
-
-function handleGlobalInteraction() {
-  if (!isKeepAwakeActive) {
-    activateKeepAwake();
-  }
-}
-
-document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'visible') {
-    activateKeepAwake();
-    fetchSyncData();
-  }
-});
-
-// =============================================================================
-// ⏰ 時計 ＆ 多彩な自律生活シーンエンジン
-// =============================================================================
-function updateClock() {
-  const now = new Date();
-  const h = String(now.getHours()).padStart(2, '0');
-  const m = String(now.getMinutes()).padStart(2, '0');
-  const s = String(now.getSeconds()).padStart(2, '0');
-  document.getElementById('clock-display').innerText = `${h}:${m}:${s}`;
-}
-setInterval(updateClock, 1000);
-updateClock();
-
-function updateSceneBadge(name) {
-  const badge = document.getElementById('scene-badge');
-  if (badge) badge.innerText = name;
-}
-
-// 6大生活シーン定義
-const lifeScenes = [
-  { state: 'life_tea', badge: '☕ お茶ブレイク中', msg: 'ボス、温かいお茶で一息入れましょう🍵' },
-  { state: 'life_study', badge: '📖 読書・勉強中', msg: '新しい技術書を読んでいます！知識の筋トレです📚' },
-  { state: 'life_workout', badge: '🏋️ 筋トレ中', msg: 'ふんぬっ！ダンベル10回！ボスも肩を回しましょ💪' },
-  { state: 'life_sleep', badge: '🛏️ お昼寝中', msg: 'Zzz...ボス...いつもありがとう...Zzz💤' },
-  { state: 'life_tv', badge: '📺 テレビ鑑賞中', msg: 'お笑い番組見てます！リラックス大事ですね📺' },
-  { state: 'life_clean', badge: '🧹 お掃除中', msg: '机の上をホウキでパタパタ...ピカピカにします！✨' }
-];
-
-let lastLifeSceneChange = Date.now();
-
-function scheduleLifeScenes() {
-  // 承認要請中、またはポモドーロ中は生活シーンを上書きしない
-  if (currentApprovalRequest || currentPomodoro.active || petState === 'pet_love') {
+function renderSuggestionCard() {
+  if (!suggestionsData || suggestionsData.length === 0) {
+    document.getElementById('suggest-tag').innerText = "💡 サジェスト";
+    document.getElementById('suggest-title').innerText = "ボス、今日も素晴らしい一日に！✨";
+    document.getElementById('suggest-desc').innerText = "下のメニューからTODOや予定を確認できます。";
     return;
   }
 
-  const now = Date.now();
-  // 90秒ごとにランダムで生活シーンを切り替え
-  if (now - lastLifeSceneChange > 90000) {
-    lastLifeSceneChange = now;
-    const isSpecialScene = Math.random() < 0.7; // 70%の確率で生活シーン
-    if (isSpecialScene) {
-      const scene = lifeScenes[Math.floor(Math.random() * lifeScenes.length)];
-      petState = scene.state;
-      updateSceneBadge(scene.badge);
-      document.getElementById('pet-message').innerHTML = scene.msg;
-    } else {
-      petState = 'idle';
-      updateSceneBadge('✨ 待機中');
-      document.getElementById('pet-message').innerHTML = 'ボス、見守っています！いつでも声をかけてくださいね✨';
-    }
+  suggestIndex = (suggestIndex + suggestionsData.length) % suggestionsData.length;
+  const s = suggestionsData[suggestIndex];
+  const total = suggestionsData.length;
+  const curr = suggestIndex + 1;
+  const icon = s.icon || "💡";
+  const tag = s.tag || "サジェスト";
+
+  document.getElementById('suggest-tag').innerText = `${icon} ${tag} (${curr}/${total})`;
+  document.getElementById('suggest-title').innerText = s.title || "";
+  document.getElementById('suggest-desc').innerText = s.description || "";
+}
+
+function nextSuggest() {
+  suggestIndex++;
+  renderSuggestionCard();
+}
+
+function prevSuggest() {
+  suggestIndex--;
+  renderSuggestionCard();
+}
+
+function onSuggestCardClick() {
+  if (!suggestionsData || suggestionsData.length === 0) return;
+  const s = suggestionsData[suggestIndex];
+  if (s && s.source === 'calendar') {
+    openEventsModal();
+  } else if (s && s.source === 'tasks') {
+    openTodoModal();
   }
 }
 
-setInterval(scheduleLifeScenes, 5000);
-
-function pokePet() {
-  petState = 'pet_love';
-  updateSceneBadge('💖 なでなで中');
-  if (navigator.vibrate) navigator.vibrate([50, 40, 50]);
-  handleGlobalInteraction();
-  
-  const phrases = [
-    "えへへ、くすぐったいです！🥰",
-    "ボス、いつもお疲れさまです！🔥",
-    "机の上から見守ってますよ！✨",
-    "いつでも指示してくださいね！👍"
-  ];
-  document.getElementById('pet-message').innerHTML = phrases[Math.floor(Math.random() * phrases.length)];
-  setTimeout(() => {
-    if (currentApprovalRequest) {
-      petState = 'alarm_ask';
-      updateSceneBadge('⚠️ 承認待ち');
-    } else if (currentPomodoro.active) {
-      petState = currentPomodoro.is_break ? 'happy' : 'focus';
-      updateSceneBadge(currentPomodoro.is_break ? '☕ お茶休憩中' : '🔥 集中作業中');
-    } else {
-      petState = 'idle';
-      updateSceneBadge('✨ 待機中');
-    }
-  }, 2500);
-}
+// 15秒ごとに自動ローテーション
+setInterval(() => {
+  if (suggestionsData.length > 1) {
+    nextSuggest();
+  }
+}, 15000);
 
 // =============================================================================
-// 🍅 ポモドーロ双方向同期 ＆ スマホ側起動
+// 📋 モーダル管理 (TODO手帳 / 予定一覧 / 設定)
 // =============================================================================
-
-function updatePomodoroUI(pomodoro) {
-  if (!pomodoro) return;
-  currentPomodoro = pomodoro;
-  const badge = document.getElementById('pomodoro-badge');
-  if (!badge) return;
-
-  if (pomodoro.active) {
-    const mins = String(Math.floor(pomodoro.remaining_seconds / 60)).padStart(2, '0');
-    const secs = String(pomodoro.remaining_seconds % 60).padStart(2, '0');
-    const modeStr = pomodoro.is_break ? "☕ 休憩" : "🍅 集中";
-    
-    badge.innerText = `${modeStr} ${mins}:${secs}`;
-    badge.className = `pomodoro-badge ${pomodoro.is_break ? 'break' : ''}`;
-    
-    if (!currentApprovalRequest && petState !== 'pet_love') {
-      if (pomodoro.is_break) {
-        petState = 'happy';
-        updateSceneBadge('☕ お茶休憩中');
-      } else {
-        petState = 'focus';
-        updateSceneBadge('🔥 集中作業中');
-      }
-    }
+function openTodoModal(event) {
+  if (event) event.stopPropagation();
+  const listEl = document.getElementById('todo-modal-list');
+  if (!tasksData || tasksData.length === 0) {
+    listEl.innerHTML = '<div class="modal-item-card" style="justify-content:center; color:#8D6E63; padding:12px;">未完了のTODOはありません 🎉</div>';
   } else {
-    badge.innerText = "🍅 集中開始 (25分)";
-    badge.className = "pomodoro-badge idle";
-  }
-}
-
-async function togglePomodoro() {
-  const baseUrl = getServerBaseUrl();
-  handleGlobalInteraction();
-  if (navigator.vibrate) navigator.vibrate(60);
-
-  const action = currentPomodoro.active ? "stop_pomodoro" : "start_pomodoro";
-  try {
-    await fetch(`${baseUrl}/api/action`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        action: action,
-        minutes: 25
-      })
-    });
-    
-    if (action === "start_pomodoro") {
-      petState = 'focus';
-      updateSceneBadge('🔥 集中作業中');
-      document.getElementById('pet-message').innerHTML = "🍅 <b>ポモドーロ開始！</b><br>25分間、集中していきましょう！ボス！🔥";
-      if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
-    } else {
-      petState = 'idle';
-      updateSceneBadge('✨ 待機中');
-      document.getElementById('pet-message').innerHTML = "⏹ <b>ポモドーロを停止しました。</b>";
-    }
-    
-    setTimeout(fetchSyncData, 300);
-  } catch (err) {
-    alert("通信エラー: " + err);
-  }
-}
-
-// =============================================================================
-// 🤖 Agent Bridge 承認コクピット (Codex / Claude Code / Antigravity)
-// =============================================================================
-
-function updateApprovalUI(req) {
-  const card = document.getElementById('approval-card');
-  if (!card) return;
-
-  if (!req || req.status !== 'pending') {
-    currentApprovalRequest = null;
-    card.style.display = 'none';
-    if (petState === 'alarm_ask') {
-      petState = currentPomodoro.active ? (currentPomodoro.is_break ? 'happy' : 'focus') : 'idle';
-      updateSceneBadge(currentPomodoro.active ? (currentPomodoro.is_break ? '☕ お茶休憩中' : '🔥 集中作業中') : '✨ 待機中');
-    }
-    return;
-  }
-
-  // 新しい承認要請が届いた場合
-  if (!currentApprovalRequest || currentApprovalRequest.request_id !== req.request_id) {
-    currentApprovalRequest = req;
-    card.style.display = 'block';
-    document.getElementById('approval-agent').innerText = `🤖 ${req.agent_name}`;
-    document.getElementById('approval-summary').innerText = req.summary || 'コマンド実行の許可要請';
-    document.getElementById('approval-cmd').innerText = req.command || '';
-    
-    petState = 'alarm_ask';
-    updateSceneBadge('⚠️ 承認待ち');
-    document.getElementById('pet-message').innerHTML = `⚠️ <b>${req.agent_name}</b> からコマンド実行許可！`;
-    
-    handleGlobalInteraction();
-    if (navigator.vibrate) navigator.vibrate([300, 150, 300, 150, 300]);
-  }
-}
-
-async function respondApproval(decision) {
-  if (!currentApprovalRequest) return;
-  const baseUrl = getServerBaseUrl();
-  const reqId = currentApprovalRequest.request_id;
-  
-  if (navigator.vibrate) navigator.vibrate(80);
-  handleGlobalInteraction();
-
-  try {
-    await fetch(`${baseUrl}/api/agent/respond`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        request_id: reqId,
-        decision: decision
-      })
-    });
-
-    if (decision === 'approve') {
-      petState = 'happy';
-      updateSceneBadge('🎉 承認完了');
-      document.getElementById('pet-message').innerHTML = "🎉 <b>承認完了！</b><br>エージェントが作業を再開しました！";
-    } else if (decision === 'reject') {
-      petState = 'idle';
-      updateSceneBadge('🛑 実行拒否');
-      document.getElementById('pet-message').innerHTML = "🛑 <b>実行を拒否しました。</b>";
-    } else {
-      petState = 'focus';
-      updateSceneBadge('💬 説明要求');
-      document.getElementById('pet-message').innerHTML = "💬 <b>説明を要求しました。</b>";
-    }
-
-    document.getElementById('approval-card').style.display = 'none';
-    currentApprovalRequest = null;
-    setTimeout(fetchSyncData, 300);
-  } catch (err) {
-    alert("通信エラー: " + err);
-  }
-}
-
-// =============================================================================
-// 📶 リンク死活監視 ＆ 疎通テスト
-// =============================================================================
-
-async function testPing() {
-  const baseUrl = getServerBaseUrl();
-  const t0 = performance.now();
-  try {
-    const res = await fetch(`${baseUrl}/api/action`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'ping_test' })
-    });
-    const t1 = performance.now();
-    const rtt = Math.round(t1 - t0);
-    if (navigator.vibrate) navigator.vibrate([50, 50, 50]);
-    handleGlobalInteraction();
-    
-    petState = 'happy';
-    document.getElementById('pet-message').innerHTML = `📶 <b>疎通成功！</b> (${rtt} ms) ✨`;
-    setTimeout(() => { petState = 'idle'; updateSceneBadge('✨ 待機中'); }, 3000);
-  } catch (err) {
-    document.getElementById('pet-message').innerHTML = "🔴 <b>PC通信エラー</b>";
-  }
-}
-
-// =============================================================================
-// 📋 タスク / 予定 / 設定
-// =============================================================================
-
-function switchTab(tab) {
-  currentTab = tab;
-  document.getElementById('tab-todo').classList.toggle('active', tab === 'todo');
-  document.getElementById('tab-calendar').classList.toggle('active', tab === 'calendar');
-  renderList();
-}
-
-function renderList() {
-  const container = document.getElementById('content-list');
-  container.innerHTML = '';
-
-  if (currentTab === 'todo') {
-    if (tasksData.length === 0) {
-      container.innerHTML = '<div class="item-card">📋 すべてのタスク完了 ✨</div>';
-      return;
-    }
-    tasksData.forEach(task => {
-      const card = document.createElement('div');
-      card.className = 'item-card';
-      card.innerHTML = `
-        <span>📌 ${task.title}</span>
-        <button class="btn-action" onclick="completeTask(${task.id})">完了 ✓</button>
+    listEl.innerHTML = tasksData.map(t => {
+      const pColor = t.priority === 'high' ? '#C62828' : '#4A3B32';
+      const badge = t.priority === 'high' ? '🔥 高' : '📋';
+      return `
+        <div class="modal-item-card">
+          <div style="flex:1;">
+            <div style="font-weight:bold; color:${pColor};">${badge} ${t.title}</div>
+          </div>
+          <button class="btn-complete" onclick="completeTask(${t.id})">✓ 完了</button>
+        </div>
       `;
-      container.appendChild(card);
-    });
+    }).join('');
+  }
+  document.getElementById('todo-modal').style.display = 'flex';
+}
+
+function closeTodoModal() {
+  document.getElementById('todo-modal').style.display = 'none';
+}
+
+function openEventsModal(event) {
+  if (event) event.stopPropagation();
+  const listEl = document.getElementById('events-modal-list');
+  if (!eventsData || eventsData.length === 0) {
+    listEl.innerHTML = '<div class="modal-item-card" style="justify-content:center; color:#8D6E63; padding:12px;">直近の予定はありません ☕</div>';
   } else {
-    if (eventsData.length === 0) {
-      container.innerHTML = '<div class="item-card">📅 直近の予定はありません</div>';
-      return;
-    }
-    eventsData.forEach(ev => {
-      const card = document.createElement('div');
-      card.className = 'item-card';
-      const dtStr = ev.start_time ? new Date(ev.start_time).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : '終日';
-      card.innerHTML = `
-        <span>⏰ ${dtStr}: ${ev.title}</span>
+    listEl.innerHTML = eventsData.map(e => {
+      const d = new Date(e.start_time);
+      const timeStr = `${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+      return `
+        <div class="modal-item-card" style="flex-direction:column; align-items:flex-start; gap:2px;">
+          <div style="font-weight:bold; color:#A67B5B;">📅 ${timeStr}〜</div>
+          <div style="color:#4A3B32; font-weight:bold;">${e.title}</div>
+          ${e.description ? `<div style="font-size:8.5px; color:#7A6B62;">${e.description}</div>` : ''}
+        </div>
       `;
-      container.appendChild(card);
-    });
+    }).join('');
   }
+  document.getElementById('events-modal').style.display = 'flex';
 }
 
-function getServerBaseUrl() {
-  const customUrl = localStorage.getItem('neo_secretary_server_url');
-  if (customUrl) return customUrl.replace(/\/$/, '');
-  return '';
+function closeEventsModal() {
+  document.getElementById('events-modal').style.display = 'none';
 }
 
 function openSettingsModal() {
-  document.getElementById('server-url-input').value = localStorage.getItem('neo_secretary_server_url') || window.location.origin;
+  const container = document.getElementById('suggest-source-checkboxes');
+  const sources = suggestConfig.sources || {};
+  
+  container.innerHTML = Object.keys(sources).map(k => {
+    const s = sources[k];
+    const checked = s.enabled ? 'checked' : '';
+    return `
+      <label style="display:flex; align-items:center; gap:6px; font-size:9.5px; color:#4A3B32; cursor:pointer;">
+        <input type="checkbox" ${checked} onchange="toggleSuggestSource('${k}', this.checked)">
+        <span><b>${s.name}</b></span>
+      </label>
+    `;
+  }).join('');
+
+  document.getElementById('server-url-input').value = getServerBaseUrl();
   document.getElementById('settings-modal').style.display = 'flex';
 }
 
@@ -493,34 +293,324 @@ function closeSettingsModal() {
   document.getElementById('settings-modal').style.display = 'none';
 }
 
-function saveServerUrl() {
-  const inputVal = document.getElementById('server-url-input').value.trim();
-  if (inputVal) {
-    localStorage.setItem('neo_secretary_server_url', inputVal);
+async function toggleSuggestSource(key, enabled) {
+  const baseUrl = getServerBaseUrl();
+  try {
+    await fetch(`${baseUrl}/api/action`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'toggle_suggest_source', source_key: key, enabled: enabled })
+    });
+    fetchSyncData();
+  } catch (e) {
+    console.error("サジェスト設定変更エラー:", e);
+  }
+}
+
+// =============================================================================
+// 🖥️ PCペット呼出
+// =============================================================================
+async function callPCPet() {
+  const baseUrl = getServerBaseUrl();
+  try {
+    await fetch(`${baseUrl}/api/action`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'show_pc_pet' })
+    });
+    const msg = document.getElementById('pet-message');
+    if (msg) msg.innerText = "🖥️ PC画面にペットを呼び出しました！✨";
+    pokePet();
+  } catch (err) {
+    console.error("PCペット呼出エラー:", err);
+  }
+}
+
+// =============================================================================
+// 🍅 ポモドーロタイマー操作 ＆ 同期
+// =============================================================================
+function togglePomodoro() {
+  const baseUrl = getServerBaseUrl();
+  if (currentPomodoro.active) {
+    fetch(`${baseUrl}/api/action`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'stop_pomodoro' })
+    }).then(() => fetchSyncData());
   } else {
-    localStorage.removeItem('neo_secretary_server_url');
+    fetch(`${baseUrl}/api/action`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'start_pomodoro', minutes: 25 })
+    }).then(() => fetchSyncData());
+  }
+}
+
+function updatePomodoroUI(pomodoro) {
+  const badge = document.getElementById('pomodoro-badge');
+  if (!badge) return;
+
+  if (pomodoro && pomodoro.active) {
+    currentPomodoro = pomodoro;
+    const mins = Math.floor(pomodoro.remaining_seconds / 60);
+    const secs = pomodoro.remaining_seconds % 60;
+    const timeStr = `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+    
+    if (pomodoro.is_break) {
+      badge.className = "pomodoro-badge break";
+      badge.innerText = `☕ 休憩中 [ ${timeStr} ]`;
+    } else {
+      badge.className = "pomodoro-badge";
+      badge.innerText = `🍅 集中中 [ ${timeStr} ]`;
+    }
+  } else {
+    currentPomodoro = { active: false, is_break: false, remaining_seconds: 0, mode_label: "" };
+    badge.className = "pomodoro-badge idle";
+    badge.innerText = "🍅 25分集中";
+  }
+}
+
+// =============================================================================
+// ⚠️ Agent Bridge 承認要請 UI
+// =============================================================================
+function updateApprovalUI(req) {
+  const card = document.getElementById('approval-card');
+  const suggestCard = document.getElementById('suggest-card-container');
+  if (!card) return;
+
+  if (req && req.status === 'pending') {
+    currentApprovalRequest = req;
+    document.getElementById('approval-agent').innerText = `🤖 ${req.agent_name}`;
+    document.getElementById('approval-summary').innerText = req.summary;
+    document.getElementById('approval-cmd').innerText = req.command;
+    card.style.display = 'block';
+    if (suggestCard) suggestCard.style.display = 'none'; // 承認時はサジェストを隠す
+    
+    petState = 'alarm_ask';
+    updateSceneBadge('⚠️ 承認要請');
+    document.getElementById('pet-message').innerHTML = `<b>【${req.agent_name}から承認要請】</b><br>${req.summary}`;
+  } else {
+    currentApprovalRequest = null;
+    card.style.display = 'none';
+    if (suggestCard) suggestCard.style.display = 'flex';
+  }
+}
+
+async function respondApproval(decision) {
+  if (!currentApprovalRequest) return;
+  const baseUrl = getServerBaseUrl();
+  try {
+    await fetch(`${baseUrl}/api/agent/respond`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        request_id: currentApprovalRequest.request_id,
+        decision: decision,
+        message: decision === 'approve' ? 'スマホから承認されました' : 'スマホから拒否されました'
+      })
+    });
+    
+    if (decision === 'approve') {
+      petState = 'celebrate';
+      updateSceneBadge('🎉 実行許可');
+      document.getElementById('pet-message').innerText = "✓ 承認しました！エージェントが実行します！";
+      setTimeout(() => { petState = 'idle'; updateSceneBadge('✨ 待機中'); }, 3000);
+    } else {
+      petState = 'thinking';
+      document.getElementById('pet-message').innerText = "✕ コマンドを拒否しました。";
+      setTimeout(() => { petState = 'idle'; }, 2500);
+    }
+    
+    currentApprovalRequest = null;
+    updateApprovalUI(null);
+  } catch (err) {
+    console.error("承認送信エラー:", err);
+  }
+}
+
+// =============================================================================
+// 🎧 Bluetoothイヤホン ＆ 物理音量キーでの遠隔承認 (Agent Bridge Earphone Interface)
+// =============================================================================
+function setupMediaSessionApproval() {
+  if ('mediaSession' in navigator) {
+    navigator.mediaSession.metadata = new MediaMetadata({
+      title: "🤖 ネオ秘書くん 承認中継",
+      artist: "Bluetoothイヤホン遠隔操作",
+      album: "＋/次/再生: 承認 | －/前/停止: 拒否"
+    });
+
+    const approveHandler = () => {
+      if (currentApprovalRequest) {
+        respondApproval('approve');
+        if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
+      }
+    };
+    const rejectHandler = () => {
+      if (currentApprovalRequest) {
+        respondApproval('reject');
+        if (navigator.vibrate) navigator.vibrate([200]);
+      }
+    };
+
+    try {
+      navigator.mediaSession.setActionHandler('nexttrack', approveHandler);
+      navigator.mediaSession.setActionHandler('previoustrack', rejectHandler);
+      navigator.mediaSession.setActionHandler('play', approveHandler);
+      navigator.mediaSession.setActionHandler('pause', rejectHandler);
+    } catch (e) {}
+  }
+}
+
+// 物理キー・音量キー・キーボードフック
+window.addEventListener('keydown', (e) => {
+  if (!currentApprovalRequest) return;
+  const k = e.key.toLowerCase();
+  if (k === 'y' || k === 'enter' || k === 'arrowup' || k === 'volumeup' || k === 'audiovolumeup') {
+    respondApproval('approve');
+  } else if (k === 'n' || k === 'escape' || k === 'arrowdown' || k === 'volumedown' || k === 'audiovolumedown') {
+    respondApproval('reject');
+  }
+});
+
+// =============================================================================
+// 🔋 スリープ完全防止 (NoSleep MP4 Video & Wake Lock & WebAudio)
+// =============================================================================
+const NO_SLEEP_VIDEO_SRC = "data:video/mp4;base64,AAAAHGZ0eXBtcDQyAAAAAG1wNDJpc29tYXZjMQAAAAhmcmVlAAAAm21kYXQAAAF2AAAABwAAAAAAAAB9AAAABwAAAAAAAAB9AAAABwAAAAAAAAB9AAAABwAAAAAAAAB9AAAABwAAAAAAAAB9AAAABwAAAAAAAAB9AAAABwAAAAAAAAB9AAAABwAAAAAAAAB9AAAABwAAAAAAAAB9AAAAAQAAAAAAAAB9AAAABwAAAAAAAAB9AAAABwAAAAAAAAB9AAAA";
+
+function activateKeepAwake() {
+  if (isKeepAwakeActive) return;
+  isKeepAwakeActive = true;
+  setupMediaSessionApproval();
+  
+  // 1. 永遠に途切れない生配信動画ストリーム再生（Canvas captureStream ➔ Video）
+  const video = document.getElementById('nosleep-video');
+  const canvasEl = document.getElementById('pet-canvas');
+  if (video) {
+    if (canvasEl && canvasEl.captureStream) {
+      try {
+        const stream = canvasEl.captureStream(10);
+        video.srcObject = stream;
+        video.play().catch(() => {
+          video.src = NO_SLEEP_VIDEO_SRC;
+          video.play().catch(() => {});
+        });
+      } catch (e) {
+        video.src = NO_SLEEP_VIDEO_SRC;
+        video.play().catch(() => {});
+      }
+    } else {
+      video.src = NO_SLEEP_VIDEO_SRC;
+      video.play().catch(() => {});
+    }
+  }
+
+  // 2. Wake Lock API (HTTPS / localhost 対応)
+  if ('wakeLock' in navigator) {
+    navigator.wakeLock.request('screen').then(lock => {
+      wakeLock = lock;
+    }).catch(() => {});
+  }
+
+  // 3. WebAudio 無音オシレーター
+  try {
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    if (AudioCtx && !audioWakeCtx) {
+      audioWakeCtx = new AudioCtx();
+      const osc = audioWakeCtx.createOscillator();
+      const gain = audioWakeCtx.createGain();
+      gain.gain.value = 0.001;
+      osc.connect(gain);
+      gain.connect(audioWakeCtx.destination);
+      osc.start();
+    }
+  } catch (e) {}
+
+  if (navigator.vibrate) navigator.vibrate(80);
+
+  const banner = document.getElementById('wake-banner');
+  if (banner) {
+    banner.style.background = '#E8F5E9';
+    banner.style.borderColor = '#4CAF50';
+    banner.style.color = '#2E7D32';
+    banner.innerText = '⚡ 常時画面ON ＆ 🎧イヤホン承認 稼働中';
+  }
+}
+
+function handleGlobalInteraction() {
+  activateKeepAwake();
+}
+
+window.addEventListener('pointerdown', handleGlobalInteraction, { passive: true });
+window.addEventListener('touchstart', handleGlobalInteraction, { passive: true });
+window.addEventListener('click', handleGlobalInteraction, { passive: true });
+
+function updateSceneBadge(text) {
+  const b = document.getElementById('scene-badge');
+  if (b) b.innerText = text;
+}
+
+function pokePet() {
+  if (currentApprovalRequest) return;
+  petState = 'pet_love';
+  updateSceneBadge('💖 なでなで');
+  document.getElementById('pet-message').innerText = "えへへ、くすぐったいです！🥰 スマホからも応援してます！";
+  setTimeout(() => {
+    petState = 'idle';
+    updateSceneBadge('✨ 待機中');
+  }, 2500);
+}
+
+// =============================================================================
+// 📡 PC同期ポーリングループ (1.5秒ごと)
+// =============================================================================
+function getServerBaseUrl() {
+  const stored = localStorage.getItem('neo_server_url');
+  if (stored) return stored.replace(/\/$/, '');
+  const loc = window.location;
+  return `${loc.protocol}//${loc.hostname}:${loc.port || '8765'}`;
+}
+
+function saveServerUrl() {
+  const input = document.getElementById('server-url-input');
+  if (input && input.value.trim()) {
+    localStorage.setItem('neo_server_url', input.value.trim());
   }
   closeSettingsModal();
-  preloadSprites();
   fetchSyncData();
 }
 
-// リアルタイムデータ同期 (1.5秒間隔・タイムアウト保護付き)
+async function testPing() {
+  const baseUrl = getServerBaseUrl();
+  const startTime = Date.now();
+  try {
+    const res = await fetch(`${baseUrl}/api/action`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'ping_test' })
+    });
+    const data = await res.json();
+    const latency = Date.now() - startTime;
+    alert(`📶 疎通成功！ Ping: ${latency}ms\nサーバー: ${data.status}`);
+  } catch (err) {
+    alert(`❌ 接続失敗: ${err.message}`);
+  }
+}
+
 async function fetchSyncData() {
   if (isFetching) return;
   isFetching = true;
   const baseUrl = getServerBaseUrl();
-  const t0 = performance.now();
+  const startPing = Date.now();
+
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 3500);
 
   try {
-    const res = await fetch(`${baseUrl}/api/status`, { signal: controller.signal });
-    clearTimeout(timeoutId);
-    if (!res.ok) throw new Error('Offline');
-    const t1 = performance.now();
-    lastPingMs = Math.round(t1 - t0);
-
+    const res = await fetch(`${baseUrl}/api/status`, {
+      signal: controller.signal,
+      cache: 'no-store'
+    });
+    lastPingMs = Date.now() - startPing;
     const data = await res.json();
 
     const badge = document.getElementById('status-badge');
@@ -544,8 +634,11 @@ async function fetchSyncData() {
 
     tasksData = data.tasks || [];
     eventsData = data.events || [];
+    suggestionsData = data.suggestions || [];
+    suggestConfig = data.suggest_config || {};
+
     document.getElementById('todo-count').innerText = tasksData.length;
-    renderList();
+    renderSuggestionCard();
   } catch (err) {
     const badge = document.getElementById('status-badge');
     badge.innerText = 'OFFLINE';
@@ -565,14 +658,15 @@ async function completeTask(taskId) {
       body: JSON.stringify({ action: 'complete_task', task_id: taskId })
     });
     pokePet();
-    fetchSyncData();
-  } catch (err) {
     tasksData = tasksData.filter(t => t.id !== taskId);
     document.getElementById('todo-count').innerText = tasksData.length;
-    renderList();
-    pokePet();
+    openTodoModal(); // モーダル再描画
+    fetchSyncData();
+  } catch (err) {
+    console.error("タスク完了エラー:", err);
   }
 }
 
-fetchSyncData();
+// 1.5秒ごとの高速同期
 setInterval(fetchSyncData, 1500);
+fetchSyncData();
