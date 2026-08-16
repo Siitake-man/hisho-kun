@@ -154,9 +154,23 @@ class NeoSecretaryGUI:
             height=140,              # 高さを140pxに固定して下部UIを死守
             activate_scrollbars=True
         )
-        self.message_box.pack(pady=(4, 6), padx=8, fill=tk.BOTH, expand=True)
+        self.message_box.pack(pady=(4, 2), padx=8, fill=tk.BOTH, expand=True)
         self.message_box.insert("1.0", "おはようございます！\n本日のご予定はいかがなさいますか？")
         self.message_box.configure(state="disabled")
+
+        # URLリンクがある場合に動的表示するアクションボタン
+        self.current_link_url = ""
+        self.link_btn = ctk.CTkButton(
+            self.bubble_frame,
+            text="🌐 記事をブラウザで開く",
+            font=("Meiryo UI", 9.5, "bold"),
+            fg_color="#1565C0",
+            hover_color="#0D47A1",
+            height=24,
+            corner_radius=4,
+            command=self._open_current_link
+        )
+        # 初期状態は非表示
 
         # -------------------------------------------------------------
         # ユーザー入力欄 (Entry)
@@ -797,13 +811,33 @@ class NeoSecretaryGUI:
         except Exception as e:
             logger.error(f"hide_pc_pet エラー: {e}")
 
+    def _open_current_link(self):
+        """サジェスト内のURLリンクを既定のWebブラウザで開く"""
+        if self.current_link_url:
+            import webbrowser
+            try:
+                webbrowser.open(self.current_link_url)
+                logger.info(f"ブラウザでURLを開きました: {self.current_link_url}")
+            except Exception as e:
+                logger.error(f"ブラウザ起動エラー: {e}")
+
     def update_message(self, text: str):
-        """吹き出しのメッセージを更新するメソッド（スクロール対応）"""
+        """吹き出しのメッセージを更新するメソッド（スクロール対応 ＆ URLリンク自動検出）"""
+        import re
         self.message_box.configure(state="normal")
         self.message_box.delete("1.0", tk.END)
         self.message_box.insert("1.0", text)
         self.message_box.configure(state="disabled")
         self.message_box.see("1.0")  # 先頭を表示
+
+        # テキスト内のURL（http/https）を正規表現で検出
+        urls = re.findall(r'https?://[^\s)\]"\'>]+', text)
+        if urls and hasattr(self, 'link_btn'):
+            self.current_link_url = urls[0]
+            self.link_btn.pack(pady=(0, 4), padx=8, fill=tk.X)
+        elif hasattr(self, 'link_btn'):
+            self.current_link_url = ""
+            self.link_btn.pack_forget()
 
     def run(self):
         """Tkinterのメインループを開始"""

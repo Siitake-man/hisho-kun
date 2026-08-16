@@ -359,15 +359,39 @@ class SettingsWindow(ctk.CTkToplevel):
         # 1. Claude Desktop / Cursor / Antigravity (JSON)
         card_claude = ctk.CTkFrame(content_mcp, fg_color="#FFF8E7", border_width=1, border_color="#A67B5B", corner_radius=6)
         card_claude.pack(fill="x", pady=4, padx=2)
-        ctk.CTkLabel(card_claude, text="📦 Claude Desktop / Cursor / Antigravity 設定 (JSON)", font=("Meiryo UI", 10.5, "bold"), text_color="#4A3B32", anchor="w").pack(fill="x", padx=8, pady=(6, 2))
-        ctk.CTkLabel(card_claude, text="`mcp_config.json` または Claude Desktop 設定に貼り付けます。", font=self.font_small, text_color="#8D6E63", anchor="w").pack(fill="x", padx=8, pady=(0, 4))
+        ctk.CTkLabel(card_claude, text="📦 Antigravity / Claude Desktop / Cursor (ワンクリック自動登録)", font=("Meiryo UI", 10.5, "bold"), text_color="#4A3B32", anchor="w").pack(fill="x", padx=8, pady=(6, 2))
+        ctk.CTkLabel(card_claude, text="お使いのAIツールの設定JSONに、現在のパスで自動注入・登録します。", font=self.font_small, text_color="#8D6E63", anchor="w").pack(fill="x", padx=8, pady=(0, 4))
+        
+        btn_box = ctk.CTkFrame(card_claude, fg_color="transparent")
+        btn_box.pack(fill="x", padx=8, pady=(0, 6))
+        
+        ctk.CTkButton(
+            btn_box,
+            text="🚀 Antigravityに自動登録",
+            font=("Meiryo UI", 9.5, "bold"),
+            fg_color="#2E7D32",
+            hover_color="#1B5E20",
+            height=26,
+            command=lambda: self._auto_install_mcp("antigravity")
+        ).pack(side="left", fill="x", expand=True, padx=(0, 2))
+        
+        ctk.CTkButton(
+            btn_box,
+            text="🚀 Claude Desktopに自動登録",
+            font=("Meiryo UI", 9.5, "bold"),
+            fg_color="#D84315",
+            hover_color="#BF360C",
+            height=26,
+            command=lambda: self._auto_install_mcp("claude_desktop")
+        ).pack(side="left", fill="x", expand=True, padx=(2, 0))
+        
         ctk.CTkButton(
             card_claude,
-            text="📋 Claude/Cursor用 MCP設定JSONをコピー",
-            font=("Meiryo UI", 9.5, "bold"),
+            text="📋 手動用 MCP設定JSONをコピー",
+            font=("Meiryo UI", 9.0),
             fg_color=self.primary_color,
             hover_color="#8B634A",
-            height=26,
+            height=24,
             command=self._copy_claude_mcp_config
         ).pack(fill="x", padx=8, pady=(0, 6))
 
@@ -503,6 +527,15 @@ class SettingsWindow(ctk.CTkToplevel):
         except Exception as e:
             logger.error(f"モデル取得失敗: {e}")
             lbl.configure(text=f"❌ 取得エラー: {e}", text_color="#C62828")
+
+    def _auto_install_mcp(self, tool_name: str):
+        """指定したAIツールへネオ秘書くんMCPをワンクリック自動登録"""
+        import mcp_installer
+        success, msg = mcp_installer.install_to_tool(tool_name)
+        if success:
+            self.lbl_copy_toast.configure(text=msg, text_color="#2E7D32")
+        else:
+            self.lbl_copy_toast.configure(text=msg, text_color="#C62828")
 
     def _copy_claude_mcp_config(self):
         """Claude Desktop / Cursor / Antigravity用のMCP設定JSONをコピー"""

@@ -1,31 +1,28 @@
 # ネオ秘書くん アクティブコンテキスト (active_context.md)
 
-- **最終更新日時**: 2026-08-16 19:30 (Phase 8.7 MCP連携堅牢化・ツール拡充 ＆ SQLiteオンライン自動バックアップ完了)
-- **現在のステータス**: ✅ **Phase 8.7 完了**（`hisho_mcp_server.py` のツール拡充、WALモード並行処理強化、SQLite Online Backup による起動時自動バックアップと世代管理の実装完了）
+- **最終更新日時**: 2026-08-16 20:08 (Phase H-1 ワンクリックMCP自動登録 ＆ Phase G-2 ニュースURLブラウザ起動ボタン実装完了)
+- **現在のステータス**: ✅ **Phase A〜E 完了 ＆ Phase G/H 先行実装完了**（Pillow純粋スライサー、URL検出ブラウザ起動、設定画面からのMCPワンクリック自動登録）
 
 ---
 
-## 🎯 達成された主要機能 (Phase 8.7)
+## 🎯 今回の追加実装ハイライト
 
-1. **🔌 外部MCPサーバーのツール拡充 ＆ 堅牢化 (Phase E-1)**:
-   - `hisho_mcp_server.py` に新しいMCPツールを追加：
-     - `create_task`: TODOタスクの登録
-     - `complete_task`: TODOタスクの完了化
-     - `create_calendar_event`: 手帳カレンダーへの予定登録
-     - `remember_boss_insight` / `get_boss_insights`: MentisDB長期知見の記憶と検索
-     - `ask_human_approval` / `notify_task_completed` / `notify_user_input_needed`: Agent Bridge連携
-   - FastMCP（2026-07-28最新仕様）および標準 JSON-RPC 2.0 stdio の両方に対応。
+1. **🌐 AIニュース等のURLリンク自動検出 ＆ ブラウザワンクリック起動 (`gui.py`)**:
+   - サジェストメッセージ内に URL（`https://...`）が含まれている場合、吹き出し下部に **「🌐 記事をブラウザで開く」** ボタンが動的に出現。
+   - クリックすると、OS既定のWebブラウザ（Chrome / Edge 等）が起動して記事が即座に開きます。
 
-2. **💾 データベースの耐障害性 ＆ オンライン自動バックアップ (Phase E-2)**:
-   - **WAL (Write-Ahead Logging) モード有効化**: GUIスレッドとローカルHTTPサーバー間の同時読み書きによるロック競合（`database is locked`）を完全解消。
-   - **SQLite Online Backup (`backup_database`)**: アプリ稼働中・書き込み中でも破損ゼロで安全に `.bak` スナップショットを作成（`backups/` ディレクトリに最新7世代を自動ローテーション保存）。
-   - **起動時自動バックアップ (`auto_backup`)**: `main.py` 起動時にバックアップを自動実行。
+2. **🔌 誰のPCでも一発で動く「MCP自動セットアップ」(`mcp_installer.py` & `ui/settings_window.py`)**:
+   - `sys.executable` とプロジェクト位置を自己検出し、Antigravity（`~/.gemini/config/mcp_config.json`）や Claude Desktop（`claude_desktop_config.json`）へ正しいパスを自動注入。
+   - ネオ秘書くんの「⚙️ 設定画面」➔「外部連携 (MCP)」タブに **「🚀 Antigravityに自動登録」「🚀 Claude Desktopに自動登録」** ボタンを実装。他者に配布した際もワンクリックで設定が完了します。
+
+3. **🖼️ Pillow純粋実装スライサー (`scratch/deploy_pure_pillow.py`)**:
+   - `numpy` 依存をゼロにし、仮想環境標準の Pillow のみで白背景完全2値化透過（1-bit Alpha）＆ 全29フレーム配置を完了。
 
 ---
 
-## 📝 記録された未解決・改善タスク（Backlog）
+## 🗺️ 次期マスター作業計画（Phase F〜H）
 
-1. **🎨 4大キャラクタースプライトの自作画像の組み込み**:
-   - ユーザーが `docs/CHARACTER_PROMPTS_SPEC.md` をもとに生成したスプライトシートまたは個別画像を `assets/` に配置・反映。
-2. **📱 PWAオフラインキャッシュ（Service Worker）の追加**:
-   - スマホ側でのオフライン起動とPWAアイコン設定。
+- 📄 参照: `master_workplan_game_ux_20260816.md`
+- **Phase F**: ゲーム級アニメーション（ポモドーロネオン円形ゲージ・集中時の闘気・炎・猛烈タイピングエフェクト）
+- **Phase G**: メッセージ領域のカード型スマートバッジ（TODO/ニュース/予定の色分け・フォント洗練）
+- **Phase H**: 配布パッケージング（インストーラー統合・Inno Setup）
