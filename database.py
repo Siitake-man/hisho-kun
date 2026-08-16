@@ -33,6 +33,8 @@ def get_db_connection(db_path: str = "neo_secretary.db") -> Generator[sqlite3.Co
     """
     SQLiteデータベース接続を一元管理するコンテキストマネージャ。
     
+    WAL (Write-Ahead Logging) モードを有効化し、GUIとHTTPサーバー間の
+    同時読み書きによるロック競合（database is locked）を防止します。
     ブロックを正常に抜けた場合は自動的に commit() を行い、
     例外が発生した場合は自動的に rollback() を実行して安全に close() します。
     
@@ -42,8 +44,12 @@ def get_db_connection(db_path: str = "neo_secretary.db") -> Generator[sqlite3.Co
     Yields:
         sqlite3.Connection: データベース接続オブジェクト
     """
-    conn = sqlite3.connect(db_path, timeout=15.0)
+    conn = sqlite3.connect(db_path, timeout=30.0)
     try:
+        # WALモード & 同期レベル設定で並行性と整合性を両立
+        conn.execute("PRAGMA journal_mode=WAL;")
+        conn.execute("PRAGMA synchronous=NORMAL;")
+        conn.execute("PRAGMA busy_timeout=30000;")
         yield conn
         conn.commit()
     except Exception as e:
@@ -820,6 +826,77 @@ def delete_task(task_id: int, db_path: str = "neo_secretary.db") -> bool:
         if success:
             logger.info(f"タスクを削除しました: ID={task_id}")
         return success
+
+
+# =============================================================================
+# データベース自動バックアップ＆整合性保護 (Data Persistence & Safety)
+# =============================================================================
+
+def backup_database(
+    db_path: str = "neo_secretary.db",
+    backup_dir: str = "backups",
+    max_generations: int = 7
+) -> Optional[str]:
+    """
+    SQLiteのOnline Backup API (`conn.backup()`) を使用して、
+    アプリ稼働中・書き込み中でも破損リスクゼロで安全にバックアップを作成します。
+    
+    Args:
+        db_path: ソースDBファイルパス
+        backup_dir: バックアップ保存先ディレクトリ
+        max_generations: 保持する世代数（古いものは自動ローテーション削除）
+        
+    Returns:
+        Optional[str]: 作成されたバックアップファイルのパス（失敗時はNone）
+    """
+    source_file = Path(db_path)
+    if not source_file.exists():
+        logger.warning(f"バックアップ元DBファイルが存在しません: {db_path}")
+        return None
+        
+    target_dir = Path(backup_dir)
+    target_dir.mkdir(parents=True, exist_ok=True)
+    
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    backup_file = target_dir / f"neo_secretary_backup_{timestamp}.db"
+    
+    try:
+        source_conn = sqlite3.connect(str(source_file), timeout=10.0)
+        backup_conn = sqlite3.connect(str(backup_file))
+        
+        with backup_conn:
+            source_conn.backup(backup_conn, pages=100, sleep=0.01)
+            
+        backup_conn.close()
+        source_conn.close()
+        logger.info(f"データベースのオンラインバックアップを作成しました: {backup_file}")
+        
+        # 世代管理（古いバックアップのローテーション）
+        existing_backups = sorted(
+            list(target_dir.glob("neo_secretary_backup_*.db")),
+            key=lambda p: p.stat().st_mtime,
+            reverse=True
+        )
+        if len(existing_backups) > max_generations:
+            for old_bak in existing_backups[max_generations:]:
+                try:
+                    old_bak.unlink()
+                    logger.info(f"古いバックアップを自動ローテーション削除しました: {old_bak.name}")
+                except Exception as e:
+                    logger.warning(f"バックアップ削除エラー: {e}")
+                    
+        return str(backup_file)
+    except Exception as e:
+        logger.error(f"データベースバックアップ失敗: {e}")
+        return None
+
+
+def auto_backup():
+    """起動時・終了時に呼び出す自動バックアップ（エラー発生時もメイン処理を止めない安全設計）"""
+    try:
+        backup_database()
+    except Exception as e:
+        logger.error(f"auto_backup 実行エラー: {e}")
 
 
 # =============================================================================

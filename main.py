@@ -24,9 +24,10 @@ logger = logging.getLogger(__name__)
 
 class NeoSecretaryApp:
     def __init__(self):
-        # 0. データベース初期化
+        # 0. データベース初期化 ＆ 起動時自動オンラインバックアップ
         import database
         database.init_db()
+        database.auto_backup()
 
         # 1. UIの初期化
         logger.info("UIを初期化します...")
@@ -157,10 +158,17 @@ async def async_mainloop(app: NeoSecretaryApp):
             # 3. ほんの僅かな時間（0.01秒）だけ処理を手放し、LLM推論等のAsyncioタスク群を動かす
             await asyncio.sleep(0.01)
             
-        except tk.TclError:
-            # ユーザーがウィンドウを閉じた（destroyされた）直後にupdateが呼ばれた場合の安全策
-            logger.info("Tkinter TclErrorを検知しました。アプリを終了します。")
-            break
+        except tk.TclError as te:
+            # 本当にウィンドウが破棄された場合のみ終了
+            try:
+                if not app.gui.root.winfo_exists():
+                    logger.info("ウィンドウが破棄されました。アプリを終了します。")
+                    break
+            except Exception:
+                break
+            # 一過性のTclタイマー破棄エラーならループを継続
+            logger.debug(f"一過性のTkinter TclError（継続）: {te}")
+            await asyncio.sleep(0.02)
 
 def main():
     # アプリケーションの構築

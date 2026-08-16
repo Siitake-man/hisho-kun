@@ -40,6 +40,7 @@ class DeviceLinkMonitor:
         self.device_name: str = "未接続"
         self.buzz_requested: bool = False
         self.first_link_notified: bool = False
+        self.latest_notification: Optional[Dict[str, Any]] = None
 
     def record_heartbeat(self, client_ip: str, user_agent: str) -> bool:
         """スマホからの通信を検知して更新。初回接続時はTrueを返す"""
@@ -98,6 +99,29 @@ class DeviceLinkMonitor:
                 return True
             return False
 
+    def set_notification(self, agent_name: str, title: str, message: str, reaction: str = "celebrate") -> None:
+        """最新の通知を保持し、スマホへバイブレーション要求を発行"""
+        with self._lock:
+            self.latest_notification = {
+                "id": f"notif_{uuid.uuid4().hex[:6]}",
+                "agent_name": agent_name,
+                "title": title,
+                "message": message,
+                "reaction": reaction,
+                "timestamp": time.time()
+            }
+            self.buzz_requested = True
+
+    def get_active_notification(self) -> Optional[Dict[str, Any]]:
+        """直近60秒以内の通知を返す"""
+        with self._lock:
+            if self.latest_notification:
+                if time.time() - self.latest_notification["timestamp"] <= 60.0:
+                    return self.latest_notification
+                else:
+                    self.latest_notification = None
+            return None
+
 
 _global_link_monitor = DeviceLinkMonitor()
 
@@ -109,28 +133,39 @@ def get_link_monitor() -> DeviceLinkMonitor:
 # Agent Bridge 承認リクエスト管理キュー
 # =============================================================================
 
-class AgentApprovalRequest:
-    """エージェントからの承認待ちリクエスト"""
-    def __init__(self, agent_name: str, command: str, summary: str, details: str = "", timeout_sec: int = 180):
+class AgentBridgeRequest:
+    """エージェントからの承認要請または質問・入力待ちリクエスト"""
+    def __init__(
+        self,
+        req_type: str,  # 'approval' または 'question'
+        agent_name: str,
+        title: str,
+        content: str = "",
+        command: str = "",
+        choices: Optional[List[str]] = None,
+        timeout_sec: int = 180
+    ):
         self.request_id = f"req_{uuid.uuid4().hex[:8]}"
+        self.req_type = req_type
         self.agent_name = agent_name
+        self.title = title
+        self.content = content
         self.command = command
-        self.summary = summary
-        self.details = details
+        self.choices = choices or []
         self.created_at = time.time()
         self.timeout_at = self.created_at + timeout_sec
-        self.status = "pending"  # 'pending', 'approved', 'rejected', 'explained', 'expired'
+        self.status = "pending"  # 'pending', 'approved', 'rejected', 'answered', 'expired'
         self.decision_message = ""
         self._event = threading.Event()
 
     def resolve(self, decision: str, message: str = "") -> None:
-        """スマホ側から意思決定を受信した際にリクエストを解決"""
+        """スマホ側から意思決定・回答を受信した際に解決"""
         self.status = decision
         self.decision_message = message
         self._event.set()
 
     def wait(self, timeout: Optional[float] = None) -> str:
-        """エージェント側が判定結果を待機"""
+        """エージェント側が判定・回答結果を待機"""
         self._event.wait(timeout=timeout)
         if not self._event.is_set():
             self.status = "expired"
@@ -139,34 +174,75 @@ class AgentApprovalRequest:
     def to_dict(self) -> Dict[str, Any]:
         return {
             "request_id": self.request_id,
+            "type": self.req_type,
             "agent_name": self.agent_name,
+            "title": self.title,
+            "content": self.content,
             "command": self.command,
-            "summary": self.summary,
-            "details": self.details,
+            "choices": self.choices,
             "created_at": self.created_at,
+            "timeout_at": self.timeout_at,
             "status": self.status,
             "decision_message": self.decision_message
         }
 
 
 class AgentBridgeHub:
-    """エージェント承認要請の管理ハブ（シングルトン）"""
+    """エージェント承認要請および質問・入力待ちの管理ハブ（シングルトン）"""
     def __init__(self):
-        self._lock = threading.Lock()
-        self.pending_requests: Dict[str, AgentApprovalRequest] = {}
+        self._lock = threading.RLock()
+        self.pending_requests: Dict[str, AgentBridgeRequest] = {}
+        self.latest_completed: Optional[Dict[str, Any]] = None
         self.history: List[Dict[str, Any]] = []
 
-    def create_request(self, agent_name: str, command: str, summary: str, details: str = "", timeout_sec: int = 180) -> AgentApprovalRequest:
-        req = AgentApprovalRequest(agent_name, command, summary, details, timeout_sec=timeout_sec)
+    def create_approval_request(self, agent_name: str, command: str, summary: str, details: str = "", timeout_sec: int = 180) -> AgentBridgeRequest:
+        req = AgentBridgeRequest(
+            req_type="approval",
+            agent_name=agent_name,
+            title=summary if summary else f"『{command}』の実行許可",
+            content=details,
+            command=command,
+            timeout_sec=timeout_sec
+        )
         with self._lock:
             self.pending_requests[req.request_id] = req
-        logger.info(f"🤖 [Agent Bridge] 新規承認要請: {agent_name} -> '{command}' (ID: {req.request_id}, タイムアウト: {timeout_sec}s)")
+        logger.info(f"🤖 [Agent Bridge] 新規承認要請: {agent_name} -> '{command}' (ID: {req.request_id})")
         return req
+
+    def create_question_request(self, agent_name: str, question: str, choices: Optional[List[str]] = None, details: str = "", timeout_sec: int = 180) -> AgentBridgeRequest:
+        req = AgentBridgeRequest(
+            req_type="question",
+            agent_name=agent_name,
+            title=question,
+            content=details,
+            choices=choices or [],
+            timeout_sec=timeout_sec
+        )
+        with self._lock:
+            self.pending_requests[req.request_id] = req
+        logger.info(f"🤖 [Agent Bridge] 新規質問・確認要請: {agent_name} -> '{question}' (選択肢: {choices})")
+        return req
+
+    def set_completed_event(self, agent_name: str, title: str, summary: str, details: str = "") -> None:
+        with self._lock:
+            self.latest_completed = {
+                "id": f"comp_{uuid.uuid4().hex[:6]}",
+                "type": "completed",
+                "agent_name": agent_name,
+                "title": title,
+                "summary": summary,
+                "details": details,
+                "timestamp": time.time()
+            }
+
+    def dismiss_completed(self) -> None:
+        with self._lock:
+            self.latest_completed = None
 
     def get_latest_pending(self) -> Optional[Dict[str, Any]]:
         with self._lock:
-            # 期限切れのクリーンアップ
             now = time.time()
+            # 期限切れのクリーンアップ
             expired_ids = [rid for rid, r in self.pending_requests.items() if now > r.timeout_at]
             for rid in expired_ids:
                 r = self.pending_requests.pop(rid)
@@ -174,9 +250,25 @@ class AgentBridgeHub:
 
             if not self.pending_requests:
                 return None
-            # 最新の pending リクエストを返す
             latest = list(self.pending_requests.values())[-1]
             return latest.to_dict()
+
+    def get_active_event(self) -> Optional[Dict[str, Any]]:
+        """スマホ画面で表示すべき最優先イベント（承認 > 質問 > 作業完了）を返す"""
+        with self._lock:
+            now = time.time()
+            # 1. 承認または質問中の pending リクエスト
+            pending = self.get_latest_pending()
+            if pending:
+                return pending
+            
+            # 2. 直近90秒以内の作業完了イベント
+            if self.latest_completed:
+                if now - self.latest_completed["timestamp"] <= 90.0:
+                    return self.latest_completed
+                else:
+                    self.latest_completed = None
+            return None
 
     def respond(self, request_id: str, decision: str, message: str = "") -> bool:
         with self._lock:
@@ -185,7 +277,7 @@ class AgentBridgeHub:
                 req.resolve(decision, message)
                 self.history.append(req.to_dict())
                 del self.pending_requests[request_id]
-                logger.info(f"📱 [Agent Bridge] スマホから判定を受信: ID={request_id} -> {decision}")
+                logger.info(f"📱 [Agent Bridge] スマホから判定・回答を受信: ID={request_id} -> {decision} (msg: {message})")
                 return True
             return False
 
@@ -269,11 +361,40 @@ class DeskPetSyncHandler(SimpleHTTPRequestHandler):
                 suggest_eng = get_suggestion_engine()
                 suggestions_data = suggest_eng.generate_suggestions()
                 
+                from character_manager import get_character_manager
+                char_mgr = get_character_manager()
+                char_info = char_mgr.get_current_character()
+                
+                active_event = hub.get_active_event()
+                active_notification = monitor.get_active_notification()
+                
+                # ペット状態の決定
+                if active_event:
+                    if active_event.get("type") == "approval":
+                        pet_state = "alarm_ask"
+                    elif active_event.get("type") == "question":
+                        pet_state = "alarm_ask"
+                    elif active_event.get("type") == "completed":
+                        pet_state = "celebrate"
+                    else:
+                        pet_state = "idle"
+                else:
+                    pet_state = "focus" if (pomodoro_active and not pomodoro_is_break) else "idle"
+                
                 payload = {
                     "status": "ok",
                     "pet_state": pet_state,
                     "message": default_msg,
+                    "character": {
+                        "id": char_info["id"],
+                        "name": char_info["name"],
+                        "title": char_info["title"],
+                        "emoji": char_info["emoji"],
+                        "all": char_mgr.get_all_characters()
+                    },
                     "pending_approval": pending_req,
+                    "active_event": active_event,
+                    "latest_notification": active_notification,
                     "tasks": _cached_tasks_data,
                     "events": _cached_events_data,
                     "suggestions": suggestions_data,
@@ -361,7 +482,8 @@ class DeskPetSyncHandler(SimpleHTTPRequestHandler):
                 timeout = int(data.get("timeout", 180))
                 
                 hub = get_bridge_hub()
-                req = hub.create_request(agent_name, command, summary, details, timeout_sec=timeout)
+                req = hub.create_approval_request(agent_name, command, summary, details, timeout_sec=timeout)
+                get_link_monitor().trigger_buzz()
                 
                 if data.get("wait_decision", True):
                     decision = req.wait(timeout=timeout)
@@ -380,7 +502,50 @@ class DeskPetSyncHandler(SimpleHTTPRequestHandler):
                 logger.error(f"Agent Ask API エラー: {e}")
                 self.wfile.write(json.dumps({"status": "error", "message": str(e)}).encode("utf-8"))
 
-        # 2. スマホからの意思決定送信 (POST /api/agent/respond)
+        # 1.5. 外部エージェントからの質問・選択肢回答要請 (POST /api/agent/ask_input)
+        elif self.path == "/api/agent/ask_input":
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self._set_cors_headers()
+            self.end_headers()
+            
+            try:
+                data = json.loads(body.decode("utf-8"))
+                agent_name = data.get("agent_name", "AI Agent")
+                question = data.get("question", "確認事項があります")
+                choices = data.get("choices", [])
+                details = data.get("details", "")
+                timeout = int(data.get("timeout", 180))
+                
+                hub = get_bridge_hub()
+                req = hub.create_question_request(agent_name, question, choices, details, timeout_sec=timeout)
+                get_link_monitor().trigger_buzz()
+                
+                # PCペットのメッセージとリアクション
+                gui = get_gui_instance()
+                if gui:
+                    gui.post_action(gui.show_pc_pet)
+                    gui.post_action(gui.update_message, f"【{agent_name}】{question}")
+                    gui.post_action(gui.set_pet_state, "alarm_ask", 6000)
+                
+                if data.get("wait_decision", True):
+                    decision = req.wait(timeout=timeout)
+                    self.wfile.write(json.dumps({
+                        "status": "success",
+                        "request_id": req.request_id,
+                        "decision": decision,
+                        "answer": req.decision_message
+                    }, ensure_ascii=False).encode("utf-8"))
+                else:
+                    self.wfile.write(json.dumps({
+                        "status": "queued",
+                        "request_id": req.request_id
+                    }, ensure_ascii=False).encode("utf-8"))
+            except Exception as e:
+                logger.error(f"Agent Ask Input API エラー: {e}")
+                self.wfile.write(json.dumps({"status": "error", "message": str(e)}).encode("utf-8"))
+
+        # 2. スマホからの意思決定・回答送信 (POST /api/agent/respond)
         elif self.path == "/api/agent/respond":
             get_link_monitor().record_heartbeat(client_ip, user_agent)
             self.send_response(200)
@@ -399,6 +564,56 @@ class DeskPetSyncHandler(SimpleHTTPRequestHandler):
                 self.wfile.write(json.dumps({"status": "success" if success else "not_found"}, ensure_ascii=False).encode("utf-8"))
             except Exception as e:
                 logger.error(f"Agent Respond API エラー: {e}")
+                self.wfile.write(json.dumps({"status": "error", "message": str(e)}).encode("utf-8"))
+
+        # 2.3. スマホからの作業完了カード閉じる (POST /api/agent/dismiss_completed)
+        elif self.path == "/api/agent/dismiss_completed":
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self._set_cors_headers()
+            self.end_headers()
+            get_bridge_hub().dismiss_completed()
+            self.wfile.write(json.dumps({"status": "success"}).encode("utf-8"))
+
+        # 2.5. 外部エージェント(Codex/Claude Code)からの作業完了・イベント通知 (POST /api/agent/notify)
+        elif self.path == "/api/agent/notify":
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self._set_cors_headers()
+            self.end_headers()
+            
+            try:
+                data = json.loads(body.decode("utf-8"))
+                agent_name = data.get("agent_name", "外部AI")
+                title = data.get("title", "作業完了通知")
+                message = data.get("message", "")
+                details = data.get("details", "")
+                pet_reaction = data.get("reaction", "celebrate")
+                
+                logger.info(f"🤖 [Agent Bridge Notify] {agent_name}から通知受信: {title} - {message}")
+                
+                # BridgeHubへ完了イベントを登録（リッチカード表示用）
+                hub = get_bridge_hub()
+                hub.set_completed_event(agent_name, title, message, details)
+                
+                # PCペットのリアクションとメッセージ更新
+                gui = get_gui_instance()
+                if gui:
+                    gui.post_action(gui.show_pc_pet)
+                    full_text = f"【{agent_name}】{title}\n{message}" if message else f"【{agent_name}】{title}"
+                    gui.post_action(gui.update_message, full_text)
+                    gui.post_action(gui.set_pet_state, pet_reaction, 6000)
+                
+                # スマホDesk Petへ最新通知をセット（自動でbuzz要求も発行）
+                get_link_monitor().set_notification(agent_name, title, message, pet_reaction)
+                
+                self.wfile.write(json.dumps({
+                    "status": "success",
+                    "agent_name": agent_name,
+                    "reaction": pet_reaction
+                }, ensure_ascii=False).encode("utf-8"))
+            except Exception as e:
+                logger.error(f"Agent Notify API エラー: {e}")
                 self.wfile.write(json.dumps({"status": "error", "message": str(e)}).encode("utf-8"))
 
         # 3. PCからのスマホ呼び出しテスト (POST /api/test_buzz)
@@ -453,6 +668,17 @@ class DeskPetSyncHandler(SimpleHTTPRequestHandler):
                         logger.info("📱 スマホ側からPCペット再表示要求を受信")
                         self.wfile.write(json.dumps({"status": "success", "action": "show_pc_pet"}).encode("utf-8"))
                         return
+                elif action == "switch_character":
+                    char_id = data.get("character_id", "hisho")
+                    gui = get_gui_instance()
+                    if gui:
+                        gui.post_action(gui.switch_character_skin, char_id)
+                    else:
+                        from character_manager import get_character_manager
+                        get_character_manager().set_character(char_id)
+                    logger.info(f"📱 スマホ側からキャラクタースキン変更を受信: {char_id}")
+                    self.wfile.write(json.dumps({"status": "success", "character_id": char_id}).encode("utf-8"))
+                    return
                 elif action == "toggle_suggest_source":
                     source_key = data.get("source_key")
                     enabled = data.get("enabled", True)

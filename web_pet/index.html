@@ -325,6 +325,149 @@
       cursor: pointer;
     }
 
+    /* 🔔 質問・選択肢回答カード */
+    .question-card {
+      display: none;
+      background: #FFFDE7;
+      border: 2px solid #FBC02D;
+      border-radius: 6px;
+      padding: 6px 8px;
+      flex-direction: column;
+      gap: 4px;
+      animation: pulse-border 1.5s infinite alternate;
+      flex: 1;
+      overflow-y: auto;
+    }
+
+    .question-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 10px;
+      font-weight: bold;
+      color: #F57F17;
+      border-bottom: 1px dashed #FBC02D;
+      padding-bottom: 2px;
+    }
+
+    .question-title {
+      font-size: 11px;
+      font-weight: bold;
+      color: #3E2723;
+      line-height: 1.3;
+    }
+
+    .question-details {
+      font-size: 9px;
+      color: #5D4037;
+      background: #FFFDE7;
+      border: 1px solid #FFE082;
+      border-radius: 4px;
+      padding: 4px 6px;
+      line-height: 1.35;
+      max-height: 90px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+    }
+
+    .choices-grid {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+      margin-top: 2px;
+    }
+
+    .btn-choice {
+      background: #FFF;
+      border: 1.5px solid #FBC02D;
+      border-radius: 4px;
+      padding: 4px 6px;
+      font-size: 9.5px;
+      font-weight: bold;
+      color: #3E2723;
+      text-align: left;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .btn-choice:active {
+      background: #FFF9C4;
+      transform: scale(0.98);
+    }
+
+    .quick-reply-row {
+      display: flex;
+      gap: 3px;
+      margin-top: 2px;
+    }
+
+    .btn-quick-reply {
+      background: #EFEBE9;
+      border: 1px solid #8D6E63;
+      border-radius: 3px;
+      padding: 2px 5px;
+      font-size: 8.5px;
+      color: #4E342E;
+      cursor: pointer;
+      flex: 1;
+      white-space: nowrap;
+    }
+
+    /* 🎉 作業完了カード */
+    .completed-card {
+      display: none;
+      background: #E8F5E9;
+      border: 2px solid #4CAF50;
+      border-radius: 6px;
+      padding: 6px 8px;
+      flex-direction: column;
+      gap: 4px;
+      flex: 1;
+      overflow-y: auto;
+    }
+
+    .completed-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 10px;
+      font-weight: bold;
+      color: #2E7D32;
+      border-bottom: 1px dashed #81C784;
+      padding-bottom: 2px;
+    }
+
+    .completed-title {
+      font-size: 10.5px;
+      font-weight: bold;
+      color: #1B5E20;
+    }
+
+    .completed-summary {
+      font-size: 9px;
+      color: #2E7D32;
+      background: #FFF;
+      padding: 4px;
+      border-radius: 4px;
+      border: 1px solid #C8E6C9;
+      max-height: 80px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+    }
+
+    .btn-dismiss-completed {
+      background: #2E7D32;
+      color: #FFF;
+      border: 1px solid #1B5E20;
+      border-radius: 4px;
+      padding: 4px;
+      font-size: 9.5px;
+      font-weight: bold;
+      cursor: pointer;
+      text-align: center;
+    }
+
     /* 💡 インテリジェント・サジェストカード (常時表示の主役) */
     .suggest-card-container {
       background: #FFF8E7;
@@ -478,6 +621,122 @@
       font-size: 9px;
       cursor: pointer;
     }
+
+    /* 📅 週間カレンダー ＆ 24hタイムライングラフ UI */
+    .cal-tab-bar {
+      display: flex;
+      gap: 4px;
+      border-bottom: 1px solid #A67B5B;
+      padding-bottom: 3px;
+    }
+    .cal-tab-btn {
+      flex: 1;
+      padding: 3px;
+      font-size: 9px;
+      font-weight: bold;
+      border: 1px solid #A67B5B;
+      border-radius: 3px;
+      background: #EFEBE9;
+      cursor: pointer;
+      color: #4A3B32;
+    }
+    .cal-tab-btn.active {
+      background: #A67B5B;
+      color: #FFF;
+    }
+
+    .cal-week-grid {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 2px;
+      margin: 4px 0;
+    }
+    .cal-day-cell {
+      background: #FFF;
+      border: 1px solid #D7CCC8;
+      border-radius: 4px;
+      padding: 3px 2px;
+      text-align: center;
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 38px;
+    }
+    .cal-day-cell.today {
+      border: 1.5px solid #2E7D32;
+      background: #E8F5E9;
+      font-weight: bold;
+    }
+    .cal-day-cell.selected {
+      border: 1.5px solid #A67B5B;
+      background: #FFF8E7;
+    }
+    .cal-day-name {
+      font-size: 7.5px;
+      color: #8D6E63;
+    }
+    .cal-day-num {
+      font-size: 10px;
+      font-weight: bold;
+      color: #3E2723;
+    }
+    .cal-dot {
+      width: 4px;
+      height: 4px;
+      border-radius: 50%;
+      background: #F57F17;
+      margin-top: 2px;
+    }
+
+    /* ⏰ 24時間タイムグラフ */
+    .timeline-container {
+      position: relative;
+      height: 160px;
+      overflow-y: auto;
+      background: #FFF;
+      border: 1px solid #D7CCC8;
+      border-radius: 4px;
+      padding: 4px 0;
+    }
+    .timeline-hour-slot {
+      height: 20px;
+      border-bottom: 1px dashed #E0E0E0;
+      position: relative;
+      font-size: 7.5px;
+      color: #9E9E9E;
+      padding-left: 30px;
+    }
+    .timeline-hour-label {
+      position: absolute;
+      left: 3px;
+      top: -4px;
+      font-size: 7.5px;
+      color: #8D6E63;
+    }
+    .timeline-event-bar {
+      position: absolute;
+      left: 36px;
+      right: 4px;
+      background: rgba(166, 123, 91, 0.85);
+      border-left: 3px solid #5D4037;
+      border-radius: 2px;
+      padding: 1px 4px;
+      font-size: 8px;
+      color: #FFF;
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+      z-index: 2;
+    }
+    .timeline-now-line {
+      position: absolute;
+      left: 28px;
+      right: 0;
+      height: 1.5px;
+      background: #E53935;
+      z-index: 3;
+    }
   </style>
 </head>
 <body onclick="handleGlobalInteraction()" ontouchstart="handleGlobalInteraction()">
@@ -499,9 +758,9 @@
 
     <!-- ② 液晶スクリーン -->
     <div class="screen">
-      <!-- 🔋 スリープ防止バナー -->
-      <div class="wake-banner" id="wake-banner" onclick="activateKeepAwake()">
-        👆 タップで常時画面ON ＆ 承認モード起動
+      <!-- 🔔 音・バイブ・常時画面ON 有効化バナー -->
+      <div class="wake-banner" id="wake-banner" onclick="activateKeepAwake()" style="font-weight: bold; cursor: pointer;">
+        🔔 タップして【通知音・振動・画面常時ON】を有効化！
       </div>
 
       <div class="screen-layout">
@@ -517,9 +776,9 @@
           </div>
         </div>
 
-        <!-- 右ペイン: 承認要請 ＆ インテリジェント・サジェスト -->
+        <!-- 右ペイン: 承認要請 ＆ 質問回答 ＆ 作業完了 ＆ インテリジェント・サジェスト -->
         <div class="right-pane">
-          <!-- ⚠️ 承認要請カード (最優先表示) -->
+          <!-- 1️⃣ ⚠️ 承認要請カード (最優先表示) -->
           <div class="approval-card" id="approval-card">
             <div class="approval-header">
               <span id="approval-agent">🤖 Codex</span>
@@ -539,7 +798,49 @@
             </div>
           </div>
 
-          <!-- 💡 インテリジェント・サジェストカード (常時表示の主役) -->
+          <!-- 2️⃣ 🔔 質問・選択肢回答カード -->
+          <div class="question-card" id="question-card">
+            <div class="question-header">
+              <span id="question-agent">🤖 Codex</span>
+              <span>🔔 確認・回答待ち</span>
+            </div>
+            <div class="question-title" id="question-title">
+              質問文を読み込み中...
+            </div>
+            <!-- 詳細・背景説明エリア -->
+            <div class="question-details" id="question-details" style="display:none;"></div>
+            <!-- 動的生成される選択肢ボタングリッド -->
+            <div class="choices-grid" id="choices-grid">
+              <!-- JSで動的にボタン生成 -->
+            </div>
+            <div class="quick-reply-row">
+              <button class="btn-quick-reply" onclick="sendQuickAnswer('この方針で進めてください')">✓ この方針でOK</button>
+              <button class="btn-quick-reply" onclick="sendQuickAnswer('詳しく説明してください')">💬 詳しく説明</button>
+            </div>
+            <div style="display:flex; gap:3px; margin-top:2px;">
+              <input type="text" id="custom-answer-input" placeholder="回答を入力..." style="flex:1; padding:3px 5px; font-size:9px; border:1px solid #8D6E63; border-radius:3px;">
+              <button onclick="sendCustomAnswer()" style="padding:3px 6px; background:#F57F17; color:#FFF; border:none; border-radius:3px; font-size:9px; font-weight:bold; cursor:pointer;">送信</button>
+            </div>
+          </div>
+
+          <!-- 3️⃣ 🎉 作業完了カード -->
+          <div class="completed-card" id="completed-card">
+            <div class="completed-header">
+              <span id="completed-agent">🤖 Codex</span>
+              <span>🎉 タスク完了</span>
+            </div>
+            <div class="completed-title" id="completed-title">
+              作業が完了しました！
+            </div>
+            <div class="completed-summary" id="completed-summary">
+              成果物の詳細サマリ
+            </div>
+            <button class="btn-dismiss-completed" onclick="dismissCompletedCard()">
+              ✓ 確認しました (閉じる)
+            </button>
+          </div>
+
+          <!-- 4️⃣ 💡 インテリジェント・サジェストカード (常時表示の主役) -->
           <div class="suggest-card-container" id="suggest-card-container" onclick="onSuggestCardClick()" style="cursor: pointer;" title="タップして詳細を開く">
             <div class="suggest-header-row">
               <span class="suggest-tag-badge" id="suggest-tag">💡 サジェスト (1/1)</span>
@@ -577,15 +878,46 @@
     </div>
   </div>
 
-  <!-- 📅 予定一覧モーダル -->
+  <!-- 📅 予定手帳モーダル (週間カレンダー ＆ 24hタイムグラフ ＆ リスト) -->
   <div id="events-modal" class="modal-overlay" onclick="if(event.target===this)closeEventsModal()">
     <div class="modal-box" onclick="event.stopPropagation()">
       <div class="modal-title">
-        <span>📅 近日中の予定</span>
+        <span>📅 カレンダー・予定手帳</span>
         <button onclick="closeEventsModal()" style="border: none; background: #E0D8C8; border-radius: 3px; padding: 2px 6px; font-size: 12px; cursor: pointer;">✕ 閉じる</button>
       </div>
-      <div class="modal-list" id="events-modal-list">
-        <div class="modal-item-card">予定を読み込み中...</div>
+
+      <!-- カレンダービュー切替タブ -->
+      <div class="cal-tab-bar">
+        <button class="cal-tab-btn active" id="tab-btn-week" onclick="switchEventView('week')">📅 週間</button>
+        <button class="cal-tab-btn" id="tab-btn-timeline" onclick="switchEventView('timeline')">⏰ 24hタイム</button>
+        <button class="cal-tab-btn" id="tab-btn-list" onclick="switchEventView('list')">📋 一覧</button>
+      </div>
+
+      <!-- 1. 週間カレンダービュー -->
+      <div id="events-week-view">
+        <div class="cal-week-grid" id="cal-week-grid"></div>
+        <div style="font-size: 9.5px; font-weight: bold; color: #4A3B32; margin-top: 4px;" id="selected-day-title">本日の予定:</div>
+        <div class="modal-list" id="selected-day-events" style="max-height: 110px;">
+          <div class="modal-item-card">予定なし</div>
+        </div>
+      </div>
+
+      <!-- 2. 24時間タイムグラフビュー -->
+      <div id="events-timeline-view" style="display: none;">
+        <div style="display: flex; justify-content: space-between; font-size: 9px; color: #5D4037; font-weight: bold; margin-bottom: 2px;">
+          <span id="timeline-date-label">本日 (24時間)</span>
+          <span style="color: #E53935;">● 赤線: 現在時刻</span>
+        </div>
+        <div class="timeline-container" id="timeline-container">
+          <!-- 24時間スロット＆予定ブロックをJSで動的生成 -->
+        </div>
+      </div>
+
+      <!-- 3. 通常リストビュー -->
+      <div id="events-list-view" style="display: none;">
+        <div class="modal-list" id="events-modal-list" style="max-height: 200px;">
+          <div class="modal-item-card">予定を読み込み中...</div>
+        </div>
       </div>
     </div>
   </div>
@@ -598,8 +930,24 @@
         <button onclick="closeSettingsModal()" style="border: none; background: #E0D8C8; border-radius: 3px; padding: 2px 6px; font-size: 12px; cursor: pointer;">✕ 閉じる</button>
       </div>
       
-      <div style="font-size: 10px; font-weight: bold; color: #8B634A; margin-top: 2px;">💡 サジェストソース設定:</div>
-      <div id="suggest-source-checkboxes" style="display: flex; flex-direction: column; gap: 4px; max-height: 120px; overflow-y: auto; background: #FFF; padding: 4px; border: 1px solid #A67B5B; border-radius: 4px;">
+      <div style="font-size: 10px; font-weight: bold; color: #8B634A; margin-top: 2px;">🎭 キャラクタースキン:</div>
+      <div id="character-select-container" style="display: flex; gap: 4px; overflow-x: auto; padding: 4px 2px;">
+        <button onclick="switchCharacter('hisho')" class="char-btn" id="char-btn-hisho" style="flex:1; padding: 4px 6px; border: 1.5px solid #A67B5B; border-radius: 4px; background: #FFF; font-size: 9px; cursor: pointer; white-space: nowrap;">
+          👔 秘書くん
+        </button>
+        <button onclick="switchCharacter('kinoko')" class="char-btn" id="char-btn-kinoko" style="flex:1; padding: 4px 6px; border: 1px solid #CCC; border-radius: 4px; background: #FFF; font-size: 9px; cursor: pointer; white-space: nowrap;">
+          🍄 キノコ君
+        </button>
+        <button onclick="switchCharacter('seal')" class="char-btn" id="char-btn-seal" style="flex:1; padding: 4px 6px; border: 1px solid #CCC; border-radius: 4px; background: #FFF; font-size: 9px; cursor: pointer; white-space: nowrap;">
+          🦭 アザラシ
+        </button>
+        <button onclick="switchCharacter('wombat')" class="char-btn" id="char-btn-wombat" style="flex:1; padding: 4px 6px; border: 1px solid #CCC; border-radius: 4px; background: #FFF; font-size: 9px; cursor: pointer; white-space: nowrap;">
+          🦫 ウォンバット
+        </button>
+      </div>
+
+      <div style="font-size: 10px; font-weight: bold; color: #8B634A; margin-top: 4px;">💡 サジェストソース設定:</div>
+      <div id="suggest-source-checkboxes" style="display: flex; flex-direction: column; gap: 4px; max-height: 100px; overflow-y: auto; background: #FFF; padding: 4px; border: 1px solid #A67B5B; border-radius: 4px;">
         <!-- JSで動的生成 -->
       </div>
 
@@ -615,13 +963,19 @@
         </button>
       </div>
 
-      <div style="display: flex; gap: 4px; justify-content: flex-end; margin-top: 4px;">
+      <div style="font-size: 10px; font-weight: bold; color: #8B634A; margin-top: 4px;">🤖 外部AI連携 (Codex / Claude Code):</div>
+      <div style="font-size: 9px; color: #4A3B32; background: #FFF; padding: 4px; border: 1px solid #A67B5B; border-radius: 4px;">
+        <div>⚡ <b>Agent Bridge</b> 稼働中</div>
+        <div style="color: #666; margin-top: 2px;">Codex等の承認要請が届くと自動でポップアップします。Bluetoothイヤホンや音量キー（＋/－）でも承認可能です。</div>
+      </div>
+
+      <div style="display: flex; gap: 4px; justify-content: flex-end; margin-top: 6px;">
         <button onclick="closeSettingsModal()" style="padding: 4px 8px; border-radius: 4px; border: 1px solid #4A3B32; background: #E0D8C8; font-size: 10px; cursor: pointer;">閉じる</button>
         <button onclick="saveServerUrl()" style="padding: 4px 8px; border-radius: 4px; border: 1px solid #4A3B32; background: #2E7D32; color: #FFF; font-weight: bold; font-size: 10px; cursor: pointer;">保存</button>
       </div>
     </div>
   </div>
 
-  <script src="pet.js?v=13.0"></script>
+  <script src="pet.js?v=27.0"></script>
 </body>
 </html>

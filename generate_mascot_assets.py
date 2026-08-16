@@ -1,17 +1,8 @@
 """
-レトロドット絵マスコット「秘書くん」スプライト生成スクリプト (Pixel Art 2.0)
-assets/ フォルダに透過PNG形式で各状態のアニメーションフレームを出力します。
+ネオ秘書くん - 究極のKawaiiドット絵ジェネレーター (Kawaii Pixel Art 4.0)
 
-状態一覧 (8大感情 & 視線追従):
-- idle_1, idle_2: 待機 (正面ぱっちり目 / 瞬き)
-- look_left, look_right, look_up, look_down: 視線追従 (マウス追従パーツ)
-- thinking_1, thinking_2: 思考中 (アンテナ点滅 & きらめき)
-- happy: 歓喜・大喜び (満面の笑み & 両手振り)
-- focus_1, focus_2: 集中ポモドーロ (赤ハチマキ & カタカタ作業)
-- sleepy_1, sleepy_2: 居眠り・リラックス (うとうと & Zzz吹き出し)
-- alarm_ask: 承認要請アラート (びっくり目 & 片手挙手 & 注目マーク)
-- pet_love: なでなで触感リアクション (うっとり目 & ハートマーク)
-- cheer: 応援 (ガッツポーズ & きらめき)
+48x48の精密ピクセルグリッド（2頭身・大福シルエット・うるうるお目々・ころんとした丸み）で
+レトロゲーム（たまごっち・ポケモン・MOTHER風）の最高に愛らしいドット絵を生成します。
 """
 
 import os
@@ -21,409 +12,374 @@ from PIL import Image, ImageDraw
 ASSETS_DIR = Path(__file__).parent / "assets"
 ASSETS_DIR.mkdir(exist_ok=True)
 
-# カラーパレット（DESIGN_SPEC準拠 & Pixel Art 2.0）
-COLOR_TRANSPARENT = (0, 0, 0, 0)
-COLOR_OUTLINE = (74, 59, 50, 255)         # #4A3B32 (ダークブラウン)
-COLOR_BODY = (166, 123, 91, 255)          # #A67B5B (ブラウン)
-COLOR_BODY_LIGHT = (196, 154, 118, 255)    # #C49A76 (ライトブラウン)
-COLOR_FACE = (245, 245, 220, 255)         # #F5F5DC (クリーム)
-COLOR_CHEEK = (239, 154, 154, 255)        # #EF9A9A (ピンク)
-COLOR_EYE = (74, 59, 50, 255)             # #4A3B32
-COLOR_TIE = (230, 210, 53, 255)           # #E6D235 (イエロー)
-COLOR_SPARKLE = (255, 235, 59, 255)       # #FFEB3B (ハイライト)
-COLOR_HEADBAND = (229, 57, 53, 255)       # #E53935 (集中赤ハチマキ)
-COLOR_HEART = (233, 30, 99, 255)          # #E91E63 (ハートピンク)
-COLOR_ZZZ = (144, 202, 249, 255)          # #90CAF9 (睡眠ブルー)
-COLOR_ALERT = (255, 112, 67, 255)         # #FF7043 (アラートオレンジ)
+GRID_SIZE = 48
+SCALE = 3  # 出力サイズ: 144x144 (Canvas 170,135 にジャストフィット)
 
-def draw_pixel_block(draw: ImageDraw.ImageDraw, x: int, y: int, color, scale: int = 4):
-    """ピクセルをスケール倍して描画（ドット絵の解像感を保持）"""
-    draw.rectangle(
-        [x * scale, y * scale, (x + 1) * scale - 1, (y + 1) * scale - 1],
-        fill=color
-    )
+# カラーパレット
+C_TRANS = (0, 0, 0, 0)
+C_OUTLINE = (50, 40, 35, 255)       # 優しいダークブラウン輪郭
+C_WHITE = (255, 255, 255, 255)
+C_CHEEK = (255, 140, 150, 255)      # ほんのりピンクほっぺ
+C_EYE = (45, 35, 30, 255)           # つぶらな黒目
+C_HEADBAND = (235, 60, 60, 255)     # 赤ハチマキ
+C_HEART = (245, 80, 120, 255)       # ハート
+C_STAR = (255, 215, 0, 255)         # 星
+C_ZZZ = (100, 180, 245, 255)        # 睡眠ブルー
+C_TEA_CUP = (250, 245, 235, 255)
+C_TEA_GREEN = (100, 200, 120, 255)
 
-def create_sprite(state: str) -> Image.Image:
-    """指定された状態のドット絵スプライト（32x32グリッド ➔ 128x128px）を生成"""
-    grid_size = 32
-    scale = 4
-    img = Image.new("RGBA", (grid_size * scale, grid_size * scale), COLOR_TRANSPARENT)
+def p(draw: ImageDraw.ImageDraw, x: int, y: int, color):
+    """1ピクセル（SCALE倍）を描画"""
+    if 0 <= x < GRID_SIZE and 0 <= y < GRID_SIZE:
+        draw.rectangle([x * SCALE, y * SCALE, (x + 1) * SCALE - 1, (y + 1) * SCALE - 1], fill=color)
+
+def p_box(draw: ImageDraw.ImageDraw, x1: int, y1: int, x2: int, y2: int, color):
+    """矩形塗りつぶし"""
+    for x in range(x1, x2 + 1):
+        for y in range(y1, y2 + 1):
+            p(draw, x, y, color)
+
+def p_circle(draw: ImageDraw.ImageDraw, cx: int, cy: int, r: int, color):
+    """ドット絵の丸を描画"""
+    for x in range(cx - r, cx + r + 1):
+        for y in range(cy - r, cy + r + 1):
+            if (x - cx) ** 2 + (y - cy) ** 2 <= r ** 2:
+                p(draw, x, y, color)
+
+
+# =============================================================================
+# 1. 🦭 もちもちアザラシ (Seal) - まるで大福のような究極の癒やし
+# =============================================================================
+def draw_seal_sprite(state: str) -> Image.Image:
+    img = Image.new("RGBA", (GRID_SIZE * SCALE, GRID_SIZE * SCALE), C_TRANS)
     draw = ImageDraw.Draw(img)
 
-    # -------------------------------------------------------------
-    # 1. 耳（リス/キツネ風の可愛い丸耳）
-    # -------------------------------------------------------------
-    for ex, ey in [(8, 5), (9, 4), (10, 5), (11, 6), (20, 6), (21, 5), (22, 4), (23, 5)]:
-        draw_pixel_block(draw, ex, ey, COLOR_OUTLINE, scale)
-    for ex, ey in [(9, 5), (10, 6), (21, 6), (22, 5)]:
-        draw_pixel_block(draw, ex, ey, COLOR_CHEEK, scale)
+    c_body = (250, 252, 255, 255)
+    c_shadow = (220, 230, 240, 255)
+    c_nose = (70, 80, 95, 255)
 
-    # -------------------------------------------------------------
-    # 2. アンテナ / ひらめき電球 / エフェクト
-    # -------------------------------------------------------------
-    if "thinking" in state:
-        # 思考中: アンテナが光る
-        draw_pixel_block(draw, 15, 3, COLOR_OUTLINE, scale)
-        draw_pixel_block(draw, 16, 3, COLOR_OUTLINE, scale)
-        draw_pixel_block(draw, 15, 2, COLOR_SPARKLE, scale)
-        draw_pixel_block(draw, 16, 2, COLOR_SPARKLE, scale)
-        draw_pixel_block(draw, 15, 1, COLOR_SPARKLE, scale)
-        if state == "thinking_2":
-            draw_pixel_block(draw, 13, 1, COLOR_SPARKLE, scale)
-            draw_pixel_block(draw, 18, 1, COLOR_SPARKLE, scale)
+    # 左右の前足（ヒレ）
+    p_circle(draw, 10, 30, 4, C_OUTLINE)
+    p_circle(draw, 10, 30, 3, c_body)
+    p_circle(draw, 38, 30, 4, C_OUTLINE)
+    p_circle(draw, 38, 30, 3, c_body)
 
-    elif state == "alarm_ask":
-        # 承認要請アラート: 頭上にびっくりマーク「！」
-        draw_pixel_block(draw, 15, 1, COLOR_ALERT, scale)
-        draw_pixel_block(draw, 16, 1, COLOR_ALERT, scale)
-        draw_pixel_block(draw, 15, 2, COLOR_ALERT, scale)
-        draw_pixel_block(draw, 16, 2, COLOR_ALERT, scale)
-        draw_pixel_block(draw, 15, 4, COLOR_ALERT, scale)
-        draw_pixel_block(draw, 16, 4, COLOR_ALERT, scale)
+    # まんまる大福ボディ
+    p_circle(draw, 24, 25, 15, C_OUTLINE)
+    p_circle(draw, 24, 25, 14, c_body)
+    # 下部ソフトシャドウ
+    for x in range(13, 36):
+        p(draw, x, 36, c_shadow)
+        p(draw, x, 37, c_shadow)
 
-    elif state == "pet_love":
-        # なでなで: 頭上にピンクのハートマーク💖
-        for hx, hy in [(14, 1), (15, 2), (16, 2), (17, 1), (13, 2), (18, 2), (14, 3), (15, 4), (16, 4), (17, 3), (15, 5), (16, 5)]:
-            draw_pixel_block(draw, hx, hy, COLOR_HEART, scale)
+    # ほっぺ
+    p_box(draw, 14, 27, 17, 28, C_CHEEK)
+    p_box(draw, 31, 27, 34, 28, C_CHEEK)
 
-    elif "sleepy" in state:
-        # 居眠り: Zzz…
-        draw_pixel_block(draw, 22, 2, COLOR_ZZZ, scale)
-        draw_pixel_block(draw, 23, 2, COLOR_ZZZ, scale)
-        draw_pixel_block(draw, 22, 3, COLOR_ZZZ, scale)
-        draw_pixel_block(draw, 21, 4, COLOR_ZZZ, scale)
-        draw_pixel_block(draw, 21, 5, COLOR_ZZZ, scale)
-        draw_pixel_block(draw, 22, 5, COLOR_ZZZ, scale)
-        if state == "sleepy_2":
-            draw_pixel_block(draw, 25, 0, COLOR_ZZZ, scale)
-            draw_pixel_block(draw, 26, 0, COLOR_ZZZ, scale)
-            draw_pixel_block(draw, 25, 1, COLOR_ZZZ, scale)
-            draw_pixel_block(draw, 24, 2, COLOR_ZZZ, scale)
+    # 鼻＆ちいさな口 (ω)
+    p_box(draw, 23, 24, 25, 25, c_nose)
+    p(draw, 22, 27, C_OUTLINE)
+    p(draw, 24, 27, C_OUTLINE)
+    p(draw, 26, 27, C_OUTLINE)
 
-    # -------------------------------------------------------------
-    # 3. 頭・輪郭 (丸っこいボディ)
-    # -------------------------------------------------------------
-    for y in range(7, 24):
-        for x in range(7, 25):
-            is_edge = (
-                (y == 7 and (x in range(11, 21))) or
-                (y == 23 and (x in range(10, 22))) or
-                (x == 7 and (y in range(11, 20))) or
-                (x == 24 and (y in range(11, 20))) or
-                (y in (8, 9) and x in (9, 10, 21, 22)) or
-                (y in (21, 22) and x in (8, 9, 22, 23))
-            )
-            is_inside = (8 <= x <= 23 and 8 <= y <= 22)
-            
-            if is_edge:
-                draw_pixel_block(draw, x, y, COLOR_OUTLINE, scale)
-            elif is_inside:
-                draw_pixel_block(draw, x, y, COLOR_BODY, scale)
-
-    # -------------------------------------------------------------
-    # 4. 集中ハチマキ (focus 状態)
-    # -------------------------------------------------------------
-    if "focus" in state:
-        for x in range(9, 23):
-            draw_pixel_block(draw, x, 8, COLOR_HEADBAND, scale)
-            draw_pixel_block(draw, x, 9, COLOR_HEADBAND, scale)
-        # ハチマキの結び目 (右耳の下)
-        draw_pixel_block(draw, 23, 7, COLOR_HEADBAND, scale)
-        draw_pixel_block(draw, 24, 8, COLOR_HEADBAND, scale)
-        draw_pixel_block(draw, 24, 9, COLOR_HEADBAND, scale)
-        draw_pixel_block(draw, 25, 10, COLOR_HEADBAND, scale)
-
-    # -------------------------------------------------------------
-    # 5. お腹/顔の白い毛（クリーム色）
-    # -------------------------------------------------------------
-    for y in range(11, 21):
-        for x in range(10, 22):
-            if not ((y == 11 and x in (10, 21)) or (y == 20 and x in (10, 21))):
-                draw_pixel_block(draw, x, y, COLOR_FACE, scale)
-
-    # -------------------------------------------------------------
-    # 6. 表情 (目・口・ほっぺ・視線パーツ)
-    # -------------------------------------------------------------
-    if state == "idle_1":
-        # ぱっちり正面目
-        draw_pixel_block(draw, 12, 13, COLOR_EYE, scale)
-        draw_pixel_block(draw, 12, 14, COLOR_EYE, scale)
-        draw_pixel_block(draw, 19, 13, COLOR_EYE, scale)
-        draw_pixel_block(draw, 19, 14, COLOR_EYE, scale)
-        draw_pixel_block(draw, 12, 13, COLOR_FACE, scale)
-        draw_pixel_block(draw, 19, 13, COLOR_FACE, scale)
-        draw_pixel_block(draw, 15, 16, COLOR_OUTLINE, scale)
-        draw_pixel_block(draw, 16, 16, COLOR_OUTLINE, scale)
-
-    elif state == "idle_2":
-        # 瞬き（にっこり線目 - -）
-        for x in [11, 12, 13, 18, 19, 20]:
-            draw_pixel_block(draw, x, 14, COLOR_EYE, scale)
-        draw_pixel_block(draw, 15, 16, COLOR_OUTLINE, scale)
-        draw_pixel_block(draw, 16, 16, COLOR_OUTLINE, scale)
-
-    elif state == "look_left":
-        # 視線左向き (マウス追従)
-        draw_pixel_block(draw, 11, 13, COLOR_EYE, scale)
-        draw_pixel_block(draw, 11, 14, COLOR_EYE, scale)
-        draw_pixel_block(draw, 18, 13, COLOR_EYE, scale)
-        draw_pixel_block(draw, 18, 14, COLOR_EYE, scale)
-        draw_pixel_block(draw, 15, 16, COLOR_OUTLINE, scale)
-        draw_pixel_block(draw, 16, 16, COLOR_OUTLINE, scale)
-
-    elif state == "look_right":
-        # 視線右向き (マウス追従)
-        draw_pixel_block(draw, 13, 13, COLOR_EYE, scale)
-        draw_pixel_block(draw, 13, 14, COLOR_EYE, scale)
-        draw_pixel_block(draw, 20, 13, COLOR_EYE, scale)
-        draw_pixel_block(draw, 20, 14, COLOR_EYE, scale)
-        draw_pixel_block(draw, 15, 16, COLOR_OUTLINE, scale)
-        draw_pixel_block(draw, 16, 16, COLOR_OUTLINE, scale)
-
-    elif state == "look_up":
-        # 視線上向き (マウス追従)
-        draw_pixel_block(draw, 12, 12, COLOR_EYE, scale)
-        draw_pixel_block(draw, 12, 13, COLOR_EYE, scale)
-        draw_pixel_block(draw, 19, 12, COLOR_EYE, scale)
-        draw_pixel_block(draw, 19, 13, COLOR_EYE, scale)
-        draw_pixel_block(draw, 15, 16, COLOR_OUTLINE, scale)
-        draw_pixel_block(draw, 16, 16, COLOR_OUTLINE, scale)
-
-    elif state == "look_down":
-        # 視線下向き (マウス追従)
-        draw_pixel_block(draw, 12, 14, COLOR_EYE, scale)
-        draw_pixel_block(draw, 12, 15, COLOR_EYE, scale)
-        draw_pixel_block(draw, 19, 14, COLOR_EYE, scale)
-        draw_pixel_block(draw, 19, 15, COLOR_EYE, scale)
-        draw_pixel_block(draw, 15, 16, COLOR_OUTLINE, scale)
-        draw_pixel_block(draw, 16, 16, COLOR_OUTLINE, scale)
-
-    elif "thinking" in state:
-        # 上を見つめる目 (o o)
-        draw_pixel_block(draw, 12, 12, COLOR_EYE, scale)
-        draw_pixel_block(draw, 13, 12, COLOR_EYE, scale)
-        draw_pixel_block(draw, 18, 12, COLOR_EYE, scale)
-        draw_pixel_block(draw, 19, 12, COLOR_EYE, scale)
-        draw_pixel_block(draw, 15, 16, COLOR_OUTLINE, scale)
-        draw_pixel_block(draw, 16, 16, COLOR_OUTLINE, scale)
-
-    elif state in ("happy", "cheer"):
-        # 満面の笑み (^ ^)
-        draw_pixel_block(draw, 11, 13, COLOR_EYE, scale)
-        draw_pixel_block(draw, 12, 12, COLOR_EYE, scale)
-        draw_pixel_block(draw, 13, 13, COLOR_EYE, scale)
-        draw_pixel_block(draw, 18, 13, COLOR_EYE, scale)
-        draw_pixel_block(draw, 19, 12, COLOR_EYE, scale)
-        draw_pixel_block(draw, 20, 13, COLOR_EYE, scale)
-        # 大きな笑顔の口
-        draw_pixel_block(draw, 14, 16, COLOR_OUTLINE, scale)
-        draw_pixel_block(draw, 15, 17, COLOR_OUTLINE, scale)
-        draw_pixel_block(draw, 16, 17, COLOR_OUTLINE, scale)
-        draw_pixel_block(draw, 17, 16, COLOR_OUTLINE, scale)
-
-    elif state == "pet_love":
-        # なでなでうっとり目 (> <)
-        draw_pixel_block(draw, 11, 13, COLOR_EYE, scale)
-        draw_pixel_block(draw, 12, 14, COLOR_EYE, scale)
-        draw_pixel_block(draw, 13, 13, COLOR_EYE, scale)
-        draw_pixel_block(draw, 18, 13, COLOR_EYE, scale)
-        draw_pixel_block(draw, 19, 14, COLOR_EYE, scale)
-        draw_pixel_block(draw, 20, 13, COLOR_EYE, scale)
-        draw_pixel_block(draw, 15, 16, COLOR_OUTLINE, scale)
-        draw_pixel_block(draw, 16, 16, COLOR_OUTLINE, scale)
-
-    elif "focus" in state:
-        # 真剣な目つき (キリッ)
-        draw_pixel_block(draw, 11, 13, COLOR_EYE, scale)
-        draw_pixel_block(draw, 12, 13, COLOR_EYE, scale)
-        draw_pixel_block(draw, 13, 14, COLOR_EYE, scale)
-        draw_pixel_block(draw, 18, 14, COLOR_EYE, scale)
-        draw_pixel_block(draw, 19, 13, COLOR_EYE, scale)
-        draw_pixel_block(draw, 20, 13, COLOR_EYE, scale)
-        # 引き締まった口元
-        draw_pixel_block(draw, 15, 16, COLOR_OUTLINE, scale)
-        draw_pixel_block(draw, 16, 16, COLOR_OUTLINE, scale)
-
-    elif "sleepy" in state:
-        # 居眠り目 (u u)
-        draw_pixel_block(draw, 11, 14, COLOR_EYE, scale)
-        draw_pixel_block(draw, 12, 15, COLOR_EYE, scale)
-        draw_pixel_block(draw, 13, 14, COLOR_EYE, scale)
-        draw_pixel_block(draw, 18, 14, COLOR_EYE, scale)
-        draw_pixel_block(draw, 19, 15, COLOR_EYE, scale)
-        draw_pixel_block(draw, 20, 14, COLOR_EYE, scale)
-        draw_pixel_block(draw, 15, 17, COLOR_OUTLINE, scale)
-        draw_pixel_block(draw, 16, 17, COLOR_OUTLINE, scale)
-
-    elif state == "alarm_ask":
-        # びっくり丸目 (O O)
-        for ex, ey in [(11, 13), (12, 12), (13, 13), (12, 14), (18, 13), (19, 12), (20, 13), (19, 14)]:
-            draw_pixel_block(draw, ex, ey, COLOR_EYE, scale)
-        # まぁるい口 (o)
-        draw_pixel_block(draw, 15, 16, COLOR_OUTLINE, scale)
-        draw_pixel_block(draw, 16, 16, COLOR_OUTLINE, scale)
-        draw_pixel_block(draw, 15, 17, COLOR_OUTLINE, scale)
-        draw_pixel_block(draw, 16, 17, COLOR_OUTLINE, scale)
-
-    # ほっぺ（ピンク）
-    draw_pixel_block(draw, 10, 15, COLOR_CHEEK, scale)
-    draw_pixel_block(draw, 11, 15, COLOR_CHEEK, scale)
-    draw_pixel_block(draw, 20, 15, COLOR_CHEEK, scale)
-    draw_pixel_block(draw, 21, 15, COLOR_CHEEK, scale)
-
-    # -------------------------------------------------------------
-    # 7. ネクタイ（秘書スタイル）
-    # -------------------------------------------------------------
-    draw_pixel_block(draw, 15, 19, COLOR_TIE, scale)
-    draw_pixel_block(draw, 16, 19, COLOR_TIE, scale)
-    draw_pixel_block(draw, 15, 20, COLOR_TIE, scale)
-    draw_pixel_block(draw, 16, 20, COLOR_TIE, scale)
-    draw_pixel_block(draw, 15, 21, COLOR_TIE, scale)
-
-    # -------------------------------------------------------------
-    # 8. 手足・小道具・新アクションポーズ (Pixel Art 2.0 拡張)
-    # -------------------------------------------------------------
-    COLOR_CUP = (121, 85, 72, 255)            # 湯呑みブラウン
-    COLOR_TEA_GREEN = (102, 187, 106, 255)    # お茶グリーン
-    COLOR_BOOK = (66, 165, 245, 255)          # 本の青表紙
-    COLOR_PAGE = (255, 255, 255, 255)         # 白いページ
-    COLOR_CONFETTI_1 = (255, 87, 34, 255)     # クラッカー紙吹雪 (オレンジ)
-    COLOR_CONFETTI_2 = (156, 39, 176, 255)    # クラッカー紙吹雪 (紫)
-    COLOR_CONFETTI_3 = (0, 200, 83, 255)      # クラッカー紙吹雪 (緑)
-    COLOR_NIGHTCAP = (92, 107, 192, 255)      # ナイトキャップ (インディゴ)
-    COLOR_POMPOM = (255, 235, 59, 255)        # キャップの先のポンポン (黄)
-
-    # 8-A. ナイトキャップ (night 状態)
-    if "night" in state:
-        # 三角ナイトキャップ
-        for nx, ny in [(10, 4), (11, 4), (12, 4), (13, 3), (14, 3), (15, 3), (16, 2), (17, 2), (18, 2), (19, 1)]:
-            draw_pixel_block(draw, nx, ny, COLOR_NIGHTCAP, scale)
-        draw_pixel_block(draw, 20, 1, COLOR_POMPOM, scale)
-        draw_pixel_block(draw, 21, 2, COLOR_POMPOM, scale)
-
-    # 8-B. クラッカー紙吹雪 (celebrate 状態)
-    if "celebrate" in state:
-        # 飛び散る紙吹雪とキラキラ
-        draw_pixel_block(draw, 4, 3, COLOR_CONFETTI_1, scale)
-        draw_pixel_block(draw, 5, 4, COLOR_CONFETTI_1, scale)
-        draw_pixel_block(draw, 26, 4, COLOR_CONFETTI_2, scale)
-        draw_pixel_block(draw, 27, 3, COLOR_CONFETTI_2, scale)
-        draw_pixel_block(draw, 15, 0, COLOR_CONFETTI_3, scale)
-        draw_pixel_block(draw, 16, 1, COLOR_SPARKLE, scale)
-        if state == "celebrate_2":
-            draw_pixel_block(draw, 3, 7, COLOR_SPARKLE, scale)
-            draw_pixel_block(draw, 28, 7, COLOR_CONFETTI_1, scale)
-
-    # 8-C. 手と持ち物
-    if state in ("happy", "celebrate_1", "celebrate_2", "celebrate_3"):
-        # 両手を高く上げてジャンプ！
-        draw_pixel_block(draw, 5, 11, COLOR_BODY_LIGHT, scale)
-        draw_pixel_block(draw, 5, 12, COLOR_OUTLINE, scale)
-        draw_pixel_block(draw, 26, 11, COLOR_BODY_LIGHT, scale)
-        draw_pixel_block(draw, 26, 12, COLOR_OUTLINE, scale)
-
-    elif "tea" in state or "care" in state:
-        # お茶の湯呑みを持って飲む・差し出す
-        draw_pixel_block(draw, 11, 18, COLOR_BODY_LIGHT, scale)
-        draw_pixel_block(draw, 20, 18, COLOR_BODY_LIGHT, scale)
-        # 湯呑み (14-17, 18-21)
-        for cx in range(14, 18):
-            draw_pixel_block(draw, cx, 19, COLOR_CUP, scale)
-            draw_pixel_block(draw, cx, 20, COLOR_CUP, scale)
-            draw_pixel_block(draw, cx, 21, COLOR_OUTLINE, scale)
-        draw_pixel_block(draw, 15, 18, COLOR_TEA_GREEN, scale)
-        draw_pixel_block(draw, 16, 18, COLOR_TEA_GREEN, scale)
-        # 湯気 (tea_2 or care_2)
-        if state in ("tea_2", "care_2"):
-            draw_pixel_block(draw, 14, 16, COLOR_FACE, scale)
-            draw_pixel_block(draw, 15, 15, COLOR_FACE, scale)
-            draw_pixel_block(draw, 17, 16, COLOR_FACE, scale)
-            draw_pixel_block(draw, 18, 15, COLOR_FACE, scale)
-
-    elif "reading" in state:
-        # 本を開いて読んでいる
-        draw_pixel_block(draw, 10, 19, COLOR_BODY_LIGHT, scale)
-        draw_pixel_block(draw, 21, 19, COLOR_BODY_LIGHT, scale)
-        # 本の開いたページ
-        for bx in range(12, 20):
-            draw_pixel_block(draw, bx, 20, COLOR_PAGE, scale)
-            draw_pixel_block(draw, bx, 21, COLOR_BOOK, scale)
-        draw_pixel_block(draw, 15, 20, COLOR_OUTLINE, scale)
-        draw_pixel_block(draw, 16, 20, COLOR_OUTLINE, scale)
-
-    elif "stretch" in state:
-        # ぐーんと伸びる手足
-        if state == "stretch_1":
-            draw_pixel_block(draw, 5, 14, COLOR_BODY_LIGHT, scale)
-            draw_pixel_block(draw, 26, 14, COLOR_BODY_LIGHT, scale)
-        else:
-            draw_pixel_block(draw, 5, 8, COLOR_BODY_LIGHT, scale)
-            draw_pixel_block(draw, 26, 8, COLOR_BODY_LIGHT, scale)
-
-    elif state == "cheer":
-        # ガッツポーズ
-        draw_pixel_block(draw, 7, 17, COLOR_BODY_LIGHT, scale)
-        draw_pixel_block(draw, 25, 11, COLOR_BODY_LIGHT, scale)
-        draw_pixel_block(draw, 25, 12, COLOR_OUTLINE, scale)
-
-    elif state == "alarm_ask":
-        # 片手を挙げて注目
-        draw_pixel_block(draw, 7, 17, COLOR_BODY_LIGHT, scale)
-        draw_pixel_block(draw, 25, 12, COLOR_BODY_LIGHT, scale)
-        draw_pixel_block(draw, 26, 11, COLOR_BODY_LIGHT, scale)
-        draw_pixel_block(draw, 26, 12, COLOR_OUTLINE, scale)
-
-    elif "focus" in state:
-        # ノートPCカタカタ
-        hand_y = 18 if state == "focus_1" else 19
-        draw_pixel_block(draw, 12, hand_y, COLOR_BODY_LIGHT, scale)
-        draw_pixel_block(draw, 19, (hand_y - 1 if state == "focus_2" else hand_y), COLOR_BODY_LIGHT, scale)
-        for px in range(13, 19):
-            draw_pixel_block(draw, px, 21, COLOR_OUTLINE, scale)
-            draw_pixel_block(draw, px, 20, COLOR_FACE, scale)
-    else:
-        # 通常の手
-        draw_pixel_block(draw, 7, 17, COLOR_BODY_LIGHT, scale)
-        draw_pixel_block(draw, 24, 17, COLOR_BODY_LIGHT, scale)
-
-    # 足
-    foot_y = 23 if "celebrate" in state else 24
-    draw_pixel_block(draw, 11, foot_y, COLOR_OUTLINE, scale)
-    draw_pixel_block(draw, 12, foot_y, COLOR_BODY_LIGHT, scale)
-    draw_pixel_block(draw, 19, foot_y, COLOR_BODY_LIGHT, scale)
-    draw_pixel_block(draw, 20, foot_y, COLOR_OUTLINE, scale)
-
+    # 表情描画
+    _draw_kawaii_eyes(draw, state, left_x=17, right_x=31, eye_y=22)
+    _draw_kawaii_effects(draw, state, cx=24, cy=25)
     return img
 
-def main():
-    """全スプライトを生成して assets/ フォルダに保存"""
-    states = [
-        # 基本・視線
-        "idle_1", "idle_2",
-        "look_left", "look_right", "look_up", "look_down",
-        # 思考・リアクション
-        "thinking_1", "thinking_2",
-        "happy",
-        "focus_1", "focus_2",
-        "sleepy_1", "sleepy_2",
-        "alarm_ask",
-        "pet_love",
-        "cheer",
-        # 新規自律モーション (Idle Actions)
-        "tea_1", "tea_2",
-        "reading_1", "reading_2",
-        "stretch_1", "stretch_2",
-        # 新規共感リアクション (Context Reactions)
-        "celebrate_1", "celebrate_2", "celebrate_3",
-        "care_1", "care_2",
-        "night_1", "night_2"
-    ]
-    for s in states:
-        img = create_sprite(s)
-        out_path = ASSETS_DIR / f"{s}.png"
-        img.save(out_path, format="PNG")
-        print(f"Generated sprite: {out_path}")
+
+# =============================================================================
+# 2. 🍄 キノコ君 (Kinoko) - ころんとした赤カサ＆ちょこんとした白い茎
+# =============================================================================
+def draw_kinoko_sprite(state: str) -> Image.Image:
+    img = Image.new("RGBA", (GRID_SIZE * SCALE, GRID_SIZE * SCALE), C_TRANS)
+    draw = ImageDraw.Draw(img)
+
+    c_cap = (235, 55, 55, 255)
+    c_cap_light = (255, 110, 100, 255)
+    c_cap_shadow = (185, 35, 35, 255)
+    c_stem = (255, 252, 242, 255)
+    c_stem_shadow = (235, 225, 210, 255)
+
+    # 茎・ボディ（もちっとした丸四角）
+    p_circle(draw, 24, 32, 9, C_OUTLINE)
+    p_circle(draw, 24, 32, 8, c_stem)
+    # 茎下部シャドウ
+    for x in range(18, 31):
+        p(draw, x, 38, c_stem_shadow)
+
+    # ころんとした丸い赤カサ（ドーム状）
+    p_circle(draw, 24, 18, 14, C_OUTLINE)
+    p_circle(draw, 24, 18, 13, c_cap)
+    # カサ下部シャドウ
+    for x in range(12, 37):
+        p(draw, x, 24, c_cap_shadow)
+    # カサ上部ハイライト
+    for x in range(18, 30):
+        p(draw, x, 8, c_cap_light)
+
+    # カサの丸い水玉（左上、中央上、右上）
+    p_circle(draw, 17, 14, 3, C_WHITE)
+    p_circle(draw, 25, 11, 3, C_WHITE)
+    p_circle(draw, 31, 15, 3, C_WHITE)
+
+    # ほっぺ
+    p_box(draw, 16, 33, 19, 34, C_CHEEK)
+    p_box(draw, 29, 33, 32, 34, C_CHEEK)
+
+    # 表情描画
+    _draw_kawaii_eyes(draw, state, left_x=19, right_x=29, eye_y=29)
+    _draw_kawaii_effects(draw, state, cx=24, cy=25)
+    return img
+
+
+# =============================================================================
+# 3. 👔 秘書くん (Hisho) - ピン耳柴犬/キツネ風マスコット＆赤ネクタイ
+# =============================================================================
+def draw_hisho_sprite(state: str) -> Image.Image:
+    img = Image.new("RGBA", (GRID_SIZE * SCALE, GRID_SIZE * SCALE), C_TRANS)
+    draw = ImageDraw.Draw(img)
+
+    c_body = (195, 140, 95, 255)
+    c_face = (255, 250, 240, 255)
+    c_ear_in = (255, 165, 175, 255)
+    c_tie = (235, 60, 60, 255)
+
+    # ピンとした可愛い三角耳
+    # 左耳
+    for y in range(6, 16):
+        dx = (y - 6) // 2
+        p_box(draw, 14 - dx - 1, y, 17 + dx + 1, y, C_OUTLINE)
+        p_box(draw, 14 - dx, y, 17 + dx, y, c_body)
+    p_box(draw, 14, 10, 16, 13, c_ear_in)
+
+    # 右耳
+    for y in range(6, 16):
+        dx = (y - 6) // 2
+        p_box(draw, 31 - dx - 1, y, 34 + dx + 1, y, C_OUTLINE)
+        p_box(draw, 31 - dx, y, 34 + dx, y, c_body)
+    p_box(draw, 32, 10, 34, 13, c_ear_in)
+
+    # まんまる頭部
+    p_circle(draw, 24, 25, 14, C_OUTLINE)
+    p_circle(draw, 24, 25, 13, c_body)
+
+    # 白いふっくらマズル・お顔
+    p_circle(draw, 24, 28, 9, C_OUTLINE)
+    p_circle(draw, 24, 28, 8, c_face)
+
+    # 小さな黒鼻
+    p_box(draw, 23, 24, 25, 25, C_EYE)
+
+    # ほっぺ
+    p_box(draw, 15, 27, 18, 28, C_CHEEK)
+    p_box(draw, 30, 27, 33, 28, C_CHEEK)
+
+    # ちょこんと赤い蝶ネクタイ
+    p_box(draw, 21, 35, 27, 38, C_OUTLINE)
+    p_box(draw, 22, 36, 23, 37, c_tie)
+    p_box(draw, 25, 36, 26, 37, c_tie)
+    p(draw, 24, 36, C_WHITE)
+
+    # 表情描画
+    _draw_kawaii_eyes(draw, state, left_x=18, right_x=30, eye_y=22)
+    _draw_kawaii_effects(draw, state, cx=24, cy=25)
+    return img
+
+
+# =============================================================================
+# 4. 🦫 まるまるウォンバット (Wombat) - ころころぬいぐるみ風＆大きなお鼻
+# =============================================================================
+def draw_wombat_sprite(state: str) -> Image.Image:
+    img = Image.new("RGBA", (GRID_SIZE * SCALE, GRID_SIZE * SCALE), C_TRANS)
+    draw = ImageDraw.Draw(img)
+
+    c_body = (145, 105, 80, 255)
+    c_body_light = (175, 135, 110, 255)
+    c_belly = (210, 180, 155, 255)
+    c_nose = (50, 50, 60, 255)
+
+    # ちいさな丸耳
+    p_circle(draw, 12, 14, 4, C_OUTLINE)
+    p_circle(draw, 12, 14, 3, c_body)
+    p_circle(draw, 36, 14, 4, C_OUTLINE)
+    p_circle(draw, 36, 14, 3, c_body)
+
+    # まんまるコロコロボディ
+    p_circle(draw, 24, 25, 14, C_OUTLINE)
+    p_circle(draw, 24, 25, 13, c_body)
+
+    # ふっくらお腹・口元
+    p_circle(draw, 24, 29, 8, c_belly)
+
+    # 大きな丸い黒鼻（ウォンバットのチャームポイント）
+    p_circle(draw, 24, 23, 4, C_OUTLINE)
+    p_circle(draw, 24, 23, 3, c_nose)
+    p(draw, 23, 22, C_WHITE)  # 鼻の光沢
+
+    # ほっぺ
+    p_box(draw, 14, 26, 17, 27, C_CHEEK)
+    p_box(draw, 31, 26, 34, 27, C_CHEEK)
+
+    # 表情描画
+    _draw_kawaii_eyes(draw, state, left_x=17, right_x=31, eye_y=21)
+    _draw_kawaii_effects(draw, state, cx=24, cy=25)
+    return img
+
+
+# =============================================================================
+# 共通 表情レンダラー (うるうるお目々・瞬き・笑顔・視線追従)
+# =============================================================================
+def _draw_kawaii_eyes(draw: ImageDraw.ImageDraw, state: str, left_x: int, right_x: int, eye_y: int):
+    # 1. 瞬き (idle_2)
+    if state == "idle_2":
+        p_box(draw, left_x - 1, eye_y + 1, left_x + 2, eye_y + 1, C_EYE)
+        p_box(draw, right_x - 2, eye_y + 1, right_x + 1, eye_y + 1, C_EYE)
+
+    # 2. にっこり笑顔 (happy / celebrate / pet_love)
+    elif state in ("happy", "celebrate_1", "celebrate_2", "celebrate_3", "pet_love"):
+        # にっこり目 (^^)
+        p(draw, left_x - 1, eye_y + 1, C_EYE)
+        p_box(draw, left_x, eye_y, left_x + 1, eye_y, C_EYE)
+        p(draw, left_x + 2, eye_y + 1, C_EYE)
+
+        p(draw, right_x - 2, eye_y + 1, C_EYE)
+        p_box(draw, right_x - 1, eye_y, right_x, eye_y, C_EYE)
+        p(draw, right_x + 1, eye_y + 1, C_EYE)
+
+        # にっこり口
+        mx = (left_x + right_x) // 2
+        p(draw, mx - 1, eye_y + 5, C_EYE)
+        p(draw, mx, eye_y + 6, C_EYE)
+        p(draw, mx + 1, eye_y + 5, C_EYE)
+
+    # 3. 視線追従 (look_left / look_right / look_up / look_down)
+    elif state.startswith("look_"):
+        dx, dy = 0, 0
+        if state == "look_left": dx = -1
+        elif state == "look_right": dx = 1
+        elif state == "look_up": dy = -1
+        elif state == "look_down": dy = 1
+
+        for ex in (left_x, right_x):
+            # 縦3x横2の黒目
+            p_box(draw, ex, eye_y, ex + 1, eye_y + 2, C_EYE)
+            # ハイライトが視線方向に移動
+            p(draw, ex + dx, eye_y + dy, C_WHITE)
+
+    # 4. 睡眠 (sleepy / night)
+    elif "sleepy" in state or "night" in state:
+        p_box(draw, left_x - 1, eye_y + 1, left_x + 2, eye_y + 2, C_EYE)
+        p_box(draw, right_x - 2, eye_y + 2, right_x + 1, eye_y + 1, C_EYE)
+        # Zzz
+        p_box(draw, right_x + 6, eye_y - 8, right_x + 9, eye_y - 8, C_ZZZ)
+        p(draw, right_x + 7, eye_y - 7, C_ZZZ)
+        p_box(draw, right_x + 6, eye_y - 6, right_x + 9, eye_y - 6, C_ZZZ)
+
+    # 5. 通常待機 (うるうる大きな愛らしい瞳)
+    else:
+        for ex in (left_x, right_x):
+            # 縦3x横2の大きな黒目
+            p_box(draw, ex, eye_y, ex + 1, eye_y + 2, C_EYE)
+            # 左上に白ハイライト（うるうる感）
+            p(draw, ex, eye_y, C_WHITE)
+
+
+# =============================================================================
+# 共通 エフェクト・アイテム描画 (ハチマキ・ハート・お茶・本・星)
+# =============================================================================
+def _draw_kawaii_effects(draw: ImageDraw.ImageDraw, state: str, cx: int, cy: int):
+    # 集中ハチマキ
+    if "focus" in state:
+        p_box(draw, 10, cy - 11, 38, cy - 9, C_HEADBAND)
+        # 結び目
+        p_box(draw, 37, cy - 14, 40, cy - 12, C_HEADBAND)
+        p_box(draw, 38, cy - 8, 42, cy - 6, C_HEADBAND)
+
+    # なでなでハート
+    elif state == "pet_love":
+        _draw_mini_heart(draw, 36, 10)
+        _draw_mini_heart(draw, 10, 12)
+
+    # お茶タイム
+    elif "tea" in state:
+        # 湯飲み
+        p_box(draw, 32, 30, 39, 38, C_OUTLINE)
+        p_box(draw, 33, 31, 38, 37, C_TEA_CUP)
+        p_box(draw, 34, 31, 37, 33, C_TEA_GREEN)
+        # 湯気
+        p(draw, 34, 27, (200, 200, 200, 200))
+        p(draw, 36, 25, (200, 200, 200, 200))
+
+    # 読書タイム
+    elif "reading" in state:
+        p_box(draw, 18, 34, 30, 40, (100, 180, 245, 255))
+        p_box(draw, 20, 35, 28, 39, C_WHITE)
+        p_box(draw, 23, 34, 25, 40, C_OUTLINE)
+
+    # 歓喜・大成功
+    elif "celebrate" in state or "cheer" in state:
+        _draw_mini_star(draw, 8, 12)
+        _draw_mini_star(draw, 40, 12)
+        _draw_mini_star(draw, 24, 6)
+
+
+def _draw_mini_heart(draw: ImageDraw.ImageDraw, x: int, y: int):
+    p_box(draw, x, y, x + 1, y, C_HEART)
+    p_box(draw, x + 3, y, x + 4, y, C_HEART)
+    p_box(draw, x - 1, y + 1, x + 5, y + 2, C_HEART)
+    p_box(draw, x, y + 3, x + 4, y + 3, C_HEART)
+    p_box(draw, x + 1, y + 4, x + 3, y + 4, C_HEART)
+    p(draw, x + 2, y + 5, C_HEART)
+
+
+def _draw_mini_star(draw: ImageDraw.ImageDraw, x: int, y: int):
+    p(draw, x + 2, y, C_STAR)
+    p_box(draw, x + 1, y + 1, x + 3, y + 1, C_STAR)
+    p_box(draw, x, y + 2, x + 4, y + 2, C_STAR)
+    p_box(draw, x + 1, y + 3, x + 3, y + 3, C_STAR)
+    p(draw, x + 2, y + 4, C_STAR)
+
+
+# =============================================================================
+# 全スプライト一括生成
+# =============================================================================
+STATES = [
+    "idle_1", "idle_2",
+    "look_left", "look_right", "look_up", "look_down",
+    "thinking_1", "thinking_2",
+    "happy",
+    "focus_1", "focus_2",
+    "sleepy_1", "sleepy_2",
+    "alarm_ask", "pet_love", "cheer",
+    "tea_1", "tea_2",
+    "reading_1", "reading_2",
+    "stretch_1", "stretch_2",
+    "celebrate_1", "celebrate_2", "celebrate_3",
+    "care_1", "care_2",
+    "night_1", "night_2"
+]
+
+CHARACTERS = {
+    "hisho": draw_hisho_sprite,
+    "kinoko": draw_kinoko_sprite,
+    "seal": draw_seal_sprite,
+    "wombat": draw_wombat_sprite
+}
+
+def generate_all_sprites():
+    print("🎨 [Kawaii Pixel Art 4.0] 究極のKawaiiドット絵スプライトを生成中...")
+    total = 0
+    for char_id, draw_func in CHARACTERS.items():
+        for state in STATES:
+            img = draw_func(state)
+            filename = f"{char_id}_{state}.png"
+            img.save(ASSETS_DIR / filename, "PNG")
+            if char_id == "hisho":
+                img.save(ASSETS_DIR / f"{state}.png", "PNG")
+            total += 1
+            
+    print(f"✓ 合計 {total} 枚のKawaiiドット絵を生成完了しました！")
 
 if __name__ == "__main__":
-    main()
-
+    generate_all_sprites()

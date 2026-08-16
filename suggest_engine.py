@@ -184,6 +184,22 @@ class SuggestionEngine:
                 "tag": "健康見守り"
             })
 
+        # 5. AI・技術トレンドニュース (News Topics)
+        if self.is_source_enabled("news_topics"):
+            try:
+                news_items = self._get_cached_ai_news()
+                for n in news_items[:3]:
+                    suggestions.append({
+                        "id": f"news_{n['id']}",
+                        "source": "news",
+                        "icon": "🌐",
+                        "title": n["title"],
+                        "description": n["snippet"],
+                        "tag": "AIニュース"
+                    })
+            except Exception as e:
+                logger.error(f"ニュースサジェスト生成エラー: {e}")
+
         # デフォルトフォールバック
         if not suggestions:
             suggestions.append({
@@ -198,6 +214,46 @@ class SuggestionEngine:
         self._cache_suggestions = suggestions
         self._last_update_time = time.time()
         return suggestions
+
+    def _get_cached_ai_news(self) -> List[Dict[str, Any]]:
+        """Google News RSS (AI / LLM / Python) から最新ニュースを取得・キャッシュ (30分更新)"""
+        now = time.time()
+        if hasattr(self, '_news_cache') and (now - getattr(self, '_last_news_fetch', 0)) < 1800:
+            return self._news_cache
+
+        import xml.etree.ElementTree as ET
+        import urllib.request
+
+        url = "https://news.google.com/rss/search?q=AI+LLM+Python+%E7%94%9F%E6%88%90AI&hl=ja&gl=JP&ceid=JP:ja"
+        news_list = []
+        try:
+            req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"})
+            with urllib.request.urlopen(req, timeout=5) as res:
+                xml_data = res.read()
+                root = ET.fromstring(xml_data)
+                for item in root.findall("./channel/item")[:5]:
+                    title_elem = item.find("title")
+                    title = title_elem.text if title_elem is not None else ""
+                    # 媒体名（- 〇〇）の分離
+                    parts = title.rsplit(" - ", 1)
+                    main_title = parts[0] if parts else title
+                    media = parts[1] if len(parts) > 1 else "AIトピック"
+                    
+                    news_list.append({
+                        "id": abs(hash(title)) % 100000,
+                        "title": f"【{media}】{main_title}",
+                        "snippet": "タップして最新動向をチェックできます。"
+                    })
+        except Exception as e:
+            logger.debug(f"ニュースRSS取得スキップ: {e}")
+            news_list = [
+                {"id": 1, "title": "【AIトレンド】最新のLLMエージェント技術が急速進化中", "snippet": "自律コーディングとマルチエージェント協調が注目されています。"},
+                {"id": 2, "title": "【Python開発】LangGraphによるグラフ型AI設計が普及拡大", "snippet": "堅牢なループ制御と状態管理で実用アプリ開発が進んでいます。"}
+            ]
+
+        self._news_cache = news_list
+        self._last_news_fetch = now
+        return news_list
 
 
 # シングルトンインスタンス

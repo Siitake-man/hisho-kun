@@ -3,6 +3,7 @@
 
 CustomTkinterを用いたUIコンポーネント。
 背景透過のキャラクターウィンドウと、会話用の吹き出しUIを提供します。
+各サブウィンドウ（設定、手帳、付箋、QR接続）は ui/ パッケージに Deep Module 化されています。
 """
 import queue
 import customtkinter as ctk
@@ -12,1190 +13,17 @@ from pathlib import Path
 import logging
 from PIL import Image, ImageTk
 
+# UIパッケージからのサブウィンドウ・ダイアログのインポート (Deep Module Seam)
+from ui.qr_dialog import QRCodeConnectionDialog
+from ui.settings_window import SettingsWindow, AddMCPServerDialog, SuggestSettingsDialog
+from ui.calendar_window import CalendarWindow
+from ui.sticky_note import StickyNoteWindow, DraggableStickyNote
+
 logger = logging.getLogger(__name__)
 
 # CustomTkinterの基本設定
 ctk.set_appearance_mode("light")  # レトロモダンなクリーム色をベースにするため
-ctk.set_default_color_theme("green") # デフォルトテーマ（後でカスタムカラーに変更可能）
-
-class QRCodeConnectionDialog(ctk.CTkToplevel):
-    """
-    スマホ専用Desk Pet ＆ 承認コクピットへワンタップ接続するための
-    QRコード生成 ＆ 社内ユーザー向け接続ガイドダイアログ。
-    """
-    def __init__(self, parent_gui, *args, **kwargs):
-        super().__init__(parent_gui.root, *args, **kwargs)
-        self.parent_gui = parent_gui
-        self.title("📱 スマホDesk Pet ＆ 承認コクピット接続")
-        self.geometry("480x620")
-        self.resizable(False, False)
-        
-        self.bg_color = "#F5F5DC"
-        self.primary_color = "#A67B5B"
-        self.text_color = "#4A3B32"
-        self.configure(fg_color=self.bg_color)
-        
-        self.font_title = ("DotGothic16", 14, "bold") if "DotGothic16" in tk.font.families() else ("Meiryo UI", 12, "bold")
-        self.font_body = ("DotGothic16", 11) if "DotGothic16" in tk.font.families() else ("Meiryo UI", 10)
-        self.font_small = ("Meiryo UI", 9)
-        self.font_mono = ("Consolas", 10)
-        
-        self.qr_image_tk = None
-        self._build_ui()
-
-    def _get_local_ips(self) -> list:
-        """PCの利用可能なローカルIPアドレス一覧を取得"""
-        import socket
-        ips = []
-        try:
-            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            s.connect(("8.8.8.8", 80))
-            main_ip = s.getsockname()[0]
-            s.close()
-            ips.append(main_ip)
-        except Exception:
-            pass
-            
-        try:
-            hostname = socket.gethostname()
-            for ip in socket.gethostbyname_ex(hostname)[2]:
-                if ip not in ips and not ip.startswith("127."):
-                    ips.append(ip)
-        except Exception:
-            pass
-            
-        if not ips:
-            ips.append("127.0.0.1")
-        return ips
-
-    def _build_ui(self):
-        pad = 12
-        # ヘッダー
-        ctk.CTkLabel(self, text="📱 スマホを机上のペット端末にする", font=self.font_title, text_color=self.primary_color).pack(pady=(12, 4))
-        ctk.CTkLabel(self, text="カメラでQRコードをかざすだけで、スマホが承認コクピットになります！", font=self.font_small, text_color="#7A6B62").pack()
-        
-        # IPセレクタ
-        self.ips = self._get_local_ips()
-        self.selected_ip_var = tk.StringVar(value=self.ips[0])
-        
-        ip_frame = ctk.CTkFrame(self, fg_color="transparent")
-        ip_frame.pack(fill="x", padx=pad, pady=(8, 4))
-        ctk.CTkLabel(ip_frame, text="接続IP:", font=self.font_body, text_color=self.text_color).pack(side="left", padx=(0, 6))
-        
-        ip_menu = ctk.CTkOptionMenu(
-            ip_frame,
-            values=self.ips,
-            variable=self.selected_ip_var,
-            command=self._on_ip_change,
-            fg_color=self.primary_color,
-            button_color="#8B634A",
-            height=28
-        )
-        ip_menu.pack(side="left", fill="x", expand=True)
-
-        # QRコード表示フレーム
-        self.qr_frame = ctk.CTkFrame(self, fg_color="#FFFFFF", border_color="#A67B5B", border_width=2, corner_radius=10)
-        self.qr_frame.pack(pady=8, padx=pad)
-        
-        self.qr_label = tk.Label(self.qr_frame, bg="#FFFFFF")
-        self.qr_label.pack(padx=12, pady=12)
-
-        # URLテキスト ＆ コピー
-        url_box = ctk.CTkFrame(self, fg_color="transparent")
-        url_box.pack(fill="x", padx=pad, pady=2)
-        
-        self.url_var = tk.StringVar(value=f"http://{self.ips[0]}:8765")
-        self.url_entry = ctk.CTkEntry(url_box, textvariable=self.url_var, font=self.font_mono, height=28, state="readonly")
-        self.url_entry.pack(side="left", fill="x", expand=True, padx=(0, 6))
-        
-        # 📶 リアルタイム接続ステータス ＆ 呼び出しテスト ＆ PCペット復帰
-        status_box = ctk.CTkFrame(self, fg_color="#FFFFFF", border_color="#A67B5B", border_width=1.5, corner_radius=8)
-        status_box.pack(fill="x", padx=pad, pady=4)
-        
-        self.link_status_label = ctk.CTkLabel(
-            status_box,
-            text="🔴 スマホ未接続（アクセス待機中...）",
-            font=("Meiryo UI", 10, "bold"),
-            text_color="#C62828"
-        )
-        self.link_status_label.pack(side="left", padx=8, pady=6)
-        
-        btn_frame = ctk.CTkFrame(status_box, fg_color="transparent")
-        btn_frame.pack(side="right", padx=6, pady=4)
-        
-        self.btn_show_pc = ctk.CTkButton(
-            btn_frame,
-            text="🖥️ PCペット表示",
-            width=90,
-            height=26,
-            font=self.font_small,
-            fg_color="#5B8A72",
-            command=self.parent_gui.show_pc_pet
-        )
-        self.btn_show_pc.pack(side="left", padx=(0, 4))
-        
-        self.btn_buzz = ctk.CTkButton(
-            btn_frame,
-            text="📲 呼出テスト",
-            width=80,
-            height=26,
-            font=self.font_small,
-            fg_color="#A67B5B",
-            state="disabled",
-            command=self._send_buzz_test
-        )
-        self.btn_buzz.pack(side="left")
-
-        # 📱 スマホ接続時の自動非表示トグルスイッチ
-        opt_box = ctk.CTkFrame(self, fg_color="#F5F5DC", border_color="#A67B5B", border_width=1, corner_radius=6)
-        opt_box.pack(fill="x", padx=pad, pady=3)
-        
-        self.auto_hide_var = tk.BooleanVar(value=getattr(self.parent_gui, 'auto_minimize_on_link', False))
-        self.chk_auto_hide = ctk.CTkCheckBox(
-            opt_box,
-            text="📱 スマホ接続時にPCペットを自動非表示にする（画面占有ゼロ化）",
-            variable=self.auto_hide_var,
-            font=("Meiryo UI", 9.5, "bold"),
-            text_color="#4A3B32",
-            fg_color="#A67B5B",
-            hover_color="#8B634A",
-            command=self._on_toggle_auto_hide
-        )
-        self.chk_auto_hide.pack(side="left", padx=8, pady=4)
-
-        # 🔰 社内ユーザー向け接続ガイド
-        guide_box = ctk.CTkFrame(self, fg_color="#EFEBE9", border_color="#D7CCC8", border_width=1, corner_radius=8)
-        guide_box.pack(fill="both", expand=True, padx=pad, pady=(4, 10))
-        
-        ctk.CTkLabel(guide_box, text="🔰 初めての接続ガイド（社内・外出先）", font=("Meiryo UI", 10, "bold"), text_color=self.primary_color).pack(anchor="w", padx=8, pady=(6, 2))
-        
-        guide_text = (
-            "【Wi-Fi接続（社内・自宅）】\n"
-            "  PCとスマホを同じWi-Fiに繋ぎ、上のQRコードをカメラで読み取るだけ！\n\n"
-            "【Bluetooth接続（外出先・Wi-Fi不要）】★オススメ\n"
-            "  1. PCとスマホをBluetoothで「ペアリング」します。\n"
-            "  2. スマホのBluetooth設定で「インターネット共有(PAN)」をONにします。\n"
-            "  3. QRコードを読み取るだけで、オフラインで直接通信が完結します！"
-        )
-        ctk.CTkLabel(guide_box, text=guide_text, font=self.font_small, text_color="#4E342E", justify="left", wraplength=430).pack(anchor="w", padx=8, pady=(0, 6))
-        
-        self._render_qr()
-        self._poll_link_status()
-
-    def _render_qr(self):
-        """選択中のIPアドレスからQRコードを生成して描画"""
-        url = self.url_var.get()
-        try:
-            import qrcode
-            qr = qrcode.QRCode(
-                version=1,
-                error_correction=qrcode.constants.ERROR_CORRECT_L,
-                box_size=5,
-                border=1,
-            )
-            qr.add_data(url)
-            qr.make(fit=True)
-            pil_img = qr.make_image(fill_color="#4A3B32", back_color="#FFFFFF").convert("RGB")
-            self.qr_image_tk = ImageTk.PhotoImage(pil_img)
-            self.qr_label.configure(image=self.qr_image_tk, text="")
-        except ImportError:
-            # qrcodeライブラリ未インストール時のフォールバック
-            self.qr_label.configure(
-                text=f"【URL】\n{url}\n\n（スマホのブラウザで上記を開いてください）",
-                font=("Meiryo UI", 10, "bold"),
-                fg="#4A3B32"
-            )
-
-    def _on_ip_change(self, selected_ip):
-        self.url_var.set(f"http://{selected_ip}:8765")
-        self._render_qr()
-
-    def _on_toggle_auto_hide(self):
-        """スマホ接続時の自動非表示設定を反映"""
-        val = self.auto_hide_var.get()
-        self.parent_gui.auto_minimize_on_link = val
-        logger.info(f"スマホ接続時PCペット自動非表示設定: {val}")
-
-    def _copy_url(self):
-        self.clipboard_clear()
-        self.clipboard_append(self.url_var.get())
-
-    def _send_buzz_test(self):
-        """PCからスマホへ呼び出し信号を送信"""
-        import urllib.request
-        try:
-            req = urllib.request.Request("http://localhost:8765/api/test_buzz", data=b"{}", headers={"Content-Type": "application/json"})
-            urllib.request.urlopen(req, timeout=1.0)
-            self.link_status_label.configure(text="📲 スマホへ呼び出し信号を送信しました！")
-        except Exception as e:
-            logger.error(f"Buzzテストエラー: {e}")
-
-    def _poll_link_status(self):
-        """ローカル同期サーバーのリンク状態を定期確認"""
-        if not self.winfo_exists():
-            return
-            
-        try:
-            from local_sync_server import get_link_monitor
-            status = get_link_monitor().get_status()
-            if status["connected"]:
-                dev = status["device_name"]
-                sec = status["seconds_ago"]
-                self.link_status_label.configure(
-                    text=f"🟢 接続中: {dev} (最終通信: {sec}秒前)",
-                    text_color="#2E7D32"
-                )
-                self.btn_buzz.configure(state="normal")
-            else:
-                self.link_status_label.configure(
-                    text="🔴 スマホ未接続（アクセス待機中...）",
-                    text_color="#C62828"
-                )
-                self.btn_buzz.configure(state="disabled")
-        except Exception as e:
-            pass
-            
-        self.after(1500, self._poll_link_status)
-
-
-class AddMCPServerDialog(ctk.CTkToplevel):
-    """
-    ユーザーが任意のMCPサーバー（Google Calendar, Notion, Slack等）を追加するためのダイアログ。
-    """
-    def __init__(self, parent_settings, *args, **kwargs):
-        super().__init__(parent_settings, *args, **kwargs)
-        self.parent_settings = parent_settings
-        self.title("➕ 新規MCPサーバーの追加")
-        self.geometry("420x460")
-        self.resizable(False, False)
-        
-        self.bg_color = "#F5F5DC"
-        self.primary_color = "#A67B5B"
-        self.text_color = "#4A3B32"
-        self.configure(fg_color=self.bg_color)
-        
-        self.font_title = ("DotGothic16", 13, "bold") if "DotGothic16" in tk.font.families() else ("Meiryo UI", 11, "bold")
-        self.font_body = ("DotGothic16", 11) if "DotGothic16" in tk.font.families() else ("Meiryo UI", 10)
-        self.font_small = ("Meiryo UI", 9)
-        
-        self._build_ui()
-
-    def _build_ui(self):
-        pad = 12
-        ctk.CTkLabel(self, text="➕ 新しいMCPサーバーを追加", font=self.font_title, text_color=self.primary_color).pack(pady=(12, 6))
-        
-        form = ctk.CTkFrame(self, fg_color="transparent")
-        form.pack(fill="both", expand=True, padx=pad, pady=4)
-        
-        # 1. サーバーID
-        ctk.CTkLabel(form, text="サーバー識別子 (例: google-calendar):", font=self.font_body, text_color=self.text_color, anchor="w").pack(fill="x")
-        self.entry_id = ctk.CTkEntry(form, placeholder_text="google-calendar")
-        self.entry_id.pack(fill="x", pady=(0, 6))
-        
-        # 2. 表示名
-        ctk.CTkLabel(form, text="表示名 (例: Google カレンダー連携):", font=self.font_body, text_color=self.text_color, anchor="w").pack(fill="x")
-        self.entry_name = ctk.CTkEntry(form, placeholder_text="Google カレンダー連携")
-        self.entry_name.pack(fill="x", pady=(0, 6))
-        
-        # 3. 実行コマンド (command)
-        ctk.CTkLabel(form, text="実行コマンド (例: npx, uvx, python):", font=self.font_body, text_color=self.text_color, anchor="w").pack(fill="x")
-        self.entry_cmd = ctk.CTkEntry(form, placeholder_text="npx")
-        self.entry_cmd.insert(0, "npx")
-        self.entry_cmd.pack(fill="x", pady=(0, 6))
-        
-        # 4. 引数 (args)
-        ctk.CTkLabel(form, text="引数 (スペース区切り, 例: -y @modelcontextprotocol/server-xxx):", font=self.font_body, text_color=self.text_color, anchor="w").pack(fill="x")
-        self.entry_args = ctk.CTkEntry(form, placeholder_text="-y @modelcontextprotocol/server-google-calendar")
-        self.entry_args.pack(fill="x", pady=(0, 6))
-        
-        # 5. 説明
-        ctk.CTkLabel(form, text="概要・説明 (省略可):", font=self.font_body, text_color=self.text_color, anchor="w").pack(fill="x")
-        self.entry_desc = ctk.CTkEntry(form, placeholder_text="Googleカレンダーの予定を参照・登録します")
-        self.entry_desc.pack(fill="x", pady=(0, 10))
-        
-        # 登録ボタン
-        btn_add = ctk.CTkButton(
-            self,
-            text="✨ MCPサーバーを登録",
-            font=self.font_title,
-            fg_color=self.primary_color,
-            hover_color="#8B634A",
-            height=36,
-            command=self._on_submit
-        )
-        btn_add.pack(fill="x", padx=pad, pady=(0, 14))
-
-    def _on_submit(self):
-        s_id = self.entry_id.get().strip()
-        name = self.entry_name.get().strip() or s_id
-        cmd = self.entry_cmd.get().strip()
-        args_str = self.entry_args.get().strip()
-        desc = self.entry_desc.get().strip()
-        
-        if not s_id or not cmd:
-            return
-            
-        args_list = args_str.split() if args_str else []
-        
-        from mcp_manager import get_mcp_manager, MCPServerConfig
-        mcp_mgr = get_mcp_manager()
-        
-        conf = MCPServerConfig(
-            name=name,
-            command=cmd,
-            args=args_list,
-            env={},
-            enabled=True,
-            description=desc
-        )
-        
-        mcp_mgr.add_or_update_server(s_id, conf)
-        
-        # 設定画面を再描画して閉じる
-        if hasattr(self.parent_settings, "_render_mcp_servers"):
-            self.parent_settings._render_mcp_servers()
-        self.destroy()
-
-
-class SuggestSettingsDialog(ctk.CTkToplevel):
-    """サジェストソースの個別ON/OFF設定ダイアログ"""
-    def __init__(self, parent_gui, *args, **kwargs):
-        super().__init__(parent_gui.root, *args, **kwargs)
-        self.parent_gui = parent_gui
-        self.title("💡 サジェストソース設定")
-        self.geometry("380x430")
-        self.resizable(False, False)
-        
-        self.bg_color = "#F5F5DC"
-        self.primary_color = "#A67B5B"
-        self.text_color = "#4A3B32"
-        self.configure(fg_color=self.bg_color)
-        
-        from suggest_engine import get_suggestion_engine
-        self.engine = get_suggestion_engine()
-        self.config = self.engine.config
-        
-        self.font_title = ("DotGothic16", 13, "bold") if "DotGothic16" in tk.font.families() else ("Meiryo UI", 11, "bold")
-        self.font_body = ("Meiryo UI", 10)
-        self.font_small = ("Meiryo UI", 8.5)
-        
-        self._build_ui()
-
-    def _build_ui(self):
-        pad = 14
-        ctk.CTkLabel(self, text="💡 インテリジェント・サジェスト設定", font=self.font_title, text_color=self.primary_color).pack(pady=(12, 4))
-        ctk.CTkLabel(self, text="画面中央に表示する情報のソースを個別に選べます", font=self.font_small, text_color="#7A6B62").pack(pady=(0, 8))
-        
-        scroll = ctk.CTkScrollableFrame(self, fg_color="#FFFFFF", border_color="#A67B5B", border_width=1.5, corner_radius=8)
-        scroll.pack(fill="both", expand=True, padx=pad, pady=4)
-        
-        sources = self.config.get("sources", {})
-        self.check_vars = {}
-        
-        for key, info in sources.items():
-            card = ctk.CTkFrame(scroll, fg_color="#FDFBF7", corner_radius=6, border_color="#E0D8C8", border_width=1)
-            card.pack(fill="x", pady=4, padx=4)
-            
-            var = tk.BooleanVar(value=info.get("enabled", True))
-            self.check_vars[key] = var
-            
-            chk = ctk.CTkCheckBox(
-                card,
-                text=info.get("name", key),
-                variable=var,
-                font=("Meiryo UI", 10, "bold"),
-                text_color=self.text_color,
-                fg_color=self.primary_color,
-                hover_color="#8B634A",
-                command=lambda k=key, v=var: self._on_toggle(k, v)
-            )
-            chk.pack(anchor="w", padx=8, pady=(6, 2))
-            
-            desc = info.get("description", "")
-            if desc:
-                ctk.CTkLabel(card, text=desc, font=self.font_small, text_color="#6D4C41", anchor="w").pack(fill="x", padx=28, pady=(0, 6))
-
-        btn_close = ctk.CTkButton(
-            self,
-            text="設定を保存して閉じる",
-            font=("Meiryo UI", 10, "bold"),
-            fg_color=self.primary_color,
-            hover_color="#8B634A",
-            height=32,
-            command=self.destroy
-        )
-        btn_close.pack(fill="x", padx=pad, pady=10)
-
-    def _on_toggle(self, key, var):
-        self.engine.toggle_source(key, var.get())
-        if hasattr(self.parent_gui, '_update_suggestion_card'):
-            self.parent_gui._update_suggestion_card()
-
-
-class SettingsWindow(ctk.CTkToplevel):
-    """
-    APIキーやLLM接続先を設定し、利用可能なモデル一覧を動的取得・選択するための設定ウィンドウ。
-    """
-    def __init__(self, parent_gui, *args, **kwargs):
-        super().__init__(parent_gui.root, *args, **kwargs)
-        self.parent_gui = parent_gui
-        self.title("ネオ秘書くん - AIモデル・API設定")
-        self.geometry("480x620")
-        
-        # 色設定
-        self.bg_color = "#F5F5DC"
-        self.primary_color = "#A67B5B"
-        self.text_color = "#4A3B32"
-        self.configure(fg_color=self.bg_color)
-        
-        self.font_title = ("DotGothic16", 15, "bold") if "DotGothic16" in tk.font.families() else ("Meiryo UI", 13, "bold")
-        self.font_body = ("DotGothic16", 12) if "DotGothic16" in tk.font.families() else ("Meiryo UI", 10)
-        self.font_small = ("Meiryo UI", 9)
-        
-        self._build_ui()
-
-    def _build_ui(self):
-        import os
-        from dotenv import load_dotenv
-        from llm_factory import get_llm_factory, LLMProvider
-        load_dotenv(override=True)
-        factory = get_llm_factory()
-        
-        # ヘッダー
-        header = ctk.CTkFrame(self, fg_color=self.primary_color, corner_radius=0, height=45)
-        header.pack(side="top", fill="x")
-        header.pack_propagate(False)
-        
-        title_label = ctk.CTkLabel(header, text="⚙ AIモデル・API動的設定", font=self.font_title, text_color="#FFFFFF")
-        title_label.pack(pady=8)
-        
-        # 設定フォーム領域
-        content = ctk.CTkScrollableFrame(self, fg_color=self.bg_color)
-        content.pack(side="top", fill="both", expand=True, padx=15, pady=(10, 5))
-        
-        # =====================================================================
-        # 1. OpenCode GO (DeepSeek)
-        # =====================================================================
-        sec1 = ctk.CTkLabel(content, text="⚡ OpenCode GO (DeepSeek)", font=self.font_title, text_color=self.primary_color, anchor="w")
-        sec1.pack(fill="x", pady=(5, 2))
-        
-        ctk.CTkLabel(content, text="API Key:", font=self.font_body, text_color=self.text_color, anchor="w").pack(fill="x")
-        self.entry_opencode_key = ctk.CTkEntry(content, placeholder_text="sk-...", show="*")
-        self.entry_opencode_key.insert(0, os.getenv("OPENCODE_API_KEY", ""))
-        self.entry_opencode_key.pack(fill="x", pady=(0, 3))
-        
-        ctk.CTkLabel(content, text="Base URL:", font=self.font_body, text_color=self.text_color, anchor="w").pack(fill="x")
-        self.entry_opencode_url = ctk.CTkEntry(content, placeholder_text="https://api.opencode.go.jp/v1")
-        self.entry_opencode_url.insert(0, os.getenv("OPENCODE_BASE_URL", "https://api.opencode.go.jp/v1"))
-        self.entry_opencode_url.pack(fill="x", pady=(0, 3))
-        
-        # モデル取得ボタン & コンボボックス
-        opencode_models = [m["id"] for m in factory.get_models_for_provider(LLMProvider.OPENCODE)]
-        current_opencode_model = os.getenv("OPENCODE_MODEL", "deepseek-chat")
-        
-        btn_box1 = ctk.CTkFrame(content, fg_color="transparent")
-        btn_box1.pack(fill="x", pady=(2, 2))
-        
-        ctk.CTkLabel(btn_box1, text="使用モデル:", font=self.font_body, text_color=self.text_color).pack(side="left")
-        self.btn_fetch_opencode = ctk.CTkButton(
-            btn_box1, 
-            text="🔄 モデル一覧を取得", 
-            width=130, 
-            height=24, 
-            font=self.font_small,
-            fg_color="#8B634A",
-            command=lambda: self._fetch_models("opencode")
-        )
-        self.btn_fetch_opencode.pack(side="right")
-        
-        self.combo_opencode_model = ctk.CTkComboBox(content, values=opencode_models)
-        self.combo_opencode_model.set(current_opencode_model)
-        self.combo_opencode_model.pack(fill="x", pady=(0, 2))
-        
-        self.lbl_opencode_status = ctk.CTkLabel(content, text="", font=self.font_small, text_color="#2E7D32", anchor="w")
-        self.lbl_opencode_status.pack(fill="x", pady=(0, 15))
-        
-        # =====================================================================
-        # 2. Google Gemini
-        # =====================================================================
-        sec2 = ctk.CTkLabel(content, text="☁ Google Gemini", font=self.font_title, text_color=self.primary_color, anchor="w")
-        sec2.pack(fill="x", pady=(5, 2))
-        
-        ctk.CTkLabel(content, text="API Key:", font=self.font_body, text_color=self.text_color, anchor="w").pack(fill="x")
-        self.entry_gemini_key = ctk.CTkEntry(content, placeholder_text="AIzaSy...", show="*")
-        self.entry_gemini_key.insert(0, os.getenv("GOOGLE_API_KEY", ""))
-        self.entry_gemini_key.pack(fill="x", pady=(0, 3))
-        
-        gemini_models = [m["id"] for m in factory.get_models_for_provider(LLMProvider.GEMINI)]
-        current_gemini_model = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
-        
-        btn_box2 = ctk.CTkFrame(content, fg_color="transparent")
-        btn_box2.pack(fill="x", pady=(2, 2))
-        
-        ctk.CTkLabel(btn_box2, text="使用モデル:", font=self.font_body, text_color=self.text_color).pack(side="left")
-        self.btn_fetch_gemini = ctk.CTkButton(
-            btn_box2, 
-            text="🔄 モデル一覧を取得", 
-            width=130, 
-            height=24, 
-            font=self.font_small,
-            fg_color="#8B634A",
-            command=lambda: self._fetch_models("gemini")
-        )
-        self.btn_fetch_gemini.pack(side="right")
-        
-        self.combo_gemini_model = ctk.CTkComboBox(content, values=gemini_models)
-        self.combo_gemini_model.set(current_gemini_model)
-        self.combo_gemini_model.pack(fill="x", pady=(0, 2))
-        
-        self.lbl_gemini_status = ctk.CTkLabel(content, text="", font=self.font_small, text_color="#2E7D32", anchor="w")
-        self.lbl_gemini_status.pack(fill="x", pady=(0, 15))
-        
-        # =====================================================================
-        # 3. LM Studio
-        # =====================================================================
-        sec3 = ctk.CTkLabel(content, text="💻 LM Studio (Local LLM)", font=self.font_title, text_color=self.primary_color, anchor="w")
-        sec3.pack(fill="x", pady=(5, 2))
-        
-        ctk.CTkLabel(content, text="Base URL:", font=self.font_body, text_color=self.text_color, anchor="w").pack(fill="x")
-        self.entry_lm_url = ctk.CTkEntry(content, placeholder_text="http://localhost:1234/v1")
-        self.entry_lm_url.insert(0, os.getenv("LM_STUDIO_BASE_URL", "http://localhost:1234/v1"))
-        self.entry_lm_url.pack(fill="x", pady=(0, 3))
-        
-        lm_models = [m["id"] for m in factory.get_models_for_provider(LLMProvider.LM_STUDIO)]
-        current_lm_model = os.getenv("LM_STUDIO_MODEL", "local-model")
-        
-        btn_box3 = ctk.CTkFrame(content, fg_color="transparent")
-        btn_box3.pack(fill="x", pady=(2, 2))
-        
-        ctk.CTkLabel(btn_box3, text="使用モデル:", font=self.font_body, text_color=self.text_color).pack(side="left")
-        self.btn_fetch_lm = ctk.CTkButton(
-            btn_box3, 
-            text="🔄 モデル一覧を取得", 
-            width=130, 
-            height=24, 
-            font=self.font_small,
-            fg_color="#8B634A",
-            command=lambda: self._fetch_models("lm_studio")
-        )
-        self.btn_fetch_lm.pack(side="right")
-        
-        self.combo_lm_model = ctk.CTkComboBox(content, values=lm_models)
-        self.combo_lm_model.set(current_lm_model)
-        self.combo_lm_model.pack(fill="x", pady=(0, 2))
-        
-        self.lbl_lm_status = ctk.CTkLabel(content, text="", font=self.font_small, text_color="#2E7D32", anchor="w")
-        self.lbl_lm_status.pack(fill="x", pady=(0, 15))
-
-        # =====================================================================
-        # 4. 外部MCP連携 (Model Context Protocol)
-        # =====================================================================
-        from mcp_manager import get_mcp_manager
-        mcp_mgr = get_mcp_manager()
-        server_configs = mcp_mgr.get_server_configs()
-        
-        mcp_header_box = ctk.CTkFrame(content, fg_color="transparent")
-        mcp_header_box.pack(fill="x", pady=(5, 2))
-        
-        sec4 = ctk.CTkLabel(mcp_header_box, text="🔌 外部MCPサーバー連携 (プラグイン)", font=self.font_title, text_color=self.primary_color)
-        sec4.pack(side="left")
-        
-        btn_add_mcp = ctk.CTkButton(
-            mcp_header_box,
-            text="➕ 新規追加",
-            width=80,
-            height=24,
-            font=self.font_small,
-            fg_color=self.primary_color,
-            hover_color="#8B634A",
-            command=self._open_add_mcp_dialog
-        )
-        btn_add_mcp.pack(side="right")
-        
-        mcp_desc = ctk.CTkLabel(
-            content, 
-            text="有効にした外部サービスのツールをAIが自律的に利用します", 
-            font=self.font_small, 
-            text_color="#6D4C41", 
-            anchor="w"
-        )
-        mcp_desc.pack(fill="x", pady=(0, 6))
-
-        self.mcp_checkboxes = {}
-        for s_id, conf in server_configs.items():
-            row_frame = ctk.CTkFrame(content, fg_color="#F9F6F0", corner_radius=6)
-            row_frame.pack(fill="x", pady=2, padx=2)
-            
-            cb_var = tk.BooleanVar(value=conf.enabled)
-            cb = ctk.CTkCheckBox(
-                row_frame,
-                text=f"{conf.name} ({s_id})",
-                variable=cb_var,
-                font=self.font_body,
-                text_color=self.text_color,
-                fg_color=self.primary_color,
-                hover_color="#8B634A"
-            )
-            cb.pack(side="left", padx=8, pady=6)
-            
-            # デフォルトプリセット以外は削除ボタンを表示
-            if s_id not in ("filesystem", "fetch", "github"):
-                btn_del = ctk.CTkButton(
-                    row_frame,
-                    text="🗑",
-                    width=26,
-                    height=24,
-                    font=("Meiryo UI", 10),
-                    fg_color="#C62828",
-                    hover_color="#B71C1C",
-                    command=lambda sid=s_id: self._delete_mcp_server(sid)
-                )
-                btn_del.pack(side="right", padx=6)
-            
-            if conf.description:
-                ctk.CTkLabel(
-                    content, 
-                    text=f"   └ {conf.description}", 
-                    font=self.font_small, 
-                    text_color="#8D6E63", 
-                    anchor="w"
-                ).pack(fill="x", pady=(0, 3))
-                
-            self.mcp_checkboxes[s_id] = cb_var
-            
-        ctk.CTkLabel(content, text="", height=5).pack()
-
-        # =====================================================================
-        # 5. 外部サービス連携 (Google Calendar / Slack)
-        # =====================================================================
-        sec_ext = ctk.CTkLabel(content, text="🌐 外部サービス連携 (Google / Slack)", font=self.font_title, text_color=self.primary_color, anchor="w")
-        sec_ext.pack(fill="x", pady=(10, 2))
-        
-        ctk.CTkLabel(content, text="Googleカレンダー ID / メールアドレス:", font=self.font_body, text_color=self.text_color, anchor="w").pack(fill="x")
-        self.entry_google_cal = ctk.CTkEntry(content, placeholder_text="primary または your_email@gmail.com")
-        self.entry_google_cal.insert(0, os.getenv("GOOGLE_CALENDAR_ID", "primary"))
-        self.entry_google_cal.pack(fill="x", pady=(0, 4))
-        
-        ctk.CTkLabel(content, text="Slack Webhook URL (通知/サジェスト連携):", font=self.font_body, text_color=self.text_color, anchor="w").pack(fill="x")
-        self.entry_slack_webhook = ctk.CTkEntry(content, placeholder_text="https://hooks.slack.com/services/...", show="*")
-        self.entry_slack_webhook.insert(0, os.getenv("SLACK_WEBHOOK_URL", ""))
-        self.entry_slack_webhook.pack(fill="x", pady=(0, 10))
-        
-        # =====================================================================
-        # 保存ボタン
-        # =====================================================================
-        btn_save = ctk.CTkButton(
-            self,
-            text="💾 設定を保存して適用",
-            font=self.font_title,
-            fg_color=self.primary_color,
-            hover_color="#8B634A",
-            height=40,
-            command=self._on_save
-        )
-        btn_save.pack(side="bottom", fill="x", padx=20, pady=12)
-
-    def _open_add_mcp_dialog(self):
-        """MCPサーバー新規追加ダイアログを開く"""
-        dialog = AddMCPServerDialog(self)
-        dialog.focus()
-
-    def _delete_mcp_server(self, server_id: str):
-        """MCPサーバー設定を削除"""
-        from mcp_manager import get_mcp_manager
-        mcp_mgr = get_mcp_manager()
-        if mcp_mgr.delete_server(server_id):
-            self.destroy()
-            SettingsWindow(self.parent_gui)
-
-    def _fetch_models(self, provider: str):
-        """APIから利用可能なモデル一覧を動的に探索・取得"""
-        from llm_factory import get_llm_factory
-        factory = get_llm_factory()
-        
-        lbl = self.lbl_opencode_status if provider == "opencode" else (self.lbl_gemini_status if provider == "gemini" else self.lbl_lm_status)
-        combo = self.combo_opencode_model if provider == "opencode" else (self.combo_gemini_model if provider == "gemini" else self.combo_lm_model)
-        
-        lbl.configure(text="⏳ モデル一覧を取得中...", text_color="#A67B5B")
-        self.update_idletasks()
-        
-        try:
-            if provider == "opencode":
-                key = self.entry_opencode_key.get().strip()
-                url = self.entry_opencode_url.get().strip()
-                models = factory.fetch_available_models(provider, api_key=key, base_url=url)
-            elif provider == "gemini":
-                key = self.entry_gemini_key.get().strip()
-                models = factory.fetch_available_models(provider, api_key=key)
-            else:
-                url = self.entry_lm_url.get().strip()
-                models = factory.fetch_available_models(provider, base_url=url)
-                
-            model_ids = [m["id"] for m in models]
-            combo.configure(values=model_ids)
-            if model_ids:
-                combo.set(model_ids[0])
-            lbl.configure(text=f"✓ {len(model_ids)} 件のモデルを取得しました！", text_color="#2E7D32")
-        except Exception as e:
-            logger.error(f"モデル取得失敗: {e}")
-            lbl.configure(text=f"❌ 取得失敗: {e}", text_color="#C62828")
-
-    def _on_save(self):
-        """設定を保存"""
-        from llm_factory import get_llm_factory
-        from mcp_manager import get_mcp_manager
-        factory = get_llm_factory()
-        mcp_mgr = get_mcp_manager()
-        
-        # 1. LLM設定 ＆ 外部連携の保存
-        new_settings = {
-            "OPENCODE_API_KEY": self.entry_opencode_key.get().strip(),
-            "OPENCODE_BASE_URL": self.entry_opencode_url.get().strip(),
-            "OPENCODE_MODEL": self.combo_opencode_model.get().strip(),
-            "GOOGLE_API_KEY": self.entry_gemini_key.get().strip(),
-            "GEMINI_MODEL": self.combo_gemini_model.get().strip(),
-            "LM_STUDIO_BASE_URL": self.entry_lm_url.get().strip(),
-            "LM_STUDIO_MODEL": self.combo_lm_model.get().strip(),
-            "GOOGLE_CALENDAR_ID": self.entry_google_cal.get().strip(),
-            "SLACK_WEBHOOK_URL": self.entry_slack_webhook.get().strip(),
-        }
-        
-        saved_llm = factory.save_settings(new_settings)
-        if saved_llm:
-            factory.DEFAULT_CONFIGS[factory.current_provider]["default_model"] = new_settings.get(f"{factory.current_provider.value.upper()}_MODEL")
-
-        # 2. MCP設定の保存
-        for s_id, var in self.mcp_checkboxes.items():
-            mcp_mgr.update_server_status(s_id, var.get())
-
-        self.parent_gui.update_message("⚙ AI設定 ＆ 外部連携（Google/Slack/MCP）を保存・適用しました！")
-        self.destroy()
-
-
-class CalendarWindow(ctk.CTkToplevel):
-    """
-    レトロ手帳風デザインの統合手帳ウィンドウ（Notebook Window）。
-    予定帳（カレンダー）、TODOタスク、およびボスのトリセツ（長期知見）をタブ切り替えで管理します。
-    """
-    def __init__(self, parent_gui, *args, **kwargs):
-        super().__init__(parent_gui.root, *args, **kwargs)
-        self.parent_gui = parent_gui
-        self.title("ネオ秘書くん - 統合手帳 (Notebook)")
-        self.geometry("520x620")
-        
-        # 色の定義（DESIGN_SPEC準拠）
-        self.bg_color = "#F5F5DC"      # クリーム色
-        self.primary_color = "#A67B5B" # ブラウン
-        self.text_color = "#4A3B32"    # ダークブラウン
-        
-        self.configure(fg_color=self.bg_color)
-        
-        # フォント設定
-        self.font_title = ("DotGothic16", 16, "bold") if "DotGothic16" in tk.font.families() else ("Meiryo UI", 14, "bold")
-        self.font_body = ("DotGothic16", 13) if "DotGothic16" in tk.font.families() else ("Meiryo UI", 11)
-        self.font_small = ("Meiryo UI", 9)
-        
-        self._build_ui()
-        self.refresh_all_data()
-
-    def _build_ui(self):
-        # 1. ヘッダー領域
-        self.header_frame = ctk.CTkFrame(self, fg_color=self.primary_color, corner_radius=0, height=45)
-        self.header_frame.pack(side="top", fill="x")
-        self.header_frame.pack_propagate(False)
-        
-        self.title_label = ctk.CTkLabel(
-            self.header_frame, 
-            text="📔 秘書くんの統合手帳", 
-            font=self.font_title, 
-            text_color="#FFFFFF"
-        )
-        self.title_label.pack(pady=8)
-        
-        # 2. タブビュー（カレンダー / TODO / ボスのトリセツ）
-        self.tabview = ctk.CTkTabview(
-            self, 
-            fg_color=self.bg_color,
-            segmented_button_selected_color=self.primary_color,
-            segmented_button_selected_hover_color="#8B634A",
-            segmented_button_unselected_color="#E0D8C8",
-            segmented_button_unselected_hover_color="#D5CBB8",
-            text_color=self.text_color
-        )
-        self.tabview.pack(fill="both", expand=True, padx=12, pady=(5, 10))
-        
-        self.tab_events = self.tabview.add("📅 予定")
-        self.tab_tasks = self.tabview.add("📋 TODO")
-        self.tab_insights = self.tabview.add("🧠 ボスのトリセツ")
-        
-        self._build_events_tab()
-        self._build_tasks_tab()
-        self._build_insights_tab()
-
-    # =========================================================================
-    # 📅 予定タブ
-    # =========================================================================
-    def _build_events_tab(self):
-        # 表示期間切り替えバー (月間 / 週間 / 日間)
-        view_bar = ctk.CTkFrame(self.tab_events, fg_color="transparent")
-        view_bar.pack(fill="x", padx=5, pady=(2, 6))
-
-        self.event_view_seg = ctk.CTkSegmentedButton(
-            view_bar,
-            values=["🗓️ 月間 (30日)", "📅 週間 (7日)", "☀️ 日間 (今日)"],
-            selected_color=self.primary_color,
-            selected_hover_color="#8B634A",
-            unselected_color="#E0D8C8",
-            unselected_hover_color="#D5CBB8",
-            text_color=self.text_color,
-            font=("Meiryo UI", 9.5, "bold"),
-            command=self._on_event_view_change
-        )
-        self.event_view_seg.set("🗓️ 月間 (30日)")
-        self.event_view_seg.pack(side="left")
-
-        # スクロール領域
-        self.events_scroll = ctk.CTkScrollableFrame(self.tab_events, fg_color="transparent")
-        self.events_scroll.pack(fill="both", expand=True, padx=5, pady=2)
-
-    def _on_event_view_change(self, value):
-        self.load_events(getattr(self, 'all_cached_events', []))
-
-    def load_events(self, events: list):
-        """予定一覧を描画（月間・週間・日間に対応）"""
-        self.all_cached_events = events
-        for widget in self.events_scroll.winfo_children():
-            widget.destroy()
-            
-        if not events:
-            lbl = ctk.CTkLabel(self.events_scroll, text="予定はありません。", font=self.font_body, text_color="#8D6E63")
-            lbl.pack(pady=30)
-            return
-            
-        import datetime
-        from collections import defaultdict
-        
-        now = datetime.datetime.now()
-        start_of_today = datetime.datetime(now.year, now.month, now.day)
-        mode = self.event_view_seg.get() if hasattr(self, 'event_view_seg') else "🗓️ 月間 (30日)"
-
-        filtered_events = []
-        for e in events:
-            dt = datetime.datetime.fromtimestamp(e.start_time / 1000)
-            if "日間" in mode:
-                if dt.date() == now.date():
-                    filtered_events.append(e)
-            elif "週間" in mode:
-                week_end = start_of_today + datetime.timedelta(days=7)
-                if start_of_today <= dt < week_end:
-                    filtered_events.append(e)
-            else:
-                filtered_events.append(e)
-
-        if not filtered_events:
-            period_name = "今日" if "日間" in mode else ("今週" if "週間" in mode else "今月")
-            lbl = ctk.CTkLabel(self.events_scroll, text=f"{period_name}の予定はありません ☕", font=self.font_body, text_color="#8D6E63")
-            lbl.pack(pady=30)
-            return
-
-        grouped = defaultdict(list)
-        for e in filtered_events:
-            dt = datetime.datetime.fromtimestamp(e.start_time / 1000)
-            date_str = dt.strftime("%Y年%m月%d日 (%a)")
-            grouped[date_str].append((e, dt))
-            
-        for date_str, daily_events in sorted(grouped.items(), key=lambda x: x[1][0][1]):
-            date_lbl = ctk.CTkLabel(self.events_scroll, text=f"■ {date_str}", font=self.font_title, text_color=self.primary_color, anchor="w")
-            date_lbl.pack(fill="x", pady=(10, 3))
-            
-            for e, dt in daily_events:
-                end_dt = datetime.datetime.fromtimestamp(e.end_time / 1000)
-                time_range = f"{dt.strftime('%H:%M')} ~ {end_dt.strftime('%H:%M')}"
-                
-                card = ctk.CTkFrame(self.events_scroll, fg_color="#FFFFFF", border_color="#E0D8C8", border_width=1, corner_radius=6)
-                card.pack(fill="x", pady=3, padx=2)
-                
-                header_box = ctk.CTkFrame(card, fg_color="transparent")
-                header_box.pack(fill="x", padx=8, pady=(4, 0))
-                
-                ctk.CTkLabel(header_box, text=time_range, font=self.font_small, text_color="#8B634A").pack(side="left")
-                
-                ctk.CTkLabel(card, text=e.title, font=self.font_body, text_color=self.text_color, anchor="w", wraplength=420).pack(fill="x", padx=8, pady=(1, 2))
-                
-                if getattr(e, 'description', None):
-                    ctk.CTkLabel(card, text=e.description, font=self.font_small, text_color="#7A6B62", anchor="w", wraplength=420).pack(fill="x", padx=8, pady=(0, 4))
-
-
-    # =========================================================================
-    # 📋 TODOタスクタブ
-    # =========================================================================
-    def _build_tasks_tab(self):
-        # タスククイック追加バー
-        add_bar = ctk.CTkFrame(self.tab_tasks, fg_color="transparent")
-        add_bar.pack(fill="x", padx=5, pady=(5, 8))
-        
-        self.task_entry_var = tk.StringVar()
-        self.task_entry = ctk.CTkEntry(
-            add_bar,
-            textvariable=self.task_entry_var,
-            placeholder_text="新しいタスクを入力してEnter...",
-            font=self.font_body,
-            fg_color="#FFFFFF",
-            border_color="#A67B5B",
-            height=32
-        )
-        self.task_entry.pack(side="left", fill="x", expand=True, padx=(0, 6))
-        self.task_entry.bind("<Return>", self._on_add_quick_task)
-        
-        btn_add = ctk.CTkButton(
-            add_bar,
-            text="追加",
-            width=60,
-            height=32,
-            font=self.font_body,
-            fg_color=self.primary_color,
-            hover_color="#8B634A",
-            command=self._on_add_quick_task
-        )
-        btn_add.pack(side="right")
-        
-        # タスクリストスクロール領域
-        self.tasks_scroll = ctk.CTkScrollableFrame(self.tab_tasks, fg_color="transparent")
-        self.tasks_scroll.pack(fill="both", expand=True, padx=5, pady=5)
-
-    def _on_add_quick_task(self, event=None):
-        """クイックタスク登録"""
-        text = self.task_entry_var.get().strip()
-        if not text:
-            return
-        self.task_entry_var.set("")
-        
-        import database
-        task = database.Task(title=text, priority=0)
-        database.create_task(task)
-        self.refresh_tasks()
-
-    def refresh_tasks(self):
-        """TODOタスク一覧を再描画"""
-        for widget in self.tasks_scroll.winfo_children():
-            widget.destroy()
-            
-        import database
-        import datetime
-        tasks = database.get_tasks(status="todo", limit=50)
-        
-        if not tasks:
-            lbl = ctk.CTkLabel(self.tasks_scroll, text="すべてのタスクが完了しています！✨", font=self.font_body, text_color="#2E7D32")
-            lbl.pack(pady=30)
-            return
-            
-        pri_colors = {3: "#D32F2F", 2: "#F57C00", 1: "#388E3C", 0: "#757575"}
-        pri_labels = {3: "🔥 高", 2: "中", 1: "低", 0: ""}
-        
-        for t in tasks:
-            row = ctk.CTkFrame(self.tasks_scroll, fg_color="#FFFFFF", border_color="#E0D8C8", border_width=1, corner_radius=6)
-            row.pack(fill="x", pady=3, padx=2)
-            
-            # 完了チェックボックス
-            def make_complete_cb(task_id=t.id):
-                return lambda: self._on_complete_task(task_id)
-                
-            cb = ctk.CTkCheckBox(
-                row,
-                text="",
-                width=24,
-                checkbox_width=20,
-                checkbox_height=20,
-                fg_color=self.primary_color,
-                command=make_complete_cb(t.id)
-            )
-            cb.pack(side="left", padx=(8, 4), pady=6)
-            
-            # タイトル
-            ctk.CTkLabel(row, text=t.title, font=self.font_body, text_color=self.text_color, anchor="w", wraplength=340).pack(side="left", fill="x", expand=True, padx=4)
-            
-            # 優先度バッジ
-            if t.priority > 0:
-                pri_lbl = ctk.CTkLabel(
-                    row,
-                    text=pri_labels.get(t.priority, ""),
-                    font=self.font_small,
-                    text_color=pri_colors.get(t.priority, "#757575")
-                )
-                pri_lbl.pack(side="right", padx=(2, 8))
-
-    def _on_complete_task(self, task_id: int):
-        """タスクを完了にしてリフレッシュ"""
-        import database
-        database.complete_task(task_id)
-        self.after(200, self.refresh_tasks)
-
-    # =========================================================================
-    # 🧠 ボスのトリセツ（長期知見）タブ
-    # =========================================================================
-    def _build_insights_tab(self):
-        self.insights_scroll = ctk.CTkScrollableFrame(self.tab_insights, fg_color="transparent")
-        self.insights_scroll.pack(fill="both", expand=True, padx=5, pady=5)
-
-    def refresh_insights(self):
-        """ボスの知見一覧を再描画"""
-        for widget in self.insights_scroll.winfo_children():
-            widget.destroy()
-            
-        import database
-        insights = database.get_user_insights(limit=30)
-        
-        if not insights:
-            lbl = ctk.CTkLabel(self.insights_scroll, text="まだボスの知見は記録されていません。\n秘書くんに生活リズムや好みを教えてみてください！", font=self.font_body, text_color="#8D6E63")
-            lbl.pack(pady=30)
-            return
-            
-        cat_labels = {
-            "Constraint": ("⛔ 制約", "#D32F2F"),
-            "Preference": ("⭐ 好み", "#1976D2"),
-            "Habit": ("⏰ 習慣", "#388E3C"),
-            "Project": ("📁 PJルール", "#7B1FA2")
-        }
-        
-        for ins in insights:
-            card = ctk.CTkFrame(self.insights_scroll, fg_color="#FFFFFF", border_color="#E0D8C8", border_width=1, corner_radius=6)
-            card.pack(fill="x", pady=3, padx=2)
-            
-            top_bar = ctk.CTkFrame(card, fg_color="transparent")
-            top_bar.pack(fill="x", padx=8, pady=(4, 0))
-            
-            cat_name, cat_col = cat_labels.get(ins.category, ("知見", "#757575"))
-            ctk.CTkLabel(top_bar, text=cat_name, font=self.font_small, text_color=cat_col).pack(side="left")
-            ctk.CTkLabel(top_bar, text=f"重要度: {'★' * ins.importance}", font=self.font_small, text_color="#F57C00").pack(side="left", padx=8)
-            
-            # 削除ボタン
-            def make_delete_cb(ins_id=ins.id):
-                return lambda: self._on_delete_insight(ins_id)
-                
-            btn_del = ctk.CTkButton(
-                top_bar, 
-                text="🗑", 
-                width=24, 
-                height=20, 
-                font=self.font_small,
-                fg_color="transparent",
-                text_color="#BDBDBD",
-                hover_color="#FFEBEE",
-                command=make_delete_cb(ins.id)
-            )
-            btn_del.pack(side="right")
-            
-            ctk.CTkLabel(card, text=ins.content, font=self.font_body, text_color=self.text_color, anchor="w", wraplength=420).pack(fill="x", padx=8, pady=(2, 6))
-
-    def _on_delete_insight(self, insight_id: int):
-        import database
-        database.delete_user_insight(insight_id)
-        self.refresh_insights()
-
-    def refresh_all_data(self):
-        """全タブのデータを一括更新"""
-        import database
-        events = database.get_upcoming_events(days=30)
-        self.load_events(events)
-        self.refresh_tasks()
-        self.refresh_insights()
-
-    def show_error(self, message: str):
-        """データがない場合などのメッセージ表示"""
-        for widget in self.scrollable_frame.winfo_children():
-            widget.destroy()
-        lbl = ctk.CTkLabel(self.scrollable_frame, text=message, font=self.font_body, text_color=self.text_color)
-        lbl.pack(pady=30)
-
-
-class StickyNoteWindow(tk.Toplevel):
-    """
-    デスクトップに常駐する付箋（Sticky Note）ウィンドウ
-    """
-    def __init__(self, parent_gui, note):
-        super().__init__(parent_gui.root)
-        self.note = note
-        
-        # タイトルバーを隠して付箋っぽくする
-        self.overrideredirect(True)
-        # 常に最前面表示
-        self.attributes('-topmost', True)
-        
-        # 背景色の設定
-        self.bg_color = note.color if note.color else "#FFEB3B"
-        self.configure(bg=self.bg_color)
-        
-        # DBに保存された位置とサイズを適用
-        self.geometry(f"{note.width}x{note.height}+{note.position_x}+{note.position_y}")
-        
-        font_style = ("DotGothic16", 12) if "DotGothic16" in tk.font.families() else ("Meiryo UI", 11)
-        
-        # ドラッグして移動できるようにするためのヘッダー領域（少し濃い色）
-        self.header = tk.Frame(self, bg="#E6D235", height=15, cursor="fleur")
-        self.header.pack(fill=tk.X)
-        self.header.bind("<ButtonPress-1>", self._start_move)
-        self.header.bind("<B1-Motion>", self._do_move)
-        
-        # 閉じるボタン（DBからも削除する）
-        close_btn = tk.Label(self.header, text="✖", bg="#E6D235", fg="#4A3B32", cursor="hand2", font=("Arial", 8))
-        close_btn.pack(side=tk.RIGHT, padx=5)
-        close_btn.bind("<Button-1>", self._on_close)
-        
-        # 本文の表示（編集可能なTextウィジェットに変更）
-        self.textbox = tk.Text(
-            self, 
-            bg=self.bg_color,
-            fg="#4A3B32",
-            font=font_style,
-            wrap=tk.WORD,
-            bd=0, # 枠線なし
-            highlightthickness=0 # フォーカス時の枠線なし
-        )
-        self.textbox.insert("1.0", note.content)
-        self.textbox.pack(fill=tk.BOTH, expand=True, padx=10, pady=(5, 10))
-        
-        # フォーカスが外れたタイミングでDBを更新する設定
-        self.textbox.bind("<FocusOut>", self._save_content)
-        
-        # 入力中フラグ
-        self.is_editing = False
-        self.textbox.bind("<FocusIn>", lambda e: setattr(self, 'is_editing', True))
-
-    def _save_content(self, event=None):
-        """テキストの変更をDBに保存する"""
-        self.is_editing = False
-        new_content = self.textbox.get("1.0", tk.END).strip()
-        if new_content != self.note.content:
-            self.note.content = new_content
-            import database
-            try:
-                database.update_sticky_note(self.note)
-            except Exception as e:
-                logger.error(f"付箋の保存に失敗: {e}")
-
-    def _on_close(self, event):
-        """付箋を閉じる際の処理。DBから完全に削除する"""
-        import database
-        try:
-            database.delete_sticky_note(self.note.id)
-            self.destroy()
-        except Exception as e:
-            logger.error(f"付箋の削除に失敗: {e}")
-
-    def _start_move(self, event):
-        self.x = event.x
-        self.y = event.y
-
-    def _do_move(self, event):
-        deltax = event.x - self.x
-        deltay = event.y - self.y
-        x = self.winfo_x() + deltax
-        y = self.winfo_y() + deltay
-        self.geometry(f"+{x}+{y}")
-        
-        # 移動後位置をノートオブジェクトに記憶 (保存はFocusOutや終了時に行うなど工夫が可能だが、現状はメモリ上のみ更新しておく)
-        self.note.position_x = x
-        self.note.position_y = y
+ctk.set_default_color_theme("green") # デフォルトテーマ
 
 
 class NeoSecretaryGUI:
@@ -1313,7 +141,6 @@ class NeoSecretaryGUI:
         )
         self.btn_open_calendar.pack(side=tk.RIGHT, padx=2)
 
-
         # 吹き出し本文のテキスト表示用
         font_style = ("DotGothic16", 13) if "DotGothic16" in tk.font.families() else ("Meiryo UI", 11)
         self.message_box = ctk.CTkTextbox(
@@ -1349,7 +176,6 @@ class NeoSecretaryGUI:
             height=32
         )
         self.input_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 5))
-
 
         # -------------------------------------------------------------
         # 6. キャラクター画像 ＆ サークルメニュー (Radial Action Menu)
@@ -1493,13 +319,13 @@ class NeoSecretaryGUI:
         self.toggle_circle_menu()
         self._open_settings()
 
-
-
-
-
     def _load_mascot_assets(self):
-        """ドット絵スプライト画像をロード（存在しない場合は自動生成）"""
+        """ドット絵スプライト画像をロード（キャラクタースキン対応）"""
+        from character_manager import get_character_manager
+        char_mgr = get_character_manager()
+        current_char = char_mgr.current_character_id
         assets_dir = Path(__file__).parent / "assets"
+        
         all_sprites = [
             # 基本・視線
             "idle_1", "idle_2",
@@ -1522,24 +348,39 @@ class NeoSecretaryGUI:
             "night_1", "night_2"
         ]
         
-        # 欠損ファイルがあれば自動生成
-        missing = [f"{s}.png" for s in all_sprites if not (assets_dir / f"{s}.png").exists()]
-        if missing:
-            try:
-                import generate_mascot_assets
-                generate_mascot_assets.main()
-            except Exception as e:
-                logger.error(f"マスコットアセット自動生成エラー: {e}")
-
-        # 全画像の読み込み
+        # 画像キャッシュをクリアして再構築
+        self.mascot_images.clear()
         for name in all_sprites:
-            p = assets_dir / f"{name}.png"
+            char_p = assets_dir / f"{current_char}_{name}.png"
+            p = char_p if char_p.exists() else (assets_dir / f"{name}.png")
             if p.exists():
                 try:
                     pil_img = Image.open(p)
                     self.mascot_images[name] = ImageTk.PhotoImage(pil_img)
                 except Exception as e:
                     logger.error(f"画像ロード失敗 ({p}): {e}")
+
+    def switch_character_skin(self, char_id: str):
+        """キャラクタースキンを切り替える"""
+        from character_manager import get_character_manager
+        char_mgr = get_character_manager()
+        if char_mgr.set_character(char_id):
+            self._load_mascot_assets()
+            info = char_mgr.get_current_character()
+            # ヘッダータイトルの更新
+            if hasattr(self, 'header_title') and self.header_title.winfo_exists():
+                self.header_title.configure(text=f"{info['emoji']} ネオ{info['name']}")
+            # Canvas画像アイテムを確実に再生成
+            if self.mascot_img_item is not None:
+                try:
+                    self.char_canvas.delete(self.mascot_img_item)
+                except Exception:
+                    pass
+                self.mascot_img_item = None
+            self._render_mascot("happy")
+            import random
+            greeting = random.choice(info["greetings"])
+            self.update_message(f"【{info['emoji']} {info['name']} に変身！】\n{greeting}")
 
     def _render_mascot(self, frame_name: str):
         """Canvas 上のマスコット画像を更新描画"""
@@ -1606,7 +447,6 @@ class NeoSecretaryGUI:
         # 次のフレームを予約 (単一タイマー)
         self.root.after(delay, self._schedule_animation)
 
-
     def toggle_auto_minimize(self):
         """スマホ接続時の自動最小化設定をトグル"""
         self.auto_minimize_on_link = not getattr(self, 'auto_minimize_on_link', False)
@@ -1628,10 +468,12 @@ class NeoSecretaryGUI:
         self.update_message(f"📱 スマホ接続時のPCペット自動最小化を【{status_str}】にしました！")
 
     def show_pc_pet(self):
-        """非表示になっているPCペットを画面に再表示"""
+        """非表示になっているPCペットを画面に確実に再表示し維持する"""
+        self.auto_minimize_on_link = False
         self._was_linked_minimized = False
         self.root.deiconify()
         self.root.lift()
+        self.root.attributes("-topmost", True)
         self.update_message("ボス！PC画面に戻ってきました！✨")
 
     def set_pet_state(self, state: str, duration_ms: int = 0):
@@ -1650,7 +492,6 @@ class NeoSecretaryGUI:
             self.animator.set_state(state, duration_sec=dur_sec)
         else:
             self._render_mascot(state if state in self.mascot_images else "idle_1")
-
 
     # =========================================================================
     # 🍅 ポモドーロタイマー機能
@@ -1687,8 +528,6 @@ class NeoSecretaryGUI:
             self.header_title.configure(text="🤖 ネオ秘書くん")
         self.set_pet_state("idle")
         self.update_message("ポモドーロタイマーを終了しました。")
-
-
 
     # =========================================================================
     # 🖱️ マウスイベント ＆ 触感インタラクション
@@ -1759,7 +598,6 @@ class NeoSecretaryGUI:
             self.set_pet_state("pet_love", duration_ms=2500)
             self.update_message("えへへ、くすぐったいです！🥰\nボス、呼び出したい機能を選んでくださいね！")
 
-
     def _on_pet_release(self, event):
         """ドラッグ終了"""
         if self.pet_state == "alarm_ask" and not getattr(self, '_waiting_approval', False):
@@ -1806,6 +644,22 @@ class NeoSecretaryGUI:
             prov_prefix = "★ " if is_active_prov else "  "
             llm_menu.add_cascade(label=f"{prov_prefix}{p_info['name']}", menu=p_sub)
             
+        # キャラクタースキン切り替えサブメニュー
+        from character_manager import get_character_manager
+        char_mgr = get_character_manager()
+        current_char = char_mgr.current_character_id
+        
+        skin_menu = tk.Menu(menu, tearoff=0, bg="#F5F5DC", fg="#4A3B32", font=("Meiryo UI", 10))
+        for char_info in char_mgr.get_all_characters():
+            cid = char_info["id"]
+            is_cur = (cid == current_char)
+            prefix = "● " if is_cur else "   "
+            skin_menu.add_command(
+                label=f"{prefix}{char_info['emoji']} {char_info['name']} ({char_info['title']})",
+                command=lambda c=cid: self.switch_character_skin(c)
+            )
+        menu.add_cascade(label="🎭 キャラクタースキン変更", menu=skin_menu)
+
         menu.add_cascade(label="🧠 LLMモデル切り替え", menu=llm_menu)
         menu.add_command(label="💡 サジェストソース設定", command=lambda: SuggestSettingsDialog(self))
         menu.add_command(label="⚙ API・MCP設定", command=self._open_settings)
@@ -1955,6 +809,9 @@ class NeoSecretaryGUI:
         """Tkinterのメインループを開始"""
         logger.info("GUIアプリケーションを開始します")
         self.root.mainloop()
+
+# 後方互換エイリアス
+ModernSecretaryGUI = NeoSecretaryGUI
 
 if __name__ == "__main__":
     # ログ設定

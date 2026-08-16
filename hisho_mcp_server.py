@@ -108,6 +108,73 @@ def execute_ask_human_approval(
         }
 
 
+def execute_notify_task_completed(
+    title: str = "作業完了",
+    message: str = "",
+    agent_name: str = "Codex"
+) -> Dict[str, Any]:
+    """作業完了をペットとスマホDesk Petへ通知し、大喜び（celebrate）させます。"""
+    url = f"http://localhost:{BRIDGE_HUB_PORT}/api/agent/notify"
+    payload = {
+        "agent_name": agent_name,
+        "title": title,
+        "message": message,
+        "reaction": "celebrate"
+    }
+    try:
+        req = urllib.request.Request(
+            url,
+            data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
+            headers={"Content-Type": "application/json; charset=utf-8"},
+            method="POST"
+        )
+        with urllib.request.urlopen(req, timeout=5) as res:
+            res_data = json.loads(res.read().decode("utf-8"))
+            return {
+                "status": "success",
+                "message": f"ペットとスマホへ作業完了通知を送りました（{agent_name}: {title}）"
+            }
+    except Exception as e:
+        return {"status": "error", "message": f"通知送信失敗: {e}"}
+
+
+def execute_notify_user_input_needed(
+    question: str,
+    choices: str = "",
+    agent_name: str = "Codex",
+    timeout_sec: int = 180
+) -> Dict[str, Any]:
+    """ユーザーへの確認・入力待ちをペットとスマホDesk Petへ送信し、選択肢または自由回答を受け取ります。"""
+    url = f"http://localhost:{BRIDGE_HUB_PORT}/api/agent/ask_input"
+    parsed_choices = [c.strip() for c in choices.split(",") if c.strip()] if isinstance(choices, str) and choices else (choices if isinstance(choices, list) else [])
+    payload = {
+        "agent_name": agent_name,
+        "question": question,
+        "choices": parsed_choices,
+        "timeout": timeout_sec,
+        "wait_decision": True
+    }
+    try:
+        req = urllib.request.Request(
+            url,
+            data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
+            headers={"Content-Type": "application/json; charset=utf-8"},
+            method="POST"
+        )
+        with urllib.request.urlopen(req, timeout=timeout_sec + 5) as res:
+            res_data = json.loads(res.read().decode("utf-8"))
+            decision = res_data.get("decision", "unknown")
+            answer = res_data.get("answer", "")
+            return {
+                "status": "success",
+                "decision": decision,
+                "answer": answer,
+                "message": f"スマホまたはPCから回答を受信しました: 『{answer}』" if answer else f"ステータス: {decision}"
+            }
+    except Exception as e:
+        return {"status": "error", "message": f"質問送信失敗: {e}"}
+
+
 def execute_create_task(
     title: str,
     priority: str = "medium",
@@ -232,6 +299,82 @@ def execute_get_pending_tasks(limit: int = 20) -> List[Dict[str, Any]]:
         return []
 
 
+def execute_complete_task(task_id: int) -> Dict[str, Any]:
+    """指定したIDのTODOタスクを完了状態にします。
+
+    Args:
+        task_id (int): 完了にするタスクのID。
+
+    Returns:
+        Dict[str, Any]: 完了処理結果
+    """
+    try:
+        success = database.complete_task(task_id)
+        if success:
+            logger.info(f"タスクを完了にしました: ID={task_id}")
+            return {
+                "status": "success",
+                "task_id": task_id,
+                "message": f"タスク(ID: {task_id})を完了にしました！✨"
+            }
+        else:
+            return {
+                "status": "error",
+                "task_id": task_id,
+                "message": f"タスク(ID: {task_id})が見つかりませんでした。"
+            }
+    except Exception as e:
+        logger.error(f"タスク完了エラー: {e}")
+        return {"status": "error", "message": f"タスク完了処理に失敗しました: {e}"}
+
+
+def execute_create_calendar_event(
+    title: str,
+    start_time_iso: str,
+    end_time_iso: Optional[str] = None,
+    description: str = ""
+) -> Dict[str, Any]:
+    """秘書くんの手帳カレンダーに新しい予定を登録します。
+
+    Args:
+        title (str): 予定のタイトル。
+        start_time_iso (str): 開始日時 (ISO 8601形式、例: '2026-08-16T15:00:00')。
+        end_time_iso (str, optional): 終了日時。省略時は開始の1時間後。
+        description (str, optional): 予定の詳細メモ。
+
+    Returns:
+        Dict[str, Any]: 予定作成結果
+    """
+    try:
+        start_dt = datetime.fromisoformat(start_time_iso)
+        start_ts = int(start_dt.timestamp() * 1000)
+        
+        if end_time_iso:
+            end_dt = datetime.fromisoformat(end_time_iso)
+            end_ts = int(end_dt.timestamp() * 1000)
+        else:
+            end_ts = start_ts + (60 * 60 * 1000)  # 1時間後
+            
+        event = database.Event(
+            title=title,
+            description=description,
+            start_time=start_ts,
+            end_time=end_ts
+        )
+        event_id = database.create_event(event)
+        logger.info(f"カレンダー予定を作成しました: ID={event_id}, Title='{title}'")
+        return {
+            "status": "success",
+            "event_id": event_id,
+            "title": title,
+            "start_time": start_time_iso,
+            "message": f"手帳カレンダーに予定「{title}」(ID: {event_id}) を登録しました！📅"
+        }
+    except Exception as e:
+        logger.error(f"予定作成エラー: {e}")
+        return {"status": "error", "message": f"予定作成に失敗しました: {e}"}
+
+
 # =============================================================================
 # 2. FastMCP サーバー定義 (2026-07-28 仕様完全準拠)
 # =============================================================================
@@ -252,14 +395,34 @@ def run_fastmcp_server() -> None:
 
     # ------------------ Tools ------------------
     @mcp.tool(description="机の上の古いスマホDesk Pet端末へコマンド実行の承認要請を送信し、ボスのワンタップ判定（承認/拒否）を受け取ります。")
-    def ask_human_approval(command: str, summary: str = "", details: str = "", timeout_sec: int = 180) -> Dict[str, Any]:
+    def ask_human_approval(command: str, summary: str = "", details: str = "", timeout_sec: int = 180, agent_name: str = "Codex") -> Dict[str, Any]:
         """スマホDesk Pet端末へコマンド実行の承認を求めます。"""
-        return execute_ask_human_approval(command, summary, details, timeout_sec)
+        return execute_ask_human_approval(command, summary, details, timeout_sec, agent_name)
+
+    @mcp.tool(description="コーディング作業やタスクが完了した際に、PCペットとスマホDesk Petへ完了通知を送り、大喜び（celebrate）リアクションさせます。")
+    def notify_task_completed(title: str = "タスク完了", message: str = "", agent_name: str = "Codex") -> Dict[str, Any]:
+        """作業完了をペットとスマホへ通知します。"""
+        return execute_notify_task_completed(title, message, agent_name)
+
+    @mcp.tool(description="ユーザーへの質問・選択肢の確認・入力待ちが発生した際に、ペットとスマホDesk Petへ通知してアラート呼び出し（alarm_ask）を行います。")
+    def notify_user_input_needed(question: str, choices: str = "", agent_name: str = "Codex") -> Dict[str, Any]:
+        """ユーザー入力待機をペットとスマホへ通知します。"""
+        return execute_notify_user_input_needed(question, choices, agent_name)
 
     @mcp.tool(description="秘書くんのTODO手帳に新しいタスクを登録します。作業中に見つけた課題の記録に使用してください。")
     def create_task(title: str, priority: str = "medium", memo: str = "") -> Dict[str, Any]:
         """TODO手帳にタスクを登録します。"""
         return execute_create_task(title, priority, memo)
+
+    @mcp.tool(description="指定したIDのTODOタスクを完了状態（完了済み）にします。")
+    def complete_task(task_id: int) -> Dict[str, Any]:
+        """TODOタスクを完了にします。"""
+        return execute_complete_task(task_id)
+
+    @mcp.tool(description="秘書くんの手帳カレンダーに新しい予定を登録します。")
+    def create_calendar_event(title: str, start_time_iso: str, end_time_iso: Optional[str] = None, description: str = "") -> Dict[str, Any]:
+        """手帳カレンダーに予定を登録します。"""
+        return execute_create_calendar_event(title, start_time_iso, end_time_iso, description)
 
     @mcp.tool(description="ボスの制約・好み・作業習慣・開発ルールをMentisDB長期記憶に永続化します。")
     def remember_boss_insight(category: str, content: str, importance: int = 2) -> Dict[str, Any]:
@@ -316,9 +479,35 @@ def run_fallback_jsonrpc_server() -> None:
                     "command": {"type": "string", "description": "実行するコマンド文字列"},
                     "summary": {"type": "string", "description": "コマンドの概要・目的"},
                     "details": {"type": "string", "description": "詳細やリスク"},
-                    "timeout_sec": {"type": "integer", "default": 180, "description": "タイムアウト秒数"}
+                    "timeout_sec": {"type": "integer", "default": 180, "description": "タイムアウト秒数"},
+                    "agent_name": {"type": "string", "default": "Codex", "description": "エージェント名"}
                 },
                 "required": ["command"]
+            }
+        },
+        {
+            "name": "notify_task_completed",
+            "description": "作業やタスクが完了した際に、ペットとスマホDesk Petへ通知して大喜びさせます。",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "title": {"type": "string", "default": "タスク完了", "description": "通知タイトル"},
+                    "message": {"type": "string", "default": "", "description": "完了メッセージ・詳細"},
+                    "agent_name": {"type": "string", "default": "Codex", "description": "エージェント名"}
+                }
+            }
+        },
+        {
+            "name": "notify_user_input_needed",
+            "description": "ユーザーへの質問や確認待ちが発生した際に、ペットとスマホへ通知して呼び出します。",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "question": {"type": "string", "description": "確認したい質問内容"},
+                    "choices": {"type": "string", "default": "", "description": "選択肢一覧"},
+                    "agent_name": {"type": "string", "default": "Codex", "description": "エージェント名"}
+                },
+                "required": ["question"]
             }
         },
         {
@@ -356,6 +545,31 @@ def run_fallback_jsonrpc_server() -> None:
                     "category": {"type": "string", "default": ""},
                     "limit": {"type": "integer", "default": 10}
                 }
+            }
+        },
+        {
+            "name": "complete_task",
+            "description": "指定したIDのTODOタスクを完了状態にします。",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "task_id": {"type": "integer", "description": "完了にするタスクID"}
+                },
+                "required": ["task_id"]
+            }
+        },
+        {
+            "name": "create_calendar_event",
+            "description": "手帳カレンダーに新しい予定を登録します。",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "title": {"type": "string", "description": "予定タイトル"},
+                    "start_time_iso": {"type": "string", "description": "開始日時 (ISO 8601, 例: 2026-08-16T15:00:00)"},
+                    "end_time_iso": {"type": "string", "description": "終了日時 (省略可)"},
+                    "description": {"type": "string", "description": "詳細メモ"}
+                },
+                "required": ["title", "start_time_iso"]
             }
         }
     ]
@@ -408,13 +622,37 @@ def run_fallback_jsonrpc_server() -> None:
                         command=args.get("command", ""),
                         summary=args.get("summary", ""),
                         details=args.get("details", ""),
-                        timeout_sec=int(args.get("timeout_sec", 180))
+                        timeout_sec=int(args.get("timeout_sec", 180)),
+                        agent_name=args.get("agent_name", "Codex")
+                    )
+                elif name == "notify_task_completed":
+                    res = execute_notify_task_completed(
+                        title=args.get("title", "タスク完了"),
+                        message=args.get("message", ""),
+                        agent_name=args.get("agent_name", "Codex")
+                    )
+                elif name == "notify_user_input_needed":
+                    res = execute_notify_user_input_needed(
+                        question=args.get("question", ""),
+                        choices=args.get("choices", ""),
+                        agent_name=args.get("agent_name", "Codex")
                     )
                 elif name == "create_task":
                     res = execute_create_task(
                         title=args.get("title", ""),
                         priority=args.get("priority", "medium"),
                         memo=args.get("memo", "")
+                    )
+                elif name == "complete_task":
+                    res = execute_complete_task(
+                        task_id=int(args.get("task_id", 0))
+                    )
+                elif name == "create_calendar_event":
+                    res = execute_create_calendar_event(
+                        title=args.get("title", ""),
+                        start_time_iso=args.get("start_time_iso", ""),
+                        end_time_iso=args.get("end_time_iso"),
+                        description=args.get("description", "")
                     )
                 elif name == "remember_boss_insight":
                     res = execute_remember_boss_insight(
