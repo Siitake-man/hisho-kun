@@ -98,10 +98,133 @@ window.addEventListener('DOMContentLoaded', () => {
   setInterval(fetchStatus, 2000);
 });
 
+// =============================================================================
+// 1.5. テーマごとの背景シーン描画（ペットの生活空間）
+// =============================================================================
+function drawEnvScene() {
+  if (!envCtx || !envCanvas) return;
+  const w = envCanvas.width, h = envCanvas.height;
+  const theme = ENV_THEMES[currentEnvIndex].id;
+  const t = Date.now();
+  envCtx.save();
+
+  if (theme === 'room') {
+    // 暖炉（左下）＋ゆらぐ炎
+    const fx = w * 0.12, fy = h * 0.72;
+    envCtx.fillStyle = 'rgba(60, 35, 20, 0.9)';
+    envCtx.fillRect(fx - 52, fy - 44, 104, 96);
+    envCtx.fillStyle = 'rgba(25, 14, 8, 0.95)';
+    envCtx.fillRect(fx - 38, fy - 26, 76, 66);
+    const flameH = 20 + Math.sin(t / 120) * 5;
+    envCtx.fillStyle = 'rgba(255, 140, 0, 0.85)';
+    envCtx.beginPath();
+    envCtx.moveTo(fx - 14, fy + 22);
+    envCtx.quadraticCurveTo(fx - 10, fy + 22 - flameH, fx, fy + 22 - flameH * 1.4);
+    envCtx.quadraticCurveTo(fx + 10, fy + 22 - flameH, fx + 14, fy + 22);
+    envCtx.fill();
+    envCtx.fillStyle = 'rgba(255, 220, 0, 0.9)';
+    envCtx.beginPath();
+    envCtx.moveTo(fx - 7, fy + 22);
+    envCtx.quadraticCurveTo(fx - 4, fy + 22 - flameH * 0.6, fx, fy + 22 - flameH * 0.9);
+    envCtx.quadraticCurveTo(fx + 4, fy + 22 - flameH * 0.6, fx + 7, fy + 22);
+    envCtx.fill();
+    // 本棚（右）
+    envCtx.fillStyle = 'rgba(50, 30, 18, 0.9)';
+    envCtx.fillRect(w * 0.82, h * 0.52, 74, h * 0.4);
+    envCtx.fillStyle = 'rgba(90, 55, 30, 0.95)';
+    for (let i = 0; i < 3; i++) envCtx.fillRect(w * 0.82 + 7, h * 0.52 + 12 + i * (h * 0.4 - 22) / 3, 60, 5);
+  } else if (theme === 'cafe') {
+    // テーブル＋カップ（右下）
+    const tx = w * 0.78, ty = h * 0.75;
+    envCtx.fillStyle = 'rgba(70, 45, 28, 0.92)';
+    envCtx.beginPath();
+    envCtx.ellipse(tx, ty, 95, 24, 0, 0, Math.PI * 2);
+    envCtx.fill();
+    envCtx.fillStyle = 'rgba(45, 28, 16, 0.95)';
+    envCtx.fillRect(tx - 8, ty, 16, h - ty);
+    envCtx.fillStyle = 'rgba(245, 245, 220, 0.92)';
+    envCtx.fillRect(tx - 32, ty - 24, 26, 20);
+    envCtx.beginPath();
+    envCtx.arc(tx - 19, ty - 24, 9, Math.PI, 0);
+    envCtx.fill();
+    // 窓（左上）
+    envCtx.strokeStyle = 'rgba(190, 155, 120, 0.55)';
+    envCtx.lineWidth = 3;
+    envCtx.strokeRect(w * 0.07, h * 0.12, w * 0.2, h * 0.28);
+    envCtx.beginPath();
+    envCtx.moveTo(w * 0.17, h * 0.12); envCtx.lineTo(w * 0.17, h * 0.4);
+    envCtx.moveTo(w * 0.07, h * 0.26); envCtx.lineTo(w * 0.27, h * 0.26);
+    envCtx.stroke();
+  } else if (theme === 'forest') {
+    // 木々のシルエット
+    const trees = [[0.08, 0.92, 1.0], [0.2, 0.97, 0.65], [0.86, 0.94, 1.1], [0.95, 0.98, 0.55]];
+    for (const [px, py, sc] of trees) {
+      const bx = w * px, by = h * py, s = sc * h * 0.22;
+      envCtx.fillStyle = 'rgba(18, 62, 34, 0.92)';
+      envCtx.beginPath();
+      envCtx.moveTo(bx, by - s);
+      envCtx.lineTo(bx - s * 0.55, by);
+      envCtx.lineTo(bx + s * 0.55, by);
+      envCtx.closePath();
+      envCtx.fill();
+      envCtx.fillStyle = 'rgba(40, 28, 18, 0.95)';
+      envCtx.fillRect(bx - 4, by, 8, s * 0.18);
+    }
+    envCtx.fillStyle = 'rgba(22, 58, 30, 0.85)';
+    envCtx.fillRect(0, h * 0.9, w, h * 0.1);
+  } else if (theme === 'ocean') {
+    // 水面の波線
+    envCtx.strokeStyle = 'rgba(180, 230, 255, 0.35)';
+    envCtx.lineWidth = 2;
+    for (let i = 0; i < 3; i++) {
+      envCtx.beginPath();
+      const wy = h * (0.55 + i * 0.12);
+      for (let x = 0; x <= w; x += 12) {
+        const y = wy + Math.sin(x / 40 + t / 500 + i) * 5;
+        if (x === 0) envCtx.moveTo(x, y); else envCtx.lineTo(x, y);
+      }
+      envCtx.stroke();
+    }
+    envCtx.fillStyle = 'rgba(28, 58, 78, 0.75)';
+    envCtx.fillRect(0, h * 0.92, w, h * 0.08);
+  } else if (theme === 'cyber') {
+    // ネオンビル群（窓は時間ベースで点滅）
+    const buildings = [[0.04, 0.38], [0.14, 0.58], [0.27, 0.46], [0.71, 0.52], [0.83, 0.4], [0.93, 0.62]];
+    for (const [px, ph] of buildings) {
+      const bx = w * px, bw = w * 0.07, bh = h * ph;
+      envCtx.fillStyle = 'rgba(18, 8, 34, 0.95)';
+      envCtx.fillRect(bx, h - bh, bw, bh);
+      for (let wy = h - bh + 10; wy < h - 12; wy += 16) {
+        for (let wx = bx + 5; wx < bx + bw - 8; wx += 12) {
+          if ((Math.floor(t / 500) + wx + wy) % 3 !== 0) {
+            envCtx.fillStyle = (wx + wy) % 2 === 0 ? 'rgba(0, 229, 255, 0.75)' : 'rgba(255, 23, 68, 0.75)';
+            envCtx.fillRect(wx, wy, 5, 7);
+          }
+        }
+      }
+    }
+    // グリッド地面
+    envCtx.strokeStyle = 'rgba(0, 229, 255, 0.3)';
+    envCtx.lineWidth = 1;
+    const gy = h * 0.88;
+    envCtx.beginPath(); envCtx.moveTo(0, gy); envCtx.lineTo(w, gy); envCtx.stroke();
+    for (let i = 0; i <= 10; i++) {
+      envCtx.beginPath();
+      envCtx.moveTo(w * i / 10, gy);
+      envCtx.lineTo(w * (0.5 + (i / 10 - 0.5) * 2.4), h);
+      envCtx.stroke();
+    }
+  }
+  envCtx.restore();
+}
+
 // パーティクルアニメーションループ
 function particleLoop() {
   if (envCtx && envCanvas) {
     envCtx.clearRect(0, 0, envCanvas.width, envCanvas.height);
+
+    // テーマごとの背景シーン（暖炉・窓・木々・波・ネオンビル等）を描画
+    drawEnvScene();
 
     const theme = ENV_THEMES[currentEnvIndex].id;
 
@@ -232,6 +355,20 @@ function cycleEnvTheme() {
   }
   envParticles = [];
   if (navigator.vibrate) navigator.vibrate(25);
+
+  // 切替を分かりやすくトースト通知
+  showToast(`🏞️ ${theme.label}テーマに変わりました`);
+}
+
+/** 短時間表示されるトースト通知 */
+let toastTimer = null;
+function showToast(message) {
+  const toast = document.getElementById('theme-toast');
+  if (!toast) return;
+  toast.innerText = message;
+  toast.classList.add('show');
+  if (toastTimer) clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => toast.classList.remove('show'), 1600);
 }
 
 // =============================================================================

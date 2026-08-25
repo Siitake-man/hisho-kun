@@ -73,23 +73,23 @@
       z-index: 0;
       transition: background 0.8s ease, filter 0.8s ease;
       pointer-events: none;
-      opacity: 0.85;
+      opacity: 1;
     }
 
     .theme-room {
-      background: radial-gradient(circle at 50% 30%, #4A2E1B 0%, #1E120A 70%, #0D0704 100%);
+      background: radial-gradient(circle at 50% 30%, #8A5A32 0%, #4A2C18 50%, #1A0F08 100%);
     }
     .theme-cafe {
-      background: radial-gradient(circle at 50% 40%, #3B2D27 0%, #1A1310 70%, #0A0706 100%);
+      background: radial-gradient(circle at 30% 25%, #A9714B 0%, #6B4226 50%, #241209 100%);
     }
     .theme-forest {
-      background: radial-gradient(circle at 50% 30%, #1B382B 0%, #0B1C14 70%, #040A07 100%);
+      background: radial-gradient(circle at 50% 25%, #3E9E68 0%, #1B5E38 50%, #072815 100%);
     }
     .theme-ocean {
-      background: radial-gradient(circle at 50% 30%, #153B50 0%, #0A1C28 70%, #030A0E 100%);
+      background: radial-gradient(circle at 50% 30%, #2196F3 0%, #0D47A1 50%, #04102E 100%);
     }
     .theme-cyber {
-      background: radial-gradient(circle at 50% 40%, #2A103C 0%, #12061C 70%, #06020A 100%);
+      background: radial-gradient(circle at 50% 35%, #AB47BC 0%, #6A1B9A 50%, #1A0033 100%);
     }
 
     /* 環境パーティクル Canvas */
@@ -504,6 +504,29 @@
       50% { transform: scale(1.04); }
     }
 
+    /* テーマ切替トースト通知 */
+    .theme-toast {
+      position: absolute;
+      top: 40px;
+      left: 50%;
+      transform: translateX(-50%) translateY(-6px);
+      background: rgba(46, 28, 20, 0.95);
+      border: 1px solid var(--accent-amber);
+      color: var(--text-main);
+      font-size: 11px;
+      padding: 5px 14px;
+      border-radius: 6px;
+      z-index: 50;
+      opacity: 0;
+      transition: opacity 0.3s ease, transform 0.3s ease;
+      pointer-events: none;
+      white-space: nowrap;
+    }
+    .theme-toast.show {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+
     /* =========================================================================
        手帳モーダル（予定・TODO・習慣リスト）
        ========================================================================= */
@@ -612,6 +635,9 @@
         </button>
       </div>
     </header>
+
+    <!-- テーマ切替トースト通知 -->
+    <div id="theme-toast" class="theme-toast"></div>
 
     <!-- 液晶メインスクリーン -->
     <main class="screen">

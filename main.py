@@ -71,6 +71,25 @@ class NeoSecretaryApp:
         )
         self.agent_watcher.start()
 
+        # 7.5. Google カレンダー 秘密iCal URL 定期同期（30分間隔・バックグラウンドスレッド）
+        import threading as _threading
+        import ics_tools as _ics_tools
+
+        def _ical_sync_loop():
+            """30分ごとに秘密 iCal URL からカレンダーを同期するデーモンループ。"""
+            import time as _time
+            while True:
+                try:
+                    if _ics_tools.load_ical_url():
+                        count, msg = _ics_tools.sync_calendar_from_ical_url()
+                        if count > 0:
+                            logger.info(f"📅 Googleカレンダー定期同期: {msg}")
+                except Exception as e:
+                    logger.warning(f"Googleカレンダー定期同期エラー: {e}")
+                _time.sleep(1800)
+
+        _threading.Thread(target=_ical_sync_loop, daemon=True, name="IcalSyncLoop").start()
+
         # 初期メッセージ ＆ 日次ブリーフィング（起動時に今日の予定・タスクを自動報告）
         self._generate_daily_briefing()
         

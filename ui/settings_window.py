@@ -8,6 +8,7 @@ import sys
 import json
 import logging
 import tkinter as tk
+from tkinter import messagebox
 from pathlib import Path
 import customtkinter as ctk
 from dotenv import load_dotenv
@@ -561,6 +562,72 @@ class SettingsWindow(ctk.CTkToplevel):
         )
         self.btn_google_logout.pack(side="left")
 
+        # 1.5. Google カレンダー 秘密iCal URL 連携（読み取り専用・OAuth不要） [2026-08-25]
+        card_ical = ctk.CTkFrame(content_tools, fg_color="#FFFFFF", border_width=1, border_color="#E0D8C8", corner_radius=6)
+        card_ical.pack(fill="x", pady=4, padx=2)
+        ctk.CTkLabel(card_ical, text="📅 Google カレンダー連携 (読み取り専用・OAuth不要)", font=("Meiryo UI", 11, "bold"), text_color="#1565C0", anchor="w").pack(fill="x", padx=8, pady=(6, 2))
+
+        import ics_tools
+        last_sync = ics_tools.get_last_sync_time()
+
+        # 取得手順の説明
+        ctk.CTkLabel(
+            card_ical,
+            text=(
+                "【取得手順（1回だけ・約1分）】\n"
+                "1. Googleカレンダー（PC版）を開く\n"
+                "2. 左側のカレンダー名の「⋮」→「設定と共有」\n"
+                "3. ページ下部「予定の取得用の秘密のアドレス (iCal)」のURLをコピー\n"
+                "4. 下の欄に貼り付けて「🔄 今すぐ同期」を押す"
+            ),
+            font=self.font_small,
+            text_color="#1565C0",
+            anchor="w",
+            justify="left"
+        ).pack(fill="x", padx=8, pady=(0, 4))
+
+        # 読み取り専用の注意書き
+        ctk.CTkLabel(
+            card_ical,
+            text=(
+                "⚠️ 注意: この連携は「Googleカレンダーの表示のみ」です。\n"
+                "秘書くん側で追加した予定を Google カレンダーへ反映することはできません。\n"
+                "（OAuth・パスワード不要の安全でシンプルな方式です。URLは他人に教えないでください）"
+            ),
+            font=self.font_small,
+            text_color="#E65100",
+            anchor="w",
+            wraplength=420,
+            justify="left"
+        ).pack(fill="x", padx=8, pady=(0, 4))
+
+        ctk.CTkLabel(card_ical, text="秘密の iCal アドレス:", font=self.font_body, text_color=self.text_color, anchor="w").pack(fill="x", padx=8)
+        self.entry_ical_url = ctk.CTkEntry(card_ical, placeholder_text="https://calendar.google.com/calendar/ical/.../basic.ics")
+        self.entry_ical_url.insert(0, os.getenv("GOOGLE_CALENDAR_ICAL_URL", ""))
+        self.entry_ical_url.pack(fill="x", padx=8, pady=(2, 4))
+
+        ical_btn_row = ctk.CTkFrame(card_ical, fg_color="transparent")
+        ical_btn_row.pack(fill="x", padx=8, pady=(0, 6))
+
+        self.btn_ical_sync = ctk.CTkButton(
+            ical_btn_row,
+            text="🔄 今すぐ同期",
+            font=self.font_small,
+            fg_color="#1565C0",
+            hover_color="#0D47A1",
+            height=24,
+            command=self._sync_ical_now
+        )
+        self.btn_ical_sync.pack(side="left")
+
+        self.lbl_ical_last_sync = ctk.CTkLabel(
+            ical_btn_row,
+            text=f"最終同期: {last_sync}（以後30分ごとに自動同期）",
+            font=self.font_small,
+            text_color="#757575"
+        )
+        self.lbl_ical_last_sync.pack(side="left", padx=(8, 0))
+
         # 2. GitHub サービス統合
         card_github = ctk.CTkFrame(content_tools, fg_color="#FFFFFF", border_width=1, border_color="#E0D8C8", corner_radius=6)
         card_github.pack(fill="x", pady=4, padx=2)
@@ -796,6 +863,41 @@ class SettingsWindow(ctk.CTkToplevel):
         else:
             self.lbl_google_badge.configure(text="🔴 失敗", text_color="#C62828")
             self.lbl_google_info.configure(text=f"❌ 認証エラー: {res}", text_color="#C62828")
+
+    def _sync_ical_now(self):
+        """秘密 iCal URL から Googleカレンダー予定を今すぐ同期する（バックグラウンド実行）"""
+        url = self.entry_ical_url.get().strip()
+        if not url:
+            messagebox.showwarning("iCal URL 未設定", "秘密の iCal アドレスを貼り付けてから同期してください。")
+            return
+
+        # URL を .env に保存（次回起動時も自動同期される）
+        import ics_tools
+        ics_tools.save_ical_url(url)
+
+        self.btn_ical_sync.configure(state="disabled", text="⏳ 同期中...")
+        self.update_idletasks()
+
+        def _do_sync():
+            try:
+                count, msg = ics_tools.sync_calendar_from_ical_url(url)
+                # Tkinter はスレッド非安全のため、必ずメインスレッドの post_action 経由でUI更新する
+                self.parent_gui.post_action(self._on_ical_sync_done, count, msg)
+            except Exception as e:
+                self.parent_gui.post_action(self._on_ical_sync_done, 0, str(e))
+
+        import threading
+        threading.Thread(target=_do_sync, daemon=True).start()
+
+    def _on_ical_sync_done(self, count: int, msg: str):
+        """iCal 同期完了時のUI更新"""
+        import ics_tools
+        self.btn_ical_sync.configure(state="normal", text="🔄 今すぐ同期")
+        self.lbl_ical_last_sync.configure(text=f"最終同期: {ics_tools.get_last_sync_time()}（以後30分ごとに自動同期）")
+        if count > 0:
+            messagebox.showinfo("同期完了", f"📅 Googleカレンダーから {count} 件の予定を取り込みました！\n手帳とスマホに反映されています。")
+        else:
+            messagebox.showwarning("同期結果", msg)
 
     def _test_google_connection(self):
         """GoogleカレンダーとGmailの同期テスト"""
