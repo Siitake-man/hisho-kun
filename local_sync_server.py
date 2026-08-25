@@ -530,12 +530,23 @@ class DeskPetSyncHandler(SimpleHTTPRequestHandler):
                 if '_last_db_cache_time' not in globals() or (now - _last_db_cache_time) > 2.0:
                     tasks = database.get_tasks(status="todo", limit=20)
                     events = database.get_upcoming_events(days=3)
+                    _sources_by_id = {}
+                    try:
+                        for s in database.get_all_calendar_sources():
+                            _sources_by_id[s.id] = {"name": s.name, "color": s.color}
+                    except Exception:
+                        pass
                     _cached_tasks_data = [
                         {"id": t.id, "title": t.title, "priority": t.priority, "due_date": t.due_date}
                         for t in tasks
                     ]
                     _cached_events_data = [
-                        {"id": e.id, "title": e.title, "start_time": e.start_time, "description": e.description}
+                        {
+                            "id": e.id, "title": e.title, "start_time": e.start_time,
+                            "description": e.description,
+                            "source_color": _sources_by_id.get(e.source_id, {}).get("color", ""),
+                            "source_name": _sources_by_id.get(e.source_id, {}).get("name", "")
+                        }
                         for e in events
                     ]
                     _last_db_cache_time = now

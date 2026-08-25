@@ -565,10 +565,7 @@ class SettingsWindow(ctk.CTkToplevel):
         # 1.5. Google カレンダー 秘密iCal URL 連携（読み取り専用・OAuth不要） [2026-08-25]
         card_ical = ctk.CTkFrame(content_tools, fg_color="#FFFFFF", border_width=1, border_color="#E0D8C8", corner_radius=6)
         card_ical.pack(fill="x", pady=4, padx=2)
-        ctk.CTkLabel(card_ical, text="📅 Google カレンダー連携 (読み取り専用・OAuth不要)", font=("Meiryo UI", 11, "bold"), text_color="#1565C0", anchor="w").pack(fill="x", padx=8, pady=(6, 2))
-
-        import ics_tools
-        last_sync = ics_tools.get_last_sync_time()
+        ctk.CTkLabel(card_ical, text="📅 Google カレンダー連携 (読み取り専用・OAuth不要・複数登録可)", font=("Meiryo UI", 11, "bold"), text_color="#1565C0", anchor="w").pack(fill="x", padx=8, pady=(6, 2))
 
         # 取得手順の説明
         ctk.CTkLabel(
@@ -578,7 +575,8 @@ class SettingsWindow(ctk.CTkToplevel):
                 "1. Googleカレンダー（PC版）を開く\n"
                 "2. 左側のカレンダー名の「⋮」→「設定と共有」\n"
                 "3. ページ下部「予定の取得用の秘密のアドレス (iCal)」のURLをコピー\n"
-                "4. 下の欄に貼り付けて「🔄 今すぐ同期」を押す"
+                "4. 「＋ 購読を追加」で行を作りURLを貼り付け「🔄 すべて同期」を押す\n"
+                "※ 仕事用・プライベートなど複数のカレンダーを色分け登録できます（☐で一時OFF）"
             ),
             font=self.font_small,
             text_color="#1565C0",
@@ -601,17 +599,18 @@ class SettingsWindow(ctk.CTkToplevel):
             justify="left"
         ).pack(fill="x", padx=8, pady=(0, 4))
 
-        ctk.CTkLabel(card_ical, text="秘密の iCal アドレス:", font=self.font_body, text_color=self.text_color, anchor="w").pack(fill="x", padx=8)
-        self.entry_ical_url = ctk.CTkEntry(card_ical, placeholder_text="https://calendar.google.com/calendar/ical/.../basic.ics")
-        self.entry_ical_url.insert(0, os.getenv("GOOGLE_CALENDAR_ICAL_URL", ""))
-        self.entry_ical_url.pack(fill="x", padx=8, pady=(2, 4))
+        # 購読ソース一覧（仕事用/プライベート等の複数iCalを管理）
+        ctk.CTkLabel(card_ical, text="購読カレンダー（☐で一時OFF・色ボタンで色変更）:", font=self.font_body, text_color=self.text_color, anchor="w").pack(fill="x", padx=8, pady=(2, 0))
+
+        self.sources_scroll = ctk.CTkScrollableFrame(card_ical, fg_color="#FAF6EC", height=150)
+        self.sources_scroll.pack(fill="x", padx=8, pady=(2, 4))
 
         ical_btn_row = ctk.CTkFrame(card_ical, fg_color="transparent")
         ical_btn_row.pack(fill="x", padx=8, pady=(0, 6))
 
         self.btn_ical_sync = ctk.CTkButton(
             ical_btn_row,
-            text="🔄 今すぐ同期",
+            text="🔄 すべて同期",
             font=self.font_small,
             fg_color="#1565C0",
             hover_color="#0D47A1",
@@ -620,13 +619,61 @@ class SettingsWindow(ctk.CTkToplevel):
         )
         self.btn_ical_sync.pack(side="left")
 
+        ctk.CTkButton(
+            ical_btn_row,
+            text="＋ 購読を追加",
+            font=self.font_small,
+            fg_color="#A67B5B",
+            hover_color="#8B634A",
+            height=24,
+            command=self._on_add_calendar_source
+        ).pack(side="left", padx=(6, 0))
+
         self.lbl_ical_last_sync = ctk.CTkLabel(
             ical_btn_row,
-            text=f"最終同期: {last_sync}（以後30分ごとに自動同期）",
+            text="（以後30分ごとに自動同期）",
             font=self.font_small,
             text_color="#757575"
         )
         self.lbl_ical_last_sync.pack(side="left", padx=(8, 0))
+
+        self._render_calendar_sources()
+
+        # 1.7. 外出先接続 (Tailscale VPN) [2026-08-25]
+        card_tailscale = ctk.CTkFrame(content_tools, fg_color="#FFFFFF", border_width=1, border_color="#E0D8C8", corner_radius=6)
+        card_tailscale.pack(fill="x", pady=4, padx=2)
+        ctk.CTkLabel(card_tailscale, text="🌐 外出先接続 (Tailscale VPN)", font=("Meiryo UI", 11, "bold"), text_color="#6A1B9A", anchor="w").pack(fill="x", padx=8, pady=(6, 2))
+        ctk.CTkLabel(
+            card_tailscale,
+            text=(
+                "カフェ等の外出先Wi-Fi（端末間通信が禁止されたネットワーク）からでも\n"
+                "スマホDesk Petへ接続できるようにします。\n"
+                "【手順】1. PCとスマホ両方に Tailscale を入れ、同じアカウントでログイン\n"
+                "　 　 2. PC側でコマンド実行: tailscale serve 8765\n"
+                "　 　 3. 下の欄にPCのTailscaleホスト名（例: hisyo-pc.tailXXXX.ts.net）を保存\n"
+                "詳細は docs/guides/TAILSCALE_SETUP.md を参照"
+            ),
+            font=self.font_small,
+            text_color="#6A1B9A",
+            anchor="w",
+            wraplength=420,
+            justify="left"
+        ).pack(fill="x", padx=8, pady=(0, 4))
+
+        ctk.CTkLabel(card_tailscale, text="PCの Tailscale ホスト名:", font=self.font_body, text_color=self.text_color, anchor="w").pack(fill="x", padx=8)
+        self.entry_tailscale_host = ctk.CTkEntry(card_tailscale, placeholder_text="hisyo-pc.tailXXXX.ts.net")
+        self.entry_tailscale_host.insert(0, os.getenv("TAILSCALE_HOSTNAME", ""))
+        self.entry_tailscale_host.pack(fill="x", padx=8, pady=(2, 4))
+
+        ctk.CTkButton(
+            card_tailscale,
+            text="💾 ホスト名を保存",
+            font=self.font_small,
+            fg_color="#6A1B9A",
+            hover_color="#4A148C",
+            height=24,
+            command=self._save_tailscale_host
+        ).pack(anchor="w", padx=8, pady=(0, 6))
 
         # 2. GitHub サービス統合
         card_github = ctk.CTkFrame(content_tools, fg_color="#FFFFFF", border_width=1, border_color="#E0D8C8", corner_radius=6)
@@ -864,23 +911,96 @@ class SettingsWindow(ctk.CTkToplevel):
             self.lbl_google_badge.configure(text="🔴 失敗", text_color="#C62828")
             self.lbl_google_info.configure(text=f"❌ 認証エラー: {res}", text_color="#C62828")
 
-    def _sync_ical_now(self):
-        """秘密 iCal URL から Googleカレンダー予定を今すぐ同期する（バックグラウンド実行）"""
-        url = self.entry_ical_url.get().strip()
-        if not url:
-            messagebox.showwarning("iCal URL 未設定", "秘密の iCal アドレスを貼り付けてから同期してください。")
+    SOURCE_PALETTE = ["#A67B5B", "#1565C0", "#2E7D32", "#C62828", "#6A1B9A", "#00838F", "#F57C00"]
+
+    def _render_calendar_sources(self):
+        """購読ソース一覧（有効チェック・色・名前・URL・同期・削除）を再描画する"""
+        import database
+        for widget in self.sources_scroll.winfo_children():
+            widget.destroy()
+
+        sources = database.get_all_calendar_sources()
+        if not sources:
+            ctk.CTkLabel(
+                self.sources_scroll,
+                text="購読カレンダーがありません。「＋ 購読を追加」から登録してください。",
+                font=self.font_small, text_color="#757575"
+            ).pack(pady=8)
             return
 
-        # URL を .env に保存（次回起動時も自動同期される）
-        import ics_tools
-        ics_tools.save_ical_url(url)
+        for s in sources:
+            row = ctk.CTkFrame(self.sources_scroll, fg_color="transparent")
+            row.pack(fill="x", pady=2)
 
+            enabled_var = tk.BooleanVar(value=s.enabled)
+            ctk.CTkCheckBox(
+                row, text="", width=24, checkbox_width=18, checkbox_height=18,
+                fg_color="#1565C0",
+                command=lambda sid=s.id, v=enabled_var: self._on_source_toggle(sid, v)
+            ).pack(side="left", padx=(2, 4))
+
+            ctk.CTkButton(
+                row, text="", width=22, height=22, corner_radius=4,
+                fg_color=s.color, hover_color=s.color,
+                border_width=1, border_color="#B0A496",
+                command=lambda sid=s.id, col=s.color: self._on_source_cycle_color(sid, col)
+            ).pack(side="left", padx=(0, 4))
+
+            name_entry = ctk.CTkEntry(row, width=100, font=self.font_small, fg_color="#FFFFFF")
+            name_entry.insert(0, s.name)
+            name_entry.pack(side="left", padx=(0, 4))
+
+            url_entry = ctk.CTkEntry(
+                row, font=("Meiryo UI", 8),
+                placeholder_text="https://calendar.google.com/calendar/ical/.../basic.ics"
+            )
+            url_entry.insert(0, s.url)
+            url_entry.pack(side="left", fill="x", expand=True, padx=(0, 4))
+
+            save_cb = lambda e, sid=s.id, n=name_entry, u=url_entry: self._on_source_field_save(sid, n.get(), u.get())
+            name_entry.bind("<FocusOut>", save_cb)
+            url_entry.bind("<FocusOut>", save_cb)
+
+            ctk.CTkButton(
+                row, text="🔄", width=26, height=22, font=self.font_small,
+                fg_color="#1565C0", hover_color="#0D47A1",
+                command=lambda sid=s.id: self._on_source_sync(sid)
+            ).pack(side="left", padx=(0, 2))
+
+            ctk.CTkButton(
+                row, text="🗑", width=26, height=22, font=self.font_small,
+                fg_color="transparent", hover_color="#FFEBEE", text_color="#C62828",
+                border_width=1, border_color="#E0D8C8",
+                command=lambda sid=s.id, name=s.name: self._on_source_delete(sid, name)
+            ).pack(side="left")
+
+    def _on_add_calendar_source(self):
+        """新しい購読ソースを追加する（色はパレットから自動割当）"""
+        import database
+        used = len(database.get_all_calendar_sources())
+        database.create_calendar_source(database.CalendarSource(
+            name=f"カレンダー{used + 1}",
+            color=self.SOURCE_PALETTE[used % len(self.SOURCE_PALETTE)],
+            url="",
+            enabled=True
+        ))
+        self._render_calendar_sources()
+
+    def _on_source_toggle(self, source_id: int, var):
+        """購読ソースの有効/無効を切り替える（同期・表示ともに停止）"""
+        import database
+        database.set_calendar_source_enabled(source_id, bool(var.get()))
+        self._render_calendar_sources()
+
+    def _sync_ical_now(self):
+        """全購読ソースの iCal を今すぐ同期する（バックグラウンド実行）"""
+        import ics_tools
         self.btn_ical_sync.configure(state="disabled", text="⏳ 同期中...")
         self.update_idletasks()
 
         def _do_sync():
             try:
-                count, msg = ics_tools.sync_calendar_from_ical_url(url)
+                count, msg = ics_tools.sync_all_calendar_sources()
                 # Tkinter はスレッド非安全のため、必ずメインスレッドの post_action 経由でUI更新する
                 self.parent_gui.post_action(self._on_ical_sync_done, count, msg)
                 if count > 0:
@@ -894,13 +1014,89 @@ class SettingsWindow(ctk.CTkToplevel):
 
     def _on_ical_sync_done(self, count: int, msg: str):
         """iCal 同期完了時のUI更新"""
-        import ics_tools
-        self.btn_ical_sync.configure(state="normal", text="🔄 今すぐ同期")
-        self.lbl_ical_last_sync.configure(text=f"最終同期: {ics_tools.get_last_sync_time()}（以後30分ごとに自動同期）")
+        self.btn_ical_sync.configure(state="normal", text="🔄 すべて同期")
+        self._render_calendar_sources()
         if count > 0:
-            messagebox.showinfo("同期完了", f"📅 Googleカレンダーから {count} 件の予定を取り込みました！\n手帳とスマホに反映されています。")
+            messagebox.showinfo("同期完了", f"📅 {msg} 件の予定を取り込みました！\n手帳とスマホに反映されています。")
         else:
             messagebox.showwarning("同期結果", msg)
+
+    def _on_source_cycle_color(self, source_id: int, current_color: str):
+        """色ボタンクリックで識別色をパレット順に切り替える"""
+        import database
+        try:
+            next_idx = (self.SOURCE_PALETTE.index(current_color) + 1) % len(self.SOURCE_PALETTE)
+        except ValueError:
+            next_idx = 0
+        source = database.get_calendar_source(source_id)
+        if source is None:
+            return
+        source.color = self.SOURCE_PALETTE[next_idx]
+        database.update_calendar_source(source)
+        self._render_calendar_sources()
+
+    def _on_source_field_save(self, source_id: int, name: str, url: str):
+        """名前・URLの編集を確定する（FocusOut時）"""
+        import database
+        source = database.get_calendar_source(source_id)
+        if source is None:
+            return
+        new_name = name.strip()[:50] or source.name
+        new_url = url.strip()[:2000]
+        if new_name == source.name and new_url == source.url:
+            return
+        source.name = new_name
+        source.url = new_url
+        database.update_calendar_source(source)
+        self._render_calendar_sources()
+
+    def _on_source_sync(self, source_id: int):
+        """購読ソース1件だけを今すぐ同期する（バックグラウンド実行）"""
+        import database
+        import ics_tools
+        source = database.get_calendar_source(source_id)
+        if source is None or not source.url.strip():
+            messagebox.showwarning("iCal URL 未設定", "先に秘密の iCal アドレスを貼り付けてください。")
+            return
+
+        self.btn_ical_sync.configure(state="disabled", text="⏳ 同期中...")
+        self.update_idletasks()
+
+        def _do():
+            try:
+                count, msg = ics_tools.sync_calendar_source(source)
+                # Tkinter はスレッド非安全のため、必ずメインスレッドの post_action 経由でUI更新する
+                self.parent_gui.post_action(self._on_ical_sync_done, count, msg)
+                if count > 0:
+                    # 手帳ウィンドウが開かれていれば同期結果を即時反映
+                    self.parent_gui.post_action(self.parent_gui.refresh_calendar_if_open)
+            except Exception as e:
+                self.parent_gui.post_action(self._on_ical_sync_done, 0, str(e))
+
+        import threading
+        threading.Thread(target=_do, daemon=True).start()
+
+    def _on_source_delete(self, source_id: int, name: str):
+        """購読ソースを削除する（同期済み予定も併せて削除）"""
+        import database
+        if not messagebox.askyesno("購読削除", f"「{name}」を削除しますか？\nこのカレンダーから同期済みの予定も削除されます。"):
+            return
+        database.delete_calendar_source(source_id)
+        self._render_calendar_sources()
+
+    def _save_tailscale_host(self):
+        """Tailscale ホスト名を .env に保存し、QRダイアログの外出先接続に反映する"""
+        from dotenv import set_key
+        host = self.entry_tailscale_host.get().strip()
+        env_path = Path(__file__).parent.parent / ".env"
+        set_key(str(env_path), "TAILSCALE_HOSTNAME", host)
+        os.environ["TAILSCALE_HOSTNAME"] = host
+        messagebox.showinfo(
+            "保存完了",
+            "Tailscale ホスト名を保存しました。\n"
+            "QR接続ダイアログに「🌐 外出先接続」URLが表示されます。\n"
+            "（PC側で `tailscale serve 8765` の実行が必要です）"
+        )
 
     def _test_google_connection(self):
         """GoogleカレンダーとGmailの同期テスト"""

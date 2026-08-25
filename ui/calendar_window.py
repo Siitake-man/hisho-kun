@@ -141,6 +141,10 @@ class CalendarWindow(ctk.CTkToplevel):
         self.sync_info_label = ctk.CTkLabel(self.tab_events, text="", font=self.font_small, text_color="#8D6E63")
         self.sync_info_label.pack(fill="x", padx=8, pady=(0, 4))
 
+        # ソース凡例（購読カレンダーの色見本 ＋ 名前）
+        self.source_legend_frame = ctk.CTkFrame(self.tab_events, fg_color="transparent", height=18)
+        self.source_legend_frame.pack(fill="x", padx=4, pady=(0, 2))
+
         # 表示状態（アンカー日と表示モード）
         self.view_mode = "month"
         self.current_date = datetime.date.today()
@@ -195,14 +199,27 @@ class CalendarWindow(ctk.CTkToplevel):
         self._update_sync_info()
 
     def _update_sync_info(self):
-        """フッターに Googleカレンダーの最終同期時刻と手帳登録件数を表示する"""
-        try:
-            from ics_tools import get_last_sync_time
-            sync_text = f"🔄 Googleカレンダー最終同期: {get_last_sync_time()} ／ 手帳登録 {len(self.all_cached_events)} 件"
-        except Exception as exc:
-            logger.warning(f"最終同期時刻の取得に失敗: {exc}")
-            sync_text = f"手帳登録 {len(self.all_cached_events)} 件"
+        """フッターにソース別の最終同期時刻と登録件数を表示し、色凡例を描画する"""
+        sources = getattr(self, 'calendar_sources', []) or []
+        configured = [s for s in sources if s.url.strip()]
+        if configured:
+            sync_parts = [f"{s.name}: {s.last_sync}" for s in configured]
+            sync_text = "🔄 最終同期 ／ " + " ／ ".join(sync_parts) + f" ／ 手帳登録 {len(self.all_cached_events)} 件"
+        else:
+            sync_text = "🔄 iCal未設定（設定 → 外部ツール からカレンダーを購読できます）"
         self.sync_info_label.configure(text=sync_text)
+
+        # ソース凡例（色見本 ＋ 名前 ＆ ON/OFF状態）
+        for widget in self.source_legend_frame.winfo_children():
+            widget.destroy()
+        for s in configured:
+            swatch = tk.Frame(
+                self.source_legend_frame, bg=s.color, width=10, height=10,
+                highlightthickness=1, highlightbackground="#B0A496"
+            )
+            swatch.pack(side="left", padx=(10, 3), pady=2)
+            state_mark = "" if s.enabled else "（OFF）"
+            ctk.CTkLabel(self.source_legend_frame, text=f"{s.name}{state_mark}", font=self.font_small, text_color="#6E5F53").pack(side="left")
 
     # =========================================================================
     # 📅 予定描画エンジン（月間グリッド / 週間・日間タイムテーブル）
@@ -213,6 +230,16 @@ class CalendarWindow(ctk.CTkToplevel):
         """予定タイトルから安定したパステルカラーを割り当てる"""
         title_hash = sum(ord(ch) for ch in (event.title or ""))
         return self.EVENT_PALETTE[title_hash % len(self.EVENT_PALETTE)]
+
+    def _source_color(self, event):
+        """イベントの購読ソース識別色を返す（ローカル予定は None）"""
+        src_id = getattr(event, 'source_id', None)
+        if src_id is None:
+            return None
+        for s in getattr(self, 'calendar_sources', []) or []:
+            if s.id == src_id:
+                return s.color
+        return None
 
     def _events_by_date(self) -> Dict[datetime.date, List[Tuple[database.Event, datetime.datetime, datetime.datetime]]]:
         """キャッシュ済み予定を日付ごとにグルーピングする
@@ -299,7 +326,12 @@ class CalendarWindow(ctk.CTkToplevel):
                 title = ev.title if len(ev.title) <= 10 else ev.title[:9] + "…"
                 block_fill = "#E5DED2" if is_past else self._event_color(ev)
                 canvas.create_rectangle(x0 + 3, ty, x1 - 3, ty + 12, fill=block_fill, outline="", tags=(tag,))
-                canvas.create_text(x0 + 5, ty + 1, text=title, anchor="nw", fill="#6E5F53" if is_past else "#3E2F23", font=("Meiryo UI", 7), tags=(tag,))
+                src_col = self._source_color(ev)
+                text_x = x0 + 5
+                if src_col:
+                    canvas.create_rectangle(x0 + 3, ty, x0 + 6, ty + 12, fill=src_col, outline="", tags=(tag,))
+                    text_x = x0 + 8
+                canvas.create_text(text_x, ty + 1, text=title, anchor="nw", fill="#6E5F53" if is_past else "#3E2F23", font=("Meiryo UI", 7), tags=(tag,))
             if len(day_events) > max_show:
                 canvas.create_text(x1 - 4, y1 - 3, text=f"+{len(day_events) - max_show}", anchor="se", fill="#8B634A", font=("Meiryo UI", 7, "bold"), tags=(tag,))
 
@@ -358,6 +390,9 @@ class CalendarWindow(ctk.CTkToplevel):
                 is_past = sdt < now
                 tag = f"event:{ev.id}:{d.isoformat()}"
                 canvas.create_rectangle(x0, y0, x1, y1, fill="#E5DED2" if is_past else self._event_color(ev), outline="#B0A496" if is_past else "#A67B5B", tags=(tag,))
+                src_col = self._source_color(ev)
+                if src_col:
+                    canvas.create_rectangle(x0, y0, x0 + 3, y1, fill=src_col, outline="", tags=(tag,))
                 title = ev.title if len(ev.title) <= 8 else ev.title[:7] + "…"
                 canvas.create_text(x0 + 2, y0 + 1, text=title, anchor="nw", fill="#6E5F53" if is_past else "#3E2F23", font=("Meiryo UI", 7), tags=(tag,))
 
@@ -406,6 +441,9 @@ class CalendarWindow(ctk.CTkToplevel):
             is_past = sdt < now
             tag = f"event:{ev.id}:{d.isoformat()}"
             canvas.create_rectangle(x0, y0, x1, y1, fill="#E5DED2" if is_past else self._event_color(ev), outline="#B0A496" if is_past else "#A67B5B", tags=(tag,))
+            src_col = self._source_color(ev)
+            if src_col:
+                canvas.create_rectangle(x0, y0, x0 + 4, y1, fill=src_col, outline="", tags=(tag,))
             canvas.create_text(x0 + 6, y0 + 3, text=f"{sdt.strftime('%H:%M')} 〜 {edt.strftime('%H:%M')}", anchor="nw", fill="#8B634A", font=("Meiryo UI", 7), tags=(tag,))
             title = ev.title if len(ev.title) <= 30 else ev.title[:29] + "…"
             canvas.create_text(x0 + 6, y0 + 15, text=title, anchor="nw", fill="#6E5F53" if is_past else "#3E2F23", font=("Meiryo UI", 9, "bold"), tags=(tag,))
@@ -911,11 +949,15 @@ class CalendarWindow(ctk.CTkToplevel):
     def refresh_all_data(self):
         """全タブのデータを一括更新"""
         import database
+        # 購読ソース（仕事用/プライベート等）を読み込み、無効ソースの予定は表示から除外する
+        self.calendar_sources = database.get_all_calendar_sources()
+        enabled_source_ids = {s.id for s in self.calendar_sources if s.enabled}
         # 月間ビューが過去日を含めて描画できるよう、モジュール定数の期間窓で取得する
         now = datetime.datetime.now()
         range_start_ms = int((now - datetime.timedelta(days=EVENT_RANGE_PAST_DAYS)).timestamp() * 1000)
         range_end_ms = int((now + datetime.timedelta(days=EVENT_RANGE_FUTURE_DAYS)).timestamp() * 1000)
         events = database.get_events_between(range_start_ms, range_end_ms)
+        events = [e for e in events if e.source_id is None or e.source_id in enabled_source_ids]
         self.load_events(events)
         self.refresh_tasks()
         self.refresh_habits()

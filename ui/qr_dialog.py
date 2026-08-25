@@ -4,6 +4,7 @@
 """
 
 import logging
+import os
 import socket
 import tkinter as tk
 import urllib.request
@@ -67,9 +68,13 @@ class QRCodeConnectionDialog(ctk.CTkToplevel):
         ctk.CTkLabel(self, text="📱 スマホを机上のペット端末にする", font=self.font_title, text_color=self.primary_color).pack(pady=(12, 4))
         ctk.CTkLabel(self, text="カメラでQRコードをかざすだけで、スマホが承認コクピットになります！", font=self.font_small, text_color="#7A6B62").pack()
         
-        # IPセレクタ
+        # IPセレクタ（LAN IP ＋ 任意でTailscale外出先用URL）
         self.ips = self._get_local_ips()
-        self.selected_ip_var = tk.StringVar(value=self.ips[0])
+        ts_host = os.getenv("TAILSCALE_HOSTNAME", "").strip()
+        self.tailscale_url = f"https://{ts_host}/" if ts_host else ""
+        if self.tailscale_url:
+            self.ips.append("🌐 Tailscale (外出先)")
+        self.selected_ip_var = tk.StringVar(value=self.ips[0] if not self.tailscale_url else self.ips[-1])
         
         ip_frame = ctk.CTkFrame(self, fg_color="transparent")
         ip_frame.pack(fill="x", padx=pad, pady=(8, 4))
@@ -98,6 +103,8 @@ class QRCodeConnectionDialog(ctk.CTkToplevel):
         url_box.pack(fill="x", padx=pad, pady=2)
         
         self.url_var = tk.StringVar(value=f"http://{self.ips[0]}:8765")
+        if self.tailscale_url:
+            self.url_var.set(self.tailscale_url)
         self.url_entry = ctk.CTkEntry(url_box, textvariable=self.url_var, font=self.font_mono, height=28, state="readonly")
         self.url_entry.pack(side="left", fill="x", expand=True, padx=(0, 6))
         
@@ -156,19 +163,36 @@ class QRCodeConnectionDialog(ctk.CTkToplevel):
         )
         self.chk_auto_hide.pack(side="left", padx=8, pady=4)
 
+        # 🌐 外出先接続 (Tailscale) — 設定済みならIPセレクタ兼QRに統合済み。簡単な注意書きのみ
+        if self.tailscale_url:
+            note_box = ctk.CTkFrame(self, fg_color="#F3E8F7", border_color="#AB47BC", border_width=1, corner_radius=6)
+            note_box.pack(fill="x", padx=pad, pady=2)
+            ctk.CTkLabel(
+                note_box,
+                text="💡 IPセレクタで「🌐 Tailscale」を選ぶと外出先用のQRコードに切り替わります。\nスマホのTailscaleアプリでVPNをONにしてから読み取ってください。",
+                font=self.font_small,
+                text_color="#6A1B9A",
+                justify="left",
+                anchor="w"
+            ).pack(side="left", padx=8, pady=4)
+
         # 🔰 社内ユーザー向け接続ガイド
         guide_box = ctk.CTkFrame(self, fg_color="#EFEBE9", border_color="#D7CCC8", border_width=1, corner_radius=8)
         guide_box.pack(fill="both", expand=True, padx=pad, pady=(4, 10))
         
-        ctk.CTkLabel(guide_box, text="🔰 初めての接続ガイド（社内・外出先）", font=("Meiryo UI", 10, "bold"), text_color=self.primary_color).pack(anchor="w", padx=8, pady=(6, 2))
+        ctk.CTkLabel(guide_box, text="🔰 初めての接続ガイド（Wi-Fi・Bluetooth）", font=("Meiryo UI", 10, "bold"), text_color=self.primary_color).pack(anchor="w", padx=8, pady=(6, 2))
         
         guide_text = (
-            "【Wi-Fi接続（社内・自宅）】\n"
-            "  PCとスマホを同じWi-Fiに繋ぎ、上のQRコードをカメラで読み取るだけ！\n\n"
-            "【Bluetooth接続（外出先・Wi-Fi不要）】★オススメ\n"
+            "【Wi-Fi接続（自宅・社内）】\n"
+            "  PCとスマホを同じWi-Fiに繋ぎ、QRコードをカメラで読み取るだけ！\n\n"
+            "【Bluetooth接続（外出先・Wi-Fi不要）】\n"
             "  1. PCとスマホをBluetoothで「ペアリング」します。\n"
-            "  2. スマホのBluetooth設定で「インターネット共有(PAN)」をONにします。\n"
-            "  3. QRコードを読み取るだけで、オフラインで直接通信が完結します！"
+            "  2. Windowsの「Bluetooth PAN」（パーソナルエリアネットワーク）\n"
+            "     スマホの設定 → テザリング → BluetoothテザリングをON。\n"
+            "  3. QRコードを読み取るだけで通信が完結します。\n"
+            "  ※ただしBluetooth PANは速度が遅く（〜2Mbps）、安定性に欠けます。\n"
+            "    カフェ等ではスマホのテザリングにPCを繋ぐ方が確実です。\n"
+            "  ⚠ Tailscale 等のVPNは不要です。導入は任意です。"
         )
         ctk.CTkLabel(guide_box, text=guide_text, font=self.font_small, text_color="#4E342E", justify="left", wraplength=430).pack(anchor="w", padx=8, pady=(0, 6))
         
@@ -200,7 +224,10 @@ class QRCodeConnectionDialog(ctk.CTkToplevel):
             )
 
     def _on_ip_change(self, selected_ip):
-        self.url_var.set(f"http://{selected_ip}:8765")
+        if selected_ip == "🌐 Tailscale (外出先)" and self.tailscale_url:
+            self.url_var.set(self.tailscale_url)
+        else:
+            self.url_var.set(f"http://{selected_ip}:8765")
         self._render_qr()
 
     def _on_toggle_auto_hide(self):

@@ -923,7 +923,7 @@ function openEventsModal() {
   } else {
     html = eventsData.map(e => {
       const dt = String(e.start_time || '').replace('T', ' ').slice(0, 16);
-      return `<div class="note-item"><div class="note-title">📅 ${escapeHtml(e.title)}</div><div class="note-desc">🕐 ${escapeHtml(dt)}</div></div>`;
+      return `<div class="note-item"><div class="note-title">📅 ${escapeHtml(e.title)}</div><div class="note-desc">🕐 ${escapeHtml(dt)}${e.source_name ? " ／ " + escapeHtml(e.source_name) : ""}</div></div>`;
     }).join('');
   }
   openBottomSheet({ icon: '📅', tag: '手帳', title: `予定一覧 (${count}件)` }, html);

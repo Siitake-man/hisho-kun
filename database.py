@@ -109,6 +109,7 @@ class Event(BaseModel):
     recurrence_rule: Optional[Dict[str, Any]] = None
     category_id: Optional[int] = None
     google_event_id: Optional[str] = None
+    source_id: Optional[int] = None
     
     @validator('end_time')
     def end_after_start(cls, v, values):
@@ -116,6 +117,28 @@ class Event(BaseModel):
         if 'start_time' in values and v <= values['start_time']:
             raise ValueError('end_timeはstart_timeより後である必要があります')
         return v
+
+
+class CalendarSource(BaseModel):
+    """
+    カレンダー購読ソース（iCal URL）を表すモデル。
+    
+    仕事用・プライベート等の複数のGoogleカレンダーを識別して同期するために使用します。
+    
+    Attributes:
+        id: ソースID（自動採番）
+        name: 表示名（例: '仕事用', 'プライベート'）
+        color: 手帳表示用の識別色（Hex）
+        url: 秘密 iCal アドレス（空なら未設定）
+        enabled: 同期・表示のON/OFF
+        last_sync: 最終同期時刻（表示用文字列）
+    """
+    id: Optional[int] = None
+    name: str = Field(..., min_length=1, max_length=50)
+    color: str = Field(default="#A67B5B", pattern=r'^#[0-9A-Fa-f]{6}$')
+    url: str = Field(default="", max_length=2000)
+    enabled: bool = True
+    last_sync: str = "未同期"
 
 
 class StickyNote(BaseModel):
@@ -241,6 +264,31 @@ def init_db(db_path: str = "neo_secretary.db") -> None:
                 FOREIGN KEY (category_id) REFERENCES categories (id)
             )
         """)
+        
+        # calendar_sourcesテーブル (カレンダー購読ソース: 仕事用/プライベート等の複数iCal)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS calendar_sources (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                color TEXT NOT NULL DEFAULT '#A67B5B',
+                url TEXT NOT NULL DEFAULT '',
+                enabled INTEGER NOT NULL DEFAULT 1,
+                last_sync TEXT NOT NULL DEFAULT '未同期'
+            )
+        """)
+
+        # events.source_id マイグレーション（既存DBへのカラム追加）
+        cursor.execute("PRAGMA table_info(events)")
+        event_columns = {row[1] for row in cursor.fetchall()}
+        if "source_id" not in event_columns:
+            cursor.execute("ALTER TABLE events ADD COLUMN source_id INTEGER")
+            # 既存のGoogle由来予定は先頭ソース（id=1）へ帰属させる
+            cursor.execute("""
+                UPDATE events
+                SET source_id = 1
+                WHERE google_event_id IS NOT NULL AND google_event_id != '' AND source_id IS NULL
+            """)
+            logger.info("events.source_id カラムを追加し、既存Google予定をソース1へ移行しました")
         
         # sticky_notesテーブル
         cursor.execute("""
@@ -419,12 +467,12 @@ def create_event(event: Event, db_path: str = "neo_secretary.db") -> int:
         cursor.execute("""
             INSERT INTO events (
                 title, description, start_time, end_time,
-                recurrence_type, recurrence_rule, category_id, google_event_id
+                recurrence_type, recurrence_rule, category_id, google_event_id, source_id
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             event.title, event.description, event.start_time, event.end_time,
-            event.recurrence_type, recurrence_rule_json, event.category_id, event.google_event_id
+            event.recurrence_type, recurrence_rule_json, event.category_id, event.google_event_id, event.source_id
         ))
         
         event_id = cursor.lastrowid
@@ -461,7 +509,8 @@ def get_event(event_id: int, db_path: str = "neo_secretary.db") -> Optional[Even
                 recurrence_type=row[5],
                 recurrence_rule=recurrence_rule,
                 category_id=row[7],
-                google_event_id=row[8]
+                google_event_id=row[8],
+                source_id=(row[9] if len(row) > 9 else None)
             )
         return None
 
@@ -488,7 +537,8 @@ def _rows_to_events(rows: list) -> List[Event]:
             recurrence_type=row[5],
             recurrence_rule=recurrence_rule,
             category_id=row[7],
-            google_event_id=row[8]
+            google_event_id=row[8],
+            source_id=(row[9] if len(row) > 9 else None)
         ))
     return events
 
@@ -548,6 +598,140 @@ def get_events_between(start_ms: int, end_ms: int, db_path: str = "neo_secretary
         
         logger.debug(f"指定期間の予定を{len(events)}件取得しました")
         return events
+
+
+# =============================================================================
+# CRUD操作: CalendarSources (カレンダー購読ソース)
+# =============================================================================
+
+def create_calendar_source(source: CalendarSource, db_path: str = "neo_secretary.db") -> int:
+    """
+    カレンダー購読ソースを追加します。
+    
+    Args:
+        source: 追加するソース情報
+        db_path: データベースファイルのパス
+    
+    Returns:
+        作成されたソースのID
+    """
+    with get_db_connection(db_path) as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO calendar_sources (name, color, url, enabled, last_sync)
+            VALUES (?, ?, ?, ?, ?)
+        """, (source.name, source.color, source.url, 1 if source.enabled else 0, source.last_sync))
+        source_id = cursor.lastrowid
+        logger.info(f"カレンダーソースを作成しました: ID={source_id}, name={source.name}")
+        return source_id
+
+
+def _row_to_calendar_source(row) -> CalendarSource:
+    """calendar_sources テーブルの SELECT * 行を CalendarSource モデルへ変換する"""
+    return CalendarSource(
+        id=row[0],
+        name=row[1],
+        color=row[2],
+        url=row[3],
+        enabled=bool(row[4]),
+        last_sync=row[5]
+    )
+
+
+def get_all_calendar_sources(db_path: str = "neo_secretary.db") -> List[CalendarSource]:
+    """
+    全てのカレンダー購読ソースを取得します（作成順）。
+    
+    Args:
+        db_path: データベースファイルのパス
+    
+    Returns:
+        ソースのリスト
+    """
+    with get_db_connection(db_path) as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM calendar_sources ORDER BY id ASC")
+        return [_row_to_calendar_source(row) for row in cursor.fetchall()]
+
+
+def get_calendar_source(source_id: int, db_path: str = "neo_secretary.db") -> Optional[CalendarSource]:
+    """
+    IDを指定してカレンダー購読ソースを取得します。
+    
+    Args:
+        source_id: ソースID
+        db_path: データベースファイルのパス
+    
+    Returns:
+        ソース情報（存在しない場合はNone）
+    """
+    with get_db_connection(db_path) as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM calendar_sources WHERE id = ?", (source_id,))
+        row = cursor.fetchone()
+        return _row_to_calendar_source(row) if row else None
+
+
+def update_calendar_source(source: CalendarSource, db_path: str = "neo_secretary.db") -> None:
+    """
+    カレンダー購読ソースの内容（名前・色・URL・有効フラグ・最終同期）を更新します。
+    
+    Args:
+        source: 更新するソース情報（id は必須）
+        db_path: データベースファイルのパス
+    """
+    with get_db_connection(db_path) as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            UPDATE calendar_sources
+            SET name = ?, color = ?, url = ?, enabled = ?, last_sync = ?
+            WHERE id = ?
+        """, (source.name, source.color, source.url, 1 if source.enabled else 0, source.last_sync, source.id))
+        logger.info(f"カレンダーソースを更新しました: ID={source.id}, name={source.name}")
+
+
+def set_calendar_source_enabled(source_id: int, enabled: bool, db_path: str = "neo_secretary.db") -> None:
+    """
+    カレンダー購読ソースの有効/無効を切り替えます。
+    
+    Args:
+        source_id: ソースID
+        enabled: True で有効化、False で無効化（同期・表示ともに停止）
+        db_path: データベースファイルのパス
+    """
+    with get_db_connection(db_path) as conn:
+        cursor = conn.cursor()
+        cursor.execute("UPDATE calendar_sources SET enabled = ? WHERE id = ?", (1 if enabled else 0, source_id))
+        logger.info(f"カレンダーソースの有効状態を変更しました: ID={source_id}, enabled={enabled}")
+
+
+def set_calendar_source_last_sync(source_id: int, time_str: str, db_path: str = "neo_secretary.db") -> None:
+    """
+    カレンダー購読ソースの最終同期時刻を記録します。
+    
+    Args:
+        source_id: ソースID
+        time_str: 表示用の同期時刻文字列
+        db_path: データベースファイルのパス
+    """
+    with get_db_connection(db_path) as conn:
+        cursor = conn.cursor()
+        cursor.execute("UPDATE calendar_sources SET last_sync = ? WHERE id = ?", (time_str, source_id))
+
+
+def delete_calendar_source(source_id: int, db_path: str = "neo_secretary.db") -> None:
+    """
+    カレンダー購読ソースを削除し、その同期済み予定も併せて削除します。
+    
+    Args:
+        source_id: ソースID
+        db_path: データベースファイルのパス
+    """
+    with get_db_connection(db_path) as conn:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM events WHERE source_id = ?", (source_id,))
+        cursor.execute("DELETE FROM calendar_sources WHERE id = ?", (source_id,))
+        logger.info(f"カレンダーソースとその予定を削除しました: ID={source_id}")
 
 
 # =============================================================================

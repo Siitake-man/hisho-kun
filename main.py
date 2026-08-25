@@ -8,6 +8,8 @@ GUI(gui.py) と エージェント(agent.py) を「asyncio」を使い共存さ�
 
 import asyncio
 import logging
+import subprocess
+import sys
 import tkinter as tk
 from typing import Dict, Any, Optional
 
@@ -23,9 +25,35 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+
+def _auto_tailscale_serve() -> None:
+    """Tailscale がインストールされていれば、起動時に `tailscale serve 8765` を自動実行する。
+
+    ユーザーが手動でコマンドを叩く手間を省くヘルパー。
+    エラーは無視（入っていなければ単に何もしない）。
+    """
+    try:
+        result = subprocess.run(
+            ["tailscale", "serve", "8765"],
+            capture_output=True, text=True, timeout=10,
+            creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0,
+        )
+        if result.returncode == 0:
+            logger.info("🌐 Tailscale serve を自動起動しました (https://node.tail08a991.ts.net/)")
+        else:
+            # 既に有効な場合のエラーは無視
+            if "already" not in result.stderr.lower():
+                logger.debug(f"Tailscale serve 自動起動スキップ: {result.stderr.strip()}")
+    except FileNotFoundError:
+        logger.debug("Tailscale 未インストール — serve 自動起動をスキップ")
+    except Exception as e:
+        logger.debug(f"Tailscale serve 自動起動に失敗: {e}")
+
 class NeoSecretaryApp:
     def __init__(self):
-        # 0. データベース初期化 ＆ 起動時自動オンラインバックアップ
+        # 0. 自動起動ヘルパー（Tailscale serve / DBバックアップ）
+        _auto_tailscale_serve()
+        # 0.1. データベース初期化 ＆ 起動時自動オンラインバックアップ
         import database
         database.init_db()
         database.auto_backup()
@@ -80,12 +108,11 @@ class NeoSecretaryApp:
             import time as _time
             while True:
                 try:
-                    if _ics_tools.load_ical_url():
-                        count, msg = _ics_tools.sync_calendar_from_ical_url()
-                        if count > 0:
-                            logger.info(f"📅 Googleカレンダー定期同期: {msg}")
-                            # 手帳ウィンドウが開かれている場合はUIスレッド経由で再描画する
-                            self.post_action(self.refresh_calendar_if_open)
+                    count, msg = _ics_tools.sync_all_calendar_sources()
+                    if count > 0:
+                        logger.info(f"📅 Googleカレンダー定期同期: {msg}")
+                        # 手帳ウィンドウが開かれている場合はUIスレッド経由で再描画する
+                        self.post_action(self.refresh_calendar_if_open)
                 except Exception as e:
                     logger.warning(f"Googleカレンダー定期同期エラー: {e}")
                 _time.sleep(1800)

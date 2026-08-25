@@ -55,57 +55,111 @@ def get_last_sync_time() -> str:
     return os.getenv(ICAL_LAST_SYNC_ENV_KEY, "未同期")
 
 
-def sync_calendar_from_ical_url(url: Optional[str] = None) -> Tuple[int, str]:
-    """秘密 iCal URL から Googleカレンダー予定を取得し、ローカルDBへ同期する（読み取り専用）。
+# iCal 取り込み窓（この範囲外の予定はDBへ取り込まない）。
+# Googleの秘密iCalは「過去約1年＋未来すべて」を固定で返す仕様のため、
+# 必要な範囲だけを取り込んでDBの肥大化と同期時間を抑える。
+ICAL_IMPORT_PAST_DAYS = 120
+ICAL_IMPORT_FUTURE_DAYS = 730
 
-    OAuth・APIキー不要。Google由来の予定は google_event_id 付きで登録され、
-    同期のたびに置き換えられる（重複しない）。
+
+def ensure_default_calendar_source() -> None:
+    """レガシー設定（.env の GOOGLE_CALENDAR_ICAL_URL）を購読ソースへ自動移行する。
+
+    ソースが1件も登録されておらず .env にURLが残っている場合、
+    それを「メインカレンダー」として source 1 に取り込む。
+    """
+    from dotenv import load_dotenv
+    load_dotenv(Path(__file__).parent / ".env")
+    if database.get_all_calendar_sources():
+        return
+    legacy_url = os.getenv(ICAL_URL_ENV_KEY, "").strip()
+    if legacy_url:
+        database.create_calendar_source(database.CalendarSource(
+            name="メインカレンダー",
+            color="#A67B5B",
+            url=legacy_url,
+            enabled=True
+        ))
+        logger.info("レガシーな .env の iCal URL を購読ソース「メインカレンダー」へ移行しました")
+
+
+def _fetch_ics_text(target_url: str) -> str:
+    """秘密 iCal URL から .ics テキストを取得する。
 
     Args:
-        url (Optional[str]): iCal URL。省略時は .env の保存値を使用。
+        target_url: 秘密 iCal アドレス。
+
+    Returns:
+        str: .ics ファイルの全文。
+
+    Raises:
+        Exception: ネットワークエラー・URL不正等。
+    """
+    import urllib.request
+    req = urllib.request.Request(target_url, headers={"User-Agent": "Mozilla/5.0"})
+    with urllib.request.urlopen(req, timeout=15) as res:
+        return res.read().decode("utf-8", errors="replace")
+
+def sync_calendar_source(source: "database.CalendarSource") -> Tuple[int, str]:
+    """購読ソース1件分の iCal を取得し、ローカルDBへ同期する（読み取り専用）。
+
+    取り込み窓（過去 ICAL_IMPORT_PAST_DAYS 日 〜 未来 ICAL_IMPORT_FUTURE_DAYS 日）
+    外の予定は破棄する。既存の同ソース予定は置き換えられる（重複しない）。
+
+    Args:
+        source: 同期する購読ソース。
 
     Returns:
         Tuple[int, str]: (同期した予定件数, 結果メッセージ)
     """
-    target_url = (url or load_ical_url()).strip()
+    target_url = (source.url or "").strip()
     if not target_url:
-        return 0, (
-            "iCal URL が未設定です。Googleカレンダーの「設定と共有」→"
-            "「予定の取得用の秘密のアドレス (iCal)」の URL をコピーして貼り付けてください。"
-        )
+        return 0, f"「{source.name}」の iCal URL が未設定です。"
     # URL形式の事前チェック（よくある間違いを案内）
     if "cid=" in target_url:
         return 0, (
-            "貼り付けられたURLは「カレンダーを追加するリンク (cid=...)」です。\n"
+            f"「{source.name}」に貼り付けられたURLは「カレンダーを追加するリンク (cid=...)」です。\n"
             "必要なのは「秘密の iCal アドレス」です。Googleカレンダーの「設定と共有」ページの"
             "下部にある「予定の取得用の秘密のアドレス (iCal)」のURLをコピーしてください。"
         )
     if "calendar.google.com/calendar/ical/" not in target_url:
         return 0, (
-            "URL の形式が正しくありません。「https://calendar.google.com/calendar/ical/...basic.ics」"
-            "で始まる秘密の iCal アドレスを貼り付けてください。"
+            f"「{source.name}」の URL 形式が正しくありません。"
+            "「https://calendar.google.com/calendar/ical/...basic.ics」で始まる"
+            "秘密の iCal アドレスを貼り付けてください。"
         )
 
-    import urllib.request
     try:
-        req = urllib.request.Request(target_url, headers={"User-Agent": "Mozilla/5.0"})
-        with urllib.request.urlopen(req, timeout=15) as res:
-            ics_text = res.read().decode("utf-8", errors="replace")
+        ics_text = _fetch_ics_text(target_url)
     except Exception as e:
-        logger.error(f"iCal URL 取得エラー: {e}")
-        return 0, f"iCal URL の取得に失敗しました: {e}"
+        logger.error(f"iCal URL 取得エラー ({source.name}): {e}")
+        return 0, f"「{source.name}」の iCal URL 取得に失敗しました: {e}"
 
     parsed_events = _parse_ics_events(ics_text)
     if not parsed_events:
-        return 0, "iCal から予定を抽出できませんでした（カレンダーが空、または形式不正の可能性）。"
+        return 0, f"「{source.name}」の iCal から予定を抽出できませんでした（カレンダーが空、または形式不正の可能性）。"
 
-    # 既存の Google 由来予定を置き換え（重複防止）
+    # 取り込み窓フィルタ（過去/未来の範囲外は破棄）
+    now = datetime.now()
+    window_start_ms = int((now - timedelta(days=ICAL_IMPORT_PAST_DAYS)).timestamp() * 1000)
+    window_end_ms = int((now + timedelta(days=ICAL_IMPORT_FUTURE_DAYS)).timestamp() * 1000)
+    filtered = [ev for ev in parsed_events if window_start_ms <= ev["start_ms"] <= window_end_ms]
+    skipped = len(parsed_events) - len(filtered)
+    if skipped:
+        logger.info(f"「{source.name}」: 取り込み窓外の予定 {skipped} 件をスキップしました")
+    if not filtered:
+        return 0, (
+            f"「{source.name}」: 取り込み窓（過去{ICAL_IMPORT_PAST_DAYS}日〜未来{ICAL_IMPORT_FUTURE_DAYS}日）内の"
+            "予定がありませんでした。"
+        )
+
+    # 既存の同ソース予定を置き換え（重複防止）
     with database.get_db_connection() as conn:
         cursor = conn.cursor()
-        cursor.execute("DELETE FROM events WHERE google_event_id IS NOT NULL AND google_event_id != ''")
+        cursor.execute("DELETE FROM events WHERE source_id = ?", (source.id,))
 
     imported = 0
-    for ev in parsed_events:
+    for ev in filtered:
         try:
             event = database.Event(
                 title=ev["title"][:200],
@@ -113,22 +167,72 @@ def sync_calendar_from_ical_url(url: Optional[str] = None) -> Tuple[int, str]:
                 start_time=ev["start_ms"],
                 end_time=max(ev["end_ms"], ev["start_ms"] + 60000),
                 google_event_id=ev["uid"],
+                source_id=source.id,
             )
             database.create_event(event)
             imported += 1
         except Exception as e:
             logger.warning(f"Googleカレンダー予定のインポートをスキップ: {e}")
 
-    # 最終同期時刻を .env に保存
+    # 最終同期時刻を記録（ソース別 ＆ グローバル.env）
+    sync_time = datetime.now().strftime("%Y-%m-%d %H:%M")
+    database.set_calendar_source_last_sync(source.id, sync_time)
     from dotenv import set_key
     env_path = Path(__file__).parent / ".env"
-    sync_time = datetime.now().strftime("%Y-%m-%d %H:%M")
     set_key(str(env_path), ICAL_LAST_SYNC_ENV_KEY, sync_time)
     os.environ[ICAL_LAST_SYNC_ENV_KEY] = sync_time
 
-    logger.info(f"Googleカレンダー iCal 同期完了: {imported}件")
-    return imported, f"{imported} 件の予定を同期しました"
+    logger.info(f"Googleカレンダー iCal 同期完了 ({source.name}): {imported}件")
+    return imported, f"「{source.name}」から {imported} 件"
 
+def sync_all_calendar_sources() -> Tuple[int, str]:
+    """有効な全購読ソースを順に同期し、合計結果を返す。
+
+    Returns:
+        Tuple[int, str]: (同期した予定件数の合計, 結果メッセージ)
+    """
+    ensure_default_calendar_source()
+    sources = [s for s in database.get_all_calendar_sources() if s.enabled and s.url.strip()]
+    if not sources:
+        return 0, (
+            "iCal URL が未設定です。Googleカレンダーの「設定と共有」→"
+            "「予定の取得用の秘密のアドレス (iCal)」の URL を設定画面から登録してください。"
+        )
+
+    total = 0
+    messages = []
+    for source in sources:
+        try:
+            count, msg = sync_calendar_source(source)
+        except Exception as e:
+            logger.error(f"カレンダーソース同期エラー ({source.name}): {e}")
+            count, msg = 0, f"「{source.name}」の同期でエラー: {e}"
+        total += count
+        messages.append(msg)
+    return total, " ／ ".join(messages)
+
+
+def sync_calendar_from_ical_url(url: Optional[str] = None) -> Tuple[int, str]:
+    """iCal 同期の後方互換エイリアス。
+
+    url 未指定なら全購読ソースを同期する。url 指定時は該当URLを持つソースのみ同期する
+    （既存呼び出しコードとの互換性維持用）。
+
+    Args:
+        url (Optional[str]): iCal URL。省略時は全ソース同期。
+
+    Returns:
+        Tuple[int, str]: (同期した予定件数, 結果メッセージ)
+    """
+    if not url:
+        return sync_all_calendar_sources()
+    ensure_default_calendar_source()
+    for source in database.get_all_calendar_sources():
+        if source.url.strip() == url.strip():
+            return sync_calendar_source(source)
+    # URLが未登録ならレガシー動作として単発同期する（ソースには登録しない）
+    legacy_source = database.CalendarSource(name="一時同期", url=url, enabled=True)
+    return sync_calendar_source(legacy_source)
 
 @tool
 def export_calendar_ics_tool(days: int = 30) -> str:

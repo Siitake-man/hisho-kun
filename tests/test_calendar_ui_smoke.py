@@ -27,6 +27,8 @@ class TestCalendarWindowRendering(unittest.TestCase):
     def setUp(self):
         self.root = tk.Tk()
         self.root.withdraw()
+        # 新しいテーブル（calendar_sources）を含むDBスキーマを初期化
+        database.init_db()
         self.win = CalendarWindow(_FakeParentGui(self.root))
         self.win.update()
 
