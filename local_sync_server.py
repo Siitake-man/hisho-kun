@@ -971,6 +971,15 @@ class DeskPetSyncHandler(SimpleHTTPRequestHandler):
                     logger.info(f"📱 スマホ側からサジェスト設定変更を受信: {source_key}={enabled}")
                     self.wfile.write(json.dumps({"status": "success", "source_key": source_key, "enabled": enabled}).encode("utf-8"))
                     return
+                elif action == "pet_reaction":
+                    state = data.get("state", "celebrate")
+                    duration_ms = int(data.get("duration_ms", 5000))
+                    gui = get_gui_instance()
+                    if gui:
+                        gui.post_action(gui.set_pet_state, state, duration_ms)
+                        logger.info(f"🎉 スマホ側からペット演出リクエスト: {state} ({duration_ms}ms)")
+                    self.wfile.write(json.dumps({"status": "success", "state": state}).encode("utf-8"))
+                    return
                 elif action == "ping_test":
                     logger.info(f"📶 スマホからPingテスト受信 ({client_ip})")
                     self.wfile.write(json.dumps({"status": "pong", "server_time": int(time.time() * 1000)}).encode("utf-8"))

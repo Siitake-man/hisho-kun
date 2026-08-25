@@ -466,6 +466,33 @@ def get_event(event_id: int, db_path: str = "neo_secretary.db") -> Optional[Even
         return None
 
 
+def _rows_to_events(rows: list) -> List[Event]:
+    """
+    events テーブルの SELECT * 結果行を Event モデルのリストへ変換する（共通ヘルパー）。
+
+    Args:
+        rows: cursor.fetchall() の結果（カラム順は events テーブル定義に従う）。
+
+    Returns:
+        予定のリスト（入力順）。
+    """
+    events: List[Event] = []
+    for row in rows:
+        recurrence_rule = json.loads(row[6]) if row[6] else None
+        events.append(Event(
+            id=row[0],
+            title=row[1],
+            description=row[2],
+            start_time=row[3],
+            end_time=row[4],
+            recurrence_type=row[5],
+            recurrence_rule=recurrence_rule,
+            category_id=row[7],
+            google_event_id=row[8]
+        ))
+    return events
+
+
 def get_upcoming_events(days: int = 7, db_path: str = "neo_secretary.db") -> List[Event]:
     """
     今後N日間の予定を取得します。
@@ -488,23 +515,38 @@ def get_upcoming_events(days: int = 7, db_path: str = "neo_secretary.db") -> Lis
             ORDER BY start_time ASC
         """, (now_ms, future_ms))
         
-        rows = cursor.fetchall()
-        events = []
-        for row in rows:
-            recurrence_rule = json.loads(row[6]) if row[6] else None
-            events.append(Event(
-                id=row[0],
-                title=row[1],
-                description=row[2],
-                start_time=row[3],
-                end_time=row[4],
-                recurrence_type=row[5],
-                recurrence_rule=recurrence_rule,
-                category_id=row[7],
-                google_event_id=row[8]
-            ))
+        events = _rows_to_events(cursor.fetchall())
         
         logger.debug(f"今後{days}日間の予定を{len(events)}件取得しました")
+        return events
+
+
+def get_events_between(start_ms: int, end_ms: int, db_path: str = "neo_secretary.db") -> List[Event]:
+    """
+    指定した期間内に開始する予定を取得します。
+    
+    月間・週間カレンダー描画のように「過去を含む任意期間」を表示するために使用します。
+    get_upcoming_events は「現在時刻以降」に限定されるため、過去日を含むカレンダー描画には使えません。
+    
+    Args:
+        start_ms: 期間の開始（Unix Timestamp ミリ秒・この時刻以降に開始する予定が対象）
+        end_ms: 期間の終了（Unix Timestamp ミリ秒・この時刻以前に開始する予定が対象）
+        db_path: データベースファイルのパス
+    
+    Returns:
+        予定のリスト（開始時刻の昇順）
+    """
+    with get_db_connection(db_path) as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT * FROM events
+            WHERE start_time >= ? AND start_time <= ?
+            ORDER BY start_time ASC
+        """, (start_ms, end_ms))
+        
+        events = _rows_to_events(cursor.fetchall())
+        
+        logger.debug(f"指定期間の予定を{len(events)}件取得しました")
         return events
 
 

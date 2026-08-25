@@ -883,6 +883,9 @@ class SettingsWindow(ctk.CTkToplevel):
                 count, msg = ics_tools.sync_calendar_from_ical_url(url)
                 # Tkinter はスレッド非安全のため、必ずメインスレッドの post_action 経由でUI更新する
                 self.parent_gui.post_action(self._on_ical_sync_done, count, msg)
+                if count > 0:
+                    # 手帳ウィンドウが開かれていれば同期結果を即時反映
+                    self.parent_gui.post_action(self.parent_gui.refresh_calendar_if_open)
             except Exception as e:
                 self.parent_gui.post_action(self._on_ical_sync_done, 0, str(e))
 

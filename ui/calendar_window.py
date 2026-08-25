@@ -5,11 +5,19 @@
 
 import logging
 import datetime
-from collections import defaultdict
+from typing import Dict, List, Tuple
 import tkinter as tk
 import customtkinter as ctk
 
+import database
+
 logger = logging.getLogger(__name__)
+
+# 手帳が取得する予定の期間窓（過去/未来・日数）。
+# 月間ビューが過去日を含めて描画できるよう、get_upcoming_events（今日以降限定）ではなく
+# この窓で get_events_between() を使う。
+EVENT_RANGE_PAST_DAYS = 120
+EVENT_RANGE_FUTURE_DAYS = 200
 
 class CalendarWindow(ctk.CTkToplevel):
     """
@@ -75,11 +83,11 @@ class CalendarWindow(ctk.CTkToplevel):
     # =========================================================================
     def _build_events_tab(self):
         view_bar = ctk.CTkFrame(self.tab_events, fg_color="transparent")
-        view_bar.pack(fill="x", padx=5, pady=(2, 6))
+        view_bar.pack(fill="x", padx=5, pady=(2, 4))
 
         self.event_view_seg = ctk.CTkSegmentedButton(
             view_bar,
-            values=["🗓️ 月間 (30日)", "📅 週間 (7日)", "☀️ 日間 (今日)"],
+            values=["🗓️ 月間", "📅 週間", "☀️ 日間"],
             selected_color=self.primary_color,
             selected_hover_color="#8B634A",
             unselected_color="#E0D8C8",
@@ -88,74 +96,423 @@ class CalendarWindow(ctk.CTkToplevel):
             font=("Meiryo UI", 9.5, "bold"),
             command=self._on_event_view_change
         )
-        self.event_view_seg.set("🗓️ 月間 (30日)")
+        self.event_view_seg.set("🗓️ 月間")
         self.event_view_seg.pack(side="left")
 
-        self.events_scroll = ctk.CTkScrollableFrame(self.tab_events, fg_color="transparent")
-        self.events_scroll.pack(fill="both", expand=True, padx=5, pady=2)
+        # 期間ナビゲーションバー（◀ ラベル ▶ ＆ 今日へ戻る）
+        nav_bar = ctk.CTkFrame(self.tab_events, fg_color="transparent")
+        nav_bar.pack(fill="x", padx=5, pady=(0, 2))
 
-    def _on_event_view_change(self, value):
-        self.load_events(getattr(self, 'all_cached_events', []))
+        btn_prev = ctk.CTkButton(
+            nav_bar, text="◀", width=32, height=26,
+            font=self.font_body, fg_color=self.primary_color, hover_color="#8B634A",
+            command=self._on_prev_period
+        )
+        btn_prev.pack(side="left", padx=(2, 4))
 
-    def load_events(self, events: list):
-        """予定一覧を描画（月間・週間・日間に対応）"""
-        self.all_cached_events = events
-        for widget in self.events_scroll.winfo_children():
-            widget.destroy()
-            
-        if not events:
-            lbl = ctk.CTkLabel(self.events_scroll, text="予定はありません。", font=self.font_body, text_color="#8D6E63")
-            lbl.pack(pady=30)
-            return
-            
+        self.period_label = ctk.CTkLabel(nav_bar, text="", font=self.font_title, text_color=self.text_color)
+        self.period_label.pack(side="left", fill="x", expand=True)
+
+        btn_next = ctk.CTkButton(
+            nav_bar, text="▶", width=32, height=26,
+            font=self.font_body, fg_color=self.primary_color, hover_color="#8B634A",
+            command=self._on_next_period
+        )
+        btn_next.pack(side="left", padx=(4, 4))
+
+        btn_today = ctk.CTkButton(
+            nav_bar, text="今日", width=48, height=26,
+            font=self.font_small, fg_color="#8B634A", hover_color="#6E4F3B",
+            command=self._on_jump_today
+        )
+        btn_today.pack(side="left", padx=(0, 2))
+
+        # 描画キャンバス（月間グリッド / 週間・日間タイムテーブルを描画する）
+        self.events_canvas = tk.Canvas(
+            self.tab_events, bg="#FDF9EE", highlightthickness=0, yscrollincrement=20
+        )
+        self.events_canvas.pack(fill="both", expand=True, padx=5, pady=(2, 5))
+        self.events_canvas.bind("<Button-1>", self._on_canvas_click)
+        self.events_canvas.bind("<MouseWheel>", self._on_canvas_wheel)
+        self.events_canvas.bind("<Button-4>", self._on_canvas_wheel)
+        self.events_canvas.bind("<Button-5>", self._on_canvas_wheel)
+
+        # 同期状態フッター（最終同期時刻 ＆ 登録件数）
+        self.sync_info_label = ctk.CTkLabel(self.tab_events, text="", font=self.font_small, text_color="#8D6E63")
+        self.sync_info_label.pack(fill="x", padx=8, pady=(0, 4))
+
+        # 表示状態（アンカー日と表示モード）
+        self.view_mode = "month"
+        self.current_date = datetime.date.today()
+
+    def _on_event_view_change(self, value: str):
+        """セグメントボタン切替 → 描画モードを更新して再描画"""
+        if "日間" in value:
+            self.view_mode = "day"
+        elif "週間" in value:
+            self.view_mode = "week"
+        else:
+            self.view_mode = "month"
+        self.render_events()
+
+    def _on_prev_period(self):
+        """前の期間へ移動（月/週/日）"""
+        self._shift_period(-1)
+
+    def _on_next_period(self):
+        """次の期間へ移動（月/週/日）"""
+        self._shift_period(1)
+
+    def _shift_period(self, sign: int):
+        """表示モードに応じてアンカー日を前後にずらす
+
+        Args:
+            sign (int): -1 で過去方向、+1 で未来方向。
+        """
+        if self.view_mode == "month":
+            total = (self.current_date.year * 12 + (self.current_date.month - 1)) + sign
+            new_year, new_month_zero = divmod(total, 12)
+            self.current_date = datetime.date(new_year, new_month_zero + 1, 1)
+        elif self.view_mode == "week":
+            self.current_date = self.current_date + datetime.timedelta(days=7 * sign)
+        else:
+            self.current_date = self.current_date + datetime.timedelta(days=sign)
+        self.render_events()
+
+    def _on_jump_today(self):
+        """今日（当月）へ戻る"""
+        self.current_date = datetime.date.today()
+        self.render_events()
+
+    def load_events(self, events: List[database.Event]):
+        """予定データを受け取り、現在の表示モードで再描画する
+
+        Args:
+            events (List[database.Event]): 予定モデルのリスト。
+        """
+        self.all_cached_events = events or []
+        self.render_events()
+        self._update_sync_info()
+
+    def _update_sync_info(self):
+        """フッターに Googleカレンダーの最終同期時刻と手帳登録件数を表示する"""
+        try:
+            from ics_tools import get_last_sync_time
+            sync_text = f"🔄 Googleカレンダー最終同期: {get_last_sync_time()} ／ 手帳登録 {len(self.all_cached_events)} 件"
+        except Exception as exc:
+            logger.warning(f"最終同期時刻の取得に失敗: {exc}")
+            sync_text = f"手帳登録 {len(self.all_cached_events)} 件"
+        self.sync_info_label.configure(text=sync_text)
+
+    # =========================================================================
+    # 📅 予定描画エンジン（月間グリッド / 週間・日間タイムテーブル）
+    # =========================================================================
+    EVENT_PALETTE = ["#FFCDD2", "#C8E6C9", "#BBDEFB", "#FFE0B2", "#D1C4E9", "#B2EBF2", "#FFF9C4"]
+
+    def _event_color(self, event) -> str:
+        """予定タイトルから安定したパステルカラーを割り当てる"""
+        title_hash = sum(ord(ch) for ch in (event.title or ""))
+        return self.EVENT_PALETTE[title_hash % len(self.EVENT_PALETTE)]
+
+    def _events_by_date(self) -> Dict[datetime.date, List[Tuple[database.Event, datetime.datetime, datetime.datetime]]]:
+        """キャッシュ済み予定を日付ごとにグルーピングする
+
+        Returns:
+            dict: { datetime.date: [(Event, 開始datetime, 終了datetime), ...] }（各日とも開始時刻昇順）
+        """
+        by_date: Dict[datetime.date, List[Tuple[database.Event, datetime.datetime, datetime.datetime]]] = {}
+        for e in getattr(self, 'all_cached_events', []) or []:
+            try:
+                sdt = datetime.datetime.fromtimestamp(e.start_time / 1000)
+                edt = datetime.datetime.fromtimestamp(e.end_time / 1000)
+            except (ValueError, OSError, TypeError) as exc:
+                logger.warning(f"予定のタイムスタンプ不正のためスキップ (id={getattr(e, 'id', '?')}): {exc}")
+                continue
+            by_date.setdefault(sdt.date(), []).append((e, sdt, edt))
+        for daily in by_date.values():
+            daily.sort(key=lambda item: item[1])
+        return by_date
+
+    def render_events(self):
+        """表示モードに応じた描画関数へディスパッチする"""
+        if self.view_mode == "month":
+            self._render_month_view()
+        elif self.view_mode == "week":
+            self._render_week_view()
+        else:
+            self._render_day_view()
+
+    def _render_month_view(self):
+        """月間カレンダーグリッドを描画する（各日に予定概要を最大3件表示）"""
+        canvas = self.events_canvas
+        canvas.delete("all")
+        canvas.configure(scrollregion="")
+        canvas.yview_moveto(0)
+
+        year, month = self.current_date.year, self.current_date.month
+        self.period_label.configure(text=f"🗓️ {year}年 {month}月")
+
+        canvas.update_idletasks()
+        width = max(canvas.winfo_width(), 470)
+        height = max(canvas.winfo_height(), 430)
+
+        header_h = 26
+        cell_w = width / 7.0
+        cell_h = (height - header_h) / 6.0
+
+        weekdays = ["日", "月", "火", "水", "木", "金", "土"]
+        weekday_colors = ["#FF8A80", "#4A3B32", "#4A3B32", "#4A3B32", "#4A3B32", "#4A3B32", "#82B1FF"]
+        for i, (name, color) in enumerate(zip(weekdays, weekday_colors)):
+            x0 = i * cell_w
+            canvas.create_rectangle(x0, 0, x0 + cell_w, header_h, fill=self.primary_color, outline="#8B634A")
+            canvas.create_text(x0 + cell_w / 2, header_h / 2, text=name, fill="#FFFFFF", font=("Meiryo UI", 9, "bold"))
+
+        first_day = datetime.date(year, month, 1)
+        grid_start = first_day - datetime.timedelta(days=(first_day.weekday() + 1) % 7)
+        today = datetime.date.today()
         now = datetime.datetime.now()
-        start_of_today = datetime.datetime(now.year, now.month, now.day)
-        mode = self.event_view_seg.get() if hasattr(self, 'event_view_seg') else "🗓️ 月間 (30日)"
+        by_date = self._events_by_date()
 
-        filtered_events = []
-        for e in events:
-            dt = datetime.datetime.fromtimestamp(e.start_time / 1000)
-            if "日間" in mode:
-                if dt.date() == now.date():
-                    filtered_events.append(e)
-            elif "週間" in mode:
-                week_end = start_of_today + datetime.timedelta(days=7)
-                if start_of_today <= dt < week_end:
-                    filtered_events.append(e)
-            else:
-                filtered_events.append(e)
+        for idx in range(42):
+            row, col = divmod(idx, 7)
+            x0, y0 = col * cell_w, header_h + row * cell_h
+            x1, y1 = x0 + cell_w, y0 + cell_h
+            d = grid_start + datetime.timedelta(days=idx)
+            in_month = (d.month == month)
+            is_today = (d == today)
+            fill = "#FFE082" if is_today else ("#FFFFFF" if in_month else "#EFE8D6")
+            tag = f"day:{d.isoformat()}"
+            canvas.create_rectangle(x0, y0, x1, y1, fill=fill, outline="#D5CBB8", tags=(tag,))
 
-        if not filtered_events:
-            period_name = "今日" if "日間" in mode else ("今週" if "週間" in mode else "今月")
-            lbl = ctk.CTkLabel(self.events_scroll, text=f"{period_name}の予定はありません ☕", font=self.font_body, text_color="#8D6E63")
-            lbl.pack(pady=30)
+            num_color = "#D32F2F" if col == 0 else ("#1976D2" if col == 6 else self.text_color)
+            if not in_month:
+                num_color = "#B0A496"
+            canvas.create_text(x0 + 4, y0 + 3, text=str(d.day), anchor="nw", fill=num_color, font=("Meiryo UI", 8, "bold"), tags=(tag,))
+
+            day_events = by_date.get(d, [])
+            max_show = 3
+            for j, (ev, sdt, _edt) in enumerate(day_events[:max_show]):
+                ty = y0 + 19 + j * 13
+                if ty + 13 > y1 - 2:
+                    break
+                is_past = sdt < now
+                title = ev.title if len(ev.title) <= 10 else ev.title[:9] + "…"
+                block_fill = "#E5DED2" if is_past else self._event_color(ev)
+                canvas.create_rectangle(x0 + 3, ty, x1 - 3, ty + 12, fill=block_fill, outline="", tags=(tag,))
+                canvas.create_text(x0 + 5, ty + 1, text=title, anchor="nw", fill="#6E5F53" if is_past else "#3E2F23", font=("Meiryo UI", 7), tags=(tag,))
+            if len(day_events) > max_show:
+                canvas.create_text(x1 - 4, y1 - 3, text=f"+{len(day_events) - max_show}", anchor="se", fill="#8B634A", font=("Meiryo UI", 7, "bold"), tags=(tag,))
+
+    def _render_week_view(self):
+        """週間タイムテーブル（7日 × 時間軸ガントチャート）を描画する"""
+        canvas = self.events_canvas
+        canvas.delete("all")
+        canvas.configure(scrollregion="")
+        canvas.yview_moveto(0)
+
+        week_start = self.current_date - datetime.timedelta(days=(self.current_date.weekday() + 1) % 7)
+        week_end = week_start + datetime.timedelta(days=6)
+        self.period_label.configure(text=f"📅 {week_start.month}/{week_start.day} 〜 {week_end.month}/{week_end.day}")
+
+        canvas.update_idletasks()
+        width = max(canvas.winfo_width(), 470)
+        height = max(canvas.winfo_height(), 430)
+
+        gutter_w, header_h = 38, 26
+        start_hour, end_hour = 6, 24
+        hour_h = (height - header_h) / float(end_hour - start_hour)
+        col_w = (width - gutter_w) / 7.0
+        today = datetime.date.today()
+        now = datetime.datetime.now()
+        by_date = self._events_by_date()
+        weekday_names = "日月火水木金土"
+
+        # 曜日ヘッダー（タップでその日の日間ビューへ）
+        for i in range(7):
+            d = week_start + datetime.timedelta(days=i)
+            x0 = gutter_w + i * col_w
+            is_today = (d == today)
+            tag = f"day:{d.isoformat()}"
+            canvas.create_rectangle(x0, 0, x0 + col_w, header_h, fill="#FFE082" if is_today else self.primary_color, outline="#8B634A", tags=(tag,))
+            canvas.create_text(x0 + col_w / 2, header_h / 2, text=f"{weekday_names[i]} {d.month}/{d.day}", fill="#4A3B32" if is_today else "#FFFFFF", font=("Meiryo UI", 8, "bold"), tags=(tag,))
+
+        # 時間軸
+        for h in range(start_hour, end_hour + 1):
+            y = header_h + (h - start_hour) * hour_h
+            canvas.create_line(gutter_w, y, width, y, fill="#E8E0CE")
+            if h < end_hour:
+                canvas.create_text(gutter_w - 3, y + 1, text=f"{h}", anchor="ne", fill="#8B634A", font=("Meiryo UI", 7))
+
+        # 予定ブロック（タップで日間ビューへ）
+        for i in range(7):
+            d = week_start + datetime.timedelta(days=i)
+            for ev, sdt, edt in by_date.get(d, []):
+                start_frac = max((sdt.hour + sdt.minute / 60.0) - start_hour, 0.0)
+                end_frac = min((edt.hour + edt.minute / 60.0) - start_hour, float(end_hour - start_hour))
+                if end_frac <= 0:
+                    continue
+                y0 = header_h + start_frac * hour_h
+                y1 = max(header_h + end_frac * hour_h, y0 + 14)
+                x0 = gutter_w + i * col_w + 2
+                x1 = x0 + col_w - 4
+                is_past = sdt < now
+                tag = f"event:{ev.id}:{d.isoformat()}"
+                canvas.create_rectangle(x0, y0, x1, y1, fill="#E5DED2" if is_past else self._event_color(ev), outline="#B0A496" if is_past else "#A67B5B", tags=(tag,))
+                title = ev.title if len(ev.title) <= 8 else ev.title[:7] + "…"
+                canvas.create_text(x0 + 2, y0 + 1, text=title, anchor="nw", fill="#6E5F53" if is_past else "#3E2F23", font=("Meiryo UI", 7), tags=(tag,))
+
+        # 現在時刻線
+        if week_start <= today <= week_end:
+            y_now = header_h + ((now.hour + now.minute / 60.0) - start_hour) * hour_h
+            canvas.create_line(gutter_w, y_now, width, y_now, fill="#FF1744", width=2)
+
+    def _render_day_view(self):
+        """日間タイムテーブル（0〜24時の詳細ビュー・スクロール可）を描画する"""
+        canvas = self.events_canvas
+        canvas.delete("all")
+
+        d = self.current_date
+        weekday_ja = "月火水木金土日"[d.weekday()]
+        self.period_label.configure(text=f"☀️ {d.month}月{d.day}日 ({weekday_ja})")
+
+        canvas.update_idletasks()
+        width = max(canvas.winfo_width(), 470)
+        gutter_w = 46
+        header_h = 26
+        hour_h = 44
+        total_h = header_h + 24 * hour_h + 20
+        canvas.configure(scrollregion=(0, 0, width, total_h))
+
+        now = datetime.datetime.now()
+        by_date = self._events_by_date()
+        day_events = by_date.get(d, [])
+
+        canvas.create_rectangle(0, 0, width, header_h, fill=self.primary_color, outline="#8B634A")
+        canvas.create_text(width / 2, header_h / 2, text=d.strftime("%Y / %m / %d"), fill="#FFFFFF", font=("Meiryo UI", 9, "bold"))
+
+        # 時間軸
+        for h in range(24):
+            y = header_h + h * hour_h
+            canvas.create_line(gutter_w, y, width, y, fill="#E8E0CE")
+            canvas.create_text(gutter_w - 5, y + 2, text=f"{h}:00", anchor="ne", fill="#8B634A", font=("Meiryo UI", 8))
+
+        # 予定ブロック（時刻・タイトル・説明を詳細表示）
+        for ev, sdt, edt in day_events:
+            start_frac = sdt.hour + sdt.minute / 60.0
+            end_frac = max(edt.hour + edt.minute / 60.0, start_frac + 0.5)
+            y0 = header_h + start_frac * hour_h
+            y1 = max(header_h + end_frac * hour_h, y0 + 40)
+            x0, x1 = gutter_w + 4, width - 6
+            is_past = sdt < now
+            tag = f"event:{ev.id}:{d.isoformat()}"
+            canvas.create_rectangle(x0, y0, x1, y1, fill="#E5DED2" if is_past else self._event_color(ev), outline="#B0A496" if is_past else "#A67B5B", tags=(tag,))
+            canvas.create_text(x0 + 6, y0 + 3, text=f"{sdt.strftime('%H:%M')} 〜 {edt.strftime('%H:%M')}", anchor="nw", fill="#8B634A", font=("Meiryo UI", 7), tags=(tag,))
+            title = ev.title if len(ev.title) <= 30 else ev.title[:29] + "…"
+            canvas.create_text(x0 + 6, y0 + 15, text=title, anchor="nw", fill="#6E5F53" if is_past else "#3E2F23", font=("Meiryo UI", 9, "bold"), tags=(tag,))
+            desc_text = (getattr(ev, 'description', '') or '').strip()
+            if desc_text and (y1 - y0) > 52:
+                desc_line = desc_text.splitlines()[0]
+                if len(desc_line) > 42:
+                    desc_line = desc_line[:41] + "…"
+                canvas.create_text(x0 + 6, y0 + 30, text=desc_line, anchor="nw", fill="#7A6B62", font=("Meiryo UI", 7), tags=(tag,))
+
+        # 現在時刻線（今日のみ）
+        if d == datetime.date.today():
+            y_now = header_h + (now.hour + now.minute / 60.0) * hour_h
+            canvas.create_line(gutter_w, y_now, width, y_now, fill="#FF1744", width=2)
+            canvas.create_text(width - 6, y_now - 7, text=now.strftime("%H:%M"), anchor="e", fill="#FF1744", font=("Meiryo UI", 8, "bold"))
+
+        # 自動スクロール（今日は現在時刻付近、過去日は最初の予定付近へ）
+        if day_events:
+            anchor_hour = (now.hour if d == datetime.date.today() else day_events[0][1].hour) - 1.5
+        else:
+            anchor_hour = (now.hour if d == datetime.date.today() else 8) - 1.5
+        canvas.yview_moveto(max(anchor_hour, 0.0) * hour_h / float(total_h))
+
+    def _on_canvas_click(self, event):
+        """キャンバスクリック → 日付セル/予定ブロックのタグを解決し遷移・詳細表示する"""
+        canvas = self.events_canvas
+        clicked = canvas.find_withtag("current")
+        if not clicked:
+            return
+        tags = canvas.gettags(clicked[0])
+        target_date = None
+        event_id = None
+        for t in tags:
+            if t.startswith("day:"):
+                target_date = t.split(":", 1)[1]
+                break
+            if t.startswith("event:"):
+                parts = t.split(":")
+                if len(parts) >= 3:
+                    event_id = parts[1]
+                    target_date = parts[2]
+                break
+        if not target_date:
+            return
+        try:
+            self.current_date = datetime.date.fromisoformat(target_date)
+        except ValueError:
+            return
+        # 日間ビューでの予定ブロッククリックは詳細ポップアップを表示
+        if self.view_mode == "day" and event_id is not None:
+            self._show_event_detail(int(event_id))
+            return
+        self.view_mode = "day"
+        self.event_view_seg.set("☀️ 日間")
+        self.render_events()
+
+    def _show_event_detail(self, event_id: int):
+        """日間ビューの予定ブロック詳細ポップアップ（全文タイトル・時刻・説明）を表示する"""
+        target = next((e for e in getattr(self, 'all_cached_events', []) or [] if e.id == event_id), None)
+        if target is None:
             return
 
-        grouped = defaultdict(list)
-        for e in filtered_events:
-            dt = datetime.datetime.fromtimestamp(e.start_time / 1000)
-            date_str = dt.strftime("%Y年%m月%d日 (%a)")
-            grouped[date_str].append((e, dt))
-            
-        for date_str, daily_events in sorted(grouped.items(), key=lambda x: x[1][0][1]):
-            date_lbl = ctk.CTkLabel(self.events_scroll, text=f"■ {date_str}", font=self.font_title, text_color=self.primary_color, anchor="w")
-            date_lbl.pack(fill="x", pady=(10, 3))
-            
-            for e, dt in daily_events:
-                end_dt = datetime.datetime.fromtimestamp(e.end_time / 1000)
-                time_range = f"{dt.strftime('%H:%M')} ~ {end_dt.strftime('%H:%M')}"
-                
-                card = ctk.CTkFrame(self.events_scroll, fg_color="#FFFFFF", border_color="#E0D8C8", border_width=1, corner_radius=6)
-                card.pack(fill="x", pady=3, padx=2)
-                
-                header_box = ctk.CTkFrame(card, fg_color="transparent")
-                header_box.pack(fill="x", padx=8, pady=(4, 0))
-                
-                ctk.CTkLabel(header_box, text=time_range, font=self.font_small, text_color="#8B634A").pack(side="left")
-                ctk.CTkLabel(card, text=e.title, font=self.font_body, text_color=self.text_color, anchor="w", wraplength=420).pack(fill="x", padx=8, pady=(1, 2))
-                
-                if getattr(e, 'description', None):
-                    ctk.CTkLabel(card, text=e.description, font=self.font_small, text_color="#7A6B62", anchor="w", wraplength=420).pack(fill="x", padx=8, pady=(0, 4))
+        popup = ctk.CTkToplevel(self)
+        popup.title("予定の詳細")
+        popup.geometry("430x320")
+        popup.configure(fg_color=self.bg_color)
+        popup.transient(self)
+        popup.grab_set()
+
+        sdt = datetime.datetime.fromtimestamp(target.start_time / 1000)
+        edt = datetime.datetime.fromtimestamp(target.end_time / 1000)
+
+        header = ctk.CTkFrame(popup, fg_color=self.primary_color, corner_radius=0, height=40)
+        header.pack(fill="x")
+        header.pack_propagate(False)
+        ctk.CTkLabel(header, text="📌 予定の詳細", font=self.font_title, text_color="#FFFFFF").pack(pady=8)
+
+        body = ctk.CTkFrame(popup, fg_color="transparent")
+        body.pack(fill="both", expand=True, padx=14, pady=10)
+
+        ctk.CTkLabel(body, text=target.title, font=self.font_title, text_color=self.text_color, wraplength=390, justify="left").pack(anchor="w")
+        ctk.CTkLabel(body, text=f"🕐 {sdt.strftime('%Y年%m月%d日 (%a) %H:%M')} 〜 {edt.strftime('%H:%M')}", font=self.font_body, text_color="#8B634A").pack(anchor="w", pady=(6, 10))
+        desc_text = (getattr(target, 'description', '') or '').strip()
+        ctk.CTkLabel(
+            body,
+            text=desc_text if desc_text else "（説明文はありません）",
+            font=self.font_body,
+            text_color="#7A6B62" if desc_text else "#B0A496",
+            wraplength=390,
+            justify="left"
+        ).pack(anchor="w", fill="x", expand=True)
+
+        ctk.CTkButton(
+            popup, text="閉じる", width=90, height=30,
+            font=self.font_body, fg_color=self.primary_color, hover_color="#8B634A",
+            command=popup.destroy
+        ).pack(pady=(0, 10))
+
+    def _on_canvas_wheel(self, event):
+        """マウスホイールスクロール（日間ビューのみ・縦長スクロール領域があるため）"""
+        if self.view_mode != "day":
+            return
+        delta = getattr(event, "delta", 0)
+        if delta > 0 or getattr(event, "num", 0) == 4:
+            self.events_canvas.yview_scroll(-2, "units")
+        elif delta < 0 or getattr(event, "num", 0) == 5:
+            self.events_canvas.yview_scroll(2, "units")
 
     # =========================================================================
     # 📋 TODOタスクタブ
@@ -554,7 +911,11 @@ class CalendarWindow(ctk.CTkToplevel):
     def refresh_all_data(self):
         """全タブのデータを一括更新"""
         import database
-        events = database.get_upcoming_events(days=30)
+        # 月間ビューが過去日を含めて描画できるよう、モジュール定数の期間窓で取得する
+        now = datetime.datetime.now()
+        range_start_ms = int((now - datetime.timedelta(days=EVENT_RANGE_PAST_DAYS)).timestamp() * 1000)
+        range_end_ms = int((now + datetime.timedelta(days=EVENT_RANGE_FUTURE_DAYS)).timestamp() * 1000)
+        events = database.get_events_between(range_start_ms, range_end_ms)
         self.load_events(events)
         self.refresh_tasks()
         self.refresh_habits()

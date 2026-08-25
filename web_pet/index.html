@@ -211,26 +211,88 @@
       cursor: pointer;
     }
 
-    /* 最優先イベントバナー (承認要請 / 質問 / 完了) */
+    /* 最優先イベントバナー (承認要請 / 質問 / 完了) — 高視認デザイン */
     #active-event-banner {
       display: none;
-      background: rgba(255, 23, 68, 0.2);
-      border: 1.5px solid var(--accent-red);
-      box-shadow: 0 0 12px rgba(255, 23, 68, 0.4);
-      border-radius: 6px;
-      padding: 6px 8px;
-      animation: pulse-border 1.5s infinite;
+      background: linear-gradient(135deg, #C62828, #E53935);
+      border: 2px solid #FF8A80;
+      box-shadow: 0 0 18px rgba(255, 23, 68, 0.75);
+      border-radius: 10px;
+      padding: 10px 12px;
+      color: #FFFFFF;
+      animation: pulse-border 1s infinite;
+    }
+    #active-event-banner .banner-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    #event-type-badge {
+      font-weight: bold;
+      font-size: 13px;
+      color: #FFFFFF;
+      letter-spacing: 0.5px;
+      text-shadow: 0 1px 3px rgba(0, 0, 0, 0.65);
+    }
+    #banner-hint { font-size: 9px; opacity: 0.85; }
+    #event-title {
+      font-size: 15px;
+      font-weight: bold;
+      margin-top: 4px;
+      color: #FFFFFF;
+      text-shadow: 0 1px 3px rgba(0, 0, 0, 0.7);
+      line-height: 1.35;
+    }
+    #event-desc { font-size: 11px; margin-top: 2px; color: #FFEBEE; }
+    .banner-actions { display: none; gap: 8px; margin-top: 9px; }
+    .banner-actions button {
+      flex: 1;
+      font-family: 'DotGothic16', 'Space Grotesk', sans-serif;
+      font-size: 15px;
+      font-weight: bold;
+      padding: 12px 0;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      letter-spacing: 1px;
+    }
+    .banner-actions button:active { transform: scale(0.96); }
+    #banner-approve {
+      background: #00E676;
+      color: #003300;
+      box-shadow: 0 3px 10px rgba(0, 0, 0, 0.4);
+    }
+    #banner-deny {
+      background: #FFFFFF;
+      color: #B71C1C;
+      box-shadow: 0 3px 10px rgba(0, 0, 0, 0.4);
     }
     #active-event-banner.question {
-      background: rgba(0, 229, 255, 0.18);
-      border-color: var(--accent-blue);
-      box-shadow: 0 0 12px rgba(0, 229, 255, 0.35);
+      background: linear-gradient(135deg, #00838F, #00ACC1);
+      border-color: #84FFFF;
+      box-shadow: 0 0 18px rgba(0, 229, 255, 0.6);
     }
     #active-event-banner.completed {
-      background: rgba(0, 230, 118, 0.18);
-      border-color: var(--accent-green);
-      box-shadow: 0 0 12px rgba(0, 230, 118, 0.35);
+      background: linear-gradient(135deg, #1B5E20, #2E7D32);
+      border-color: #B9F6CA;
+      box-shadow: 0 0 18px rgba(0, 230, 118, 0.6);
     }
+
+    /* 承認シート（ボトムシート内の大ボタン） */
+    .approval-sheet-actions { display: flex; gap: 10px; margin-top: 12px; }
+    .approval-sheet-actions button {
+      flex: 1;
+      font-family: 'DotGothic16', 'Space Grotesk', sans-serif;
+      font-size: 16px;
+      font-weight: bold;
+      padding: 14px 0;
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+    }
+    .approval-sheet-actions .btn-approve { background: #00E676; color: #003300; }
+    .approval-sheet-actions .btn-deny { background: #FF5252; color: #FFFFFF; }
+    .approval-sheet-actions button:active { transform: scale(0.96); }
 
     /* ペット生息地（Habitat Viewport） */
     .pet-stage {
@@ -647,12 +709,16 @@
 
       <!-- 最優先イベントカード (承認・質問・完了) -->
       <section id="active-event-banner" onclick="handleActiveEventClick()">
-        <div style="display: flex; justify-content: space-between; align-items: center;">
-          <span id="event-type-badge" style="font-weight: bold; font-size: 11px;">⚠️ 外部AI 承認待ち</span>
-          <span style="font-size: 9px; opacity: 0.8;">タップで回答</span>
+        <div class="banner-top">
+          <span id="event-type-badge">⚠️ 外部AI 承認待ち</span>
+          <span id="banner-hint">タップで詳細</span>
         </div>
-        <div id="event-title" style="font-size: 12px; font-weight: bold; margin-top: 2px;"></div>
-        <div id="event-desc" style="font-size: 10px; opacity: 0.9; margin-top: 1px;"></div>
+        <div id="event-title"></div>
+        <div id="event-desc"></div>
+        <div id="banner-actions" class="banner-actions">
+          <button id="banner-approve" onclick="respondApproval('approve', event)">✅ 承認</button>
+          <button id="banner-deny" onclick="respondApproval('deny', event)">🛑 却下</button>
+        </div>
       </section>
 
       <!-- ペット生息地ステージ -->

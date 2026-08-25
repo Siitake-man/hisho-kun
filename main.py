@@ -84,6 +84,8 @@ class NeoSecretaryApp:
                         count, msg = _ics_tools.sync_calendar_from_ical_url()
                         if count > 0:
                             logger.info(f"📅 Googleカレンダー定期同期: {msg}")
+                            # 手帳ウィンドウが開かれている場合はUIスレッド経由で再描画する
+                            self.post_action(self.refresh_calendar_if_open)
                 except Exception as e:
                     logger.warning(f"Googleカレンダー定期同期エラー: {e}")
                 _time.sleep(1800)

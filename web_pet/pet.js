@@ -92,6 +92,8 @@ window.addEventListener('resize', initEnvCanvas);
 window.addEventListener('DOMContentLoaded', () => {
   initEnvCanvas();
   loadSyncToken();
+  unlockAudio();
+  setupMediaKeyApproval();
   requestAnimationFrame(particleLoop);
   preloadSprites(currentCharacterId);
   fetchStatus();
@@ -385,6 +387,81 @@ function getAudioContext() {
     audioCtx.resume();
   }
   return audioCtx;
+}
+
+// =============================================================================
+// 3.5. 通知チャイム ＆ オーディオアンロック（ブラウザの User Gesture Policy 対応）
+// =============================================================================
+let lastApprovalRequestId = null;
+let lastActiveEventKey = null;
+let chimeTimers = [];
+
+/** 最初のユーザー操作で AudioContext を解錠する（モバイル自動再生制限の解除） */
+function unlockAudio() {
+  try {
+    const ctx = getAudioContext();
+    if (ctx.state === 'suspended') ctx.resume();
+  } catch (e) {
+    console.debug('Audio unlock error:', e);
+  }
+}
+document.addEventListener('pointerdown', unlockAudio, { passive: true });
+document.addEventListener('touchstart', unlockAudio, { passive: true });
+document.addEventListener('visibilitychange', () => { if (!document.hidden) unlockAudio(); });
+
+/** 2音チャイム（ピンポン）を合成する */
+function playTwoTone(ctx, freqLow, freqHigh) {
+  const now = ctx.currentTime;
+  [[freqLow, 0.0], [freqHigh, 0.22]].forEach(([freq, offset]) => {
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'triangle';
+    osc.frequency.value = freq;
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    gain.gain.setValueAtTime(0.0001, now + offset);
+    gain.gain.exponentialRampToValueAtTime(0.4, now + offset + 0.03);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + offset + 0.55);
+    osc.start(now + offset);
+    osc.stop(now + offset + 0.6);
+  });
+}
+
+/** 通知アラート: チャイム連打 ＆ 振動パターン（前回分タイマーを必ず解除してから鳴らす） */
+function playAlertChime(repeat = 3) {
+  stopAlertChime();
+  unlockAudio();
+  try {
+    const ctx = getAudioContext();
+    for (let i = 0; i < repeat; i++) {
+      chimeTimers.push(setTimeout(() => {
+        try { playTwoTone(ctx, 880, 1245); } catch (e) { console.debug('Chime error:', e); }
+      }, i * 950));
+    }
+  } catch (e) {
+    console.debug('AudioContext error:', e);
+  }
+  if (navigator.vibrate) navigator.vibrate([220, 120, 220, 120, 320]);
+}
+
+/** 通知チャイムの停止（承認済み・タイムアウト時） */
+function stopAlertChime() {
+  chimeTimers.forEach(t => clearTimeout(t));
+  chimeTimers = [];
+}
+
+/** 承認/却下の結果を音で区別する（承認=上昇2音・却下=下降2音） */
+function playDecisionSound(approved) {
+  try {
+    const ctx = getAudioContext();
+    if (approved) {
+      playTwoTone(ctx, 880, 1245);
+    } else {
+      playTwoTone(ctx, 660, 440);
+    }
+  } catch (e) {
+    console.debug('Decision sound error:', e);
+  }
 }
 
 function playCharacterSE(charId) {
@@ -694,24 +771,56 @@ async function fetchStatus() {
       }
     }
 
-    // 5. 承認・質問イベントバナー
+    // 5. 承認・質問イベントバナー（新規着信時はチャイム＋振動で強調）
     const eventBanner = document.getElementById('active-event-banner');
+    const bannerActions = document.getElementById('banner-actions');
     if (data.pending_approval) {
-      currentActiveEvent = data.pending_approval;
+      const req = data.pending_approval;
+      const isNew = (!currentApprovalRequest || currentApprovalRequest.request_id !== req.request_id);
+      currentApprovalRequest = req;
+      currentActiveEvent = req;
       eventBanner.style.display = 'block';
       eventBanner.className = '';
-      document.getElementById('event-type-badge').innerText = `⚠️ 【${data.pending_approval.agent_name}】承認要請`;
-      document.getElementById('event-title').innerText = data.pending_approval.summary || data.pending_approval.command;
-      document.getElementById('event-desc').innerText = "タップしてワンタップ承認/却下";
-    } else if (data.active_event) {
-      currentActiveEvent = data.active_event;
-      eventBanner.style.display = 'block';
-      eventBanner.className = data.active_event.type || 'completed';
-      document.getElementById('event-type-badge').innerText = `✨ 【${data.active_event.agent_name || 'AI'}】`;
-      document.getElementById('event-title').innerText = data.active_event.summary || data.active_event.title;
-      document.getElementById('event-desc').innerText = "タップして確認";
+      document.getElementById('event-type-badge').innerText = `⚠️ 【${req.agent_name}】承認要請`;
+      document.getElementById('banner-hint').innerText = 'ボタンでワンタップ回答';
+      document.getElementById('event-title').innerText = req.summary || req.command || '';
+      document.getElementById('event-desc').innerText = req.command ? `⌨️ ${req.command}` : '';
+      if (bannerActions) bannerActions.style.display = 'flex';
+      if (isNew) {
+        lastApprovalRequestId = req.request_id;
+        playAlertChime(4);
+        showToast(`🔔 承認要請: ${req.summary || req.command || ''}`);
+      }
     } else {
-      eventBanner.style.display = 'none';
+      currentApprovalRequest = null;
+      if (bannerActions) bannerActions.style.display = 'none';
+      if (data.active_event) {
+        const ev = data.active_event;
+        const eventKey = `${ev.type || ''}:${ev.timestamp || ''}:${ev.summary || ev.title || ''}`;
+        const isNew = (lastActiveEventKey !== eventKey);
+        lastActiveEventKey = eventKey;
+        currentActiveEvent = ev;
+        eventBanner.style.display = 'block';
+        eventBanner.className = ev.type || 'completed';
+        const typeLabel = ev.type === 'question' ? '質問' : '完了通知';
+        document.getElementById('event-type-badge').innerText = `✨ 【${ev.agent_name || 'AI'}】${typeLabel}`;
+        document.getElementById('banner-hint').innerText = 'タップで詳細';
+        document.getElementById('event-title').innerText = ev.summary || ev.title || '';
+        document.getElementById('event-desc').innerText = 'タップして確認';
+        if (isNew) {
+          playAlertChime(2);
+        }
+      } else {
+        currentActiveEvent = null;
+        lastActiveEventKey = null;
+        eventBanner.style.display = 'none';
+      }
+    }
+
+    // 5.5. PCからの呼び出し信号 (Buzz)
+    if (data.buzz) {
+      playAlertChime(2);
+      showToast('📲 ボスが呼んでいます！');
     }
 
   } catch (err) {
@@ -719,20 +828,79 @@ async function fetchStatus() {
   }
 }
 
+// =============================================================================
+// 8.5. ワンタップ承認（バンボタン / シート / イヤホンメディアキー）
+// =============================================================================
 function handleActiveEventClick() {
+  if (currentApprovalRequest) {
+    openApprovalSheet();
+    return;
+  }
   if (!currentActiveEvent) return;
-  if (currentActiveEvent.command) {
-    // 承認ダイアログ
-    if (confirm(`【承認リクエスト】\n${currentActiveEvent.summary}\nコマンド: ${currentActiveEvent.command}\n\n実行を許可しますか？`)) {
-      authFetch('/api/agent/respond', {
+  openBottomSheet(currentActiveEvent);
+}
+
+/** 承認シート（コマンド全文 ＆ 大ボタンで承認/却下） */
+function openApprovalSheet() {
+  const req = currentApprovalRequest;
+  if (!req) return;
+  const commandHtml = req.command
+    ? `<div class="note-item"><div class="note-title">⌨️ 実行コマンド</div><div class="note-desc" style="white-space: pre-wrap;">${escapeHtml(req.command)}</div></div>`
+    : '';
+  const html = `${commandHtml}
+    <div class="note-item"><div class="note-title">🛡️ このコマンドの実行を許可しますか？</div><div class="note-desc">イヤホンの再生ボタンでも承認できます</div></div>
+    <div class="approval-sheet-actions">
+      <button class="btn-approve" onclick="closeBottomSheet(); respondApproval('approve')">✅ 承認する</button>
+      <button class="btn-deny" onclick="closeBottomSheet(); respondApproval('deny')">🛑 却下する</button>
+    </div>`;
+  openBottomSheet({ icon: '🛡️', tag: '承認要請', title: req.summary || 'コマンド実行の承認' }, html);
+}
+
+/** 承認/却下をサーバーへ送信する（バナーボタン・シート・メディアキー共通） */
+async function respondApproval(decision, ev) {
+  if (ev && ev.stopPropagation) ev.stopPropagation();
+  if (!currentApprovalRequest) return;
+  stopAlertChime();
+  if (navigator.vibrate) navigator.vibrate(60);
+  const req = currentApprovalRequest;
+  try {
+    const res = await authFetch('/api/agent/respond', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ request_id: req.request_id, decision })
+    });
+    if (res.ok) {
+      currentApprovalRequest = null;
+      currentActiveEvent = null;
+      const banner = document.getElementById('active-event-banner');
+      if (banner) banner.style.display = 'none';
+      playDecisionSound(decision === 'approve');
+      // PC側ペットにも結果をリアクションさせる（承認=大喜び・却下=心配）
+      authFetch('/api/action', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ request_id: currentActiveEvent.request_id, decision: 'approve' })
-      }).then(fetchStatus);
+        body: JSON.stringify({ action: 'pet_reaction', state: decision === 'approve' ? 'celebrate' : 'care', duration_ms: 5000 })
+      }).catch(() => {});
+      showToast(decision === 'approve' ? '✅ 承認を送信しました' : '🛑 却下を送信しました');
+    } else {
+      showToast('⚠️ 送信に失敗しました');
     }
-  } else {
-    openBottomSheet(currentActiveEvent);
+  } catch (err) {
+    console.debug('Respond error:', err);
+    showToast('⚠️ 通信エラー');
   }
+  fetchStatus();
+}
+
+/** イヤホンの再生/一時停止ボタンを「承認」として割り当てる（ノールック操作） */
+function setupMediaKeyApproval() {
+  if (!('mediaSession' in navigator)) return;
+  const handleMediaKey = () => {
+    if (currentApprovalRequest) respondApproval('approve');
+  };
+  try { navigator.mediaSession.setActionHandler('play', handleMediaKey); } catch (e) { /* 非対応ブラウザ */ }
+  try { navigator.mediaSession.setActionHandler('pause', handleMediaKey); } catch (e) { /* 非対応ブラウザ */ }
+  try { navigator.mediaSession.setActionHandler('nexttrack', handleMediaKey); } catch (e) { /* 非対応ブラウザ */ }
 }
 
 // =============================================================================
