@@ -135,6 +135,35 @@
       text-shadow: 0 0 8px rgba(255, 184, 0, 0.4);
     }
 
+    .weather-badge {
+      font-size: 10px;
+      font-weight: bold;
+      color: #B3E5FC;
+      background: rgba(41, 182, 246, 0.18);
+      border: 1px solid rgba(41, 182, 246, 0.5);
+      padding: 2px 7px;
+      border-radius: 4px;
+      margin-top: 3px;
+      display: inline-block;
+      width: fit-content;
+      transition: all 0.4s;
+    }
+    .weather-badge.w-rainy { color: #90CAF9; border-color: #42A5F5; background: rgba(66,165,245,0.25); }
+    .weather-badge.w-snowy { color: #E1F5FE; border-color: #81D4FA; background: rgba(129,212,250,0.25); }
+    .weather-badge.w-thunder { color: #FFF59D; border-color: #FFEB3B; background: rgba(255,235,59,0.22); animation: wflash 1.2s infinite; }
+    .weather-badge.w-sunny { color: #FFE082; border-color: #FFC107; background: rgba(255,193,7,0.18); }
+    .weather-badge.w-cloudy { color: #CFD8DC; border-color: #90A4AE; background: rgba(144,164,174,0.2); }
+    @keyframes wflash {
+      0%, 100% { box-shadow: none; }
+      50% { box-shadow: 0 0 10px rgba(255,235,59,0.8); }
+    }
+
+    .header-left {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
     .header-widgets {
       display: flex;
       gap: 5px;
@@ -184,9 +213,9 @@
     .screen {
       position: relative;
       z-index: 10;
-      background: rgba(20, 14, 10, 0.65);
-      backdrop-filter: blur(16px);
-      -webkit-backdrop-filter: blur(16px);
+      background: rgba(20, 14, 10, 0.18);
+      backdrop-filter: blur(2px);
+      -webkit-backdrop-filter: blur(2px);
       border: 1.5px solid var(--border-amber);
       box-shadow: inset 0 0 20px rgba(0,0,0,0.6), 0 0 15px rgba(255, 184, 0, 0.1);
       border-radius: 8px;
@@ -304,6 +333,11 @@
       justify-content: center;
       align-items: center;
       cursor: pointer;
+    }
+    /* 天気バッジ（ペットステージ下側） */
+    .pet-stage .weather-badge {
+      margin-top: 4px;
+      font-size: 9px;
     }
 
     /* ペット画像の呼吸・浮遊アニメーション */
@@ -686,9 +720,6 @@
           <span>🏞️</span>
           <span id="env-label">書斎</span>
         </button>
-        <button class="btn-header" onclick="cycleCharacter()">
-          <span id="char-emoji">🦭</span>
-        </button>
         <button class="btn-header" id="nosleep-btn" onclick="toggleNoSleep()" title="常時画面ON（自動消灯防止）">
           <span id="nosleep-icon">💡</span>
         </button>
@@ -730,6 +761,7 @@
         <div id="speech-bubble" class="speech-bubble">
           おはようございます！ボス、今日もお疲れ様です！✨
         </div>
+        <div id="weather-badge" class="weather-badge" title="リアルタイム天気">☀️ 晴れ</div>
       </section>
 
       <!-- サジェストカード (AIニュース / 予定 / TODO) -->

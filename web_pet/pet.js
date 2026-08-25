@@ -17,6 +17,15 @@ let currentPomodoro = { active: false, is_break: false, remaining_seconds: 0, mo
 let wakeLock = null;
 let currentCharacterId = 'seal';
 
+// 🌈 自律生活ドリーマー状態（/api/status の life_state から更新）
+const WEATHER_LABELS_JS = {
+  sunny: '☀️ 晴れ', cloudy: '☁️ 曇り', rainy: '🌧️ 雨',
+  snowy: '❄️ 雪', thunder: '⚡ 嵐'
+};
+let currentWeather = 'sunny';
+let currentActivity = 'resting';
+let lastLifeMessage = '';
+
 // =============================================================================
 // 🔐 同期サーバー認証トークン管理 (Zero-Trust Bearer Auth)
 // =============================================================================
@@ -221,12 +230,86 @@ function drawEnvScene() {
 }
 
 // パーティクルアニメーションループ
+// =============================================================================
+// 天候エフェクト（雨・雪・雷・落ち葉）をパーティクルとして生成
+// =============================================================================
+function spawnWeatherParticles() {
+  if (!envCanvas) return;
+  const w = envCanvas.width;
+
+  if (currentWeather === 'rainy') {
+    // 斜めに降る雨粒
+    for (let i = 0; i < 3; i++) {
+      envParticles.push({
+        x: Math.random() * w,
+        y: -10,
+        vx: -1.2,
+        vy: Math.random() * 4 + 7,
+        size: Math.random() * 6 + 6,
+        color: 'rgba(144, 202, 249, 0.45)',
+        alpha: 0.9,
+        decay: 0.02,
+        isRain: true
+      });
+    }
+  } else if (currentWeather === 'snowy') {
+    // ゆらゆら舞い落ちる雪
+    if (Math.random() < 0.5) {
+      envParticles.push({
+        x: Math.random() * w,
+        y: -8,
+        vx: Math.sin(Date.now() * 0.001) * 0.6,
+        vy: Math.random() * 0.8 + 0.6,
+        size: Math.random() * 2.2 + 1.2,
+        color: 'rgba(255, 255, 255, 0.85)',
+        alpha: 0.95,
+        decay: 0.003
+      });
+    }
+  } else if (currentWeather === 'thunder') {
+    // 強い雨
+    for (let i = 0; i < 5; i++) {
+      envParticles.push({
+        x: Math.random() * w,
+        y: -10,
+        vx: -2.0,
+        vy: Math.random() * 5 + 9,
+        size: Math.random() * 6 + 7,
+        color: 'rgba(129, 212, 250, 0.55)',
+        alpha: 0.95,
+        decay: 0.02,
+        isRain: true
+      });
+    }
+    // 稲妻フラッシュ（画面全体を一瞬明るく）
+    if (Math.random() < 0.004 && envCtx) {
+      envCtx.fillStyle = 'rgba(255, 255, 220, 0.35)';
+      envCtx.fillRect(0, 0, envCanvas.width, envCanvas.height);
+    }
+  } else if (currentWeather === 'cloudy' && Math.random() < 0.15) {
+    // 曇りの日はたまに落ち葉
+    envParticles.push({
+      x: Math.random() * w,
+      y: -8,
+      vx: Math.sin(Date.now() * 0.002) * 1.0,
+      vy: Math.random() * 0.9 + 0.5,
+      size: Math.random() * 3 + 2,
+      color: 'rgba(161, 136, 90, 0.55)',
+      alpha: 0.85,
+      decay: 0.004
+    });
+  }
+}
+
 function particleLoop() {
   if (envCtx && envCanvas) {
     envCtx.clearRect(0, 0, envCanvas.width, envCanvas.height);
 
     // テーマごとの背景シーン（暖炉・窓・木々・波・ネオンビル等）を描画
     drawEnvScene();
+
+    // 🌈 天候エフェクト（雨・雪・雷・落ち葉）を生成
+    spawnWeatherParticles();
 
     const theme = ENV_THEMES[currentEnvIndex].id;
 
@@ -613,6 +696,51 @@ function preloadSprites(charId) {
   }
 }
 
+// 🌈 生活イベントに応じたスプライト候補（優先順）
+const ACTIVITY_SPRITES = {
+  waking:   ['stretch_1', 'stretch', 'idle_1'],
+  breakfast: ['happy'],
+  lunch:    ['happy'],
+  dinner:   ['cheer'],
+  bathing:  ['care_1', 'care', 'happy'],
+  working:  ['focus_1', 'focus'],
+  resting:  ['tea_1', 'tea', 'idle_1'],
+  reading:  ['reading_1', 'reading', 'idle_1'],
+  sleeping: ['sleepy_1', 'sleepy'],
+  playing:  ['celebrate_1', 'celebrate', 'cheer']
+};
+
+/**
+ * 生活イベントに応じてペットのスプライトを差し替える。
+ * dot/{char}/{name}.png を最優先し、無ければ旧形式へフォールバック、
+ * 最終的に idle_1 で安定させる。
+ */
+function updateLifeSprite(activity) {
+  const spriteEl = document.getElementById('pet-sprite');
+  if (!spriteEl) return;
+  const candidates = ACTIVITY_SPRITES[activity] || ['idle_1'];
+  // 候補をURL列に展開（dot最優先 → mascot_ → プレーン → idleで安定）
+  const urls = [];
+  for (const name of candidates) {
+    urls.push(`/assets/dot/${currentCharacterId}/${name}.png`);
+    urls.push(`/assets/mascot_${currentCharacterId}_${name}.png`);
+    urls.push(`/assets/${currentCharacterId}_${name}.png`);
+  }
+  urls.push(`/assets/dot/${currentCharacterId}/idle_1.png`);
+
+  let idx = 0;
+  spriteEl.onerror = () => {
+    idx += 1;
+    if (idx < urls.length) {
+      spriteEl.src = urls[idx];
+    } else {
+      spriteEl.onerror = null; // 最終フォールバックで停止
+      spriteEl.src = `/assets/dot/${currentCharacterId}/idle_1.png`;
+    }
+  };
+  spriteEl.src = urls[0];
+}
+
 // =============================================================================
 // 6. サジェスト表示 ＆ Glass Bottom Sheet ニュースリーダー
 // =============================================================================
@@ -769,6 +897,12 @@ async function fetchStatus() {
           timerText.innerText = "25:00";
         }
       }
+      // ポモドーロ中はペットスプライトを集中モードに切替
+      const spriteEl = document.getElementById('pet-sprite');
+      if (spriteEl && currentPomodoro.active && !currentPomodoro.is_break) {
+        const focusUrl = `/assets/dot/${currentCharacterId}/focus_1.png`;
+        if (spriteEl.src !== focusUrl) spriteEl.src = focusUrl;
+      }
     }
 
     // 5. 承認・質問イベントバナー（新規着信時はチャイム＋振動で強調）
@@ -821,6 +955,31 @@ async function fetchStatus() {
     if (data.buzz) {
       playAlertChime(2);
       showToast('📲 ボスが呼んでいます！');
+    }
+
+    // 6. 🌈 自律生活ドリーマー状態（天候・生活イベント）
+    if (data.life_state) {
+      const ls = data.life_state;
+      // 天候バッジの更新
+      const wBadge = document.getElementById('weather-badge');
+      const weatherKey = ls.weather || 'sunny';
+      if (wBadge) {
+        const temp = ls.temperature != null ? ` ${ls.temperature}°C` : '';
+        const city = ls.city || '';
+        wBadge.innerText = `${WEATHER_LABELS_JS[weatherKey] || '☀️ 晴れ'}${temp}${city ? '（' + city + '）' : ''}`;
+        wBadge.className = `weather-badge w-${weatherKey}`;
+      }
+      currentWeather = weatherKey;
+      currentActivity = ls.current_activity || 'resting';
+      // 活動に応じたスプライトへ切替
+      updateLifeSprite(currentActivity);
+      // 新しい生活イベントが届いたらトースト＋バイブ＋ペット状態を更新
+      const msg = ls.message || '';
+      if (msg && msg !== lastLifeMessage && ls.last_generated_at > 0) {
+        lastLifeMessage = msg;
+        showToast(`🌈 ${msg}`);
+        if (navigator.vibrate) navigator.vibrate([40, 60, 40]);
+      }
     }
 
   } catch (err) {

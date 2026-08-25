@@ -572,6 +572,19 @@ class DeskPetSyncHandler(SimpleHTTPRequestHandler):
                 from character_manager import get_character_manager
                 char_mgr = get_character_manager()
                 char_info = char_mgr.get_current_character()
+
+                # 🌈 自律生活ドリーマーの状態を取得（無ければ既定値）
+                try:
+                    from life_dreamer import get_life_dreamer
+                    life_state = get_life_dreamer().get_life_state()
+                except Exception as life_err:
+                    logger.debug(f"LifeDreamer 状態取得スキップ: {life_err}")
+                    life_state = {
+                        "current_activity": "resting",
+                        "weather": "sunny",
+                        "message": "",
+                        "history": [],
+                    }
                 
                 active_event = hub.get_active_event()
                 active_notification = monitor.get_active_notification()
@@ -626,6 +639,7 @@ class DeskPetSyncHandler(SimpleHTTPRequestHandler):
                         "mode_label": pomodoro_label
                     },
                     "buzz": should_buzz,
+                    "life_state": life_state,
                     "server_time": int(now * 1000)
                 }
                 self.wfile.write(json.dumps(payload, ensure_ascii=False).encode("utf-8"))
@@ -1031,6 +1045,15 @@ class LocalSyncServer:
         """バックグラウンドスレッドでサーバーを起動"""
         if gui:
             set_gui_instance(gui)
+        # 🌈 自律生活ドリーマーエンジンの起動（PCペットミラー用コールバック登録）
+        try:
+            from life_dreamer import get_life_dreamer
+            dreamer = get_life_dreamer()
+            if gui is not None:
+                dreamer.set_on_state_change(lambda state: self._mirror_to_pc_pet(gui, state))
+            dreamer.start()
+        except Exception as e:
+            logger.warning(f"🌈 [LifeDreamer] 起動をスキップしました: {e}")
         try:
             self.httpd = ThreadingHTTPServer(("0.0.0.0", self.port), DeskPetSyncHandler)
             self.thread = threading.Thread(target=self.httpd.serve_forever, daemon=True)
@@ -1038,6 +1061,24 @@ class LocalSyncServer:
             logger.info(f"📱 [Agent Bridge Hub] Desk Pet 同期サーバーが起動しました: http://localhost:{self.port} (LAN/Bluetooth対応)")
         except Exception as e:
             logger.warning(f"Desk Pet 同期サーバーの起動をスキップしました（ポート競合など）: {e}")
+
+    @staticmethod
+    def _mirror_to_pc_pet(gui, state: Dict[str, Any]) -> None:
+        """ライフステートの変化をPCデスクトップペットへミラーする。
+
+        ※ LifeDreamer のスレッドから呼ばれるため、GUI操作は必ず
+        post_action 経由でメインスレッドへディスパッチすること。
+        """
+        try:
+            activity = state.get("current_activity", "resting")
+            message = state.get("message", "")
+            from life_dreamer import ACTIVITY_PET_STATE_MAP
+            pet_state = ACTIVITY_PET_STATE_MAP.get(activity, "idle")
+            if message:
+                gui.post_action(gui.update_message, f"🌈 {message}")
+            gui.post_action(gui.set_pet_state, pet_state, duration_ms=8000)
+        except Exception as e:
+            logger.debug(f"LifeDreamer PCペットミラーエラー: {e}")
 
     def stop(self):
         """サーバーを停止"""
