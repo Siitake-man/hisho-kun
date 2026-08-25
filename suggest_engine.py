@@ -261,7 +261,8 @@ class SuggestionEngine:
                         "icon": "🌐",
                         "title": n["title"],
                         "description": n["snippet"],
-                        "tag": "AIニュース"
+                        "tag": "AIニュース",
+                        "link": n.get("link", "")
                     })
             except Exception as e:
                 logger.error(f"ニュースサジェスト生成エラー: {e}")
@@ -300,6 +301,8 @@ class SuggestionEngine:
                 for item in root.findall("./channel/item")[:5]:
                     title_elem = item.find("title")
                     title = title_elem.text if title_elem is not None else ""
+                    link_elem = item.find("link")
+                    link = link_elem.text if link_elem is not None else ""
                     # 媒体名（- 〇〇）の分離
                     parts = title.rsplit(" - ", 1)
                     main_title = parts[0] if parts else title
@@ -308,7 +311,8 @@ class SuggestionEngine:
                     news_list.append({
                         "id": abs(hash(title)) % 100000,
                         "title": f"【{media}】{main_title}",
-                        "snippet": "タップして最新動向をチェックできます。"
+                        "snippet": "AI業界の最新動向です。「元記事を開く」ボタンで詳細をチェックできます。",
+                        "link": link
                     })
         except Exception as e:
             logger.debug(f"ニュースRSS取得スキップ: {e}")
