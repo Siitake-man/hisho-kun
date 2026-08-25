@@ -356,8 +356,7 @@ function onPetTap(event) {
 const CHARACTERS = [
   { id: 'seal', name: 'アザラシ', emoji: '🦭' },
   { id: 'hisho', name: '秘書くん', emoji: '👔' },
-  { id: 'kinoko', name: 'キノコ君', emoji: '🍄' },
-  { id: 'wombat', name: 'ウォンバット', emoji: '🦫' }
+  { id: 'kinoko', name: 'キノコ君', emoji: '🍄' }
 ];
 
 function cycleCharacter() {
@@ -386,11 +385,15 @@ function cycleCharacter() {
 function preloadSprites(charId) {
   const spriteEl = document.getElementById('pet-sprite');
   if (spriteEl) {
-    spriteEl.src = `/assets/mascot_${charId}_idle.png`;
+    // 最優先: 8/15レトロドット絵 (assets/dot/{char}/) → 既存アセットへフォールバック
+    spriteEl.src = `/assets/dot/${charId}/idle_1.png`;
     spriteEl.onerror = () => {
-      spriteEl.src = `/assets/${charId}_idle.png`;
+      spriteEl.src = `/assets/mascot_${charId}_idle.png`;
       spriteEl.onerror = () => {
-        spriteEl.src = `/assets/mascot_idle_1.png`;
+        spriteEl.src = `/assets/${charId}_idle.png`;
+        spriteEl.onerror = () => {
+          spriteEl.src = `/assets/mascot_idle_1.png`;
+        };
       };
     };
   }

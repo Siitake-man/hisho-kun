@@ -276,7 +276,7 @@ class NeoSecretaryGUI:
         self.toggle_circle_menu()
         from character_manager import get_character_manager
         char_mgr = get_character_manager()
-        order = ["hisho", "kinoko", "seal", "wombat"]
+        order = ["hisho", "kinoko", "seal"]
         cur = char_mgr.current_character_id
         next_idx = (order.index(cur) + 1) % len(order) if cur in order else 0
         self.switch_character_skin(order[next_idx])
@@ -385,6 +385,8 @@ class NeoSecretaryGUI:
         self.mascot_images.clear()
         for name in all_sprites:
             candidates = [
+                # 最優先: 8/15レトロドット絵 (assets/dot/{char}/) — キノコ・アザラシは同テイスト再生成まで既存アセット
+                assets_dir / "dot" / current_char / f"{name}.png",
                 assets_dir / f"mascot_{current_char}_{name}.png",
                 assets_dir / f"{current_char}_{name}.png",
                 assets_dir / f"mascot_{name}.png",

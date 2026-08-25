@@ -662,6 +662,11 @@ class DeskPetSyncHandler(SimpleHTTPRequestHandler):
         # 4. アセット画像配信 (GET /assets/...) — 静的画像は認証不要（PWA表示用）
         elif self.path.startswith("/assets/"):
             filename = self.path[len("/assets/"):].split("?")[0]
+            # パストラバーサル対策: 相対参照・ドライブ指定を含むリクエストは拒否
+            if ".." in filename or filename.startswith("/") or ":" in filename:
+                logger.warning(f"🚫 [Security] 不正なアセットパス要求を拒否: {filename}")
+                self.send_error(404, "Invalid asset path")
+                return
             asset_file = ASSETS_DIR / filename
             if not asset_file.is_file():
                 # mascot_ プレフィックスの有無を相互フォールバック
