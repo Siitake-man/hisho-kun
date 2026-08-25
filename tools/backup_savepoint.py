@@ -8,10 +8,12 @@ from pathlib import Path
 
 def create_savepoint():
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    backup_dir = Path(__file__).parent / "backups" / f"savepoint_{timestamp}"
+    # ※ 本スクリプトは tools/ 配下にあるため、プロジェクトルートは2階層上
+    project_root = Path(__file__).resolve().parent.parent
+    backup_dir = project_root / "backups" / f"savepoint_{timestamp}"
     backup_dir.mkdir(parents=True, exist_ok=True)
     
-    project_root = Path(__file__).parent
+    project_root = Path(__file__).resolve().parent.parent
     
     # 対象ファイル・ディレクトリ（2026-08-25 現在の実在ファイルに同期）
     items_to_backup = [

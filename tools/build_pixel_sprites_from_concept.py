@@ -6,7 +6,8 @@ import os
 from pathlib import Path
 from PIL import Image, ImageDraw, ImageEnhance
 
-PROJECT_ROOT = Path(__file__).resolve().parent
+# ※ 本スクリプトは tools/ 配下にあるため、プロジェクトルートは2階層上
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
 ASSETS_DIR = PROJECT_ROOT / "assets"
 ASSETS_DIR.mkdir(exist_ok=True)
 

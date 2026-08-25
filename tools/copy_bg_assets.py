@@ -2,7 +2,8 @@ import shutil
 from pathlib import Path
 
 brain_dir = Path(r"C:\Users\bonob\.gemini\antigravity-ide\brain\605760ac-15e6-4456-9d48-1c07d6248420")
-assets_dir = Path(__file__).parent / "assets"
+# ※ 本スクリプトは tools/ 配下にあるため、プロジェクトルートは2階層上
+assets_dir = Path(__file__).resolve().parent.parent / "assets"
 assets_dir.mkdir(exist_ok=True)
 
 # 1. お部屋

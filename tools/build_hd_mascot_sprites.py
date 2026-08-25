@@ -9,7 +9,8 @@ from pathlib import Path
 from PIL import Image
 
 BRAIN_DIR = Path(r"C:\Users\bonob\.gemini\antigravity-ide\brain\5b173083-08b1-4b42-944b-5948c061cd2b")
-ASSETS_DIR = Path(__file__).parent / "assets"
+# ※ 本スクリプトは tools/ 配下にあるため、プロジェクトルートは2階層上
+ASSETS_DIR = Path(__file__).resolve().parent.parent / "assets"
 ASSETS_DIR.mkdir(exist_ok=True)
 
 CHAR_CONFIGS = {
