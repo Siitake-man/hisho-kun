@@ -1,0 +1,75 @@
+# ============================================
+# ネオ秘書くん .gitignore
+# 秘密情報・個人情報・重いバイナリをGit追跡から除外
+# 作成: 2026-08-25 (code review P0-2 対応)
+# ============================================
+
+# --- 同期トークン（機密・絶対にコミット禁止） ---
+.sync_token
+
+# --- 参考ソース（個人用・公開不要） ---
+hisyokun-modern-source/
+
+# --- 個人ドキュメント（公開リポジトリには含めない） ---
+# 学習メモ・開発コンテキスト・レビュー報告書等は個人用のため非公開
+docs/
+active_context.md
+USER_CONTEXT.md
+AI_RULES.md
+AGENTS.md
+prompt_for_jules*.md
+prompt_for_codex*.md
+.agents/
+*.md.bak
+
+# --- 秘密情報（絶対にコミット禁止） ---
+.env
+.env.*
+*.key
+google_token.json
+google_credentials.json
+*token*.json
+
+# --- 個人データ（DB・キャッシュ） ---
+neo_secretary.db
+*.db-journal
+*.db-wal
+*.db-shm
+
+# --- APIレスポンスキャッシュ（モデル一覧等） ---
+discovered_models.json
+
+# --- MCP設定（ローカル環境固有のパスを含む） ---
+mcp_config.json
+
+# --- 重いバイナリ（LLMモデル） ---
+models/*.gguf
+models/*.bin
+
+# --- バックアップ・復元アーカイブ ---
+backups/
+restore_assets_*.zip
+restore_assets_*/
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.venv/
+
+# --- IDE・エディタ ---
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# --- OS生成ファイル ---
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# --- ビルド成果物 ---
+build/
+dist/
+*.spec

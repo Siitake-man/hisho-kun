@@ -1,0 +1,611 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>ネオ秘書くん Desk Pet & スマートコクピット</title>
+  <link rel="manifest" href="manifest.json">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="theme-color" content="#1E140E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DotGothic16&family=Space+Grotesk:wght@500;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-casing: #2E1C14;
+      --bg-screen: #1A120B;
+      --border-amber: rgba(255, 184, 0, 0.4);
+      --text-main: #F5F5DC;
+      --text-muted: #D5C4AB;
+      --accent-amber: #FFB800;
+      --accent-green: #00E676;
+      --accent-red: #FF1744;
+      --accent-blue: #00E5FF;
+      --glass-bg: rgba(46, 28, 20, 0.72);
+      --glass-border: rgba(245, 245, 220, 0.2);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    html, body {
+      width: 100vw;
+      height: 100vh;
+      height: 100dvh;
+      overflow: hidden;
+      background-color: #0E0A08;
+      font-family: 'DotGothic16', 'Space Grotesk', sans-serif;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      color: var(--text-main);
+    }
+
+    /* 筐体（全画面フィット・高級感あるサイバーガジェット風） */
+    .device-casing {
+      background: linear-gradient(145deg, #3A241A, #20130D);
+      border: 2px solid #5A3C2D;
+      box-shadow: inset 0 1px 1px rgba(255,255,255,0.1), 0 10px 30px rgba(0,0,0,0.8);
+      padding: 4px 6px;
+      width: 100vw;
+      height: 100vh;
+      height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      position: relative;
+    }
+
+    /* 背景環境レイヤー (Room / Cafe / Forest / Ocean / Cyber) */
+    .env-backdrop {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      z-index: 0;
+      transition: background 0.8s ease, filter 0.8s ease;
+      pointer-events: none;
+      opacity: 0.85;
+    }
+
+    .theme-room {
+      background: radial-gradient(circle at 50% 30%, #4A2E1B 0%, #1E120A 70%, #0D0704 100%);
+    }
+    .theme-cafe {
+      background: radial-gradient(circle at 50% 40%, #3B2D27 0%, #1A1310 70%, #0A0706 100%);
+    }
+    .theme-forest {
+      background: radial-gradient(circle at 50% 30%, #1B382B 0%, #0B1C14 70%, #040A07 100%);
+    }
+    .theme-ocean {
+      background: radial-gradient(circle at 50% 30%, #153B50 0%, #0A1C28 70%, #030A0E 100%);
+    }
+    .theme-cyber {
+      background: radial-gradient(circle at 50% 40%, #2A103C 0%, #12061C 70%, #06020A 100%);
+    }
+
+    /* 環境パーティクル Canvas */
+    #env-canvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 1;
+      pointer-events: none;
+    }
+
+    /* ヘッダー (時計・ポモドーロ・背景切り替え) */
+    .device-header {
+      position: relative;
+      z-index: 10;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0 8px;
+      height: 32px;
+      flex-shrink: 0;
+      background: rgba(30, 20, 14, 0.85);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border-radius: 6px;
+      border: 1px solid var(--glass-border);
+    }
+
+    .header-left {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .clock-badge-large {
+      font-size: 13px;
+      font-weight: bold;
+      color: var(--accent-amber);
+      font-family: 'Space Mono', monospace;
+      letter-spacing: 0.5px;
+      text-shadow: 0 0 8px rgba(255, 184, 0, 0.4);
+    }
+
+    .header-widgets {
+      display: flex;
+      gap: 5px;
+      align-items: center;
+    }
+
+    .pomodoro-badge {
+      font-size: 10.5px;
+      font-weight: bold;
+      background: rgba(229, 57, 53, 0.25);
+      color: #FF8A80;
+      border: 1px solid #E53935;
+      padding: 2px 7px;
+      border-radius: 4px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      transition: all 0.2s;
+    }
+    .pomodoro-badge.active {
+      background: #E53935;
+      color: #FFF;
+      box-shadow: 0 0 10px rgba(229, 57, 53, 0.6);
+      animation: pulse-red 1.5s infinite;
+    }
+
+    .btn-header {
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid var(--glass-border);
+      color: var(--text-main);
+      font-size: 10.5px;
+      padding: 3px 7px;
+      border-radius: 4px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 3px;
+      transition: all 0.2s;
+    }
+    .btn-header:active {
+      transform: scale(0.95);
+      background: rgba(255, 184, 0, 0.2);
+    }
+
+    /* 液晶メインスクリーン */
+    .screen {
+      position: relative;
+      z-index: 10;
+      background: rgba(20, 14, 10, 0.65);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1.5px solid var(--border-amber);
+      box-shadow: inset 0 0 20px rgba(0,0,0,0.6), 0 0 15px rgba(255, 184, 0, 0.1);
+      border-radius: 8px;
+      padding: 6px 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+      flex: 1;
+      overflow: hidden;
+    }
+
+    /* スリープ防止バナー */
+    .wake-banner {
+      display: none;
+      background: rgba(255, 184, 0, 0.15);
+      border: 1px dashed var(--accent-amber);
+      color: var(--accent-amber);
+      font-size: 10px;
+      text-align: center;
+      padding: 3px;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+
+    /* 最優先イベントバナー (承認要請 / 質問 / 完了) */
+    #active-event-banner {
+      display: none;
+      background: rgba(255, 23, 68, 0.2);
+      border: 1.5px solid var(--accent-red);
+      box-shadow: 0 0 12px rgba(255, 23, 68, 0.4);
+      border-radius: 6px;
+      padding: 6px 8px;
+      animation: pulse-border 1.5s infinite;
+    }
+    #active-event-banner.question {
+      background: rgba(0, 229, 255, 0.18);
+      border-color: var(--accent-blue);
+      box-shadow: 0 0 12px rgba(0, 229, 255, 0.35);
+    }
+    #active-event-banner.completed {
+      background: rgba(0, 230, 118, 0.18);
+      border-color: var(--accent-green);
+      box-shadow: 0 0 12px rgba(0, 230, 118, 0.35);
+    }
+
+    /* ペット生息地（Habitat Viewport） */
+    .pet-stage {
+      position: relative;
+      flex: 1.2;
+      min-height: 140px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      cursor: pointer;
+    }
+
+    /* ペット画像の呼吸・浮遊アニメーション */
+    .pet-img-wrap {
+      position: relative;
+      width: 140px;
+      height: 140px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      transition: transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+    .pet-img-wrap:active {
+      transform: scale(0.92);
+    }
+    .pet-img {
+      width: 120px;
+      height: 120px;
+      image-rendering: pixelated;
+      image-rendering: -moz-crisp-edges;
+      image-rendering: crisp-edges;
+      animation: breathe 3.2s ease-in-out infinite;
+      filter: drop-shadow(0 8px 12px rgba(0,0,0,0.6));
+    }
+
+    /* 足元ドロップシャドウ */
+    .pet-shadow {
+      position: absolute;
+      bottom: 8px;
+      width: 80px;
+      height: 14px;
+      background: radial-gradient(ellipse at center, rgba(0,0,0,0.6) 0%, rgba(0,0,0,0) 75%);
+      border-radius: 50%;
+      animation: shadow-scale 3.2s ease-in-out infinite;
+    }
+
+    /* 吹き出し (Speech Glass) */
+    .speech-bubble {
+      background: var(--glass-bg);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid var(--glass-border);
+      border-radius: 8px;
+      padding: 6px 10px;
+      font-size: 11.5px;
+      line-height: 1.45;
+      color: var(--text-main);
+      text-align: center;
+      width: 92%;
+      max-height: 60px;
+      overflow-y: auto;
+      margin-top: -6px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+    }
+
+    /* サジェストカード (AIニュース / 予定 / TODO) */
+    .suggest-card {
+      background: rgba(46, 28, 20, 0.6);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      border: 1px solid var(--border-amber);
+      border-radius: 8px;
+      padding: 8px 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+      cursor: pointer;
+      transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+      position: relative;
+      overflow: hidden;
+    }
+    .suggest-card:active {
+      transform: scale(0.98);
+      background: rgba(255, 184, 0, 0.15);
+    }
+    .suggest-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 10px;
+      color: var(--accent-amber);
+      font-weight: bold;
+    }
+    .suggest-title {
+      font-size: 12px;
+      font-weight: bold;
+      color: #FFF;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .suggest-desc {
+      font-size: 10.5px;
+      color: var(--text-muted);
+      line-height: 1.35;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+
+    /* 操作ドック (Bottom Dock) */
+    .bottom-dock {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 4px;
+      height: 42px;
+      flex-shrink: 0;
+    }
+    .dock-btn {
+      background: var(--glass-bg);
+      border: 1px solid var(--glass-border);
+      border-radius: 6px;
+      color: var(--text-main);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      gap: 1px;
+      font-size: 9.5px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .dock-btn:active {
+      transform: scale(0.94);
+      background: rgba(255, 184, 0, 0.25);
+    }
+    .dock-btn .icon {
+      font-size: 15px;
+    }
+
+    /* =========================================================================
+       Glass Bottom Sheet (アプリ内ニュース・詳細リーダー)
+       ========================================================================= */
+    .bottom-sheet-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0,0,0,0.6);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      z-index: 100;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.3s ease;
+    }
+    .bottom-sheet-overlay.open {
+      opacity: 1;
+      pointer-events: auto;
+    }
+    .bottom-sheet {
+      position: fixed;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      max-height: 82vh;
+      background: rgba(30, 20, 14, 0.94);
+      backdrop-filter: blur(24px);
+      -webkit-backdrop-filter: blur(24px);
+      border-top: 2px solid var(--accent-amber);
+      border-radius: 16px 16px 0 0;
+      padding: 16px;
+      z-index: 101;
+      transform: translateY(100%);
+      transition: transform 0.35s cubic-bezier(0.2, 0.9, 0.3, 1);
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      box-shadow: 0 -10px 40px rgba(0,0,0,0.8);
+      color: var(--text-main);
+    }
+    .bottom-sheet.open {
+      transform: translateY(0);
+    }
+    .sheet-handle {
+      width: 40px;
+      height: 4px;
+      background: rgba(255,255,255,0.3);
+      border-radius: 2px;
+      align-self: center;
+      margin-bottom: 4px;
+    }
+    .sheet-tag {
+      font-size: 11px;
+      color: var(--accent-amber);
+      font-weight: bold;
+    }
+    .sheet-title {
+      font-size: 15px;
+      font-weight: bold;
+      color: #FFF;
+      line-height: 1.4;
+    }
+    .sheet-body {
+      font-size: 12.5px;
+      color: var(--text-muted);
+      line-height: 1.6;
+      max-height: 45vh;
+      overflow-y: auto;
+      padding-right: 4px;
+    }
+    .sheet-actions {
+      display: flex;
+      gap: 8px;
+      margin-top: 6px;
+    }
+    .btn-sheet-link {
+      flex: 1;
+      background: var(--accent-amber);
+      color: #2E1C14;
+      font-weight: bold;
+      font-size: 12px;
+      padding: 10px;
+      border-radius: 8px;
+      border: none;
+      text-align: center;
+      text-decoration: none;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 6px;
+    }
+    .btn-sheet-close {
+      background: rgba(255,255,255,0.1);
+      color: var(--text-main);
+      font-size: 12px;
+      padding: 10px 16px;
+      border-radius: 8px;
+      border: 1px solid var(--glass-border);
+      cursor: pointer;
+    }
+
+    /* アニメーションキーフレーム */
+    @keyframes breathe {
+      0%, 100% { transform: translateY(0) scale(1); }
+      50% { transform: translateY(-4px) scale(1.02); }
+    }
+    @keyframes shadow-scale {
+      0%, 100% { transform: scale(1); opacity: 0.6; }
+      50% { transform: scale(0.88); opacity: 0.4; }
+    }
+    @keyframes squash-bounce {
+      0% { transform: scale(1, 1); }
+      20% { transform: scale(1.15, 0.85); }
+      50% { transform: scale(0.92, 1.12) translateY(-8px); }
+      75% { transform: scale(1.05, 0.95) translateY(0); }
+      100% { transform: scale(1, 1); }
+    }
+    .pet-img.squashing {
+      animation: squash-bounce 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) !important;
+    }
+    @keyframes pulse-border {
+      0%, 100% { border-color: rgba(255,23,68,0.8); }
+      50% { border-color: rgba(255,23,68,0.2); }
+    }
+    @keyframes pulse-red {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.04); }
+    }
+  </style>
+</head>
+<body>
+  <div class="device-casing">
+    <!-- 背景環境レイヤー -->
+    <div id="env-backdrop" class="env-backdrop theme-room"></div>
+    <canvas id="env-canvas"></canvas>
+
+    <!-- ヘッダー -->
+    <header class="device-header">
+      <div class="header-left">
+        <div class="clock-badge-large" id="clock-display">12:00:00</div>
+      </div>
+      <div class="header-widgets">
+        <div id="pomodoro-btn" class="pomodoro-badge" onclick="togglePomodoro()">
+          <span>🍅</span>
+          <span id="pomodoro-timer-text">25:00</span>
+        </div>
+        <button class="btn-header" onclick="cycleEnvTheme()">
+          <span>🏞️</span>
+          <span id="env-label">書斎</span>
+        </button>
+        <button class="btn-header" onclick="cycleCharacter()">
+          <span id="char-emoji">🦭</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- 液晶メインスクリーン -->
+    <main class="screen">
+      <div id="wake-banner" class="wake-banner" onclick="requestWakeLock()">
+        💡 画面の自動消灯を防ぐにはここをタップ
+      </div>
+
+      <!-- 最優先イベントカード (承認・質問・完了) -->
+      <section id="active-event-banner" onclick="handleActiveEventClick()">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <span id="event-type-badge" style="font-weight: bold; font-size: 11px;">⚠️ 外部AI 承認待ち</span>
+          <span style="font-size: 9px; opacity: 0.8;">タップで回答</span>
+        </div>
+        <div id="event-title" style="font-size: 12px; font-weight: bold; margin-top: 2px;"></div>
+        <div id="event-desc" style="font-size: 10px; opacity: 0.9; margin-top: 1px;"></div>
+      </section>
+
+      <!-- ペット生息地ステージ -->
+      <section class="pet-stage" onclick="onPetTap(event)">
+        <div class="pet-img-wrap">
+          <img id="pet-sprite" class="pet-img" src="/assets/mascot_seal_idle.png" alt="Pet">
+          <div class="pet-shadow"></div>
+        </div>
+        <div id="speech-bubble" class="speech-bubble">
+          おはようございます！ボス、今日もお疲れ様です！✨
+        </div>
+      </section>
+
+      <!-- サジェストカード (AIニュース / 予定 / TODO) -->
+      <section id="suggest-card" class="suggest-card" onclick="onSuggestCardClick()">
+        <div class="suggest-header">
+          <span id="suggest-tag">💡 サジェスト</span>
+          <span style="font-size: 9px; opacity: 0.7;">タップで詳細 📖</span>
+        </div>
+        <div id="suggest-title" class="suggest-title">最新のAIトレンドをチェック</div>
+        <div id="suggest-desc" class="suggest-desc">読み込み中...</div>
+      </section>
+
+      <!-- 操作ドック -->
+      <footer class="bottom-dock">
+        <button class="dock-btn" onclick="openEventsModal()">
+          <span class="icon">📅</span>
+          <span>予定</span>
+        </button>
+        <button class="dock-btn" onclick="openTodoModal()">
+          <span class="icon">📝</span>
+          <span>TODO</span>
+        </button>
+        <button class="dock-btn" onclick="openNotesModal()">
+          <span class="icon">🧠</span>
+          <span>知見</span>
+        </button>
+        <button class="dock-btn" onclick="openSettingsModal()">
+          <span class="icon">⚙️</span>
+          <span>設定</span>
+        </button>
+      </footer>
+    </main>
+  </div>
+
+  <!-- Glass Bottom Sheet (アプリ内ニュース・詳細リーダー) -->
+  <div id="bottom-sheet-overlay" class="bottom-sheet-overlay" onclick="closeBottomSheet()"></div>
+  <div id="bottom-sheet" class="bottom-sheet">
+    <div class="sheet-handle"></div>
+    <div id="sheet-tag" class="sheet-tag">💡 AIニュース</div>
+    <div id="sheet-title" class="sheet-title">記事タイトル</div>
+    <div id="sheet-body" class="sheet-body">記事内容の要約...</div>
+    <div class="sheet-actions">
+      <a id="sheet-link-btn" href="#" target="_blank" rel="noopener noreferrer" class="btn-sheet-link">
+        <span>🌐</span>
+        <span>元記事をブラウザで開く</span>
+      </a>
+      <button class="btn-sheet-close" onclick="closeBottomSheet()">閉じる</button>
+    </div>
+  </div>
+
+  <script src="pet.js"></script>
+</body>
+</html>
