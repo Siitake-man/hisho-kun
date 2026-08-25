@@ -503,6 +503,82 @@
       0%, 100% { transform: scale(1); }
       50% { transform: scale(1.04); }
     }
+
+    /* =========================================================================
+       手帳モーダル（予定・TODO・習慣リスト）
+       ========================================================================= */
+    .note-item {
+      padding: 8px 6px;
+      border-bottom: 1px dashed rgba(255,255,255,0.12);
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .note-item:active {
+      background: rgba(255, 184, 0, 0.12);
+    }
+    .note-title {
+      font-size: 13px;
+      color: #FFF;
+      font-weight: bold;
+      line-height: 1.4;
+    }
+    .note-desc {
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+    .note-item.done .note-title {
+      text-decoration: line-through;
+      opacity: 0.45;
+    }
+    .note-empty {
+      text-align: center;
+      color: var(--text-muted);
+      padding: 24px 0;
+      font-size: 12px;
+      line-height: 1.7;
+    }
+    .note-badge {
+      display: inline-block;
+      font-size: 9px;
+      padding: 1px 6px;
+      border-radius: 3px;
+      background: rgba(255, 184, 0, 0.2);
+      color: var(--accent-amber);
+      margin-left: 6px;
+      vertical-align: middle;
+    }
+
+    /* =========================================================================
+       横画面（landscape）レイアウト: ペット左 ＋ 情報右の2カラム化
+       ========================================================================= */
+    @media (orientation: landscape) {
+      .screen {
+        flex-direction: row;
+        flex-wrap: wrap;
+        align-content: stretch;
+        gap: 6px;
+      }
+      .wake-banner,
+      #active-event-banner {
+        flex-basis: 100%;
+        flex-shrink: 0;
+      }
+      .pet-stage {
+        flex: 1 1 46%;
+        min-height: 0;
+      }
+      #suggest-card {
+        flex: 1 1 50%;
+      }
+      .suggest-desc {
+        -webkit-line-clamp: 4;
+      }
+      .bottom-dock {
+        flex-basis: 100%;
+        flex-shrink: 0;
+      }
+    }
   </style>
 </head>
 <body>
@@ -528,13 +604,19 @@
         <button class="btn-header" onclick="cycleCharacter()">
           <span id="char-emoji">🦭</span>
         </button>
+        <button class="btn-header" id="nosleep-btn" onclick="toggleNoSleep()" title="常時画面ON（自動消灯防止）">
+          <span id="nosleep-icon">💡</span>
+        </button>
+        <button class="btn-header" onclick="toggleFullscreen()" title="全画面表示">
+          <span>⛶</span>
+        </button>
       </div>
     </header>
 
     <!-- 液晶メインスクリーン -->
     <main class="screen">
-      <div id="wake-banner" class="wake-banner" onclick="requestWakeLock()">
-        💡 画面の自動消灯を防ぐにはここをタップ
+      <div id="wake-banner" class="wake-banner" onclick="toggleNoSleep()">
+        💡 常時画面ON（自動消灯防止）はここをタップ
       </div>
 
       <!-- 最優先イベントカード (承認・質問・完了) -->
@@ -579,8 +661,8 @@
           <span>TODO</span>
         </button>
         <button class="dock-btn" onclick="openNotesModal()">
-          <span class="icon">🧠</span>
-          <span>知見</span>
+          <span class="icon">🌱</span>
+          <span>習慣</span>
         </button>
         <button class="dock-btn" onclick="openSettingsModal()">
           <span class="icon">⚙️</span>
@@ -605,6 +687,9 @@
       <button class="btn-sheet-close" onclick="closeBottomSheet()">閉じる</button>
     </div>
   </div>
+
+  <!-- 常時画面ON (NoSleep): Canvas無限生配信を流す不可視video（HTTP環境で唯一確実に動作する方式） -->
+  <video id="nosleep-video" muted playsinline autoplay style="position:fixed; left:0; bottom:0; width:2px; height:2px; opacity:0.01; pointer-events:none; z-index:-1;"></video>
 
   <script src="pet.js"></script>
 </body>

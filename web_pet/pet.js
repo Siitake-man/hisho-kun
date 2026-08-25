@@ -7,6 +7,7 @@ let petState = 'idle';
 let animTick = 0;
 let tasksData = [];
 let eventsData = [];
+let habitsData = [];
 let suggestionsData = [];
 let suggestConfig = {};
 let suggestIndex = 0;
@@ -425,18 +426,26 @@ function onSuggestCardClick() {
   openBottomSheet(s);
 }
 
-function openBottomSheet(item) {
+function openBottomSheet(item, bodyHtml) {
   const sheet = document.getElementById('bottom-sheet');
   const overlay = document.getElementById('bottom-sheet-overlay');
   if (!sheet || !overlay) return;
 
   document.getElementById('sheet-tag').innerText = `${item.icon || '💡'} ${item.tag || '詳細'}`;
   document.getElementById('sheet-title').innerText = item.title || "";
-  document.getElementById('sheet-body').innerText = item.description || "詳細情報はありません。";
 
-  // URL抽出
+  const bodyEl = document.getElementById('sheet-body');
+  if (typeof bodyHtml === 'string') {
+    // 手帳モーダル等のリストHTML表示
+    bodyEl.innerHTML = bodyHtml;
+    bodyEl.style.maxHeight = '60vh';
+  } else {
+    bodyEl.innerText = item.description || "詳細情報はありません。";
+  }
+
+  // URL抽出（リスト表示時はリンクボタンを隠す）
   const matchUrl = item.description ? item.description.match(/https?:\/\/[^\s)\]"'>]+/)?.[0] : null;
-  const targetUrl = item.link || item.url || matchUrl;
+  const targetUrl = typeof bodyHtml === 'string' ? null : (item.link || item.url || matchUrl);
 
   const linkBtn = document.getElementById('sheet-link-btn');
   if (linkBtn) {
@@ -522,6 +531,11 @@ async function fetchStatus() {
       renderSuggestionCard();
     }
 
+    // 3.5. 手帳データ（予定・TODO・習慣）→ 手帳モーダルで使用
+    if (data.events) eventsData = data.events;
+    if (data.tasks) tasksData = data.tasks;
+    if (data.habits) habitsData = data.habits;
+
     // 4. ポモドーロ状態
     if (data.pomodoro) {
       currentPomodoro = data.pomodoro;
@@ -581,20 +595,182 @@ function handleActiveEventClick() {
   }
 }
 
-// 画面スリープ防止
-async function requestWakeLock() {
-  try {
-    if ('wakeLock' in navigator) {
-      wakeLock = await navigator.wakeLock.request('screen');
-      document.getElementById('wake-banner').style.display = 'none';
+// =============================================================================
+// 10. 手帳モーダル（予定・TODO・習慣・設定）本実装
+// =============================================================================
+
+/** HTML特殊文字のエスケープ（リスト表示のXSS対策） */
+function escapeHtml(str) {
+  return String(str || '').replace(/[&<>"']/g, m => (
+    { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]
+  ));
+}
+
+/** 📅 予定一覧モーダル */
+function openEventsModal() {
+  const count = eventsData ? eventsData.length : 0;
+  let html = '';
+  if (count === 0) {
+    html = '<div class="note-empty">📅 登録された予定はありません。<br>PC側の手帳やAIチャットで追加できます。</div>';
+  } else {
+    html = eventsData.map(e => {
+      const dt = String(e.start_time || '').replace('T', ' ').slice(0, 16);
+      return `<div class="note-item"><div class="note-title">📅 ${escapeHtml(e.title)}</div><div class="note-desc">🕐 ${escapeHtml(dt)}</div></div>`;
+    }).join('');
+  }
+  openBottomSheet({ icon: '📅', tag: '手帳', title: `予定一覧 (${count}件)` }, html);
+}
+
+/** 📝 TODOリストモーダル（項目タップで完了） */
+function openTodoModal() {
+  const count = tasksData ? tasksData.length : 0;
+  let html = '';
+  if (count === 0) {
+    html = '<div class="note-empty">📝 未完了のTODOはありません。<br>お見事です、ボス！✨</div>';
+  } else {
+    const prioIcon = { high: '🔥', medium: '⭐', low: '🌱' };
+    html = tasksData.map(t => {
+      const icon = prioIcon[t.priority] || '⭐';
+      return `<div class="note-item" onclick="completeTask(${t.id}, this)"><div class="note-title">${icon} ${escapeHtml(t.title)}</div><div class="note-desc">👆 タップで完了にする</div></div>`;
+    }).join('');
+  }
+  openBottomSheet({ icon: '📝', tag: '手帳', title: `TODOリスト (${count}件)` }, html);
+}
+
+/** TODO完了（楽観的UI更新 → サーバー同期 → 再取得） */
+function completeTask(taskId, el) {
+  if (navigator.vibrate) navigator.vibrate(30);
+  if (el) {
+    el.classList.add('done');
+    const desc = el.querySelector('.note-desc');
+    if (desc) desc.innerText = '✅ 完了！お見事です！';
+    el.onclick = null;
+  }
+  authFetch('/api/action', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'complete_task', task_id: taskId })
+  }).then(() => fetchStatus()).catch(() => {});
+}
+
+/** 🌱 習慣トラッカーモーダル（項目タップで達成トグル） */
+function openNotesModal() {
+  const count = habitsData ? habitsData.length : 0;
+  let html = '';
+  if (count === 0) {
+    html = '<div class="note-empty">🌱 登録された習慣はありません。<br>PC側の手帳で習慣を追加できます。</div>';
+  } else {
+    html = habitsData.map(h => {
+      const done = !!h.completed_today;
+      const streakBadge = h.streak > 0 ? `<span class="note-badge">🔥 ${h.streak}日連続</span>` : '';
+      return `<div class="note-item ${done ? 'done' : ''}" onclick="toggleHabit(${h.id}, this)"><div class="note-title">${h.emoji || '🌱'} ${escapeHtml(h.title)}${streakBadge}</div><div class="note-desc">${done ? '今日は達成済み！素晴らしい！✨' : '👆 タップで今日の達成を記録'}</div></div>`;
+    }).join('');
+  }
+  openBottomSheet({ icon: '🌱', tag: '手帳', title: '習慣トラッカー' }, html);
+}
+
+/** 習慣達成トグル（サーバー同期 → 再取得） */
+function toggleHabit(habitId, el) {
+  if (navigator.vibrate) navigator.vibrate(30);
+  authFetch('/api/action', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'toggle_habit', habit_id: habitId })
+  }).then(() => fetchStatus()).catch(() => {});
+}
+
+/** ⚙️ 設定モーダル（キャラ・テーマ・全画面・常時ON・PCペット呼び出し） */
+function openSettingsModal() {
+  const curChar = CHARACTERS.find(c => c.id === currentCharacterId);
+  const html = `
+    <div class="note-item" onclick="cycleCharacter(); openSettingsModal();"><div class="note-title">🎭 キャラクター切り替え</div><div class="note-desc">現在: ${curChar ? curChar.emoji + ' ' + curChar.name : ''} → タップで次のキャラへ</div></div>
+    <div class="note-item" onclick="cycleEnvTheme(); openSettingsModal();"><div class="note-title">🏞️ 背景テーマ切り替え</div><div class="note-desc">現在: ${ENV_THEMES[currentEnvIndex].label} → タップで次のテーマへ</div></div>
+    <div class="note-item" onclick="toggleNoSleep(); closeBottomSheet();"><div class="note-title">💡 常時画面ON</div><div class="note-desc">画面の自動消灯を防ぎます（卓上スマートディスプレイ用）</div></div>
+    <div class="note-item" onclick="toggleFullscreen(); closeBottomSheet();"><div class="note-title">⛶ 全画面表示</div><div class="note-desc">ブラウザUIを隠して全画面表示にします</div></div>
+    <div class="note-item" onclick="showPcPet()"><div class="note-title">🖥️ PCのペットを呼び出す</div><div class="note-desc">デスクトップのペットを再表示します</div></div>
+    <div class="note-item" onclick="closeBottomSheet()"><div class="note-title">✖ 閉じる</div></div>`;
+  openBottomSheet({ icon: '⚙️', tag: '設定', title: '設定' }, html);
+}
+
+/** PCペット再表示（スマホから遠隔呼び出し） */
+function showPcPet() {
+  if (navigator.vibrate) navigator.vibrate(25);
+  authFetch('/api/action', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'show_pc_pet' })
+  }).then(() => {
+    closeBottomSheet();
+  }).catch(() => {});
+}
+
+// =============================================================================
+// 11. 全画面表示 ＆ 常時画面ON (NoSleep captureStream 無限生配信)
+// =============================================================================
+
+/** 全画面表示トグル (Fullscreen API) */
+function toggleFullscreen() {
+  if (!document.fullscreenElement) {
+    document.documentElement.requestFullscreen().catch(() => {});
+  } else {
+    document.exitFullscreen().catch(() => {});
+  }
+  if (navigator.vibrate) navigator.vibrate(25);
+}
+
+let nosleepActive = false;
+
+/**
+ * 常時画面ON トグル (NoSleep captureStream 方式)
+ *
+ * HTTP環境 (http://192.168.x.x:8765) では navigator.wakeLock が
+ * セキュリティ制限で動作しないため、Canvasの再描画フレームを
+ * captureStream() で不可視videoへ流し込み「永遠に終わらない生配信」として
+ * 再生し続けることで、OSのスリープタイマーをバイパスする（2026-08-16 第一原理の再実装）。
+ */
+function toggleNoSleep() {
+  const video = document.getElementById('nosleep-video');
+  if (!video) return;
+
+  if (nosleepActive) {
+    // --- 停止 ---
+    if (video.srcObject) {
+      video.srcObject.getTracks().forEach(t => t.stop());
+      video.srcObject = null;
     }
+    video.pause();
+    nosleepActive = false;
+    updateNoSleepUI();
+    if (navigator.vibrate) navigator.vibrate(20);
+    return;
+  }
+
+  try {
+    // 描画が常時更新されている env-canvas をストリーム源にする
+    // （requestAnimationFrame で描き続けられているため、配信が途切れない）
+    const sourceCanvas = envCanvas || document.createElement('canvas');
+    const stream = sourceCanvas.captureStream(10);
+    video.srcObject = stream;
+    video.play().then(() => {
+      nosleepActive = true;
+      updateNoSleepUI();
+      if (navigator.vibrate) navigator.vibrate(30);
+    }).catch((err) => {
+      console.warn('NoSleep: video play failed:', err);
+    });
   } catch (err) {
-    console.warn("Wake lock error:", err);
+    console.warn('NoSleep: captureStream error:', err);
   }
 }
 
-// モーダルダミーハンドラ
-function openEventsModal() { alert("📅 本日の予定一覧を手帳から確認できます。"); }
-function openTodoModal() { alert("📝 TODOリストを手帳から確認できます。"); }
-function openNotesModal() { alert("🧠 MentisDB知見ノートを開きます。"); }
-function openSettingsModal() { alert("⚙️ 設定はPC側のネオ秘書くんから変更できます。"); }
+/** 常時ON状態に応じてヘッダーアイコンとバナーを更新 */
+function updateNoSleepUI() {
+  const icon = document.getElementById('nosleep-icon');
+  const banner = document.getElementById('wake-banner');
+  if (icon) {
+    icon.innerText = nosleepActive ? '🔆' : '💡';
+    const btn = icon.closest('.btn-header');
+    if (btn) btn.style.borderColor = nosleepActive ? 'var(--accent-amber)' : '';
+  }
+  if (banner) banner.style.display = nosleepActive ? 'none' : '';
+}
