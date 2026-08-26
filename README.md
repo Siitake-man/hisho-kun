@@ -114,11 +114,56 @@ PC画面右下にペットが現れます 🎉
 
 ---
 
+## 🤖 AIエージェント連携（MCP）— 1コマンドでセットアップ
+
+ネオ秘書くんは **MCP (Model Context Protocol) サーバー** を内蔵しており、Cline / Claude Desktop / Claude Code / Cursor / Antigravity / VS Code などから「スマホへの承認依頼」「TODO登録」「長期記憶の保存」などのツールを呼び出せます。
+
+### おすすめの方法：AIエージェント自身に設定させる
+
+インストール後、お使いのAIエージェント（Claude / Cline 等）に次の1文を伝えるだけでOKです：
+
+> ネオ秘書くんをインストールしたので、プロジェクトフォルダでMCP設定コマンドを実行して、対応すべてのクライアントに登録してください
+
+エージェントは本READMEの手順どおり、以下のコマンドを1発実行するだけです：
+
+```bash
+# プロジェクトルートで実行（対応全クライアントへ一括登録・既存設定はバックアップ付き）
+venv\\Scripts\\python.exe mcp_installer.py --all
+
+# 特定クライアントのみ登録する場合
+venv\\Scripts\\python.exe mcp_installer.py --tool claude_desktop cursor cline
+
+# 対応クライアントとパスの一覧表示
+venv\\Scripts\\python.exe mcp_installer.py --list
+```
+
+- **対応クライアント**: Antigravity / Claude Desktop / Cursor / Cline / Claude Code / VS Code（ワークスペース）
+- 既存の設定は上書きされず**マージ**されます。書き込み直前の状態は `<設定ファイル>.bak` に退避されるので安心
+- 登録後、各クライアントを再起動すると `neo_hisho_bridge` のツール群（承認要請・TODO・知見保存等）が使えるようになります
+- Codex（config.toml）のみTOML形式のため自動登録非対象です。手動で追加してください
+
+### 手動設定（JSONをコピーしたい場合）
+
+PCペット右クリック → ⚙ 設定 → 「🤖 外部AI・MCP連携」タブの「MCP設定JSONをコピー」ボタンからも取得できます。
+
+---
+
+## 🔔 アップデート確認について
+
+ネオ秘書くんは起動時と約6時間ごとに **GitHub Releases** へアクセスし、新しいバージョンが公開されていないかを確認します（読み取り専用・テレメトリ送信ゼロ）。
+
+- 新バージョン検知時はPCペットがセリフでお知らせし、スマホPWAにも通知が表示されます
+- オフライン環境では静かにスキップされ、エラーや起動遅延は発生しません
+
+---
+
 ## � プロジェクト構成
 
 ```
 ネオ秘書くん／
 ├── main.py                 # メイン起動ファイル
+├── version.py              # バージョン定義 (Single Source of Truth)
+├── update_checker.py       # 更新チェック (GitHub Releases・通知のみ)
 ├── gui.py                   # PCペットUI
 ├── agent.py                  # LangGraph エージェント
 ├── life_dreamer.py           # 自律生活生成エンジン

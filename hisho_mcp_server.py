@@ -615,6 +615,7 @@ def run_fallback_jsonrpc_server() -> None:
             # 2024-11-05 / 2026 最新仕様: initialize
             if method == "initialize":
                 client_version = params.get("protocolVersion", "2024-11-05")
+                from version import __version__ as app_version
                 resp = {
                     "jsonrpc": "2.0",
                     "id": req_id,
@@ -626,7 +627,7 @@ def run_fallback_jsonrpc_server() -> None:
                         },
                         "serverInfo": {
                             "name": "neo_hisho_bridge",
-                            "version": "2.0.0"
+                            "version": app_version
                         }
                     }
                 }

@@ -480,6 +480,22 @@ class DeskPetSyncHandler(SimpleHTTPRequestHandler):
         """
         return client_ip in ("127.0.0.1", "::1", "localhost")
 
+    def _update_notice_payload(self) -> Dict[str, Any]:
+        """スマホPWA向けの更新通知ペイロードを生成する (/api/status 専用)。
+
+        update_checker のキャッシュ読み取りは非ブロッキングだが、
+        万一の例外でステータス API 全体が失敗しないよう二重防護する。
+
+        Returns:
+            Dict[str, Any]: 更新状態辞書。取得失敗時は update_available=False。
+        """
+        try:
+            from update_checker import get_update_status
+            return get_update_status()
+        except Exception as e:
+            logger.warning(f"更新状態ペイロードの生成に失敗 (無視): {e}")
+            return {"update_available": False, "current_version": None}
+
     def do_GET(self):
         """APIエンドポイントまたは静的ファイルの処理"""
         client_ip = self.client_address[0] if self.client_address else "unknown"
@@ -640,6 +656,7 @@ class DeskPetSyncHandler(SimpleHTTPRequestHandler):
                     },
                     "buzz": should_buzz,
                     "life_state": life_state,
+                    "update": self._update_notice_payload(),
                     "server_time": int(now * 1000)
                 }
                 self.wfile.write(json.dumps(payload, ensure_ascii=False).encode("utf-8"))

@@ -119,6 +119,10 @@ class NeoSecretaryApp:
 
         _threading.Thread(target=_ical_sync_loop, daemon=True, name="IcalSyncLoop").start()
 
+        # 7.6. アップデート確認 (GitHub Releases・バックグラウンドスレッド／Level 1: 通知のみ)
+        from update_checker import start_update_checker
+        start_update_checker(gui=self.gui)
+
         # 初期メッセージ ＆ 日次ブリーフィング（起動時に今日の予定・タスクを自動報告）
         self._generate_daily_briefing()
         
