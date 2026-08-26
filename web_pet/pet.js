@@ -1123,8 +1123,9 @@ function openQuestionSheet() {
   const choices = req.choices || [];
   let choicesHtml = '';
   if (choices.length > 0) {
+    // インデックス参照で選択肢テキストを渡す（JSON.stringifyの二重引用符競合を回避）
     choicesHtml = choices.map((c, i) =>
-      `<button class="btn-approve" onclick="closeBottomSheet(); respondApproval('answered', null, ${JSON.stringify(c)})">${i+1}. ${escapeHtml(c)}</button>`
+      `<button class="btn-approve" onclick="closeBottomSheet(); respondChoice(${i})">${i+1}. ${escapeHtml(c)}</button>`
     ).join('');
   } else {
     choicesHtml = `<div class="note-item"><div class="note-desc">自由回答はPC側でお願いします</div></div>`;
@@ -1135,6 +1136,13 @@ function openQuestionSheet() {
       ${choicesHtml}
     </div>`;
   openBottomSheet({ icon: '❓', tag: '質問', title: `${req.agent_name} からの質問` }, html);
+}
+
+/** 質問シートの選択肢ボタンから呼ばれるヘルパー（index参照で二重引用符競合を回避） */
+function respondChoice(index) {
+  const req = currentApprovalRequest;
+  if (!req || !req.choices || !req.choices[index]) return;
+  respondApproval('answered', null, req.choices[index]);
 }
 
 /** 承認/却下/回答をサーバーへ送信する（バナーボタン・シート・メディアキー共通） */
