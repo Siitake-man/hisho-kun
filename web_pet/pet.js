@@ -103,6 +103,7 @@ window.addEventListener('DOMContentLoaded', () => {
   loadSyncToken();
   unlockAudio();
   setupMediaKeyApproval();
+  setupBannerSwipe();
   requestAnimationFrame(particleLoop);
   preloadSprites(currentCharacterId);
   fetchStatus();
@@ -941,6 +942,9 @@ async function fetchStatus() {
         document.getElementById('banner-hint').innerText = 'タップで詳細';
         document.getElementById('event-title').innerText = ev.summary || ev.title || '';
         document.getElementById('event-desc').innerText = 'タップして確認';
+        // ✖ dismiss button: completed 時にのみ表示
+        const dismissBtn = document.getElementById('banner-dismiss-btn');
+        if (dismissBtn) dismissBtn.style.display = ev.type === 'completed' ? '' : 'none';
         if (isNew) {
           playAlertChime(2);
         }
@@ -996,7 +1000,90 @@ function handleActiveEventClick() {
     return;
   }
   if (!currentActiveEvent) return;
+  // 完了通知なら「閉じる」ボタン付きボトムシートを表示し、閉じる際に dismiss API を呼ぶ
+  if (currentActiveEvent.type === 'completed') {
+    const ev = currentActiveEvent;
+    const html = `
+      <div class="note-item">
+        <div class="note-title">${escapeHtml(ev.summary || ev.title || '')}</div>
+        <div class="note-desc">${escapeHtml(ev.details || ev.message || 'タップして閉じてください')}</div>
+      </div>
+      <div class="approval-sheet-actions">
+        <button class="btn-approve" onclick="dismissCompleted()">✖ 閉じる</button>
+      </div>`;
+    openBottomSheet({ icon: '✨', tag: '完了通知', title: `${ev.agent_name || 'AI'} からの報告` }, html);
+    return;
+  }
   openBottomSheet(currentActiveEvent);
+}
+
+/** 完了通知を閉じ、サーバ側のイベントも永続的に削除する */
+async function dismissCompleted() {
+  stopAlertChime();
+  if (navigator.vibrate) navigator.vibrate(20);
+  closeBottomSheet();
+  try {
+    await authFetch('/api/agent/dismiss_completed', { method: 'POST' });
+  } catch (e) { /* サーバ側エラーは無視（既に消えている場合もある） */ }
+  _hideBanner();
+  showToast('✅ 通知を閉じました');
+  fetchStatus();
+}
+
+/** バナーを即座に非表示にする（内部ヘルパー） */
+function _hideBanner() {
+  currentActiveEvent = null;
+  lastActiveEventKey = null;
+  const banner = document.getElementById('active-event-banner');
+  if (banner) {
+    banner.style.display = 'none';
+    banner.style.transform = ''; // スワイプ変形をリセット
+  }
+  const dismissBtn = document.getElementById('banner-dismiss-btn');
+  if (dismissBtn) dismissBtn.style.display = 'none';
+}
+
+// =============================================================================
+// 12. バナースワイプ dismiss (タッチでスワイプして閉じる)
+// =============================================================================
+let _bannerSwipeX = 0;
+let _bannerSwipeStartX = 0;
+let _bannerSwipeDelta = 0;
+
+function setupBannerSwipe() {
+  const banner = document.getElementById('active-event-banner');
+  if (!banner) return;
+  banner.addEventListener('touchstart', (e) => {
+    _bannerSwipeStartX = e.touches[0].clientX;
+    _bannerSwipeDelta = 0;
+    banner.style.transition = 'none';
+  }, { passive: true });
+  banner.addEventListener('touchmove', (e) => {
+    _bannerSwipeDelta = e.touches[0].clientX - _bannerSwipeStartX;
+    if (_bannerSwipeDelta > 0) {
+      banner.style.transform = `translateX(${_bannerSwipeDelta * 0.5}px)`;
+      banner.style.opacity = Math.max(0, 1 - _bannerSwipeDelta / 200);
+    }
+  }, { passive: true });
+  banner.addEventListener('touchend', () => {
+    banner.style.transition = 'transform 0.25s ease, opacity 0.25s ease';
+    if (_bannerSwipeDelta > 80) {
+      // 右に80px以上スワイプ → dismiss
+      banner.style.transform = 'translateX(120%)';
+      banner.style.opacity = '0';
+      setTimeout(() => {
+        if (currentActiveEvent && currentActiveEvent.type === 'completed') {
+          dismissCompleted();
+        } else {
+          _hideBanner();
+        }
+      }, 250);
+    } else {
+      // 戻す
+      banner.style.transform = '';
+      banner.style.opacity = '1';
+    }
+  }, { passive: true });
 }
 
 /** 承認シート（コマンド全文 ＆ 大ボタンで承認/却下） */

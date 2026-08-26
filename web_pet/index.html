@@ -742,7 +742,10 @@
       <section id="active-event-banner" onclick="handleActiveEventClick()">
         <div class="banner-top">
           <span id="event-type-badge">⚠️ 外部AI 承認待ち</span>
-          <span id="banner-hint">タップで詳細</span>
+          <span style="display:flex;align-items:center;gap:6px;">
+            <span id="banner-hint">タップで詳細</span>
+            <span id="banner-dismiss-btn" style="display:none;cursor:pointer;font-size:20px;padding:0 4px;opacity:0.7;" onclick="event.stopPropagation();dismissCompleted()">✖</span>
+          </span>
         </div>
         <div id="event-title"></div>
         <div id="event-desc"></div>
