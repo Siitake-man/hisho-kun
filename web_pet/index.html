@@ -307,6 +307,32 @@
       box-shadow: 0 0 18px rgba(0, 230, 118, 0.6);
     }
 
+    /* ⬆ アップデート通知バナー */
+    #update-banner {
+      background: linear-gradient(135deg, #E65100, #FF8F00);
+      border: 1.5px solid #FFD54F;
+      border-radius: 8px;
+      padding: 8px 12px;
+      color: #FFFFFF;
+      box-shadow: 0 0 12px rgba(255, 143, 0, 0.5);
+      animation: pulse-border 1.5s infinite;
+    }
+    #update-banner .banner-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 11px;
+      font-weight: bold;
+      letter-spacing: 0.3px;
+    }
+    #update-banner-body {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 2px;
+      font-size: 13px;
+    }
+
     /* 承認シート（ボトムシート内の大ボタン） */
     .approval-sheet-actions { display: flex; gap: 10px; margin-top: 12px; }
     .approval-sheet-actions button {
@@ -679,7 +705,8 @@
         gap: 6px;
       }
       .wake-banner,
-      #active-event-banner {
+      #active-event-banner,
+      #update-banner {
         flex-basis: 100%;
         flex-shrink: 0;
       }
@@ -752,6 +779,18 @@
         <div id="banner-actions" class="banner-actions">
           <button id="banner-approve" onclick="respondApproval('approve', event)">✅ 承認</button>
           <button id="banner-deny" onclick="respondApproval('deny', event)">🛑 却下</button>
+        </div>
+      </section>
+
+      <!-- ⬆ アップデート通知バナー (新バージョンがある場合のみ表示) -->
+      <section id="update-banner" style="display:none;">
+        <div class="banner-top">
+          <span>⬆ アップデートあり</span>
+          <span id="update-banner-close" style="cursor:pointer;font-size:18px;padding:0 4px;opacity:0.7;" onclick="event.stopPropagation();dismissUpdateBanner()">✖</span>
+        </div>
+        <div id="update-banner-body">
+          <span id="update-banner-text">新しいバージョンが利用可能です</span>
+          <a id="update-banner-link" href="#" target="_blank" rel="noopener" style="color:var(--accent-amber);text-decoration:underline;font-size:12px;">詳細を見る →</a>
         </div>
       </section>
 

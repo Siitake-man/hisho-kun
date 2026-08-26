@@ -965,7 +965,24 @@ async function fetchStatus() {
       }
     }
 
-    // 5.5. PCからの呼び出し信号 (Buzz)
+    // 5.5. ⬆ アップデート通知バナー（新バージョン検知時）
+    const updateBanner = document.getElementById('update-banner');
+    const updateText = document.getElementById('update-banner-text');
+    const updateLink = document.getElementById('update-banner-link');
+    if (data.update && data.update.update_available && updateBanner && updateText && updateLink) {
+      const latest = data.update.latest_version || '';
+      const current = data.update.current_version || '';
+      updateText.innerText = `⬆ ${latest} が利用可能です（現在: v${current}）`;
+      updateLink.href = data.update.release_url || '#';
+      // dismissedフラグがなければ表示
+      if (!sessionStorage.getItem('update_banner_dismissed')) {
+        updateBanner.style.display = 'block';
+      }
+    } else if (updateBanner) {
+      updateBanner.style.display = 'none';
+    }
+
+    // 5.6. PCからの呼び出し信号 (Buzz)
     if (data.buzz) {
       playAlertChime(2);
       showToast('📲 ボスが呼んでいます！');
@@ -1042,6 +1059,13 @@ async function dismissCompleted() {
   _hideBanner();
   showToast('✅ 通知を閉じました');
   fetchStatus();
+}
+
+/** アップデートバナーを閉じる（sessionStorageで永続化：同一セッションでは再表示しない） */
+function dismissUpdateBanner() {
+  const banner = document.getElementById('update-banner');
+  if (banner) banner.style.display = 'none';
+  sessionStorage.setItem('update_banner_dismissed', 'true');
 }
 
 /** バナーを即座に非表示にする（内部ヘルパー） */
