@@ -915,12 +915,22 @@ async function fetchStatus() {
       currentApprovalRequest = req;
       currentActiveEvent = req;
       eventBanner.style.display = 'block';
-      eventBanner.className = '';
-      document.getElementById('event-type-badge').innerText = `⚠️ 【${req.agent_name}】承認要請`;
-      document.getElementById('banner-hint').innerText = 'ボタンでワンタップ回答';
-      document.getElementById('event-title').innerText = req.summary || req.command || '';
-      document.getElementById('event-desc').innerText = req.command ? `⌨️ ${req.command}` : '';
-      if (bannerActions) bannerActions.style.display = 'flex';
+      const isQuestion = (req.type === 'question');
+      if (isQuestion) {
+        eventBanner.className = 'question';
+        document.getElementById('event-type-badge').innerText = `❓ 【${req.agent_name}】質問`;
+        document.getElementById('banner-hint').innerText = 'タップで回答';
+        document.getElementById('event-title').innerText = req.title || req.question || '';
+        document.getElementById('event-desc').innerText = (req.choices && req.choices.length > 0) ? `選択肢: ${req.choices.join(' / ')}` : 'タップして回答';
+        if (bannerActions) bannerActions.style.display = 'none';
+      } else {
+        eventBanner.className = '';
+        document.getElementById('event-type-badge').innerText = `⚠️ 【${req.agent_name}】承認要請`;
+        document.getElementById('banner-hint').innerText = 'ボタンでワンタップ回答';
+        document.getElementById('event-title').innerText = req.summary || req.command || '';
+        document.getElementById('event-desc').innerText = req.command ? `⌨️ ${req.command}` : '';
+        if (bannerActions) bannerActions.style.display = 'flex';
+      }
       if (isNew) {
         lastApprovalRequestId = req.request_id;
         playAlertChime(4);
@@ -996,6 +1006,10 @@ async function fetchStatus() {
 // =============================================================================
 function handleActiveEventClick() {
   if (currentApprovalRequest) {
+    if (currentApprovalRequest.type === 'question') {
+      openQuestionSheet();
+      return;
+    }
     openApprovalSheet();
     return;
   }
@@ -1102,8 +1116,29 @@ function openApprovalSheet() {
   openBottomSheet({ icon: '🛡️', tag: '承認要請', title: req.summary || 'コマンド実行の承認' }, html);
 }
 
-/** 承認/却下をサーバーへ送信する（バナーボタン・シート・メディアキー共通） */
-async function respondApproval(decision, ev) {
+/** 質問シート（選択肢を大ボタンで表示） */
+function openQuestionSheet() {
+  const req = currentApprovalRequest;
+  if (!req) return;
+  const choices = req.choices || [];
+  let choicesHtml = '';
+  if (choices.length > 0) {
+    choicesHtml = choices.map((c, i) =>
+      `<button class="btn-approve" onclick="closeBottomSheet(); respondApproval('answered', null, ${JSON.stringify(c)})">${i+1}. ${escapeHtml(c)}</button>`
+    ).join('');
+  } else {
+    choicesHtml = `<div class="note-item"><div class="note-desc">自由回答はPC側でお願いします</div></div>`;
+  }
+  const html = `
+    <div class="note-item"><div class="note-title">❓ ${escapeHtml(req.title || req.question || '')}</div></div>
+    <div class="approval-sheet-actions" style="flex-direction:column;gap:6px;">
+      ${choicesHtml}
+    </div>`;
+  openBottomSheet({ icon: '❓', tag: '質問', title: `${req.agent_name} からの質問` }, html);
+}
+
+/** 承認/却下/回答をサーバーへ送信する（バナーボタン・シート・メディアキー共通） */
+async function respondApproval(decision, ev, answerText) {
   if (ev && ev.stopPropagation) ev.stopPropagation();
   if (!currentApprovalRequest) return;
   stopAlertChime();
@@ -1113,7 +1148,7 @@ async function respondApproval(decision, ev) {
     const res = await authFetch('/api/agent/respond', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ request_id: req.request_id, decision })
+      body: JSON.stringify({ request_id: req.request_id, decision, message: answerText || '' })
     });
     if (res.ok) {
       currentApprovalRequest = null;
@@ -1127,7 +1162,7 @@ async function respondApproval(decision, ev) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'pet_reaction', state: decision === 'approve' ? 'celebrate' : 'care', duration_ms: 5000 })
       }).catch(() => {});
-      showToast(decision === 'approve' ? '✅ 承認を送信しました' : '🛑 却下を送信しました');
+      showToast(decision === 'approve' ? '✅ 承認を送信しました' : decision === 'answered' ? '✅ 回答を送信しました' : '🛑 却下を送信しました');
     } else {
       showToast('⚠️ 送信に失敗しました');
     }
