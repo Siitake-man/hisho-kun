@@ -1,5 +1,5 @@
 /**
- * ネオ秘書くん Desk Pet ＆ Agent Bridge Cockpit ロジック (pet.js v7.1 - Backoff Edition)
+ * ネオ秘書くん Desk Pet ＆ Agent Bridge Cockpit ロジック (pet.js v7.2 - Voice Edition)
  * 5大背景環境 ＆ Glass Bottom Sheetニュースリーダー ＆ なでなでパーティクル
  */
 
@@ -680,7 +680,7 @@ function cycleCharacter() {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ action: 'switch_character', character_id: currentCharacterId })
-  }).catch(() => {});
+  }).catch(err => console.debug('Action failed:', err));
 
   if (navigator.vibrate) navigator.vibrate(35);
 }
@@ -748,6 +748,15 @@ function updateLifeSprite(activity) {
     }
   };
   spriteEl.src = urls[0];
+
+  // Dream-8: 睡眠中はCSSフィルターで暗く・グレースケール（アセットがなくても「寝てる感」を表現）
+  if (activity === 'sleeping') {
+    spriteEl.style.filter = 'grayscale(100%) brightness(0.5)';
+    spriteEl.style.transition = 'filter 1s ease';
+  } else {
+    spriteEl.style.filter = '';
+    spriteEl.style.transition = 'filter 0.3s ease';
+  }
 }
 
 // =============================================================================
@@ -850,7 +859,7 @@ function togglePomodoro() {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ action: 'start_pomodoro', minutes: 25 })
-  }).then(fetchStatus).catch(() => {});
+  }).then(fetchStatus).catch(err => console.debug('Pomodoro action failed:', err));
   if (navigator.vibrate) navigator.vibrate(40);
 }
 
@@ -1229,7 +1238,7 @@ async function respondApproval(decision, ev, answerText) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'pet_reaction', state: decision === 'approve' ? 'celebrate' : 'care', duration_ms: 5000 })
-      }).catch(() => {});
+      }).catch(err => console.debug('Pet reaction failed:', err));
       showToast(decision === 'approve' ? '✅ 承認を送信しました' : decision === 'answered' ? '✅ 回答を送信しました' : '🛑 却下を送信しました');
     } else {
       showToast('⚠️ 送信に失敗しました');
@@ -1308,7 +1317,7 @@ function completeTask(taskId, el) {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ action: 'complete_task', task_id: taskId })
-  }).then(() => fetchStatus()).catch(() => {});
+  }).then(() => fetchStatus()).catch(err => console.debug('Task action failed:', err));
 }
 
 /** 🌱 習慣トラッカーモーダル（項目タップで達成トグル） */
@@ -1334,7 +1343,7 @@ function toggleHabit(habitId, el) {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ action: 'toggle_habit', habit_id: habitId })
-  }).then(() => fetchStatus()).catch(() => {});
+  }).then(() => fetchStatus()).catch(err => console.debug('Habit toggle failed:', err));
 }
 
 /** ⚙️ 設定モーダル（キャラ・テーマ・全画面・常時ON・PCペット呼び出し） */
@@ -1359,7 +1368,7 @@ function showPcPet() {
     body: JSON.stringify({ action: 'show_pc_pet' })
   }).then(() => {
     closeBottomSheet();
-  }).catch(() => {});
+  }).catch(err => console.debug('Show PC pet failed:', err));
 }
 
 // =============================================================================
@@ -1369,11 +1378,55 @@ function showPcPet() {
 /** 全画面表示トグル (Fullscreen API) */
 function toggleFullscreen() {
   if (!document.fullscreenElement) {
-    document.documentElement.requestFullscreen().catch(() => {});
+    document.documentElement.requestFullscreen().catch(err => console.debug('Fullscreen request failed:', err));
   } else {
-    document.exitFullscreen().catch(() => {});
+    document.exitFullscreen().catch(err => console.debug('Exit fullscreen failed:', err));
   }
   if (navigator.vibrate) navigator.vibrate(25);
+}
+
+/** 🎤 音声入力開始（Web Speech API） — K2 音声ウェイクワード布石 */
+function startVoiceInput() {
+  if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+    showToast('⚠️ このブラウザは音声認識に対応していません');
+    return;
+  }
+  const micBtn = document.getElementById('mic-btn');
+  if (micBtn) micBtn.style.opacity = '0.5';
+  showToast('🎤 話しかけてください…');
+  
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  const recognition = new SpeechRecognition();
+  recognition.lang = 'ja-JP';
+  recognition.interimResults = false;
+  recognition.maxAlternatives = 1;
+  
+  recognition.onresult = (event) => {
+    const transcript = event.results[0][0].transcript;
+    if (micBtn) micBtn.style.opacity = '1';
+    showToast(`🎤 「${transcript}」`);
+    // サーバーへ音声テキストを送信（既存のチャットパイプラインを利用）
+    authFetch('/api/action', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'voice_command', text: transcript })
+    }).catch(err => console.debug('Voice command send failed:', err));
+  };
+  
+  recognition.onerror = (event) => {
+    if (micBtn) micBtn.style.opacity = '1';
+    showToast('⚠️ 音声認識エラー: ' + (event.error || ''));
+    console.debug('Speech recognition error:', event.error);
+  };
+  
+  recognition.onend = () => {
+    if (micBtn) micBtn.style.opacity = '1';
+  };
+  
+  try { recognition.start(); } catch (e) {
+    if (micBtn) micBtn.style.opacity = '1';
+    showToast('⚠️ 音声認識の開始に失敗しました');
+  }
 }
 
 let nosleepActive = false;

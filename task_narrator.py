@@ -11,19 +11,25 @@ import re
 from typing import Optional, Dict, Any
 
 from langchain_core.messages import HumanMessage, SystemMessage
+from character_manager import get_character_manager
 
 logger = logging.getLogger(__name__)
 
-# ナレーション用の軽量システムプロンプト
-NARRATOR_SYSTEM_PROMPT = """あなたはユーザー（ボス）のデスクトップ秘書「ネオ秘書くん」です。
+# ナレーション用のシステムプロンプト（キャラクターペルソナ動的注入）
+def _build_narrator_prompt() -> str:
+    """現在のキャラクター設定に基づいたナレーション用システムプロンプトを生成する。"""
+    character_prompt = get_character_manager().get_character_system_prompt()
+    return f"""あなたはユーザー（ボス）のデスクトップ秘書です。
+{character_prompt}
+
 外部のコーディングAIエージェント（Claude Code、Codex、Cursor、Antigravity等）がタスクを完了しました。
 渡された作業ログの要約から、ボスへ作業完了を報告する「元気で親しみやすい1〜2行の報告メッセージ」を作成してください。
 
 【制約事項】
 - 必ず日本語で、絵文字（✨, 🎉, 💻, ☕ 等）を適度に使ってください。
 - 1行〜最大2行（50〜80文字程度）で簡潔にまとめてください。
-- 一人称は「ぼく」または秘書口調、相手は「ボス」と呼んでください。
 - 難しい専門用語を羅列せず、「〇〇の実装が完了しました！」「〇〇のエラーが直りました！」と直感的に伝えてください。
+- 上記のキャラクター設定に従った口調・口癖・一人称を厳守してください。
 """
 
 
@@ -59,7 +65,10 @@ class TaskNarrator:
         logger.info(f"タスクナレーションを生成中: Agent={agent_name}, Task={task_summary}")
 
         # 1. ルールベースの高速フォールバック（LLMがオフラインまたはタイムアウト時の即答用）
-        fallback_msg = f"ボス！{agent_name}さんが「{task_summary[:30]}」の作業を無事完了させましたよ！🎉✨"
+        char = get_character_manager().get_current_character()
+        char_name = char.get("name", "秘書くん")
+        char_emoji = char.get("emoji", "👔")
+        fallback_msg = f"{char_emoji} {char_name}です！{agent_name}さんが「{task_summary[:30]}」の作業を無事完了させました！🎉✨"
 
         # 2. LLM Factory を利用した自然なスピーチ生成
         try:
@@ -72,7 +81,7 @@ class TaskNarrator:
             user_prompt = f"エージェント名: {agent_name}\nタスク概要: {task_summary}\n作業ログ抜粋:\n{log_snippet[:400]}"
             
             messages = [
-                SystemMessage(content=NARRATOR_SYSTEM_PROMPT),
+                SystemMessage(content=_build_narrator_prompt()),
                 HumanMessage(content=user_prompt)
             ]
             
@@ -98,8 +107,10 @@ class TaskNarrator:
         """
         エージェントのエラー発生時の注意喚起スピーチを生成します。
         """
+        char = get_character_manager().get_current_character()
+        char_emoji = char.get("emoji", "👔")
         clean_err = error_message.split("\n")[0][:40]
-        return f"ボス、{agent_name}さんでエラーが発生したみたいです…！😰\n（{clean_err}）"
+        return f"{char_emoji} ボス、{agent_name}さんでエラーが発生したみたいです…！😰\n（{clean_err}）"
 
     def speak_text(self, text: str) -> None:
         """

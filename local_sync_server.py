@@ -1075,6 +1075,20 @@ class DeskPetSyncHandler(SimpleHTTPRequestHandler):
                     logger.info(f"📶 スマホからPingテスト受信 ({client_ip})")
                     self.wfile.write(json.dumps({"status": "pong", "server_time": int(time.time() * 1000)}).encode("utf-8"))
                     return
+                elif action == "voice_command":
+                    voice_text = data.get("text", "")
+                    logger.info(f"🎤 スマホから音声入力受信: {voice_text}")
+                    # PCペットの吹き出しへ表示
+                    gui = get_gui_instance()
+                    if gui:
+                        gui.post_action(gui.update_message, f"🎤 {voice_text}")
+                    # エージェントへ投げる（既存チャットパイプライン）
+                    from main import NeoSecretaryApp
+                    app = NeoSecretaryApp.get_instance()
+                    if app and voice_text:
+                        app.post_human_message(voice_text)
+                    self.wfile.write(json.dumps({"status": "success", "text": voice_text}).encode("utf-8"))
+                    return
                         
                 self.wfile.write(json.dumps({"status": "unknown_action"}).encode("utf-8"))
             except Exception as e:

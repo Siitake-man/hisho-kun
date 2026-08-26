@@ -19,6 +19,8 @@ import time
 from datetime import datetime
 from typing import Callable, Dict, Any, List, Optional
 
+from weather_tools import get_weather as _get_weather
+
 logger = logging.getLogger(__name__)
 
 # 生活イベントの種別 → PC/スマホペットのアニメ状態へのマッピング
@@ -189,10 +191,12 @@ class LifeDreamerEngine:
     def _refresh_real_weather(self) -> None:
         """リアルタイム天気を取得し、life_state の weather を上書きする。"""
         try:
-            from weather_tools import get_weather as _get_weather
             w = _get_weather()
             if w.get("error"):
                 logger.info(f"🌈 [LifeDreamer] リアル天気取得失敗（架空天気を維持）: {w['error']}")
+                # エラー時は city にエラー状態を表示（「取得中…」→「不明」に変更済み）
+                with self._lock:
+                    self._state["city"] = "天気取得不可"
                 return
             real_weather = w["weather"]
             temp = w.get("temperature", 20.0)

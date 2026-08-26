@@ -50,7 +50,15 @@ def _auto_tailscale_serve() -> None:
         logger.debug(f"Tailscale serve 自動起動に失敗: {e}")
 
 class NeoSecretaryApp:
+    _instance = None
+
+    @staticmethod
+    def get_instance():
+        """NeoSecretaryApp のシングルトンインスタンスを取得する。"""
+        return NeoSecretaryApp._instance
+
     def __init__(self):
+        NeoSecretaryApp._instance = self
         # 0. 自動起動ヘルパー（Tailscale serve / DBバックアップ）
         _auto_tailscale_serve()
         # 0.1. データベース初期化 ＆ 起動時自動オンラインバックアップ
@@ -253,6 +261,25 @@ class NeoSecretaryApp:
         logger.info("プロアクティブ声掛けをUIに反映します")
         self.gui.post_action(self.gui.update_message, message)
         self.gui.post_action(self.gui.set_pet_state, pet_state, duration_ms=5000)
+
+    def post_human_message(self, text: str) -> None:
+        """スマホPWAからの音声入力テキストをエージェントへ投入する。
+
+        スマホPWAの🎤マイクボタンから送信された音声認識テキストを、
+        LangGraphエージェントのチャットパイプラインへ投入する（K2音声ウェイクワード布石）。
+
+        Args:
+            text: 音声認識されたテキスト。
+        """
+        if not text or not text.strip():
+            return
+        logger.info(f"🎤 音声入力テキストをエージェントへ投入: {text}")
+        # GUIにメッセージを表示してからエージェント推論へ
+        self.gui.post_action(self.gui.update_message, f"🎤 {text}")
+        self.gui.post_action(self.gui.set_pet_state, "thinking")
+        # asyncio タスクとしてエージェント推論を実行
+        import asyncio
+        asyncio.create_task(self._process_message(text))
 
     def _on_submit(self, event=None):
         """ユーザーが入力をしてEnterを押した時に呼ばれる"""

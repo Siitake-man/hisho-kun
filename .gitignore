@@ -6,6 +6,7 @@
 
 # --- 同期トークン（機密・絶対にコミット禁止） ---
 .sync_token
+.sync_token.tmp
 
 # --- 参考ソース（個人用・公開不要） ---
 hisyokun-modern-source/

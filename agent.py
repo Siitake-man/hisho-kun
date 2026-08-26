@@ -17,6 +17,10 @@ from langgraph.prebuilt import ToolNode
 from langgraph.checkpoint.memory import MemorySaver
 
 from dotenv import load_dotenv
+from llm_factory import get_llm_factory
+from mcp_manager import get_mcp_manager
+from character_manager import get_character_manager
+import database
 
 # 環境変数の読み込み (.env ファイルから GOOGLE_API_KEY をロード)
 load_dotenv()
@@ -103,8 +107,6 @@ def planner_node(state: AgentState):
     
     # 実際のAI連携 (Multi-LLM Factory) を有効化
     try:
-        from llm_factory import get_llm_factory
-        import database
         factory = get_llm_factory()
         
         # 1. ユーザーの長期知見（制約・好み・習慣・PJルール）をDBからロード
@@ -117,7 +119,6 @@ def planner_node(state: AgentState):
             insights_text += "※ボスの制約や好みに反する提案は避け、これらに寄り添ったサポートを行ってください。\n\n"
 
         # 2. 有効化されたMCPツールの動的取得
-        from mcp_manager import get_mcp_manager
         mcp_tools = get_mcp_manager().get_dynamic_mcp_tools()
         active_tools = tools + mcp_tools
 
@@ -128,7 +129,6 @@ def planner_node(state: AgentState):
             mcp_info = f"- 外部MCPツール（{len(mcp_tools)}件）: 有効化された外部サービス連携ツールも活用してください。\n"
 
         # キャラクターのペルソナシステムプロンプトを注入（キャラ切替でAIの性格が変わる）
-        from character_manager import get_character_manager
         character_prompt = get_character_manager().get_character_system_prompt()
 
         sys_prompt = (
@@ -157,8 +157,11 @@ def planner_node(state: AgentState):
         return {"messages": [response], "current_plan": "AI応答生成完了"}
     except Exception as e:
         logger.error(f"LLM API 呼び出しエラー: {e}", exc_info=True)
-        # APIキー未設定などのエラー時はフォールバックメッセージを返す
-        error_msg = AIMessage(content=f"【システムエラー】AIとの通信に失敗しました（{e}）。`.env`ファイルの APIキー設定やローカルサーバーの稼働状況を確認してください。")
+        # 例外メッセージをそのままユーザーに表示しない（APIキー等の機密情報漏洩防止）
+        error_msg = AIMessage(
+            content="【システムエラー】AIとの通信に失敗しました。"
+                    ".envファイルのAPIキー設定またはローカルサーバーの稼働状況を確認してください。"
+        )
         return {"messages": [error_msg], "current_plan": "エラー発生"}
 
 # =============================================================================

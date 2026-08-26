@@ -147,7 +147,15 @@ def install_to_tool(tool_name: str = "antigravity", force: bool = False) -> Tupl
             del data[root_key]["agent-bridge-mcp"]
             logger.info("古い agent-bridge-mcp 設定を自動クリーンアップ削除しました")
 
-        data[root_key][SERVER_ID] = mcp_def
+        # force=True の場合のみ上書き、False の場合は既存エントリを保持（冪等性確保）
+        if force or SERVER_ID not in data[root_key]:
+            data[root_key][SERVER_ID] = mcp_def
+            if not force:
+                logger.info(f"✓ [{label}] {SERVER_ID} を新規登録しました")
+            else:
+                logger.info(f"✓ [{label}] {SERVER_ID} を強制上書きしました")
+        else:
+            logger.info(f"→ [{label}] {SERVER_ID} は既に登録済みです（--force で上書き可）")
 
         with open(target_path, "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
