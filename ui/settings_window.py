@@ -230,6 +230,7 @@ class SettingsWindow(ctk.CTkToplevel):
         tab_llm = self.tabview.add("🧠 AIモデル設定")
         tab_mcp = self.tabview.add("🤖 外部AI・MCP連携")
         tab_tools = self.tabview.add("📅 外部ツール・プラグイン")
+        tab_guide = self.tabview.add("📖 使い方ガイド")
 
         # =====================================================================
         # Tab 1: AIモデル設定 (LLM Brain)
@@ -744,6 +745,59 @@ class SettingsWindow(ctk.CTkToplevel):
             btn_del.pack(side="right")
 
         # =====================================================================
+        # Tab 4: 使い方ガイド
+        # =====================================================================
+        content_guide = ctk.CTkScrollableFrame(tab_guide, fg_color="transparent")
+        content_guide.pack(fill="both", expand=True, padx=8, pady=6)
+
+        # クイックスタート
+        ctk.CTkLabel(content_guide, text="🚀 クイックスタート", font=self.font_title,
+                      text_color=self.primary_color, anchor="w").pack(anchor="w", pady=(6, 2))
+        guide_texts = [
+            ("📋 メニューの開き方", "ペットを右クリック、またはヘッダーの⚙️メニューボタンで機能一覧が開きます。"),
+            ("📱 スマホ連携", "右クリック → 📱スマホ接続 → QRコードをスマホで読み取るだけ。同一Wi-Fiが必須。"),
+            ("📔 手帳の使い方", "📔統合手帳で予定・TODO・習慣を確認。GoogleカレンダーiCal URLを設定すると自動同期。"),
+            ("🍅 ポモドーロ", "🍅ポモドーロ開始で25分集中。ペットが集中モードに変わります。"),
+            ("🧠 AIモデル切替", "右クリック → LLMモデル切り替え から利用するAIモデルを選択できます。"),
+            ("🎭 キャラ切替", "右クリック → キャラクタースキン変更 で秘書くん/キノコ君/アザラシを切替。"),
+            ("🤖 AIエージェント連携", "MCP連携タブでmcp_installer.pyを実行すると、Cline/Claude等から秘書くんのツールを呼び出せます。"),
+        ]
+        for title, desc in guide_texts:
+            row = ctk.CTkFrame(content_guide, fg_color="transparent")
+            row.pack(fill="x", pady=3)
+            ctk.CTkLabel(row, text=title, font=self.font_title,
+                          text_color=self.text_color, anchor="w").pack(anchor="w")
+            ctk.CTkLabel(row, text=desc, font=self.font_small,
+                          text_color="#7A6B62", anchor="w", wraplength=400).pack(anchor="w", padx=(12, 0))
+
+        # ツアー再開ボタン
+        ctk.CTkLabel(content_guide, text="", height=10).pack()
+        btn_restart_tour = ctk.CTkButton(
+            content_guide, text="🎓 秘書くんツアーをもう一度見る",
+            font=self.font_body, fg_color=self.primary_color,
+            hover_color="#8B634A", height=34,
+            command=self._restart_tour
+        )
+        btn_restart_tour.pack(fill="x", padx=20, pady=8)
+        ctk.CTkLabel(content_guide, text="※ 初回起動時のオンボーディングツアーを再開できます。",
+                      font=self.font_small, text_color="#A67B5B", anchor="w").pack(anchor="w", padx=20)
+
+        # 注意事項
+        ctk.CTkLabel(content_guide, text="", height=8).pack()
+        ctk.CTkLabel(content_guide, text="⚠️ 注意事項", font=self.font_title,
+                      text_color=self.primary_color, anchor="w").pack(anchor="w", pady=(6, 2))
+        notices = [
+            "• スマホ連携にはPCと同じWi-Fiネットワークが必要です。",
+            "• 外出先からはTailscale VPN経由で接続できます。",
+            "• Googleカレンダー連携は読み取り専用（iCal URL）です。",
+            "• LLMのAPIキーは各自ご用意ください（.envファイルに設定）。",
+            "• 詳細な使い方は docs/ 配下のドキュメントをご参照ください。",
+        ]
+        for n in notices:
+            ctk.CTkLabel(content_guide, text=n, font=self.font_small,
+                          text_color="#7A6B62", anchor="w", wraplength=400).pack(anchor="w", padx=(8, 0))
+
+        # =====================================================================
         # 保存ボタン
         # =====================================================================
         btn_save = ctk.CTkButton(
@@ -1242,4 +1296,17 @@ class SettingsWindow(ctk.CTkToplevel):
             mcp_mgr.update_server_status(s_id, var.get())
 
         self.parent_gui.update_message("⚙ AI設定 ＆ 外部連携（Google/GitHub/Slack/MCP）を保存・適用しました！")
+        self.destroy()
+
+    def _restart_tour(self) -> None:
+        """設定画面の「使い方ガイド」タブからツアーを再開する。"""
+        import os
+        # フラグファイルを削除して初回扱いにする
+        flag_file = os.path.join(os.path.dirname(__file__), "..", "backups", ".tour_completed")
+        try:
+            if os.path.exists(flag_file):
+                os.remove(flag_file)
+        except Exception:
+            pass
+        self.parent_gui.post_action(self.parent_gui._start_tour)
         self.destroy()

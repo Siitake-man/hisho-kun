@@ -238,6 +238,9 @@ class NeoSecretaryGUI:
         self._render_mascot("idle_1")
         self._schedule_animation()
 
+        # 🎓 初回起動検出 → ツアー自動開始
+        self.after(2000, self._check_first_launch_tour)
+
     def _build_radial_menu(self):
         """サークルメニューのボタン群を構築（6ボタン放射状配置）"""
         # サークルメニュー配置: 左右展開（180°付近と0°付近）
@@ -863,6 +866,7 @@ class NeoSecretaryGUI:
                 command=lambda c=cid: self.switch_character_skin(c)
             )
         menu.add_cascade(label="🎭 キャラクタースキン変更", menu=skin_menu)
+        menu.add_command(label="🎓 使い方ツアー", command=self._start_tour)
         menu.add_command(label="💡 サジェストソース設定", command=lambda: SuggestSettingsDialog(self))
         menu.add_command(label="⚙ API・MCP設定", command=self._open_settings)
         menu.add_separator()
@@ -1046,7 +1050,140 @@ class NeoSecretaryGUI:
         """Tkinterのメインループを開始"""
         logger.info("GUIアプリケーションを開始します")
         self.root.mainloop()
+# =============================================================================
+    # 🎓 オンボーディングツアー (tour_engine.py 統合)
+    # =============================================================================
 
+    def _on_tour_step(self, step: 'TourStep', index: int, total: int) -> None:
+        """ツアーステップ変更時のコールバック (post_action 経由で呼ばれる)。"""
+        self.update_message(f"【{step.title}】({index+1}/{total})\n\n{step.text}")
+        self.set_pet_state("happy", duration_ms=3000)
+        self._update_tour_overlay(step, index, total)
+
+    def _update_tour_overlay(self, step: 'TourStep', index: int, total: int) -> None:
+        """ツアースポットライトオーバーレイを更新する。"""
+        if not hasattr(self, '_tour_overlay') or self._tour_overlay is None:
+            self._tour_overlay = tk.Toplevel(self.root)
+            self._tour_overlay.overrideredirect(True)
+            self._tour_overlay.geometry(
+                f"{self.root.winfo_screenwidth()}x{self.root.winfo_screenheight()}+0+0"
+            )
+            self._tour_overlay.attributes('-topmost', True)
+
+        overlay = self._tour_overlay
+        cvs = getattr(self, '_tour_canvas', None)
+        if cvs is None:
+            cvs = tk.Canvas(overlay, highlightthickness=0, cursor='hand2')
+            cvs.pack(fill=tk.BOTH, expand=True)
+            self._tour_canvas = cvs
+
+        overlay.attributes('-alpha', 0.55)
+        overlay.configure(bg='#1a1a2e')
+        cvs.delete('all')
+
+        sw = self.root.winfo_screenwidth()
+        sh = self.root.winfo_screenheight()
+        cx, cy, radius = sw // 2, sh // 3, 180
+
+        if step.target_region == "pet":
+            cx, cy, radius = sw - 220, sh - 180, 160
+        elif step.target_region == "menu":
+            cx, cy, radius = sw - 80, 50, 100
+        elif step.target_region == "calendar":
+            cx, cy, radius = sw - 160, 50, 100
+        elif step.target_region == "settings":
+            cx, cy, radius = sw // 2, sh // 2, 150
+
+        # スポットライト: 複数同心円で輝き表現
+        for rm, clr, w in [(1.0, '#FFFFFF', 3), (1.1, '#90CAF9', 4), (1.3, '#1a1a2e', 2)]:
+            r = radius * rm
+            cvs.create_oval(cx - r, cy - r, cx + r, cy + r, outline=clr, width=w, fill='')
+        # 内側明るい領域
+        cvs.create_oval(cx - radius*0.6, cy - radius*0.6,
+                        cx + radius*0.6, cy + radius*0.6,
+                        fill='#B0BEC5', outline='')
+
+        # ナビゲーションボタン
+        bf = ("Meiryo UI", 11, "bold")
+        ny = sh - 60
+        if index > 0:
+            cvs.create_text(40, ny, text="◀ 戻る", fill="#B0BEC5", font=bf, anchor='w', tags="np")
+            cvs.tag_bind("np", "<Button-1>", lambda e: self._do_tour_action("prev"))
+        cvs.create_text(sw//2 - 50, ny, text="⏭ スキップ", fill="#90A4AE", font=bf, tags="ns")
+        cvs.tag_bind("ns", "<Button-1>", lambda e: self._do_tour_action("skip"))
+        next_label = "次へ ▶" if index < total - 1 else "🎉 完了"
+        cvs.create_text(sw//2 + 50, ny, text=next_label, fill="#64B5F6", font=bf, tags="nn")
+        cvs.tag_bind("nn", "<Button-1>", lambda e: self._do_tour_action("next"))
+        cvs.create_text(sw//2, ny - 30, text=f"{index+1}/{total}", fill="#78909C", font=("Meiryo UI", 10))
+
+        overlay.lift()
+        overlay.focus_set()
+
+    def _do_tour_action(self, action: str) -> None:
+        """ツアーナビゲーションボタンからのアクションを処理する。"""
+        from tour_engine import get_tour_engine
+        e = get_tour_engine()
+        if action == "next":
+            e.next()
+        elif action == "prev":
+            e.prev()
+        elif action == "skip":
+            e.skip()
+            self._destroy_tour_overlay()
+            self.update_message("🎓 ツアーをスキップしました。\nいつでも「使い方を教えて」と言ってくださいね！")
+        if not e.is_active:
+            self._destroy_tour_overlay()
+
+    def _destroy_tour_overlay(self) -> None:
+        """ツアーオーバーレイを破棄する。"""
+        if hasattr(self, '_tour_overlay') and self._tour_overlay is not None:
+            try:
+                self._tour_overlay.destroy()
+            except Exception:
+                pass
+            self._tour_overlay = None
+        self._tour_canvas = None
+
+    def _check_first_launch_tour(self) -> None:
+        """初回起動かどうかを確認し、未完了ならツアーを自動開始する。"""
+        import os
+        flag_file = os.path.join(os.path.dirname(__file__), "backups", ".tour_completed")
+        if not os.path.exists(flag_file):
+            self.update_message(
+                "🎓 はじめまして、ボス！\n"
+                "初めてのご利用ありがとうございます！\n"
+                "これから使い方をご案内しますね。\n\n"
+                "（2秒後に自動スタートします）"
+            )
+            self.after(3000, self._start_tour)
+
+    def _start_tour(self) -> None:
+        """秘書くんツアーを開始する。右クリックメニューや初回起動時から呼ばれる。"""
+        from tour_engine import get_tour_engine
+        e = get_tour_engine()
+        e.set_on_step(lambda step, idx, total: self.post_action(
+            self._on_tour_step, step, idx, total
+        ))
+        e.set_on_complete(lambda: self.post_action(self._on_tour_complete))
+        e.set_on_skip(lambda: self.post_action(self._on_tour_complete))
+        e.start()
+
+    def _on_tour_complete(self) -> None:
+        """ツアー完了後処理。"""
+        self._destroy_tour_overlay()
+        import os
+        flag_dir = os.path.join(os.path.dirname(__file__), "backups")
+        os.makedirs(flag_dir, exist_ok=True)
+        with open(os.path.join(flag_dir, ".tour_completed"), "w") as f:
+            f.write("1")
+        self.update_message(
+            "🎊 ツアー終了！覚えておいてほしいことは…\n\n"
+            "📋 **右クリック** でメニュー\n"
+            "📔 **統合手帳** で予定・TODO管理\n"
+            "📱 **スマホ連携** で承認ブリッジ\n"
+            "🍅 **ポモドーロ** で集中\n\n"
+            "また見たいときは「使い方を教えて」と呼びかけてね！"
+        )
 # 後方互換エイリアス
 ModernSecretaryGUI = NeoSecretaryGUI
 
