@@ -204,23 +204,21 @@ def build_agent_graph():
 # 実行テスト
 # =============================================================================
 if __name__ == "__main__":
+    logger.info("=== ネオ秘書くん エージェント単体テスト開始 ===")
     print("=== ネオ秘書くん エージェント単体テスト開始 ===")
     app = build_agent_graph()
     
-    # スレッドIDを指定することで履歴が保持される（MemorySaverの恩恵）
     config = {"configurable": {"thread_id": "test_thread_01"}}
-    
-    # ユーザー入力を定義
     user_input = "明後日の15時から1時間、開発会議の予定を入れてください"
+    logger.info(f"[Human]: {user_input}")
     print(f"\n[Human]: {user_input}")
     
-    # 初回の状態を渡してエージェントへストリーム実行
     initial_state = {"messages": [HumanMessage(content=user_input)]}
-    
     for chunk in app.stream(initial_state, config=config, stream_mode="values"):
         last_message = chunk["messages"][-1]
-        # AIMessage（エージェントの返答）のみ出力する
         if isinstance(last_message, AIMessage):
+            logger.info(f"[Agent]: {last_message.content}")
             print(f"[Agent]: {last_message.content}")
     
+    logger.info("=== テスト終了 ===")
     print("\n=== テスト終了 ===")

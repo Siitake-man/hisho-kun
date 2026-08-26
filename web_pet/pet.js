@@ -1,9 +1,13 @@
 /**
- * ネオ秘書くん Desk Pet ＆ Agent Bridge Cockpit ロジック (pet.js v7.0 - Stitch Edition)
+ * ネオ秘書くん Desk Pet ＆ Agent Bridge Cockpit ロジック (pet.js v7.1 - Backoff Edition)
  * 5大背景環境 ＆ Glass Bottom Sheetニュースリーダー ＆ なでなでパーティクル
  */
 
-let petState = 'idle';
+let fetchFailCount = 0;
+const FETCH_BACKOFF_THRESHOLD = 3;  // 連続3回失敗でバックオフ
+const FETCH_NORMAL_INTERVAL = 2000;
+const FETCH_BACKOFF_INTERVAL = 30000;
+let fetchBackoffActive = false;
 let animTick = 0;
 let tasksData = [];
 let eventsData = [];
@@ -107,7 +111,11 @@ window.addEventListener('DOMContentLoaded', () => {
   requestAnimationFrame(particleLoop);
   preloadSprites(currentCharacterId);
   fetchStatus();
-  setInterval(fetchStatus, 2000);
+  (function pollingLoop() {
+    fetchStatus();
+    const nextInterval = getNextFetchInterval();
+    setTimeout(pollingLoop, nextInterval);
+  })();
 });
 
 // =============================================================================
@@ -855,6 +863,12 @@ async function fetchStatus() {
     if (!res.ok) return;
     const data = await res.json();
 
+    // 成功時はバックオフを即座に解除
+    if (fetchBackoffActive || fetchFailCount > 0) {
+      fetchFailCount = 0;
+      fetchBackoffActive = false;
+    }
+
     // 1. メッセージ
     if (data.message) {
       const bubble = document.getElementById('speech-bubble');
@@ -1015,7 +1029,19 @@ async function fetchStatus() {
 
   } catch (err) {
     console.debug("Status fetch error:", err);
+    fetchFailCount++;
+    if (fetchFailCount >= FETCH_BACKOFF_THRESHOLD && !fetchBackoffActive) {
+      fetchBackoffActive = true;
+      // 連続失敗 → 30秒バックオフ (バッテリー・発熱対策)
+      showToast('📡 サーバーとの接続が不安定です。バックオフ中…');
+    }
   }
+}
+
+// ポーリング間隔を返す（通常時は2秒、バックオフ中は30秒）
+function getNextFetchInterval() {
+  if (fetchBackoffActive) return FETCH_BACKOFF_INTERVAL;
+  return FETCH_NORMAL_INTERVAL;
 }
 
 // =============================================================================

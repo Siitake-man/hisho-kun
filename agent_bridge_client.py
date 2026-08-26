@@ -15,8 +15,17 @@ import json
 import argparse
 import urllib.request
 import urllib.error
+import logging
 from pathlib import Path
 from typing import Optional, List, Dict, Any
+
+# CLIツールとしてのログ設定（stdoutを汚さず stderr へ出力）
+logger = logging.getLogger("agent_bridge_client")
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(message)s",
+    handlers=[logging.StreamHandler(sys.stderr)]
+)
 
 # ローカル同期サーバーのBearer認証トークン (.sync_token)
 SYNC_TOKEN_FILE = Path(__file__).resolve().parent / ".sync_token"
@@ -32,7 +41,7 @@ def get_sync_token() -> str:
         if SYNC_TOKEN_FILE.exists():
             return SYNC_TOKEN_FILE.read_text(encoding="utf-8").strip()
     except Exception as e:
-        print(f"⚠️ [Agent Bridge] .sync_token の読み込みに失敗しました: {e}", file=sys.stderr)
+        logger.error(f".sync_token の読み込みに失敗しました: {e}")
     return ""
 
 def ask_approval(agent_name: str, command: str, summary: str, details: str = "", timeout: int = 180, port: int = 8765) -> dict:
@@ -66,10 +75,10 @@ def ask_approval(agent_name: str, command: str, summary: str, details: str = "",
             res_data = json.loads(res.read().decode("utf-8"))
             return res_data
     except urllib.error.URLError as e:
-        print(f"❌ [Agent Bridge Error] ネオ秘書くんローカルサーバー (ポート{port}) に接続できません: {e}", file=sys.stderr)
+        logger.error(f"ネオ秘書くんローカルサーバー (ポート{port}) に接続できません: {e}")
         return {"status": "error", "decision": "unreachable", "message": str(e)}
     except Exception as e:
-        print(f"❌ [Agent Bridge Error] 予期せぬエラー: {e}", file=sys.stderr)
+        logger.error(f"予期せぬエラー: {e}")
         return {"status": "error", "decision": "error", "message": str(e)}
 
 def ask_question_api(agent_name: str, question: str, choices: Optional[List[str]] = None, details: str = "", timeout: int = 180, port: int = 8765) -> dict:
@@ -103,10 +112,10 @@ def ask_question_api(agent_name: str, question: str, choices: Optional[List[str]
         with urllib.request.urlopen(req, timeout=timeout + 5) as res:
             return json.loads(res.read().decode("utf-8"))
     except urllib.error.URLError as e:
-        print(f"❌ [Agent Bridge Error] ネオ秘書くんローカルサーバー (ポート{port}) に接続できません: {e}", file=sys.stderr)
+        logger.error(f"ネオ秘書くんローカルサーバー (ポート{port}) に接続できません: {e}")
         return {"status": "error", "decision": "unreachable", "message": str(e)}
     except Exception as e:
-        print(f"❌ [Agent Bridge Error] 予期せぬエラー: {e}", file=sys.stderr)
+        logger.error(f"予期せぬエラー: {e}")
         return {"status": "error", "decision": "error", "message": str(e)}
 
 def notify_event(agent_name: str, title: str, message: str = "", details: str = "", reaction: str = "celebrate", port: int = 8765) -> dict:
@@ -160,17 +169,21 @@ def main():
             port=args.port
         )
         if result.get("status") == "error":
+            logger.error(f"サーバー処理エラー: {result.get('message')}")
             print(f"\n❌ [Agent Bridge Error] サーバー処理エラー: {result.get('message')}", file=sys.stderr)
             sys.exit(5)
         decision = str(result.get("decision", "unknown")).lower().strip()
         answer = result.get("answer", "")
         if decision in ("answered", "approve", "approved"):
+            logger.info(f"スマホから【回答】を受信: 『{answer}』")
             print(f"\n🎉 [Agent Bridge] ✓ スマホから【回答】を受信しました: 『{answer}』")
             sys.exit(0)
         elif decision in ("expired", "timeout"):
+            logger.info("待機タイムアウト")
             print("\n⏰ [Agent Bridge] ⌛ 待機タイムアウト（PCまたは他で操作継続）。")
             sys.exit(3)
         else:
+            logger.info(f"応答: {decision} ({answer})")
             print(f"\n💬 [Agent Bridge] 応答: {decision} ({answer})")
             sys.exit(0)
 
@@ -185,9 +198,11 @@ def main():
             port=args.port
         )
         if result.get("status") == "success":
+            logger.info(f"ペットへ作業完了通知を送信: {args.agent}: {args.notify}")
             print(f"🎉 [Agent Bridge Notify] ペットへ作業完了通知を送信しました！（{args.agent}: {args.notify}）")
             sys.exit(0)
         else:
+            logger.error(f"通知送信失敗: {result.get('message')}")
             print(f"❌ [Agent Bridge Error] 通知送信失敗: {result.get('message')}", file=sys.stderr)
             sys.exit(1)
 

@@ -185,6 +185,29 @@ class LLMFactory:
         }
     }
 
+    # クラウドAPI必須プロバイダ（api_key_env が None でないプロバイダのキー名一覧）
+    CLOUD_API_KEY_ENVS: List[str] = [
+        config["api_key_env"]
+        for config in DEFAULT_CONFIGS.values()
+        if config.get("api_key_env")
+    ]
+
+    @staticmethod
+    def check_any_api_key_configured() -> bool:
+        """1つ以上のLLM APIキーが環境変数に設定されているかを確認する。
+
+        LOCAL_GGUF / OLLAMA / LM_STUDIO 等のローカルプロバイダはキー不要。
+        最低1つのクラウドプロバイダまたはカスタムエンドポイントのキーが
+        設定されていれば True を返す。
+
+        Returns:
+            bool: 有効なAPIキーが1つ以上存在する場合 True。
+        """
+        for env_key in LLMFactory.CLOUD_API_KEY_ENVS:
+            if os.getenv(env_key, "").strip():
+                return True
+        return False
+
     def __init__(self, default_provider: Optional[str] = None):
         """ファクトリの初期化"""
         load_dotenv(dotenv_path=ENV_PATH, override=True)

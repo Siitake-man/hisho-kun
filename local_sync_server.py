@@ -21,6 +21,7 @@ from pathlib import Path
 from typing import Dict, Any, Optional, List, Set
 
 import database
+from update_checker import get_update_status
 
 logger = logging.getLogger(__name__)
 
@@ -365,7 +366,12 @@ class AgentBridgeHub:
             return None
 
     def respond(self, request_id: str, decision: str, message: str = "") -> bool:
-        """承認応答を処理する（後方互換ラッパー）。
+        """承認応答を処理する（後方互換ラッパー／非推奨）。
+
+        ⚠️ **非推奨 (Deprecated)**: セキュリティ上の理由から `respond_checked()`
+        の使用を強く推奨します。`respond()` は `responder_ip=None` で呼び出すため、
+        自己承認(RCE)防止チェックがバイパスされます。呼び出し側は `responder_ip`
+        を明示的に指定する `respond_checked()` に移行してください。
 
         Args:
             request_id (str): 対象リクエストID。
@@ -375,6 +381,10 @@ class AgentBridgeHub:
         Returns:
             bool: 処理成功の場合 True。
         """
+        logger.warning(
+            f"⚠️ [Deprecated] `respond()` が呼ばれました (ID={request_id}) — "
+            "自己承認チェックがバイパスされます。`respond_checked()` への移行を推奨します。"
+        )
         ok, _reason = self.respond_checked(request_id, decision, message, responder_ip=None)
         return ok
 
@@ -490,7 +500,6 @@ class DeskPetSyncHandler(SimpleHTTPRequestHandler):
             Dict[str, Any]: 更新状態辞書。取得失敗時は update_available=False。
         """
         try:
-            from update_checker import get_update_status
             return get_update_status()
         except Exception as e:
             logger.warning(f"更新状態ペイロードの生成に失敗 (無視): {e}")
@@ -931,6 +940,16 @@ class DeskPetSyncHandler(SimpleHTTPRequestHandler):
             self.wfile.write(json.dumps({"status": "buzz_triggered"}, ensure_ascii=False).encode("utf-8"))
 
         # 4. 通常のDesk Petアクション (POST /api/action)
+        #
+        # 🔐 セキュリティ設計 (2026-08-26 S-1 対応):
+        #   - /api/action は AGENT_ONLY_PATHS に含めず、スマートフォンPWAからも
+        #     Bearer 認証経由でアクセス可能にする。
+        #   - 理由: スマホPWAは show_pc_pet / complete_task / toggle_habit 等の
+        #     ユーザー操作をこのエンドポイント経由で実行する必要がある。
+        #   - AGENT_ONLY_PATHS の本来の目的は「承認要請の作成を localhost に制限する
+        #     (RCEチェーン遮断)」であり、/api/action は承認要請を作成しないため
+        #     追加制限不要。Bearer 認証が既に適用されている。
+        #   - 監査: 全アクションの呼び出しを client_ip 付きでログ出力する。
         elif self.path == "/api/action":
             get_link_monitor().record_heartbeat(client_ip, user_agent)
             self.send_response(200)
@@ -941,6 +960,7 @@ class DeskPetSyncHandler(SimpleHTTPRequestHandler):
             try:
                 data = json.loads(body.decode("utf-8"))
                 action = data.get("action")
+                logger.info(f"📱 /api/action 呼び出し: action={action}, client_ip={client_ip}")
                 
                 if action == "complete_task":
                     task_id = data.get("task_id")

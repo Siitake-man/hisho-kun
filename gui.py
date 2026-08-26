@@ -7,6 +7,7 @@ CustomTkinterを用いたUIコンポーネント。
 """
 import queue
 import time
+import os
 import customtkinter as ctk
 import tkinter as tk
 from typing import Callable, Optional, Dict, Any, List
@@ -19,6 +20,8 @@ from ui.qr_dialog import QRCodeConnectionDialog
 from ui.settings_window import SettingsWindow, AddMCPServerDialog, SuggestSettingsDialog
 from ui.calendar_window import CalendarWindow
 from ui.sticky_note import StickyNoteWindow, DraggableStickyNote
+from tour_engine import get_tour_engine
+from llm_factory import LLMFactory
 
 logger = logging.getLogger(__name__)
 
@@ -240,6 +243,9 @@ class NeoSecretaryGUI:
 
         # 🎓 初回起動検出 → ツアー自動開始
         self.after(2000, self._check_first_launch_tour)
+
+        # ⚠️ LLM APIキー有無チェック (C-4 / K0-3)
+        self.after(2500, self._check_api_key_warning)
 
     def _build_radial_menu(self):
         """サークルメニューのボタン群を構築（6ボタン放射状配置）"""
@@ -1121,7 +1127,6 @@ class NeoSecretaryGUI:
 
     def _do_tour_action(self, action: str) -> None:
         """ツアーナビゲーションボタンからのアクションを処理する。"""
-        from tour_engine import get_tour_engine
         e = get_tour_engine()
         if action == "next":
             e.next()
@@ -1144,9 +1149,22 @@ class NeoSecretaryGUI:
             self._tour_overlay = None
         self._tour_canvas = None
 
+    def _check_api_key_warning(self) -> None:
+        """LLM APIキーが未設定の場合、吹き出しに警告を表示する (C-4 / K0-3)。"""
+        try:
+            if not LLMFactory.check_any_api_key_configured():
+                self.update_message(
+                    "⚠️ AIモデルが利用できません！\n\n"
+                    "【原因】.env ファイルにLLMのAPIキーが設定されていません。\n"
+                    "【対処】⚙ 設定（右下）→ AIモデルタブからキーを設定してください。\n\n"
+                    "ローカルLLM（LM Studio等）を使う場合はキー不要です。"
+                )
+                logger.warning("⚠️ LLM APIキーが未設定です。GUIに警告を表示しました。")
+        except Exception as e:
+            logger.debug(f"APIキーチェックスキップ: {e}")
+
     def _check_first_launch_tour(self) -> None:
         """初回起動かどうかを確認し、未完了ならツアーを自動開始する。"""
-        import os
         flag_file = os.path.join(os.path.dirname(__file__), "backups", ".tour_completed")
         if not os.path.exists(flag_file):
             self.update_message(
@@ -1159,7 +1177,6 @@ class NeoSecretaryGUI:
 
     def _start_tour(self) -> None:
         """秘書くんツアーを開始する。右クリックメニューや初回起動時から呼ばれる。"""
-        from tour_engine import get_tour_engine
         e = get_tour_engine()
         e.set_on_step(lambda step, idx, total: self.post_action(
             self._on_tour_step, step, idx, total
@@ -1171,7 +1188,6 @@ class NeoSecretaryGUI:
     def _on_tour_complete(self) -> None:
         """ツアー完了後処理。"""
         self._destroy_tour_overlay()
-        import os
         flag_dir = os.path.join(os.path.dirname(__file__), "backups")
         os.makedirs(flag_dir, exist_ok=True)
         with open(os.path.join(flag_dir, ".tour_completed"), "w") as f:
