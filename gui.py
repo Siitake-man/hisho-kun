@@ -242,10 +242,10 @@ class NeoSecretaryGUI:
         self._schedule_animation()
 
         # 🎓 初回起動検出 → ツアー自動開始（K4-1: 1.5秒に短縮）
-        self.after(1500, self._check_first_launch_tour)
+        self.root.after(1500, self._check_first_launch_tour)
 
         # ⚠️ LLM APIキー有無チェック (C-4 / K0-3)
-        self.after(2500, self._check_api_key_warning)
+        self.root.after(2500, self._check_api_key_warning)
 
     def _build_radial_menu(self):
         """サークルメニューのボタン群を構築（6ボタン放射状配置）"""
@@ -1173,7 +1173,7 @@ class NeoSecretaryGUI:
                 "これから使い方をご案内しますね。\n\n"
                 "（すぐにスタートします）"
             )
-            self.after(1500, self._start_tour)
+            self.root.after(1500, self._start_tour)
 
     def _start_tour(self) -> None:
         """秘書くんツアーを開始する。右クリックメニューや初回起動時から呼ばれる。"""

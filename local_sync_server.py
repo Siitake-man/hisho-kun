@@ -989,7 +989,7 @@ class DeskPetSyncHandler(SimpleHTTPRequestHandler):
             try:
                 data = json.loads(body.decode("utf-8"))
                 action = data.get("action")
-                logger.info(f"📱 /api/action 呼び出し: action={action}, client_ip={client_ip}")
+                logger.debug(f"📱 /api/action 呼び出し: action={action}, client_ip={client_ip}")
                 
                 if action == "complete_task":
                     task_id = data.get("task_id")
@@ -1072,7 +1072,7 @@ class DeskPetSyncHandler(SimpleHTTPRequestHandler):
                     self.wfile.write(json.dumps({"status": "success", "state": state}).encode("utf-8"))
                     return
                 elif action == "ping_test":
-                    logger.info(f"📶 スマホからPingテスト受信 ({client_ip})")
+                    logger.debug(f"📶 スマホからPingテスト受信 ({client_ip})")
                     self.wfile.write(json.dumps({"status": "pong", "server_time": int(time.time() * 1000)}).encode("utf-8"))
                     return
                 elif action == "voice_command":
