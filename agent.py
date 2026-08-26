@@ -5,7 +5,7 @@ LangGraphを用いたステートマシンベースのエージェント定義�
 AIの「頭脳」として機能し、後にGUI(CustomTkinter)と連携します。
 """
 import logging
-from typing import Annotated, TypedDict, Literal
+from typing import Annotated, TypedDict, Literal, List
 import os
 from datetime import datetime
 
@@ -127,9 +127,14 @@ def planner_node(state: AgentState):
         if mcp_tools:
             mcp_info = f"- 外部MCPツール（{len(mcp_tools)}件）: 有効化された外部サービス連携ツールも活用してください。\n"
 
+        # キャラクターのペルソナシステムプロンプトを注入（キャラ切替でAIの性格が変わる）
+        from character_manager import get_character_manager
+        character_prompt = get_character_manager().get_character_system_prompt()
+
         sys_prompt = (
             f"あなたは有能な専属秘書アシスタント「ネオ秘書くん」です。\n"
             f"現在時刻は {current_time} です。\n\n"
+            f"{character_prompt}\n"
             f"{insights_text}"
             f"【行動指針】\n"
             f"1. ユーザーからの指示に対して、与えられたツール（予定作成/取得、TODOタスク作成/取得/完了、付箋作成、知見記憶/参照、画面キャプチャ/エラー解析）を使ってサポートしてください。\n"

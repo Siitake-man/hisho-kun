@@ -139,7 +139,7 @@ class NeoSecretaryGUI:
             text="📔 手帳",
             width=50,
             height=20,
-            font=("Meiryo UI", 9, "bold"),
+            font=("DotGothic16", 9, "bold") if "DotGothic16" in tk.font.families() else ("Meiryo UI", 9, "bold"),
             fg_color="#A67B5B",
             text_color="#FFFFFF",
             hover_color="#8B634A",
@@ -241,8 +241,8 @@ class NeoSecretaryGUI:
         self._render_mascot("idle_1")
         self._schedule_animation()
 
-        # 🎓 初回起動検出 → ツアー自動開始
-        self.after(2000, self._check_first_launch_tour)
+        # 🎓 初回起動検出 → ツアー自動開始（K4-1: 1.5秒に短縮）
+        self.after(1500, self._check_first_launch_tour)
 
         # ⚠️ LLM APIキー有無チェック (C-4 / K0-3)
         self.after(2500, self._check_api_key_warning)
@@ -1171,9 +1171,9 @@ class NeoSecretaryGUI:
                 "🎓 はじめまして、ボス！\n"
                 "初めてのご利用ありがとうございます！\n"
                 "これから使い方をご案内しますね。\n\n"
-                "（2秒後に自動スタートします）"
+                "（すぐにスタートします）"
             )
-            self.after(3000, self._start_tour)
+            self.after(1500, self._start_tour)
 
     def _start_tour(self) -> None:
         """秘書くんツアーを開始する。右クリックメニューや初回起動時から呼ばれる。"""

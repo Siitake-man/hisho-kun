@@ -1209,6 +1209,16 @@ async function respondApproval(decision, ev, answerText) {
       body: JSON.stringify({ request_id: req.request_id, decision, message: answerText || '' })
     });
     if (res.ok) {
+      const data = await res.json().catch(() => ({}));
+      if (data.status === 'expired') {
+        showToast('⏰ この質問は期限切れです');
+        currentApprovalRequest = null;
+        currentActiveEvent = null;
+        const banner = document.getElementById('active-event-banner');
+        if (banner) banner.style.display = 'none';
+        fetchStatus();
+        return;
+      }
       currentApprovalRequest = null;
       currentActiveEvent = null;
       const banner = document.getElementById('active-event-banner');
@@ -1258,7 +1268,8 @@ function openEventsModal() {
   const count = eventsData ? eventsData.length : 0;
   let html = '';
   if (count === 0) {
-    html = '<div class="note-empty">📅 登録された予定はありません。<br>PC側の手帳やAIチャットで追加できます。</div>';
+    html = '<div class="note-empty">📅 登録された予定はありません。<br>PC側の手帳やAIチャットで追加できます。</div>' +
+      '<div class="approval-sheet-actions" style="margin-top:8px;"><button class="btn-approve" onclick="closeBottomSheet();showToast(\'📱 PC側でGoogleカレンダー連携を設定してください\')">⚙ 設定から連携する</button></div>';
   } else {
     html = eventsData.map(e => {
       const dt = String(e.start_time || '').replace('T', ' ').slice(0, 16);

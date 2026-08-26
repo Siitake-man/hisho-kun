@@ -75,6 +75,19 @@ class SyncTokenManager:
             )
         logger.info(f"🔐 [SyncAuth] ペアリングモードを {duration_sec} 秒間開放しました")
 
+    def _save_token(self) -> None:
+        """トークンを .sync_token へアトミックに書き込む。
+
+        読み取りとの競合を防ぐため、一時ファイルに書き込んでからリネームする。
+        """
+        try:
+            tmp = TOKEN_FILE.with_suffix(".sync_token.tmp")
+            tmp.write_text(self._token, encoding="utf-8")
+            tmp.replace(TOKEN_FILE)
+        except Exception as e:
+            logger.warning(f".sync_token のアトミック書き込みに失敗（直接書き込みにフォールバック）: {e}")
+            TOKEN_FILE.write_text(self._token, encoding="utf-8")
+
     def _load_or_create(self) -> None:
         """既存トークンを読み込み、無ければ新規生成して保存する。"""
         try:
@@ -86,7 +99,7 @@ class SyncTokenManager:
                     return
             # 32バイト=256bit の暗号論的乱数をhex化（64文字）
             self._token = secrets.token_hex(32)
-            TOKEN_FILE.write_text(self._token, encoding="utf-8")
+            self._save_token()
             logger.info(f"🔐 [SyncAuth] 新しい同期トークンを生成しました: {TOKEN_FILE.name}")
         except Exception as e:
             # トークンファイルI/O失敗時もセッション限定トークンで運用継続（Fail-Closedではないが可用性優先）
@@ -389,10 +402,11 @@ class AgentBridgeHub:
         return ok
 
     def respond_checked(self, request_id: str, decision: str, message: str = "", responder_ip: Optional[str] = None) -> tuple:
-        """承認応答を処理し、自己承認(RCE)防止チェックを行う拡張版。
+        """承認応答を処理し、自己承認(RCE)防止チェックと期限切れ検知を行う拡張版。
 
         要求元IP(requester_ip)と同一IPからの応答は人間による承認とみなさず拒否する。
         これにより「攻撃者が自作した承認要請を自分で承認する」RCEチェーンを遮断する。
+        また、タイムアウト（timeout_at）を超過したリクエストは期限切れとして拒否する。
 
         Args:
             request_id (str): 対象リクエストID。
@@ -401,11 +415,21 @@ class AgentBridgeHub:
             responder_ip (Optional[str]): 応答元クライアントのIPアドレス。Noneの場合チェックをスキップする。
 
         Returns:
-            tuple[bool, str]: (処理成功可否, 理由コード)。理由コードは 'ok' / 'not_found' / 'self_approve_denied'。
+            tuple[bool, str]: (処理成功可否, 理由コード)。理由コードは 'ok' / 'not_found' / 'self_approve_denied' / 'expired'。
         """
         with self._lock:
             req = self.pending_requests.get(request_id)
-            if not req or req.status != "pending":
+            if not req:
+                return False, "not_found"
+            # 期限切れ検知: timeout_at を超過している場合は拒否する
+            # wait_decision=False の非同期質問でもタイムアウト後にタップされるとここで検知される
+            if req.timeout_at is not None and time.time() > req.timeout_at:
+                logger.warning(
+                    f"⏰ 期限切れリクエストの応答を拒否: ID={request_id} (status={req.status})"
+                )
+                req.status = "expired"
+                return False, "expired"
+            if req.status != "pending":
                 return False, "not_found"
             # 自己承認防止: 承認要請を作成したクライアントと同一IPからの応答を拒否する
             if responder_ip and req.requester_ip and responder_ip == req.requester_ip:
@@ -870,6 +894,11 @@ class DeskPetSyncHandler(SimpleHTTPRequestHandler):
                     status_payload = {
                         "status": "error",
                         "message": "自己承認は禁止されています（要求元と同じ端末からの承認は無効）"
+                    }
+                elif reason == "expired":
+                    status_payload = {
+                        "status": "expired",
+                        "message": "この承認要請・質問は期限切れです（タイムアウトしました）。エージェントに再問い合わせしてください。"
                     }
                 else:
                     status_payload = {"status": "not_found", "message": "対象のリクエストが見つかりません"}

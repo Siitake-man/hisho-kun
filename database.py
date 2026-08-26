@@ -50,6 +50,11 @@ def get_db_connection(db_path: str = "neo_secretary.db") -> Generator[sqlite3.Co
         conn.execute("PRAGMA journal_mode=WAL;")
         conn.execute("PRAGMA synchronous=NORMAL;")
         conn.execute("PRAGMA busy_timeout=30000;")
+        # WALチェックポイントを実行してWALファイル肥大化を防止（K3-1 / Blind2 対応）
+        try:
+            conn.execute("PRAGMA wal_checkpoint(TRUNCATE);")
+        except Exception:
+            pass
         yield conn
         conn.commit()
     except Exception as e:

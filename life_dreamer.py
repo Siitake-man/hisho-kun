@@ -60,7 +60,7 @@ class LifeDreamerEngine:
             "current_activity": "resting",
             "weather": "sunny",
             "temperature": 20.0,
-            "city": "取得中…",
+            "city": "",
             "message": "",
             "last_generated_at": 0.0,
             "history": [],

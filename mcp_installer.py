@@ -101,14 +101,17 @@ def _backup_file(target: Path) -> None:
         logger.info(f"設定バックアップ作成: {backup}")
 
 
-def install_to_tool(tool_name: str = "antigravity") -> Tuple[bool, str]:
+def install_to_tool(tool_name: str = "antigravity", force: bool = False) -> Tuple[bool, str]:
     """指定クライアントのMCP設定JSONへ neo_hisho_bridge を自動追記・登録する。
 
     既存の他サーバー定義は保持したままマージのみ行う (冪等実装)。
     書き込み前に必ず .bak バックアップを作成し、失敗時もユーザー設定を壊さない。
+    --force 指定時は既存エントリを上書きする（通常は冪等のため無意味だが、
+    設定パスが変わった場合等に使用）。
 
     Args:
         tool_name: 対応クライアントID (--list で一覧表示)。
+        force: True の場合、既存の neo_hisho_bridge エントリを強制上書きする。
 
     Returns:
         Tuple[bool, str]: (成功フラグ, 結果メッセージ)
@@ -171,15 +174,18 @@ def get_target_config_paths() -> Dict[str, Path]:
     return {tool_id: entry["path"] for tool_id, entry in _build_tool_registry().items()}
 
 
-def install_to_all() -> Dict[str, Tuple[bool, str]]:
+def install_to_all(force: bool = False) -> Dict[str, Tuple[bool, str]]:
     """対応全クライアントへ neo_hisho_bridge を一括登録する。
+
+    Args:
+        force: True の場合、既存エントリを強制上書きする。
 
     Returns:
         Dict[str, Tuple[bool, str]]: クライアントID → (成功フラグ, メッセージ)
     """
     results: Dict[str, Tuple[bool, str]] = {}
     for tool_id in _build_tool_registry():
-        results[tool_id] = install_to_tool(tool_id)
+        results[tool_id] = install_to_tool(tool_id, force=force)
     return results
 
 
@@ -201,6 +207,7 @@ def main(argv: Any = None) -> int:
         help="指定クライアントへ登録 (例: --tool claude_desktop cursor)"
     )
     parser.add_argument("--list", action="store_true", help="対応クライアントと設定パスを表示")
+    parser.add_argument("--force", action="store_true", help="既存の neo_hisho_bridge エントリを強制上書き（設定パス変更時など）")
     args = parser.parse_args(argv)
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
@@ -216,13 +223,15 @@ def main(argv: Any = None) -> int:
     if args.all or not args.tool:
         # 引数なしは --all 扱い (「1コマンド原則」— エージェントからの実行ミスを防ぐ)
         targets = list(registry.keys())
+        use_force = args.force
     else:
         targets = args.tool
+        use_force = args.force
 
     exit_code = 0
     print("=== ネオ秘書くん MCP自動セットアップ ===")
     for tool_id in targets:
-        ok, message = install_to_tool(tool_id)
+        ok, message = install_to_tool(tool_id, force=use_force)
         print(message)
         if not ok:
             exit_code = 1

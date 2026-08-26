@@ -13,6 +13,7 @@ Codex, Claude Code, Antigravity, Cursor, Aider 等のコーディングエージ
 import sys
 import json
 import argparse
+import time
 import urllib.request
 import urllib.error
 import logging
@@ -34,14 +35,25 @@ SYNC_TOKEN_FILE = Path(__file__).resolve().parent / ".sync_token"
 def get_sync_token() -> str:
     """ローカル同期サーバー用のBearerトークン (.sync_token) を読み込む。
 
+    書き込み中の競合を避けるため、空文字列取得時は最大3回リトライする。
+    ファイルが存在しない場合の空文字列返却は正常動作（ペアリング前）。
+
     Returns:
         str: トークン文字列。ファイル未作成の場合は空文字列。
     """
-    try:
-        if SYNC_TOKEN_FILE.exists():
-            return SYNC_TOKEN_FILE.read_text(encoding="utf-8").strip()
-    except Exception as e:
-        logger.error(f".sync_token の読み込みに失敗しました: {e}")
+    for attempt in range(3):
+        try:
+            if SYNC_TOKEN_FILE.exists():
+                token = SYNC_TOKEN_FILE.read_text(encoding="utf-8").strip()
+                if token:
+                    return token
+                # 空文字 → 競合の可能性。少し待ってリトライ
+                if attempt < 2:
+                    time.sleep(0.05)
+                    continue
+        except Exception as e:
+            logger.error(f".sync_token の読み込みに失敗しました: {e}")
+            return ""
     return ""
 
 def _post_to_hub(path: str, payload: Dict[str, Any], timeout: int = 185, port: int = 8765) -> Dict[str, Any]:
