@@ -44,8 +44,43 @@ def get_sync_token() -> str:
         logger.error(f".sync_token の読み込みに失敗しました: {e}")
     return ""
 
+def _post_to_hub(path: str, payload: Dict[str, Any], timeout: int = 185, port: int = 8765) -> Dict[str, Any]:
+    """ネオ秘書くんローカル同期サーバーのAPIエンドポイントにJSON POSTリクエストを送信する共通ヘルパー。
+
+    全API呼び出し（承認要請・質問・通知）はこの関数を経由することで、
+    urllib.request.Request の構築とBearer認証ヘッダー付与のコード重複を排除する。
+
+    Args:
+        path (str): APIパス（例: '/api/agent/ask', '/api/agent/notify'）。
+        payload (Dict[str, Any]): POSTするJSONペイロード。
+        timeout (int, optional): タイムアウト秒数。 Defaults to 185（180+5バッファ）。
+        port (int, optional): サーバーポート番号。 Defaults to 8765。
+
+    Returns:
+        Dict[str, Any]: レスポンスJSON辞書。エラー時は status=error を含む。
+    """
+    url = f"http://localhost:{port}{path}"
+    req = urllib.request.Request(
+        url,
+        data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
+        headers={
+            "Content-Type": "application/json; charset=utf-8",
+            "Authorization": f"Bearer {get_sync_token()}"
+        },
+        method="POST"
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as res:
+            return json.loads(res.read().decode("utf-8"))
+    except urllib.error.URLError as e:
+        logger.error(f"ネオ秘書くんローカルサーバー (ポート{port}) に接続できません: {e}")
+        return {"status": "error", "decision": "unreachable", "message": str(e)}
+    except Exception as e:
+        logger.error(f"予期せぬエラー: {e}")
+        return {"status": "error", "decision": "error", "message": str(e)}
+
+
 def ask_approval(agent_name: str, command: str, summary: str, details: str = "", timeout: int = 180, port: int = 8765) -> dict:
-    url = f"http://localhost:{port}/api/agent/ask"
     payload = {
         "agent_name": agent_name,
         "command": command,
@@ -54,35 +89,15 @@ def ask_approval(agent_name: str, command: str, summary: str, details: str = "",
         "timeout": timeout,
         "wait_decision": True
     }
-    
-    req = urllib.request.Request(
-        url,
-        data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
-        headers={
-            "Content-Type": "application/json; charset=utf-8",
-            "Authorization": f"Bearer {get_sync_token()}"
-        },
-        method="POST"
-    )
-    
+
     print(f"🤖 [{agent_name}] スマホDesk Petへ承認要請を送信中...")
     print(f"   📋 概要: {summary}")
     print(f"   💻 コマンド: {command}")
     print(f"   ⏳ スマホでのタップを待機しています（最大 {timeout} 秒）...")
-    
-    try:
-        with urllib.request.urlopen(req, timeout=timeout + 5) as res:
-            res_data = json.loads(res.read().decode("utf-8"))
-            return res_data
-    except urllib.error.URLError as e:
-        logger.error(f"ネオ秘書くんローカルサーバー (ポート{port}) に接続できません: {e}")
-        return {"status": "error", "decision": "unreachable", "message": str(e)}
-    except Exception as e:
-        logger.error(f"予期せぬエラー: {e}")
-        return {"status": "error", "decision": "error", "message": str(e)}
+
+    return _post_to_hub("/api/agent/ask", payload, timeout=timeout + 5, port=port)
 
 def ask_question_api(agent_name: str, question: str, choices: Optional[List[str]] = None, details: str = "", timeout: int = 180, port: int = 8765) -> dict:
-    url = f"http://localhost:{port}/api/agent/ask_input"
     payload = {
         "agent_name": agent_name,
         "question": question,
@@ -91,35 +106,16 @@ def ask_question_api(agent_name: str, question: str, choices: Optional[List[str]
         "timeout": timeout,
         "wait_decision": True
     }
-    
-    req = urllib.request.Request(
-        url,
-        data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
-        headers={
-            "Content-Type": "application/json; charset=utf-8",
-            "Authorization": f"Bearer {get_sync_token()}"
-        },
-        method="POST"
-    )
-    
+
     print(f"🤖 [{agent_name}] スマホDesk Petへ質問・確認を送信中...")
     print(f"   ❓ 質問: {question}")
     if choices:
         print(f"   🔘 選択肢: {', '.join(choices)}")
     print(f"   ⏳ スマホまたはPCでの回答を待機しています（最大 {timeout} 秒）...")
-    
-    try:
-        with urllib.request.urlopen(req, timeout=timeout + 5) as res:
-            return json.loads(res.read().decode("utf-8"))
-    except urllib.error.URLError as e:
-        logger.error(f"ネオ秘書くんローカルサーバー (ポート{port}) に接続できません: {e}")
-        return {"status": "error", "decision": "unreachable", "message": str(e)}
-    except Exception as e:
-        logger.error(f"予期せぬエラー: {e}")
-        return {"status": "error", "decision": "error", "message": str(e)}
+
+    return _post_to_hub("/api/agent/ask_input", payload, timeout=timeout + 5, port=port)
 
 def notify_event(agent_name: str, title: str, message: str = "", details: str = "", reaction: str = "celebrate", port: int = 8765) -> dict:
-    url = f"http://localhost:{port}/api/agent/notify"
     payload = {
         "agent_name": agent_name,
         "title": title,
@@ -127,20 +123,7 @@ def notify_event(agent_name: str, title: str, message: str = "", details: str = 
         "details": details,
         "reaction": reaction
     }
-    req = urllib.request.Request(
-        url,
-        data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
-        headers={
-            "Content-Type": "application/json; charset=utf-8",
-            "Authorization": f"Bearer {get_sync_token()}"
-        },
-        method="POST"
-    )
-    try:
-        with urllib.request.urlopen(req, timeout=5) as res:
-            return json.loads(res.read().decode("utf-8"))
-    except Exception as e:
-        return {"status": "error", "message": str(e)}
+    return _post_to_hub("/api/agent/notify", payload, timeout=10, port=port)
 
 def main():
     parser = argparse.ArgumentParser(description="ネオ秘書くん Agent Bridge CLI クライアント")

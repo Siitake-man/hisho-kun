@@ -24,8 +24,6 @@ else:
 
 import json
 import logging
-import urllib.request
-import urllib.error
 from typing import Dict, Any, List, Optional
 
 # プロジェクトルートパスの設定
@@ -35,8 +33,8 @@ if PROJECT_ROOT not in sys.path:
 
 import database
 
-# 同期サーバーBearer認証用トークン取得ヘルパーを agent_bridge_client から借用 (DRY原則)
-from agent_bridge_client import get_sync_token
+# 同期サーバーBearer認証用HTTP POST共通関数を agent_bridge_client から借用 (DRY原則)
+from agent_bridge_client import _post_to_hub
 
 # ロギング設定（stdio通信を汚さないため stderr に出力）
 logging.basicConfig(
@@ -45,9 +43,6 @@ logging.basicConfig(
     handlers=[logging.StreamHandler(sys.stderr)]
 )
 logger = logging.getLogger("hisho_mcp_server")
-
-# ポート番号（ネオ秘書くんローカル同期サーバー）
-BRIDGE_HUB_PORT = 8765
 
 
 # =============================================================================
@@ -74,7 +69,6 @@ def execute_ask_human_approval(
         Dict[str, Any]: 判定結果 (status, decision, message)
     """
     effective_summary = summary if summary.strip() else f"『{command}』の実行許可"
-    url = f"http://localhost:{BRIDGE_HUB_PORT}/api/agent/ask"
     payload = {
         "agent_name": agent_name,
         "command": command,
@@ -85,45 +79,25 @@ def execute_ask_human_approval(
     }
 
     logger.info(f"スマホへ承認要請を送信: {command} (概要: {effective_summary})")
+    res_data = _post_to_hub("/api/agent/ask", payload, timeout=timeout_sec + 5)
 
-    try:
-        req = urllib.request.Request(
-            url,
-            data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
-            headers={
-                "Content-Type": "application/json; charset=utf-8",
-                "Authorization": f"Bearer {get_sync_token()}"
-            },
-            method="POST"
-        )
-        with urllib.request.urlopen(req, timeout=timeout_sec + 5) as res:
-            res_data = json.loads(res.read().decode("utf-8"))
-            decision = res_data.get("decision", "unknown")
-            logger.info(f"スマホからの判定を受信: {decision}")
-            return {
-                "status": "success",
-                "decision": decision,
-                "command": command,
-                "message": res_data.get("message", ""),
-                "approved": decision in ("approve", "approved")
-            }
-    except urllib.error.URLError as e:
-        err_msg = f"ネオ秘書くんローカルサーバー (ポート{BRIDGE_HUB_PORT}) に接続できません: {e}"
-        logger.warning(err_msg)
+    if res_data.get("status") == "error":
         return {
             "status": "error",
-            "decision": "unreachable",
+            "decision": "unreachable" if "接続できません" in str(res_data.get("message", "")) else "error",
             "approved": False,
-            "message": "ネオ秘書くん（python main.py）が起動していないため、スマホと通信できませんでした。"
+            "message": res_data.get("message", "通信に失敗しました")
         }
-    except Exception as e:
-        logger.error(f"承認要請エラー: {e}")
-        return {
-            "status": "error",
-            "decision": "error",
-            "approved": False,
-            "message": str(e)
-        }
+
+    decision = res_data.get("decision", "unknown")
+    logger.info(f"スマホからの判定を受信: {decision}")
+    return {
+        "status": "success",
+        "decision": decision,
+        "command": command,
+        "message": res_data.get("message", ""),
+        "approved": decision in ("approve", "approved")
+    }
 
 
 def execute_notify_task_completed(
@@ -132,31 +106,19 @@ def execute_notify_task_completed(
     agent_name: str = "Codex"
 ) -> Dict[str, Any]:
     """作業完了をペットとスマホDesk Petへ通知し、大喜び（celebrate）させます。"""
-    url = f"http://localhost:{BRIDGE_HUB_PORT}/api/agent/notify"
     payload = {
         "agent_name": agent_name,
         "title": title,
         "message": message,
         "reaction": "celebrate"
     }
-    try:
-        req = urllib.request.Request(
-            url,
-            data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
-            headers={
-                "Content-Type": "application/json; charset=utf-8",
-                "Authorization": f"Bearer {get_sync_token()}"
-            },
-            method="POST"
-        )
-        with urllib.request.urlopen(req, timeout=5) as res:
-            res_data = json.loads(res.read().decode("utf-8"))
-            return {
-                "status": "success",
-                "message": f"ペットとスマホへ作業完了通知を送りました（{agent_name}: {title}）"
-            }
-    except Exception as e:
-        return {"status": "error", "message": f"通知送信失敗: {e}"}
+    res_data = _post_to_hub("/api/agent/notify", payload, timeout=10)
+    if res_data.get("status") == "error":
+        return {"status": "error", "message": f"通知送信失敗: {res_data.get('message', '')}"}
+    return {
+        "status": "success",
+        "message": f"ペットとスマホへ作業完了通知を送りました（{agent_name}: {title}）"
+    }
 
 
 def execute_notify_user_input_needed(
@@ -166,7 +128,6 @@ def execute_notify_user_input_needed(
     timeout_sec: int = 180
 ) -> Dict[str, Any]:
     """ユーザーへの確認・入力待ちをペットとスマホDesk Petへ送信し、選択肢または自由回答を受け取ります。"""
-    url = f"http://localhost:{BRIDGE_HUB_PORT}/api/agent/ask_input"
     parsed_choices = [c.strip() for c in choices.split(",") if c.strip()] if isinstance(choices, str) and choices else (choices if isinstance(choices, list) else [])
     payload = {
         "agent_name": agent_name,
@@ -175,28 +136,17 @@ def execute_notify_user_input_needed(
         "timeout": timeout_sec,
         "wait_decision": True
     }
-    try:
-        req = urllib.request.Request(
-            url,
-            data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
-            headers={
-                "Content-Type": "application/json; charset=utf-8",
-                "Authorization": f"Bearer {get_sync_token()}"
-            },
-            method="POST"
-        )
-        with urllib.request.urlopen(req, timeout=timeout_sec + 5) as res:
-            res_data = json.loads(res.read().decode("utf-8"))
-            decision = res_data.get("decision", "unknown")
-            answer = res_data.get("answer", "")
-            return {
-                "status": "success",
-                "decision": decision,
-                "answer": answer,
-                "message": f"スマホまたはPCから回答を受信しました: 『{answer}』" if answer else f"ステータス: {decision}"
-            }
-    except Exception as e:
-        return {"status": "error", "message": f"質問送信失敗: {e}"}
+    res_data = _post_to_hub("/api/agent/ask_input", payload, timeout=timeout_sec + 5)
+    if res_data.get("status") == "error":
+        return {"status": "error", "message": f"質問送信失敗: {res_data.get('message', '')}"}
+    decision = res_data.get("decision", "unknown")
+    answer = res_data.get("answer", "")
+    return {
+        "status": "success",
+        "decision": decision,
+        "answer": answer,
+        "message": f"スマホまたはPCから回答を受信しました: 『{answer}』" if answer else f"ステータス: {decision}"
+    }
 
 
 def execute_create_task(
