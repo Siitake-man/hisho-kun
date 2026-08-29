@@ -165,7 +165,14 @@ def execute_create_task(
         Dict[str, Any]: 登録結果 (status, task_id, message)
     """
     try:
-        task_id = database.create_task(title=title, priority=priority, memo=memo)
+        # Task モデル経由で登録する（priority は high/medium/low の文字列を 0-3 の整数へマッピング、memo は description へ格納）
+        priority_map: Dict[str, int] = {"high": 3, "medium": 2, "low": 1}
+        task_obj = database.Task(
+            title=title,
+            description=memo,
+            priority=priority_map.get(str(priority).strip().lower(), 0)
+        )
+        task_id = database.create_task(task_obj)
         logger.info(f"TODOタスクを作成しました: ID={task_id}, Title='{title}'")
         return {
             "status": "success",
@@ -177,6 +184,33 @@ def execute_create_task(
     except Exception as e:
         logger.error(f"タスク作成エラー: {e}")
         return {"status": "error", "message": f"タスク作成に失敗しました: {e}"}
+
+
+# UserInsight.category の許容パターン（database.UserInsight の pattern 制約と一致）
+INSIGHT_CATEGORY_MAP: Dict[str, str] = {
+    "制約": "Constraint",
+    "好み": "Preference",
+    "習慣": "Habit",
+    "開発方針": "Project",
+    "プロジェクト": "Project",
+    "constraint": "Constraint",
+    "preference": "Preference",
+    "habit": "Habit",
+    "project": "Project"
+}
+
+
+def _normalize_insight_category(category: str) -> str:
+    """日本語・大文字小文字を含むカテゴリ表記を UserInsight の正規カテゴリへ変換します。
+
+    Args:
+        category (str): ユーザー入力のカテゴリ表記。
+
+    Returns:
+        str: 正規化されたカテゴリ（未定義の場合は空文字）。
+    """
+    stripped = category.strip()
+    return INSIGHT_CATEGORY_MAP.get(stripped, INSIGHT_CATEGORY_MAP.get(stripped.lower(), ""))
 
 
 def execute_remember_boss_insight(
@@ -195,10 +229,17 @@ def execute_remember_boss_insight(
         Dict[str, Any]: 保存結果
     """
     try:
+        # UserInsight.category は固定パターンのため、日本語カテゴリを正規化してから保存する
+        normalized_category = _normalize_insight_category(category)
+        if not normalized_category:
+            return {
+                "status": "error",
+                "message": f"category は Constraint / Preference / Habit / Project（または 制約 / 好み / 習慣 / 開発方針）のいずれかで指定してください: {category}"
+            }
         insight_id = database.add_user_insight(
-            category=category,
+            category=normalized_category,
             content=content,
-            importance=importance
+            importance=max(1, min(5, int(importance)))
         )
         logger.info(f"MentisDBに知見を記憶しました: ID={insight_id}, Cat={category}")
         return {
@@ -227,8 +268,9 @@ def execute_get_boss_insights(
         List[Dict[str, Any]]: 知見リスト
     """
     try:
+        normalized_category = _normalize_insight_category(category)
         insights = database.get_user_insights(
-            category=category if category.strip() else None,
+            category=normalized_category if normalized_category else None,
             limit=limit
         )
         return [
@@ -256,14 +298,15 @@ def execute_get_pending_tasks(limit: int = 20) -> List[Dict[str, Any]]:
         List[Dict[str, Any]]: 未完了タスク一覧
     """
     try:
-        tasks = database.get_tasks(is_completed=False, limit=limit)
+        tasks = database.get_tasks(limit=limit)
         return [
             {
                 "id": t.id,
                 "title": t.title,
                 "priority": t.priority,
                 "due_date": t.due_date,
-                "memo": t.memo,
+                "memo": t.description,
+                "status": t.status,
                 "created_at": t.created_at
             }
             for t in tasks

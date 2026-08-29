@@ -881,6 +881,53 @@ def create_user_insight(insight: UserInsight, db_path: str = "neo_secretary.db")
         return insight_id
 
 
+def add_user_insight(
+    category: str,
+    content: str,
+    importance: int = 3,
+    context_tags: str = "",
+    db_path: str = "neo_secretary.db"
+) -> int:
+    """
+    新しいユーザー知見を user_insights テーブルに登録します。
+
+    Args:
+        category: 知見カテゴリ ('Constraint', 'Preference', 'Habit', 'Project')
+        content: 知見の本文
+        importance: 重要度 (1〜5, 5が最重要)
+        context_tags: 検索用カンマ区切りタグ
+        db_path: データベースファイルのパス
+
+    Returns:
+        作成された知見のID
+
+    Raises:
+        ValueError: category が許可パターン外の場合 (Pydantic 検証)
+    """
+    insight = UserInsight(
+        category=category,
+        content=content,
+        context_tags=context_tags,
+        importance=importance
+    )
+    with get_db_connection(db_path) as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO user_insights (category, content, context_tags, importance, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?)
+        """, (
+            insight.category,
+            insight.content,
+            insight.context_tags or "",
+            insight.importance,
+            insight.created_at,
+            insight.updated_at
+        ))
+        insight_id = cursor.lastrowid
+        logger.info(f"ユーザー知見を登録しました: ID={insight_id}, category={insight.category}")
+        return insight_id
+
+
 def get_user_insights(
     category: Optional[str] = None, 
     min_importance: int = 1,

@@ -285,7 +285,7 @@ class NeoSecretaryGUI:
         self.toggle_circle_menu()
         from character_manager import get_character_manager
         char_mgr = get_character_manager()
-        order = ["hisho", "kinoko", "seal"]
+        order = ["hisho", "kinoko", "seal", "retro_dolphin"]
         cur = char_mgr.current_character_id
         next_idx = (order.index(cur) + 1) % len(order) if cur in order else 0
         self.switch_character_skin(order[next_idx])
@@ -1058,6 +1058,9 @@ class NeoSecretaryGUI:
         self.root.mainloop()
 # =============================================================================
     # 🎓 オンボーディングツアー (tour_engine.py 統合)
+    # 設計: 不透明ガイドカード + ハイライトリング方式
+    # 従来のフルスクリーン半透明オーバーレイ(alpha依存)を廃止し、
+    # Windows Layered Window の描画破綻問題を根本解決。
     # =============================================================================
 
     def _on_tour_step(self, step: 'TourStep', index: int, total: int) -> None:
@@ -1066,64 +1069,168 @@ class NeoSecretaryGUI:
         self.set_pet_state("happy", duration_ms=3000)
         self._update_tour_overlay(step, index, total)
 
-    def _update_tour_overlay(self, step: 'TourStep', index: int, total: int) -> None:
-        """ツアースポットライトオーバーレイを更新する。"""
-        if not hasattr(self, '_tour_overlay') or self._tour_overlay is None:
-            self._tour_overlay = tk.Toplevel(self.root)
-            self._tour_overlay.overrideredirect(True)
-            self._tour_overlay.geometry(
-                f"{self.root.winfo_screenwidth()}x{self.root.winfo_screenheight()}+0+0"
-            )
-            self._tour_overlay.attributes('-topmost', True)
+    def _get_tour_target_rect(self, step: 'TourStep') -> tuple:
+        """ツアーターゲットウィジェットのスクリーン座標矩形を返す。
 
-        overlay = self._tour_overlay
-        cvs = getattr(self, '_tour_canvas', None)
-        if cvs is None:
-            cvs = tk.Canvas(overlay, highlightthickness=0, cursor='hand2')
-            cvs.pack(fill=tk.BOTH, expand=True)
-            self._tour_canvas = cvs
-
-        overlay.attributes('-alpha', 0.55)
-        overlay.configure(bg='#1a1a2e')
-        cvs.delete('all')
-
-        sw = self.root.winfo_screenwidth()
-        sh = self.root.winfo_screenheight()
-        cx, cy, radius = sw // 2, sh // 3, 180
+        Returns:
+            (left, top, right, bottom) — ターゲット領域のスクリーン座標。
+            最低サイズ(80x80)を保証する。
+        """
+        self.root.update_idletasks()
 
         if step.target_region == "pet":
-            cx, cy, radius = sw - 220, sh - 180, 160
+            w = self.char_canvas
         elif step.target_region == "menu":
-            cx, cy, radius = sw - 80, 50, 100
+            w = self.menu_btn
         elif step.target_region == "calendar":
-            cx, cy, radius = sw - 160, 50, 100
+            w = self.btn_open_calendar
         elif step.target_region == "settings":
-            cx, cy, radius = sw // 2, sh // 2, 150
+            w = self.bubble_header
+        else:
+            # デフォルト: 画面中央寄り
+            sw = self.root.winfo_screenwidth()
+            sh = self.root.winfo_screenheight()
+            cx, cy = sw // 2, sh // 3
+            m = 120
+            return (cx - m, cy - m, cx + m, cy + m)
 
-        # スポットライト: 複数同心円で輝き表現
-        for rm, clr, w in [(1.0, '#FFFFFF', 3), (1.1, '#90CAF9', 4), (1.3, '#1a1a2e', 2)]:
-            r = radius * rm
-            cvs.create_oval(cx - r, cy - r, cx + r, cy + r, outline=clr, width=w, fill='')
-        # 内側明るい領域
-        cvs.create_oval(cx - radius*0.6, cy - radius*0.6,
-                        cx + radius*0.6, cy + radius*0.6,
-                        fill='#B0BEC5', outline='')
+        try:
+            x1 = w.winfo_rootx()
+            y1 = w.winfo_rooty()
+            x2 = x1 + w.winfo_width()
+            y2 = y1 + w.winfo_height()
+        except Exception:
+            sw = self.root.winfo_screenwidth()
+            sh = self.root.winfo_screenheight()
+            return (sw // 2 - 80, sh // 3 - 80, sw // 2 + 80, sh // 3 + 80)
 
-        # ナビゲーションボタン
-        bf = ("Meiryo UI", 11, "bold")
-        ny = sh - 60
-        if index > 0:
-            cvs.create_text(40, ny, text="◀ 戻る", fill="#B0BEC5", font=bf, anchor='w', tags="np")
-            cvs.tag_bind("np", "<Button-1>", lambda e: self._do_tour_action("prev"))
-        cvs.create_text(sw//2 - 50, ny, text="⏭ スキップ", fill="#90A4AE", font=bf, tags="ns")
-        cvs.tag_bind("ns", "<Button-1>", lambda e: self._do_tour_action("skip"))
-        next_label = "次へ ▶" if index < total - 1 else "🎉 完了"
-        cvs.create_text(sw//2 + 50, ny, text=next_label, fill="#64B5F6", font=bf, tags="nn")
-        cvs.tag_bind("nn", "<Button-1>", lambda e: self._do_tour_action("next"))
-        cvs.create_text(sw//2, ny - 30, text=f"{index+1}/{total}", fill="#78909C", font=("Meiryo UI", 10))
+        m = 20  # ウィジェット周囲の余白
+        return (x1 - m, y1 - m, x2 + m, y2 + m)
 
-        overlay.lift()
-        overlay.focus_set()
+    @staticmethod
+    def _place_tour_card_near(card_w: int, card_h: int,
+                              target_rect: tuple,
+                              screen_w: int, screen_h: int) -> tuple:
+        """ターゲット矩形の近くにカードを配置する座標を計算。"""
+        tx1, ty1, tx2, ty2 = target_rect
+        if ty1 - 20 >= card_h:
+            y = ty1 - 20 - card_h
+        else:
+            y = ty2 + 20
+        if y + card_h > screen_h - 10:
+            y = max(10, screen_h - 10 - card_h)
+        if y < 10:
+            y = 10
+        x = tx1
+        if x + card_w > screen_w - 10:
+            x = max(10, tx2 - card_w)
+        if x < 10:
+            x = 10
+        return int(x), int(y)
+
+    def _update_tour_ring(self, target_rect: tuple) -> None:
+        """ターゲット矩形を囲むハイライトリングを表示/更新する。"""
+        tx1, ty1, tx2, ty2 = target_rect
+        pad = 12
+        rx1 = tx1 - pad
+        ry1 = ty1 - pad
+        rx2 = tx2 + pad
+        ry2 = ty2 + pad
+        rw = max(1, rx2 - rx1)
+        rh = max(1, ry2 - ry1)
+        if not hasattr(self, '_tour_ring') or self._tour_ring is None:
+            self._tour_ring = tk.Toplevel(self.root)
+            self._tour_ring.overrideredirect(True)
+            self._tour_ring.attributes('-topmost', True)
+            ring_bg = "#FF00FF"
+            self._tour_ring.configure(bg=ring_bg)
+            self._tour_ring.attributes('-transparentcolor', ring_bg)
+            cvs = tk.Canvas(self._tour_ring, highlightthickness=0, bg=ring_bg)
+            cvs.pack(fill=tk.BOTH, expand=True)
+            self._tour_ring_canvas = cvs
+        self._tour_ring.geometry(f"{rw}x{rh}+{rx1}+{ry1}")
+        cvs = self._tour_ring_canvas
+        cvs.delete('all')
+        cvs.create_rectangle(4, 4, rw - 4, rh - 4, outline='#FFD700', width=4)
+        cvs.create_rectangle(11, 11, rw - 11, rh - 11, outline='#FFA500', width=2)
+        self._tour_ring.lift()
+    def _update_tour_overlay(self, step: 'TourStep', index: int, total: int) -> None:
+        """ツアーガイドカード + ハイライトリングを表示/更新する。
+
+        フルスクリーン半透明オーバーレイを廃止し、不透明なガイドカードと
+        注目ウィジェットを囲むリングで構成。alpha属性を一切使わないため
+        Windows Layered Window の描画破綻問題を根本解決。
+        """
+        sw = self.root.winfo_screenwidth()
+        sh = self.root.winfo_screenheight()
+        CARD_W, CARD_H = 380, 300
+        target_rect = self._get_tour_target_rect(step)
+        if not hasattr(self, '_tour_card') or self._tour_card is None:
+            self._tour_card = tk.Toplevel(self.root)
+            self._tour_card.overrideredirect(True)
+            self._tour_card.attributes('-topmost', True)
+            self._tour_card.configure(bg='#F5F5DC')
+            header = tk.Frame(self._tour_card, bg='#F5F5DC', height=32)
+            header.pack(fill=tk.X, side=tk.TOP)
+            header.pack_propagate(False)
+            self._tour_title = tk.Label(
+                header, font=("Meiryo UI", 13, "bold"),
+                bg='#F5F5DC', fg='#4A3B32', anchor=tk.W)
+            self._tour_title.pack(side=tk.LEFT, padx=(12, 4))
+            self._tour_counter = tk.Label(
+                header, font=("Meiryo UI", 10),
+                bg='#F5F5DC', fg='#A67B5B', anchor=tk.E)
+            self._tour_counter.pack(side=tk.RIGHT, padx=(4, 4))
+            btn_skip = tk.Button(
+                header, text="✕", font=("Meiryo UI", 12, "bold"),
+                bg='#F5F5DC', fg='#8B7355', bd=0,
+                activebackground='#E8DCC8', activeforeground='#8B7355',
+                cursor="hand2",
+                command=lambda: self._do_tour_action("skip"))
+            btn_skip.pack(side=tk.RIGHT, padx=(0, 10))
+            sep = tk.Frame(self._tour_card, bg='#D4C5A9', height=1)
+            sep.pack(fill=tk.X)
+            text_frame = tk.Frame(self._tour_card, bg='#FFF8F0')
+            text_frame.pack(fill=tk.BOTH, expand=True, padx=12, pady=(10, 6))
+            self._tour_text = tk.Text(
+                text_frame, wrap=tk.WORD, font=("Meiryo UI", 11),
+                bg='#FFF8F0', fg='#4A3B32', bd=0,
+                padx=6, pady=4, relief=tk.FLAT)
+            self._tour_text.pack(fill=tk.BOTH, expand=True)
+            btn_frame = tk.Frame(self._tour_card, bg='#FFF8F0', height=44)
+            btn_frame.pack(fill=tk.X, side=tk.BOTTOM)
+            btn_frame.pack_propagate(False)
+            bf = ("Meiryo UI", 11, "bold")
+            self._tour_card_prev = tk.Button(
+                btn_frame, text="◀ 戻る", font=bf,
+                bg='#8B7355', fg='#FFFFFF', bd=1, relief=tk.RAISED,
+                activebackground='#A67B5B', activeforeground='#FFFFFF',
+                padx=10, pady=2, cursor="hand2",
+                command=lambda: self._do_tour_action("prev"))
+            self._tour_card_prev.pack(side=tk.LEFT, padx=(14, 4), pady=6)
+            self._tour_card_next = tk.Button(
+                btn_frame, text="次へ ▶", font=bf,
+                bg='#5B8A9B', fg='#FFFFFF', bd=1, relief=tk.RAISED,
+                activebackground='#7BAAB5', activeforeground='#FFFFFF',
+                padx=10, pady=2, cursor="hand2",
+                command=lambda: self._do_tour_action("next"))
+            self._tour_card_next.pack(side=tk.LEFT, padx=(4, 14), pady=6)
+            self._tour_card.bind("<Escape>", lambda e: self._do_tour_action("skip"))
+        self._tour_title.config(text=step.title)
+        self._tour_counter.config(text=f"{index+1} / {total}")
+        self._tour_text.config(state=tk.NORMAL)
+        self._tour_text.delete("1.0", tk.END)
+        self._tour_text.insert("1.0", step.text)
+        self._tour_text.config(state=tk.DISABLED)
+        self._tour_card_prev.config(state=tk.NORMAL if index > 0 else tk.DISABLED)
+        next_text = "次へ ▶" if index < total - 1 else "🎉 完了"
+        self._tour_card_next.config(text=next_text)
+        card_x, card_y = self._place_tour_card_near(
+            CARD_W, CARD_H, target_rect, sw, sh)
+        self._tour_card.geometry(f"{CARD_W}x{CARD_H}+{card_x}+{card_y}")
+        self._update_tour_ring(target_rect)
+        self._tour_card.lift()
+        self._tour_card.focus_set()
 
     def _do_tour_action(self, action: str) -> None:
         """ツアーナビゲーションボタンからのアクションを処理する。"""
@@ -1135,19 +1242,23 @@ class NeoSecretaryGUI:
         elif action == "skip":
             e.skip()
             self._destroy_tour_overlay()
-            self.update_message("🎓 ツアーをスキップしました。\nいつでも「使い方を教えて」と言ってくださいね！")
+            self.update_message(
+                "🎓 ツアーをスキップしました。\n"
+                "いつでも「使い方を教えて」と言ってくださいね！")
         if not e.is_active:
             self._destroy_tour_overlay()
 
     def _destroy_tour_overlay(self) -> None:
-        """ツアーオーバーレイを破棄する。"""
-        if hasattr(self, '_tour_overlay') and self._tour_overlay is not None:
-            try:
-                self._tour_overlay.destroy()
-            except Exception:
-                pass
-            self._tour_overlay = None
-        self._tour_canvas = None
+        """ガイドカードとリングを破棄する。"""
+        for attr in ('_tour_card', '_tour_ring'):
+            w = getattr(self, attr, None)
+            if w is not None:
+                try:
+                    w.destroy()
+                except Exception:
+                    pass
+                setattr(self, attr, None)
+        self._tour_ring_canvas = None
 
     def _check_api_key_warning(self) -> None:
         """LLM APIキーが未設定の場合、吹き出しに警告を表示する (C-4 / K0-3)。"""
@@ -1178,15 +1289,20 @@ class NeoSecretaryGUI:
     def _start_tour(self) -> None:
         """秘書くんツアーを開始する。右クリックメニューや初回起動時から呼ばれる。"""
         e = get_tour_engine()
+        self._tour_completed = False  # 再開時は冪等ガードをリセット
         e.set_on_step(lambda step, idx, total: self.post_action(
             self._on_tour_step, step, idx, total
         ))
         e.set_on_complete(lambda: self.post_action(self._on_tour_complete))
-        e.set_on_skip(lambda: self.post_action(self._on_tour_complete))
+        # NOTE: skip() は engine 内部で _on_skip_callback と _on_complete_callback
+        # の両方を呼ぶため、set_on_skip は設定しない（二重post防止）。
         e.start()
 
     def _on_tour_complete(self) -> None:
         """ツアー完了後処理。"""
+        if getattr(self, '_tour_completed', False):
+            return  # 冪等性ガード
+        self._tour_completed = True
         self._destroy_tour_overlay()
         flag_dir = os.path.join(os.path.dirname(__file__), "backups")
         os.makedirs(flag_dir, exist_ok=True)

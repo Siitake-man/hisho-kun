@@ -663,6 +663,8 @@ const CHARACTERS = [
   { id: 'seal', name: 'アザラシ', emoji: '🦭' },
   { id: 'hisho', name: '秘書くん', emoji: '👔' },
   { id: 'kinoko', name: 'キノコ君', emoji: '🍄' }
+,
+  { id: 'retro_dolphin', name: 'レトロ案内精霊', emoji: '🐬' }
 ];
 
 function cycleCharacter() {

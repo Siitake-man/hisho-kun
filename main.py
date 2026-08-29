@@ -17,6 +17,7 @@ from langchain_core.messages import HumanMessage, AIMessage
 
 from gui import NeoSecretaryGUI
 from agent import build_agent_graph
+from easter_egg_engine import handle_message
 
 # ログ設定
 logging.basicConfig(
@@ -304,6 +305,13 @@ class NeoSecretaryApp:
         """エージェントによる思考処理 (非同期)"""
         logger.info(f"ユーザー入力の処理開始: {user_text}")
         
+        # イースターエッグ検知（「お前を消す方法」等）: LLM推論をスキップして専用リアクションを返す
+        egg_reply = handle_message(user_text)
+        if egg_reply is not None:
+            self.gui.update_message(egg_reply)
+            self.gui.set_pet_state("thinking", duration_ms=3000)
+            return
+
         initial_state = {"messages": [HumanMessage(content=user_text)]}
         
         try:
