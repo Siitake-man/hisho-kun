@@ -823,6 +823,58 @@
     .badge-unlocked-pulse {
       animation: ee-badge-pulse 1s infinite alternate;
     }
+
+    /* 👾 Pixel Defense ミニゲームモーダル (Phase L5: 疎結合Canvasモーダル) */
+    .minigame-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.85);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 100000;
+    }
+    .minigame-overlay.active {
+      display: flex;
+    }
+    .minigame-panel {
+      position: relative;
+      background: #0a0a12;
+      border: 2px solid #00E676;
+      border-radius: 12px;
+      box-shadow: 0 0 24px rgba(0, 230, 118, 0.4);
+      padding: 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      max-width: 94vw;
+    }
+    .minigame-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+      color: #00E676;
+      font-size: 11px;
+      font-weight: bold;
+      font-family: 'Courier New', monospace;
+      letter-spacing: 1px;
+    }
+    .minigame-close {
+      cursor: pointer;
+      color: #FF5252;
+      font-size: 16px;
+      padding: 0 6px;
+      user-select: none;
+    }
+    #pixel-defense-canvas {
+      image-rendering: pixelated;
+      background: #050510;
+      border: 1px solid #1e2a3a;
+      touch-action: none;
+      width: min(86vw, 320px);
+      height: auto;
+    }
     @keyframes ee-badge-pulse {
       0% { box-shadow: 0 0 4px #FFB800; transform: scale(1); }
       100% { box-shadow: 0 0 16px #FFB800, 0 0 24px #FF1744; transform: scale(1.08); }
@@ -873,7 +925,7 @@
         <div class="clock-badge-large" id="clock-display">12:00:00</div>
       </div>
       <div class="header-widgets">
-        <span id="secret-game-badge" class="secret-game-badge" style="display:none;" onclick="showEasterEggToast('👾 シークレットゲーム: 準備中！', '#FFB800')">
+        <span id="secret-game-badge" class="secret-game-badge" style="display:none;" onclick="if (window.PixelDefense) { window.PixelDefense.show(); } else { showEasterEggToast('👾 シークレットゲーム: 準備中！', '#FFB800'); }">
           👾 秘密の部屋
         </span>
         <div id="pomodoro-btn" class="pomodoro-badge" onclick="togglePomodoro()">
@@ -1000,10 +1052,23 @@
     </div>
   </div>
 
+  <!-- 👾 Pixel Defense ミニゲームモーダル (Phase L5: メインのペットAI・ブリーフィング機能に非依存の疎結合設計) -->
+  <div id="minigame-overlay" class="minigame-overlay">
+    <div class="minigame-panel">
+      <div class="minigame-header">
+        <span>👾 PIXEL DEFENSE</span>
+        <span>HI <span id="pixel-defense-high">0</span> / SCORE <span id="pixel-defense-score">0</span></span>
+        <span class="minigame-close" onclick="if (window.PixelDefense) window.PixelDefense.hide()">✖</span>
+      </div>
+      <canvas id="pixel-defense-canvas" width="320" height="420"></canvas>
+    </div>
+  </div>
+
   <!-- 常時画面ON (NoSleep): Canvas無限生配信を流す不可視video（HTTP環境で唯一確実に動作する方式） -->
   <video id="nosleep-video" muted playsinline autoplay style="position:fixed; left:0; bottom:0; width:2px; height:2px; opacity:0.01; pointer-events:none; z-index:-1;"></video>
 
   <script src="easter_eggs.js"></script>
+  <script src="pixel_defense.js"></script>
   <script src="pet.js"></script>
 </body>
 </html>

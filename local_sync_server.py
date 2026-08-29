@@ -1231,8 +1231,17 @@ class DeskPetSyncHandler(SimpleHTTPRequestHandler):
                     logger.info(f"📍 天気地域を手動設定: {loc}")
                     self.wfile.write(json.dumps({"status": "success", "location": loc, "weather": w_new}, ensure_ascii=False).encode("utf-8"))
                     return
-                        
-                self.wfile.write(json.dumps({"status": "unknown_action"}).encode("utf-8"))
+                elif action == "record_minigame_score":
+                    # Phase L5: シークレットミニゲーム「Pixel Defense」のスコア永続化
+                    game_id = str(data.get("game_id", "pixel_defense")).strip() or "pixel_defense"
+                    score = int(data.get("score", 0))
+                    previous_high = database.get_high_score(game_id)
+                    record_id = database.record_minigame_score(game_id, score)
+                    new_high = max(previous_high, score)
+                    logger.info(f"👾 スマホ側からミニゲームスコアを受信: game_id={game_id}, score={score}, high_score={new_high}")
+                    self.wfile.write(json.dumps({"status": "success", "record_id": record_id, "high_score": new_high}).encode("utf-8"))
+                    return
+
             except Exception as e:
                 logger.error(f"Action API エラー: {e}")
                 self.wfile.write(json.dumps({"status": "error", "message": str(e)}).encode("utf-8"))

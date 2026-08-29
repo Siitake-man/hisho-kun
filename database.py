@@ -231,6 +231,24 @@ class HabitLog(BaseModel):
     habit_id: int
     completed_date: str = Field(..., pattern=r'^\d{4}-\d{2}-\d{2}$') # YYYY-MM-DD
     created_at: int = Field(default_factory=lambda: int(datetime.now().timestamp() * 1000))
+class MinigameScore(BaseModel):
+    """
+    ミニゲームのスコア記録を表すモデル。
+
+    シークレットミニゲーム（Phase L5 Pixel Defense 等）のプレイ結果を
+    SQLite へ永続化し、ハイスコアや履歴表示に利用します。
+
+    Attributes:
+        id: スコア記録ID（自動採番）
+        game_id: ゲーム識別子（例: 'pixel_defense'）
+        score: 達成スコア（0以上）
+        created_at: 記録時刻（Unix Timestamp ミリ秒）
+    """
+    id: Optional[int] = None
+    game_id: str = Field(..., min_length=1, max_length=50)
+    score: int = Field(..., ge=0)
+    created_at: int = Field(default_factory=lambda: int(datetime.now().timestamp() * 1000))
+
 
 
 # =============================================================================
@@ -361,6 +379,22 @@ def init_db(db_path: str = "neo_secretary.db") -> None:
             )
         """)
         logger.info("habits/habit_logsテーブルを確認/作成しました")
+
+        # minigame_scoresテーブル (シークレットミニゲームのスコア記録: Phase L5)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS minigame_scores (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                game_id TEXT NOT NULL,
+                score INTEGER NOT NULL,
+                created_at INTEGER NOT NULL
+            )
+        """)
+        cursor.execute(
+            "CREATE INDEX IF NOT EXISTS idx_minigame_scores_game_score "
+            "ON minigame_scores (game_id, score DESC)"
+        )
+        logger.info("minigame_scoresテーブルを確認/作成しました")
+
         
     logger.info(f"データベース初期化完了: {db_path}")
 
@@ -1350,6 +1384,96 @@ def get_habit_heatmap_data(days: int = 90, db_path: str = "neo_secretary.db") ->
         })
         
     return heatmap
+
+
+# =============================================================================
+# CRUD操作: MinigameScores (Phase L5 シークレットミニゲーム)
+# =============================================================================
+
+def record_minigame_score(game_id: str, score: int, db_path: str = "neo_secretary.db") -> int:
+    """
+    ミニゲームのスコアを1件記録します。
+
+    Args:
+        game_id: ゲーム識別子（例: 'pixel_defense'）
+        score: 達成スコア（0以上の整数）
+        db_path: データベースファイルのパス
+
+    Returns:
+        作成されたスコア記録のID
+
+    Raises:
+        ValueError: game_id が空または score が負の場合
+        sqlite3.Error: データベース操作でエラーが発生した場合
+    """
+    normalized_game_id = (game_id or "").strip()
+    if not normalized_game_id:
+        raise ValueError("game_id は空文字であってはいけません")
+    if score < 0:
+        raise ValueError("score は0以上の整数である必要があります")
+
+    record = MinigameScore(game_id=normalized_game_id, score=score)
+    with get_db_connection(db_path) as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO minigame_scores (game_id, score, created_at)
+            VALUES (?, ?, ?)
+        """, (record.game_id, record.score, record.created_at))
+        record_id = cursor.lastrowid
+        logger.info(f"👾 ミニゲームスコアを記録: game_id={record.game_id}, score={record.score}, ID={record_id}")
+        return record_id
+
+
+def get_high_score(game_id: str, db_path: str = "neo_secretary.db") -> int:
+    """
+    指定ゲームのハイスコア（自己ベスト）を取得します。
+
+    Args:
+        game_id: ゲーム識別子（例: 'pixel_defense'）
+        db_path: データベースファイルのパス
+
+    Returns:
+        ハイスコア（記録が1件もない場合は0）
+    """
+    normalized_game_id = (game_id or "").strip()
+    with get_db_connection(db_path) as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT MAX(score) FROM minigame_scores WHERE game_id = ?
+        """, (normalized_game_id,))
+        row = cursor.fetchone()
+        return int(row[0]) if row and row[0] is not None else 0
+
+
+def get_recent_minigame_scores(game_id: str, limit: int = 10, db_path: str = "neo_secretary.db") -> List[MinigameScore]:
+    """
+    指定ゲームの直近スコア履歴を新しい順に取得します。
+
+    Args:
+        game_id: ゲーム識別子（例: 'pixel_defense'）
+        limit: 取得する最大件数（1以上）
+        db_path: データベースファイルのパス
+
+    Returns:
+        スコア記録のリスト（新しい順）
+    """
+    normalized_game_id = (game_id or "").strip()
+    if limit < 1:
+        limit = 1
+    with get_db_connection(db_path) as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT id, game_id, score, created_at
+            FROM minigame_scores
+            WHERE game_id = ?
+            ORDER BY created_at DESC, id DESC
+            LIMIT ?
+        """, (normalized_game_id, limit))
+        rows = cursor.fetchall()
+        return [
+            MinigameScore(id=row[0], game_id=row[1], score=row[2], created_at=row[3])
+            for row in rows
+        ]
 
 
 # =============================================================================
