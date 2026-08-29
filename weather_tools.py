@@ -21,9 +21,43 @@ _weather_cache_time: float = 0.0
 _weather_cache_lock = threading.Lock()
 CACHE_TTL_SEC = 3600  # 1時間
 
+import os
+from pathlib import Path
+
 # 手動設定の場所（設定画面から書き換え）
 _manual_location: Optional[str] = None  # "lat,lon" または都市名
 _manual_location_lock = threading.Lock()
+
+WEATHER_LOCATION_ENV_KEY = "WEATHER_LOCATION"
+
+
+def load_location_from_env() -> Optional[str]:
+    """設定された地域文字列を .env / 環境変数から取得してセットする。"""
+    loc = os.getenv(WEATHER_LOCATION_ENV_KEY, "").strip()
+    if loc:
+        set_location(loc)
+        return loc
+    return None
+
+
+def get_current_location_setting() -> str:
+    """現在設定されている地域文字列を返す（未設定なら空文字）。"""
+    with _manual_location_lock:
+        return _manual_location or ""
+
+
+def save_location(location_str: str) -> None:
+    """現在地を手動設定し、.env へ永続保存する。"""
+    loc_clean = location_str.strip()
+    set_location(loc_clean)
+    try:
+        from dotenv import set_key
+        env_path = Path(__file__).parent / ".env"
+        set_key(str(env_path), WEATHER_LOCATION_ENV_KEY, loc_clean)
+        os.environ[WEATHER_LOCATION_ENV_KEY] = loc_clean
+        logger.info(f"地域設定を .env に保存しました: {loc_clean}")
+    except Exception as e:
+        logger.warning(f"地域設定の .env 保存に失敗 (メモリ上のみ適用): {e}")
 
 
 def set_location(location_str: str) -> None:
@@ -45,6 +79,7 @@ def get_weather() -> Dict[str, Any]:
          "temperature": 22.5, "city": "Tokyo", "error": None}
         失敗時は error に文字列が入る
     """
+    global _weather_cache_time, _weather_cache
     now = time.time()
     with _weather_cache_lock:
         if now - _weather_cache_time < CACHE_TTL_SEC and _weather_cache:

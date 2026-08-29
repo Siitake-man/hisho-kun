@@ -111,6 +111,7 @@ window.addEventListener('DOMContentLoaded', () => {
   unlockAudio();
   setupMediaKeyApproval();
   setupBannerSwipe();
+  updateBriefingBannerText();
   requestAnimationFrame(particleLoop);
   preloadSprites(currentCharacterId);
   fetchStatus();
@@ -1093,6 +1094,11 @@ async function fetchStatus() {
       EasterEggEngine.syncFromStatus(data);
     }
 
+    // 5.8. 📍 地域設定の同期
+    if (typeof data.weather_location === 'string') {
+      currentSavedLocation = data.weather_location;
+    }
+
     // 6. 🌈 自律生活ドリーマー状態（天候・生活イベント）
     if (data.life_state) {
       const ls = data.life_state;
@@ -1428,10 +1434,14 @@ function toggleHabit(habitId, el) {
   }).then(() => fetchStatus()).catch(err => console.debug('Habit toggle failed:', err));
 }
 
-/** ⚙️ 設定モーダル（キャラ・テーマ・全画面・常時ON・PCペット呼び出し） */
+let currentSavedLocation = '';
+
+/** ⚙️ 設定モーダル（キャラ・テーマ・地域・全画面・常時ON・PCペット呼び出し） */
 function openSettingsModal() {
   const curChar = CHARACTERS.find(c => c.id === currentCharacterId);
+  const locLabel = currentSavedLocation ? currentSavedLocation : 'IP自動検出';
   const html = `
+    <div class="note-item" onclick="openLocationSettingsModal();"><div class="note-title">📍 お住まいの地域（天気）</div><div class="note-desc">現在: <b>${escapeHtml(locLabel)}</b> → タップで変更</div></div>
     <div class="note-item" onclick="cycleCharacter(); openSettingsModal();"><div class="note-title">🎭 キャラクター切り替え</div><div class="note-desc">現在: ${curChar ? curChar.emoji + ' ' + curChar.name : ''} → タップで次のキャラへ</div></div>
     <div class="note-item" onclick="cycleEnvTheme(); openSettingsModal();"><div class="note-title">🏞️ 背景テーマ切り替え</div><div class="note-desc">現在: ${ENV_THEMES[currentEnvIndex].label} → タップで次のテーマへ</div></div>
     <div class="note-item" onclick="toggleNoSleep(); closeBottomSheet();"><div class="note-title">💡 常時画面ON</div><div class="note-desc">画面の自動消灯を防ぎます（卓上スマートディスプレイ用）</div></div>
@@ -1440,6 +1450,88 @@ function openSettingsModal() {
     <div class="note-item" onclick="closeBottomSheet(); if (window.EasterEggEngine) EasterEggEngine.triggerFromPwa();"><div class="note-title">⚡ イースターエッグ演出テスト</div><div class="note-desc">「お前を消す方法」の演出を発火テストします</div></div>
     <div class="note-item" onclick="closeBottomSheet()"><div class="note-title">✖ 閉じる</div></div>`;
   openBottomSheet({ icon: '⚙️', tag: '設定', title: '設定' }, html);
+}
+
+/** 📍 地域設定モーダル */
+function openLocationSettingsModal() {
+  const popularCities = ['東京都', '横浜市', '大阪市', '名古屋市', '京都市', '神戸市', '福岡市', '札幌市', '仙台市', '広島市', '自動検出(IP)'];
+  const chipsHtml = popularCities.map(city => `
+    <button style="
+      background: ${currentSavedLocation === city || (city === '自動検出(IP)' && !currentSavedLocation) ? 'var(--accent-amber)' : 'rgba(255,255,255,0.08)'};
+      color: ${currentSavedLocation === city || (city === '自動検出(IP)' && !currentSavedLocation) ? '#1E140E' : 'var(--text-main)'};
+      border: 1px solid var(--accent-amber);
+      border-radius: 14px;
+      padding: 4px 10px;
+      font-size: 11px;
+      font-weight: bold;
+      cursor: pointer;
+      margin: 3px;
+    " onclick="selectWeatherCity('${city}')">${city}</button>
+  `).join('');
+
+  const html = `
+    <div style="margin-bottom:10px; font-size:12px; color:var(--text-main); line-height:1.4;">
+      お住まいの地域（市区町村名や都道府県名）を設定すると、正確なリアルタイム天気と生活アドバイスをお届けします。
+    </div>
+
+    <div style="margin-bottom:12px;">
+      <div style="font-size:11px; font-weight:bold; color:var(--accent-amber); margin-bottom:6px;">⚡ クイック選択:</div>
+      <div style="display:flex; flex-wrap:wrap;">
+        ${chipsHtml}
+      </div>
+    </div>
+
+    <div style="margin-bottom:12px;">
+      <div style="font-size:11px; font-weight:bold; color:var(--accent-amber); margin-bottom:4px;">✏️ 自由入力 (例: 渋谷区, 堺市, 35.68,139.69):</div>
+      <input id="weather-location-input" type="text" value="${escapeHtml(currentSavedLocation)}" placeholder="市区町村名を入力" style="
+        width: 100%;
+        box-sizing: border-box;
+        background: rgba(0,0,0,0.4);
+        border: 1px solid var(--accent-amber);
+        border-radius: 6px;
+        color: #FFF;
+        padding: 8px 10px;
+        font-size: 13px;
+        font-family: inherit;
+        outline: none;
+      " />
+    </div>
+
+    <div class="approval-sheet-actions" style="margin-top:14px; gap:8px;">
+      <button class="btn-approve" onclick="saveCustomWeatherLocation()">💾 設定を保存</button>
+      <button class="btn-deny" onclick="openSettingsModal()">⬅ 戻る</button>
+    </div>
+  `;
+
+  openBottomSheet({ icon: '📍', tag: '地域設定', title: 'お住まいの地域設定' }, html);
+}
+
+function selectWeatherCity(city) {
+  const input = document.getElementById('weather-location-input');
+  if (input) {
+    input.value = city === '自動検出(IP)' ? '' : city;
+  }
+}
+
+async function saveCustomWeatherLocation() {
+  const input = document.getElementById('weather-location-input');
+  const loc = input ? input.value.trim() : '';
+  showToast("📍 地域設定を保存中…", 1500);
+
+  try {
+    const res = await authFetch('/api/action', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'set_weather_location', location: loc })
+    });
+    if (!res.ok) throw new Error("保存失敗");
+    currentSavedLocation = loc;
+    showToast(`✅ 地域を【${loc || '自動検出'}】に設定しました！`, 3000, true);
+    fetchStatus();
+    openSettingsModal();
+  } catch (e) {
+    showToast("⚠️ 地域設定の保存に失敗しました: " + e.message);
+  }
 }
 
 /** PCペット再表示（スマホから遠隔呼び出し） */
@@ -1630,3 +1722,186 @@ function petWanderTick() {
   }
 }
 setInterval(petWanderTick, 120);
+
+// =============================================================================
+// 13. 朝会/終礼ブリーフィング (Phase L3) & Web Speech API (TTS)
+// =============================================================================
+function updateBriefingBannerText() {
+  const btnText = document.getElementById('briefing-quick-text');
+  if (!btnText) return;
+  const hour = new Date().getHours();
+  if (5 <= hour && hour < 12) {
+    btnText.innerText = "☀️ 今日の朝会ブリーフィングを聞く";
+  } else if (12 <= hour && hour < 18) {
+    btnText.innerText = "⛅ 午後の進捗ブリーフィング";
+  } else if (18 <= hour && hour < 24) {
+    btnText.innerText = "🌙 本日の終礼日報をまとめる";
+  } else {
+    btnText.innerText = "🌌 夜間ブリーフィング";
+  }
+}
+
+async function openBriefingModal(forceMode) {
+  if (navigator.vibrate) navigator.vibrate(25);
+  showToast("📖 ブリーフィングをまとめています…", 1500);
+  try {
+    const url = forceMode ? `/api/briefing?mode=${encodeURIComponent(forceMode)}` : '/api/briefing';
+    const res = await authFetch(url);
+    if (!res.ok) {
+      const errText = await res.text().catch(() => "");
+      throw new Error(`HTTP ${res.status}: ${errText.slice(0, 50)}`);
+    }
+    const data = await res.json();
+    if (data.status !== "ok" || !data.briefing) {
+      throw new Error(data.message || "データが空です");
+    }
+
+    const b = data.briefing;
+    
+    // イベントリストHTML
+    let eventsHtml = "";
+    if (b.events_today && b.events_today.length > 0) {
+      eventsHtml = b.events_today.map(ev => `
+        <div class="note-item" style="padding:4px 0;">
+          <div class="note-title" style="font-size:12px;">⏰ ${escapeHtml(ev.start_time || '')}〜${escapeHtml(ev.end_time || '')} <b>${escapeHtml(ev.title || '')}</b></div>
+          ${ev.location ? `<div class="note-desc">📍 ${escapeHtml(ev.location)}</div>` : ''}
+        </div>
+      `).join('');
+    } else {
+      eventsHtml = `<div class="note-desc">大きな予定はありません（集中作業チャンス！🎯）</div>`;
+    }
+
+    // タスクリストHTML
+    let tasksHtml = "";
+    if (b.mode === 'morning' || b.mode === 'day') {
+      if (b.active_tasks && b.active_tasks.length > 0) {
+        tasksHtml = b.active_tasks.map(t => `
+          <div class="note-item" style="padding:4px 0;">
+            <div class="note-title" style="font-size:12px;">⏳ ${escapeHtml(t.title || '')}</div>
+          </div>
+        `).join('');
+      } else {
+        tasksHtml = `<div class="note-desc">残タスクなし！素晴らしいです✨</div>`;
+      }
+    } else {
+      if (b.completed_tasks_today && b.completed_tasks_today.length > 0) {
+        tasksHtml = b.completed_tasks_today.map(t => `
+          <div class="note-item done" style="padding:4px 0;">
+            <div class="note-title" style="font-size:12px;">✅ ${escapeHtml(t.title || '')}</div>
+          </div>
+        `).join('');
+      } else {
+        tasksHtml = `<div class="note-desc">本日もお疲れ様でした！</div>`;
+      }
+    }
+
+    // 習慣サマリHTML
+    let habitsHtml = "";
+    if (b.habits_summary && b.habits_summary.total > 0) {
+      const hs = b.habits_summary;
+      habitsHtml = `
+        <div class="briefing-card-section">
+          <div class="briefing-section-title">🌱 習慣達成状況</div>
+          <div class="note-desc" style="color:var(--text-main); font-weight:bold;">${hs.done || 0} / ${hs.total || 0} 件達成 (${hs.rate_percent || 0}%)</div>
+        </div>
+      `;
+    }
+
+    const tempVal = (b.weather_summary && typeof b.weather_summary.temperature === 'number') ? b.weather_summary.temperature.toFixed(1) : '20.0';
+    const weatherCity = (b.weather_summary && b.weather_summary.city) || '現在地';
+    const weatherDesc = (b.weather_summary && b.weather_summary.desc) || '晴れ ☀️';
+
+    window._currentBriefingSpeechText = b.speech_text || "";
+
+    const html = `
+      <div style="margin-bottom:8px; font-size:12px; color:var(--text-main); line-height:1.5;">
+        ${escapeHtml(b.greeting || '')}
+      </div>
+
+      <div class="briefing-card-section">
+        <div class="briefing-section-title">🌡️ 現在の天気</div>
+        <div class="note-desc" style="color:var(--text-main);">${escapeHtml(weatherCity)}: <b>${escapeHtml(weatherDesc)}</b> (${tempVal}°C)</div>
+      </div>
+
+      <div class="briefing-card-section">
+        <div class="briefing-section-title">📅 ${b.mode === 'morning' || b.mode === 'day' ? '本日の予定' : '予定振り返り'} (${b.events_today ? b.events_today.length : 0}件)</div>
+        ${eventsHtml}
+      </div>
+
+      <div class="briefing-card-section">
+        <div class="briefing-section-title">📝 ${b.mode === 'morning' || b.mode === 'day' ? '重要TODO' : '本日完了したタスク'}</div>
+        ${tasksHtml}
+      </div>
+
+      ${habitsHtml}
+
+      <div style="margin-top:10px; padding:8px; background:rgba(255,184,0,0.1); border-left:3px solid var(--accent-amber); border-radius:4px; font-size:12px; font-weight:bold; color:var(--accent-amber);">
+        ${escapeHtml(b.encouragement || '')}
+      </div>
+
+      <div class="approval-sheet-actions" style="margin-top:14px; gap:8px;">
+        <button id="tts-speak-btn" class="btn-approve" onclick="toggleBriefingSpeech()">🔊 音声で聴く</button>
+        <button class="btn-deny" onclick="stopBriefingSpeech(); closeBottomSheet();">✖ 閉じる</button>
+      </div>
+    `;
+
+    openBottomSheet({
+      icon: b.mode === 'morning' ? '☀️' : (b.mode === 'evening' ? '🌙' : '⛅'),
+      tag: b.mode_label || 'ブリーフィング',
+      title: `${b.date_str || ''}`
+    }, html);
+
+  } catch (err) {
+    console.error("ブリーフィング読み込みエラー:", err);
+    showToast(`⚠️ ブリーフィング取得失敗: ${err.message}`, 4500);
+  }
+}
+
+/** Web Speech API による音声読み上げトグル */
+function toggleBriefingSpeech(customText) {
+  const text = customText || window._currentBriefingSpeechText || "";
+  if (!text) return;
+  if (!('speechSynthesis' in window)) {
+    showToast("⚠️ お使いのブラウザは音声読み上げに対応していません");
+    return;
+  }
+  const btn = document.getElementById('tts-speak-btn');
+
+  if (window.speechSynthesis.speaking) {
+    window.speechSynthesis.cancel();
+    if (btn) btn.innerText = "🔊 音声で聴く";
+    return;
+  }
+
+  window.speechSynthesis.cancel();
+  const utter = new SpeechSynthesisUtterance(text);
+  utter.lang = 'ja-JP';
+  utter.rate = 1.05;
+  utter.pitch = 1.0;
+
+  const voices = window.speechSynthesis.getVoices();
+  const jaVoice = voices.find(v => v.lang === 'ja-JP' || v.lang.startsWith('ja'));
+  if (jaVoice) utter.voice = jaVoice;
+
+  utter.onstart = () => {
+    if (btn) btn.innerText = "⏹️ 読み上げ停止";
+  };
+  utter.onend = () => {
+    if (btn) btn.innerText = "🔊 音声で聴く";
+  };
+  utter.onerror = () => {
+    if (btn) btn.innerText = "🔊 音声で聴く";
+  };
+
+  window.speechSynthesis.speak(utter);
+}
+
+function stopBriefingSpeech() {
+  if ('speechSynthesis' in window && window.speechSynthesis.speaking) {
+    window.speechSynthesis.cancel();
+  }
+}
+
+function escapeJsString(str) {
+  return (str || "").replace(/'/g, "\\'").replace(/"/g, '&quot;').replace(/\n/g, ' ');
+}

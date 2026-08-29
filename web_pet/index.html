@@ -698,6 +698,45 @@
     }
 
     /* =========================================================================
+       朝会/終礼ブリーフィング UI (Phase L3)
+       ========================================================================= */
+    .briefing-quick-banner {
+      background: linear-gradient(135deg, rgba(255, 184, 0, 0.22), rgba(255, 111, 0, 0.28));
+      border: 1px solid var(--accent-amber);
+      border-radius: 6px;
+      padding: 5px 10px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      cursor: pointer;
+      font-size: 11px;
+      font-weight: bold;
+      color: var(--accent-amber);
+      box-shadow: 0 2px 10px rgba(0,0,0,0.4), 0 0 10px rgba(255, 184, 0, 0.2);
+      transition: all 0.2s cubic-bezier(0.18, 0.89, 0.32, 1.28);
+    }
+    .briefing-quick-banner:active {
+      transform: scale(0.97);
+      background: rgba(255, 184, 0, 0.35);
+    }
+    .briefing-card-section {
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 6px;
+      padding: 8px 10px;
+      margin-bottom: 8px;
+    }
+    .briefing-section-title {
+      font-size: 11.5px;
+      font-weight: bold;
+      color: var(--accent-amber);
+      margin-bottom: 4px;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    /* =========================================================================
        イースターエッグ演出 (Easter Egg FX)
        ========================================================================= */
     .fx-shake-light {
@@ -906,6 +945,12 @@
         </div>
         <div id="weather-badge" class="weather-badge" title="リアルタイム天気">☀️ 晴れ</div>
       </section>
+
+      <!-- 朝会/終礼ブリーフィング クイックバナー -->
+      <div id="briefing-quick-btn" class="briefing-quick-banner" onclick="openBriefingModal()">
+        <span id="briefing-quick-text">☀️ 朝会ブリーフィングを聞く</span>
+        <span style="font-size:10px; opacity:0.8;">タップ 📖</span>
+      </div>
 
       <!-- サジェストカード (AIニュース / 予定 / TODO) -->
       <section id="suggest-card" class="suggest-card" onclick="onSuggestCardClick()">

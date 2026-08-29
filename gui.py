@@ -858,6 +858,13 @@ class NeoSecretaryGUI:
         factory = get_llm_factory()
         
         menu = tk.Menu(self.root, tearoff=0, bg="#F5F5DC", fg="#4A3B32", font=("Meiryo UI", 10))
+        
+        # ☀️ 朝会/終礼ブリーフィング（Phase L3）
+        import briefing_engine
+        current_mode = briefing_engine.get_current_briefing_mode()
+        b_label = "☀️ 今日の朝会ブリーフィング" if current_mode in ("morning", "day") else "🌙 本日の終礼日報まとめ"
+        menu.add_command(label=b_label, command=self._show_briefing)
+        
         menu.add_command(label="📔 統合手帳（予定・TODO・知見）", command=self._open_calendar)
         menu.add_command(label="📱 スマホDesk Pet接続 (QRコード)", command=self._open_qr_connection)
         
@@ -958,6 +965,18 @@ class NeoSecretaryGUI:
             self._render_mascot(animator.get_current_frame(), flip=flip)
         except Exception as e:
             logger.debug(f"徘徊移動スキップ: {e}")
+
+    def _show_briefing(self) -> None:
+        """朝会/終礼ブリーフィングを生成して吹き出しに表示（Phase L3）"""
+        try:
+            import briefing_engine
+            report = briefing_engine.generate_briefing()
+            short_text = f"【{report.mode_label}】\n{report.greeting}\n\n🌡️ 天気: {report.weather_summary['desc']} ({report.weather_summary['temperature']:.1f}°C)\n📅 予定: {len(report.events_today)}件 | 📝 残TODO: {len(report.active_tasks)}件\n\n{report.encouragement}"
+            self.update_message(short_text)
+            self.set_pet_state("happy", duration_ms=5000)
+        except Exception as e:
+            logger.error(f"ブリーフィング生成エラー: {e}")
+            self.update_message("申し訳ありません、ブリーフィングの生成中にエラーが発生しました。")
 
     def _open_qr_connection(self):
         """スマホDesk Pet接続用のQRコードダイアログを開く"""

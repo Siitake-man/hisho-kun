@@ -42,13 +42,13 @@ def _auto_tailscale_serve() -> None:
         if result.returncode == 0:
             logger.info("🌐 Tailscale serve を自動起動しました (https://node.tail08a991.ts.net/)")
         else:
-            # 既に有効な場合のエラーは無視
             if "already" not in result.stderr.lower():
                 logger.debug(f"Tailscale serve 自動起動スキップ: {result.stderr.strip()}")
     except FileNotFoundError:
         logger.debug("Tailscale 未インストール — serve 自動起動をスキップ")
     except Exception as e:
         logger.debug(f"Tailscale serve 自動起動に失敗: {e}")
+
 
 class NeoSecretaryApp:
     _instance = None
@@ -66,6 +66,9 @@ class NeoSecretaryApp:
         import database
         database.init_db()
         database.auto_backup()
+        # 0.2. 地域設定の読み込み
+        import weather_tools
+        weather_tools.load_location_from_env()
 
         # 1. UIの初期化
         logger.info("UIを初期化します...")
@@ -121,7 +124,7 @@ class NeoSecretaryApp:
                     if count > 0:
                         logger.info(f"📅 Googleカレンダー定期同期: {msg}")
                         # 手帳ウィンドウが開かれている場合はUIスレッド経由で再描画する
-                        self.post_action(self.refresh_calendar_if_open)
+                        self.gui.post_action(self.gui.refresh_calendar_if_open)
                 except Exception as e:
                     logger.warning(f"Googleカレンダー定期同期エラー: {e}")
                 _time.sleep(1800)

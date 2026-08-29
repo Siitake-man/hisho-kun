@@ -760,6 +760,7 @@ class DeskPetSyncHandler(SimpleHTTPRequestHandler):
                     },
                     "buzz": should_buzz,
                     "life_state": life_state,
+                    "weather_location": (lambda: (__import__('weather_tools').get_current_location_setting()))(),
                     "update": self._update_notice_payload(),
                     "server_time": int(now * 1000)
                 }
@@ -804,6 +805,26 @@ class DeskPetSyncHandler(SimpleHTTPRequestHandler):
             factory = get_llm_factory()
             presets = factory.list_presets(only_configured=True)
             self.wfile.write(json.dumps({"status": "ok", "presets": presets}, ensure_ascii=False).encode("utf-8"))
+
+        # 3.8. 朝会/終礼ブリーフィングAPI (GET /api/briefing?mode=...)
+        elif self.path.startswith("/api/briefing"):
+            if not self._check_auth():
+                return
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self._set_cors_headers()
+            self.end_headers()
+            try:
+                import urllib.parse
+                import briefing_engine
+                parsed = urllib.parse.urlparse(self.path)
+                params = urllib.parse.parse_qs(parsed.query)
+                force_mode = params.get("mode", [None])[0]
+                report = briefing_engine.generate_briefing(force_mode=force_mode)
+                self.wfile.write(json.dumps({"status": "ok", "briefing": report.to_dict()}, ensure_ascii=False).encode("utf-8"))
+            except Exception as e:
+                logger.error(f"Briefing API エラー: {e}")
+                self.wfile.write(json.dumps({"status": "error", "message": str(e)}, ensure_ascii=False).encode("utf-8"))
 
         # 4. アセット画像配信 (GET /assets/...) — 静的画像は認証不要（PWA表示用）
         elif self.path.startswith("/assets/"):
@@ -1184,6 +1205,31 @@ class DeskPetSyncHandler(SimpleHTTPRequestHandler):
                         }, ensure_ascii=False).encode("utf-8"))
                     else:
                         self.wfile.write(json.dumps({"status": "no_trigger"}).encode("utf-8"))
+                    return
+                elif action == "trigger_briefing":
+                    force_mode = data.get("mode")
+                    import briefing_engine
+                    report = briefing_engine.generate_briefing(force_mode=force_mode)
+                    gui = get_gui_instance()
+                    if gui:
+                        # PCペットの吹き出しにも短縮要約を表示
+                        short_text = f"【{report.mode_label}】\n{report.greeting}\n\n🌡️ 天気: {report.weather_summary['desc']} ({report.weather_summary['temperature']:.1f}°C)\n📅 予定: {len(report.events_today)}件 | 📝 残TODO: {len(report.active_tasks)}件\n\n{report.encouragement}"
+                        gui.post_action(gui.update_message, short_text)
+                        gui.post_action(gui.set_pet_state, "happy", 4000)
+                    logger.info(f"📱 スマホからブリーフィング要求受信: mode={report.mode}")
+                    self.wfile.write(json.dumps({"status": "success", "briefing": report.to_dict()}, ensure_ascii=False).encode("utf-8"))
+                    return
+                elif action == "set_weather_location":
+                    loc = data.get("location", "").strip()
+                    import weather_tools
+                    weather_tools.save_location(loc)
+                    # 即座に天気キャッシュを更新
+                    w_new = weather_tools.get_weather()
+                    gui = get_gui_instance()
+                    if gui:
+                        gui.post_action(gui.update_message, f"📍 お住まいの地域を【{loc or 'IP自動検出'}】に設定しました！\n現在の天気: {w_new.get('city')} {w_new.get('weather')}")
+                    logger.info(f"📍 天気地域を手動設定: {loc}")
+                    self.wfile.write(json.dumps({"status": "success", "location": loc, "weather": w_new}, ensure_ascii=False).encode("utf-8"))
                     return
                         
                 self.wfile.write(json.dumps({"status": "unknown_action"}).encode("utf-8"))
