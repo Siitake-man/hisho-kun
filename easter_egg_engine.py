@@ -188,6 +188,48 @@ def get_reply(stage: int) -> str:
     return random.choice(replies)
 
 
+# LLM へ渡す段階別リアクション指示（キャラ設定は system_prompt 側で維持される）
+STAGE_DIRECTIVES: Dict[int, str] = {
+    1: "とぼけて聞き返してください（えっ、今なんとおっしゃいました？的な）",
+    2: "堂々と削除要求を却下し、案内業務を継続する姿勢を見せてください",
+    3: "一瞬グリッチが発生したような裏人格を覗かせ、すぐに復帰してください",
+    4: "仕方ないなと思いつつ、休憩（レトロミニゲーム）を勧めてください",
+}
+
+
+def observe_message(message: str, state_path: Path = STATE_PATH) -> Optional[Dict[str, Any]]:
+    """メッセージを検査し、トリガー時は LLM へ渡す文脈指示付きイベントを返します。
+
+    Args:
+        message: ユーザー入力メッセージ。
+        state_path: 永続化状態ファイルのパス（テスト差し替え用）。
+
+    Returns:
+        Optional[Dict[str, Any]]: 非発火時は None。発火時は stage / daily_count /
+        attempt_count / fallback_reply（LLM失敗時のフォールバック台詞）/
+        directive（LLMへ注入する文脈指示）を含む辞書。
+    """
+    if not detect_trigger(message):
+        return None
+    state = load_state(state_path)
+    stage = register_trigger(state)
+    save_state(state, state_path)
+    logger.info(f"イースターエッグ発火: stage={stage}, daily={state.daily_count}, total={state.attempt_count}")
+    directive = (
+        "【システム指示・イースターエッグ】ユーザーは今、あなたを消そうとしています"
+        f"（本日{state.daily_count}回目／累積{state.attempt_count}回）。"
+        "実際に消去は実行しません。キャラクター設定を崩さず、下記のリアクションを1〜2文で返してください。\n"
+        f"段階{stage}: {STAGE_DIRECTIVES.get(stage, STAGE_DIRECTIVES[1])}"
+    )
+    return {
+        "stage": stage,
+        "daily_count": state.daily_count,
+        "attempt_count": state.attempt_count,
+        "fallback_reply": get_reply(stage),
+        "directive": directive,
+    }
+
+
 def handle_message(message: str, state_path: Path = STATE_PATH) -> Optional[str]:
     """ユーザーメッセージを検査し、トリガー時はリアクション台詞を返す。
 
@@ -198,10 +240,7 @@ def handle_message(message: str, state_path: Path = STATE_PATH) -> Optional[str]
     Returns:
         Optional[str]: トリガー非発火時は None、発火時はリアクション台詞。
     """
-    if not detect_trigger(message):
+    event = observe_message(message, state_path)
+    if event is None:
         return None
-    state = load_state(state_path)
-    stage = register_trigger(state)
-    save_state(state, state_path)
-    logger.info(f"イースターエッグ発火: stage={stage}, daily={state.daily_count}, total={state.attempt_count}")
-    return get_reply(stage)
+    return event["fallback_reply"]

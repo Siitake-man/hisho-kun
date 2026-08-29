@@ -19,6 +19,7 @@ logger = logging.getLogger(__name__)
 ANIMATION_FRAMES: Dict[str, List[str]] = {
     # 基本待機 (瞬き含む)
     "idle": ["idle_1", "idle_1", "idle_1", "idle_2", "idle_1", "idle_1"],
+    "walk": ["walk_1", "walk_2"],
     
     # 自律行動 (Idle Actions)
     "tea": ["tea_1", "tea_2", "tea_1", "tea_2"],
@@ -252,6 +253,9 @@ class PetAnimator:
         self.frame_index: int = 0
         self.state_end_time: float = 0.0  # 一時ステートの終了予定時刻
         self.next_idle_action_time: float = time.time() + random.uniform(15.0, 30.0)
+        # 徘徊モード（デスクトップ散歩）: GUI 側のトグルで ON/OFF
+        self.wandering_enabled: bool = False
+        self.walk_direction: int = 1
         self.on_frame_change: Optional[Callable[[str], None]] = on_frame_change
         self._current_frame_name: str = "idle_1"
         self.is_night_mode: bool = False
@@ -358,7 +362,12 @@ class PetAnimator:
         # 2. 通常待機中の自律行動（ランダム気まぐれアクション）判定
         elif self.current_state == "idle" and self.state_end_time == 0:
             if now >= self.next_idle_action_time:
-                action_name, action_dur = random.choice(IDLE_ACTIONS)
+                actions = list(IDLE_ACTIONS)
+                if self.wandering_enabled:
+                    actions.append(("walk", 5.0))
+                action_name, action_dur = random.choice(actions)
+                if action_name == "walk":
+                    self.walk_direction = random.choice((-1, 1))
                 self.set_state(action_name, duration_sec=action_dur)
 
         # 3. フレームインデックスを進める

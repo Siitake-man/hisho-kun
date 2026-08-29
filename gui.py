@@ -223,9 +223,16 @@ class NeoSecretaryGUI:
         # ドット絵アセットのロードとアニメーション初期化 (Pixel Art 2.0 & PetAnimator)
         from pet_animator import PetAnimator
         self.animator = PetAnimator(on_frame_change=self._render_mascot)
+        # 徘徊モード（デスクトップ散歩）: 設定は character_config.json に永続化
+        from character_manager import get_character_manager as _get_cm
+        self.wandering_enabled = _get_cm().wandering_enabled
+        self.animator.wandering_enabled = self.wandering_enabled
         self.pet_state = "idle"
         self.anim_tick = 0
         self.mascot_images: Dict[str, ImageTk.PhotoImage] = {}
+        self.mascot_pil_images: Dict[str, Image.Image] = {}
+        self.mascot_flip_images: Dict[str, ImageTk.PhotoImage] = {}
+        self._walk_flip_state: bool = False
         self.mascot_img_item = None
         
         # 視線追従用の追跡変数
@@ -285,7 +292,7 @@ class NeoSecretaryGUI:
         self.toggle_circle_menu()
         from character_manager import get_character_manager
         char_mgr = get_character_manager()
-        order = ["hisho", "kinoko", "seal", "retro_dolphin"]
+        order = ["hisho", "kinoko", "seal", "retro_dolphin", "kyle"]
         cur = char_mgr.current_character_id
         next_idx = (order.index(cur) + 1) % len(order) if cur in order else 0
         self.switch_character_skin(order[next_idx])
@@ -300,14 +307,14 @@ class NeoSecretaryGUI:
         if self.circle_menu_active:
             self.update_message("えへへ、くすぐったいです！🥰\nボス、呼び出したい機能を選んでくださいね！")
 
-    def toggle_circle_menu(self):
+    def toggle_circle_menu(self, on_complete: Optional[Callable[[], None]] = None):
         """サークルメニューの展開/収納アニメーションをトグル"""
         if self.circle_menu_active:
-            self._animate_circle_menu(step=4, forward=False)
+            self._animate_circle_menu(step=4, forward=False, on_complete=on_complete)
         else:
-            self._animate_circle_menu(step=1, forward=True)
+            self._animate_circle_menu(step=1, forward=True, on_complete=on_complete)
 
-    def _animate_circle_menu(self, step: int, forward: bool):
+    def _animate_circle_menu(self, step: int, forward: bool, on_complete: Optional[Callable[[], None]] = None):
         """放射状アニメーションのステップ進行"""
         cx, cy = 170, 135
         max_steps = 4
@@ -323,7 +330,10 @@ class NeoSecretaryGUI:
                 btn.lift()
             
             if step < max_steps:
-                self.root.after(20, lambda: self._animate_circle_menu(step + 1, forward=True))
+                self.root.after(20, lambda: self._animate_circle_menu(step + 1, forward=True, on_complete=on_complete))
+            else:
+                if on_complete:
+                    on_complete()
         else:
             for item in self.circle_menu_buttons:
                 btn = item["btn"]
@@ -332,11 +342,13 @@ class NeoSecretaryGUI:
                 btn.place(x=x, y=y)
             
             if step > 0:
-                self.root.after(20, lambda: self._animate_circle_menu(step - 1, forward=False))
+                self.root.after(20, lambda: self._animate_circle_menu(step - 1, forward=False, on_complete=on_complete))
             else:
                 self.circle_menu_active = False
                 for item in self.circle_menu_buttons:
                     item["btn"].place_forget()
+                if on_complete:
+                    on_complete()
 
     def _on_circle_calendar(self):
         self.toggle_circle_menu()
@@ -371,6 +383,7 @@ class NeoSecretaryGUI:
         all_sprites = [
             # 基本・視線
             "idle_1", "idle_2",
+            "walk_1", "walk_2",
             "look_left", "look_right", "look_up", "look_down",
             # 思考・リアクション
             "thinking_1", "thinking_2",
@@ -392,6 +405,8 @@ class NeoSecretaryGUI:
         
         # 画像キャッシュをクリアして再構築
         self.mascot_images.clear()
+        self.mascot_pil_images.clear()
+        self.mascot_flip_images.clear()
         for name in all_sprites:
             candidates = [
                 # 最優先: 8/15レトロドット絵 (assets/dot/{char}/) — キノコ・アザラシは同テイスト再生成まで既存アセット
@@ -408,7 +423,8 @@ class NeoSecretaryGUI:
             for p in candidates:
                 if p.exists():
                     try:
-                        pil_img = Image.open(p)
+                        pil_img = Image.open(p).convert("RGBA")
+                        self.mascot_pil_images[name] = pil_img
                         self.mascot_images[name] = ImageTk.PhotoImage(pil_img)
                         break
                     except Exception as e:
@@ -588,9 +604,24 @@ class NeoSecretaryGUI:
         if self.mascot_img_item is not None:
             self.char_canvas.tag_lower("effect_item", self.mascot_img_item)
 
-    def _render_mascot(self, frame_name: str):
+    def _get_flipped_image(self, frame_name: str):
+        """左右反転したフレーム画像を取得します（徘徊の左移動用・キャッシュ付き）。"""
+        if frame_name in self.mascot_flip_images:
+            return self.mascot_flip_images[frame_name]
+        pil_img = self.mascot_pil_images.get(frame_name)
+        if pil_img is None:
+            return None
+        flipped = ImageTk.PhotoImage(pil_img.transpose(Image.FLIP_LEFT_RIGHT))
+        self.mascot_flip_images[frame_name] = flipped
+        return flipped
+
+    def _render_mascot(self, frame_name: str, flip: bool = False):
         """Canvas 上のマスコット画像を更新描画（呼吸・バウンス物理座標反映）"""
         img = self.mascot_images.get(frame_name)
+        if flip:
+            flipped = self._get_flipped_image(frame_name)
+            if flipped is not None:
+                img = flipped
         
         # 呼吸・弾力バウンスの上下オフセットを算出
         offset_y = 0
@@ -647,6 +678,10 @@ class NeoSecretaryGUI:
             # 4. PetAnimatorによるフレーム進行（お茶、読書、ストレッチ、タスク完了ジャンプ等）
             frame_name = self.animator.tick()
             self._render_mascot(frame_name)
+
+            # 5. 徘徊モード: walk 状態の間はウィンドウを画面下端で横移動
+            if getattr(self, "wandering_enabled", False) and self.animator.current_state == "walk":
+                self._step_walk()
 
         # 📱 スマホ接続時のPCペット自動最小化チェック (withdraw で完全非表示)
         if getattr(self, 'auto_minimize_on_link', False):
@@ -800,6 +835,11 @@ class NeoSecretaryGUI:
             else:
                 self.update_message("えへへ、くすぐったいです！🥰\nボス、呼び出したい機能を選んでくださいね！")
                 
+            # 🎓 ツアー実行中（Step 1: greeting）なら、撫でた後に自動で次へ進む
+            e = get_tour_engine()
+            if e.is_active and e.current_index == 0:
+                self.root.after(1200, lambda: self._do_tour_action("next"))
+                
         elif self.pomodoro_active:
             # ポモドーロ中は集中メッセージを再確認表示
             mins = self.pomodoro_remaining_seconds // 60
@@ -872,12 +912,52 @@ class NeoSecretaryGUI:
                 command=lambda c=cid: self.switch_character_skin(c)
             )
         menu.add_cascade(label="🎭 キャラクタースキン変更", menu=skin_menu)
+        self.wandering_var = tk.BooleanVar(value=getattr(char_mgr, "wandering_enabled", False))
+        menu.add_checkbutton(
+            label="🚶 徘徊モード（デスクトップ散歩）",
+            variable=self.wandering_var,
+            command=self._toggle_wandering
+        )
         menu.add_command(label="🎓 使い方ツアー", command=self._start_tour)
         menu.add_command(label="💡 サジェストソース設定", command=lambda: SuggestSettingsDialog(self))
         menu.add_command(label="⚙ API・MCP設定", command=self._open_settings)
         menu.add_separator()
         menu.add_command(label="❌ 終了", command=self.root.destroy)
         return menu
+
+    def _toggle_wandering(self) -> None:
+        """徘徊モード（デスクトップ散歩）の ON/OFF を切り替え、設定を永続化します。"""
+        enabled = bool(self.wandering_var.get())
+        self.wandering_enabled = enabled
+        if hasattr(self, "animator"):
+            self.animator.wandering_enabled = enabled
+        try:
+            from character_manager import get_character_manager
+            get_character_manager().set_wandering_enabled(enabled)
+        except Exception as e:
+            logger.error(f"徘徊モード設定の保存に失敗: {e}")
+        self.update_message(f"🚶 徘徊モードを【{'ON' if enabled else 'OFF'}】にしました！散歩中は画面下をテクテク移動します。")
+        logger.info(f"徘徊モード切替: {enabled}")
+
+    def _step_walk(self) -> None:
+        """徘徊モード: walk 状態の間、ペットウィンドウを画面下端に沿って横移動させます。"""
+        try:
+            animator = self.animator
+            direction = getattr(animator, "walk_direction", 1)
+            screen_w = self.root.winfo_screenwidth()
+            pet_w = self.root.winfo_width() or 300
+            cur_x = self.root.winfo_x()
+            new_x = max(0, min(screen_w - pet_w, cur_x + direction * 8))
+            if new_x in (0, screen_w - pet_w):
+                animator.walk_direction *= -1
+                direction = animator.walk_direction
+            self.root.geometry(f"+{new_x}+{self.root.winfo_y()}")
+            flip = direction < 0
+            if flip != getattr(self, "_walk_flip_state", False):
+                self._walk_flip_state = flip
+            self._render_mascot(animator.get_current_frame(), flip=flip)
+        except Exception as e:
+            logger.debug(f"徘徊移動スキップ: {e}")
 
     def _open_qr_connection(self):
         """スマホDesk Pet接続用のQRコードダイアログを開く"""
@@ -1063,172 +1143,247 @@ class NeoSecretaryGUI:
     # Windows Layered Window の描画破綻問題を根本解決。
     # =============================================================================
 
+    def _get_pet_center_rect(self) -> tuple:
+        """ペット本体（Canvas中央）のスクリーン座標矩形を返す。"""
+        self.root.update_idletasks()
+        try:
+            canv_x = self.char_canvas.winfo_rootx()
+            canv_y = self.char_canvas.winfo_rooty()
+        except Exception:
+            sw = self.root.winfo_screenwidth()
+            sh = self.root.winfo_screenheight()
+            return (sw - 220, sh - 220, sw - 60, sh - 60)
+        cx = canv_x + 170
+        cy = canv_y + 135
+        # イルカ/マスコットに合わせたジャストサイズ
+        return (cx - 75, cy - 65, cx + 75, cy + 65)
+
+    def _get_circle_btn_rect(self, btn_idx: int) -> tuple:
+        """指定したサークルメニューボタンのスクリーン座標矩形を返す。"""
+        self.root.update_idletasks()
+        try:
+            canv_x = self.char_canvas.winfo_rootx()
+            canv_y = self.char_canvas.winfo_rooty()
+        except Exception:
+            return self._get_pet_center_rect()
+
+        if 0 <= btn_idx < len(self.circle_menu_buttons):
+            cfg = self.circle_menu_buttons[btn_idx]
+            bx = canv_x + 170 + cfg["dx"]
+            by = canv_y + 135 + cfg["dy"]
+            pad = 24  # ボタン半径19px + 余白5px
+            return (bx - pad, by - pad, bx + pad, by + pad)
+        return self._get_pet_center_rect()
+
+    def _get_widget_rect(self, widget, pad: int = 6) -> tuple:
+        """Tkinter/CTk ウィジェットのスクリーン座標矩形を返す。"""
+        self.root.update_idletasks()
+        try:
+            x1 = widget.winfo_rootx()
+            y1 = widget.winfo_rooty()
+            w = widget.winfo_width()
+            h = widget.winfo_height()
+            return (x1 - pad, y1 - pad, x1 + w + pad, y1 + h + pad)
+        except Exception:
+            return self._get_pet_center_rect()
+
+    def _get_tour_target_rect(self, step: 'TourStep') -> tuple:
+        """ツアーステップに応じたピンポイントなスクリーン座標矩形を返す。"""
+        step_id = getattr(step, 'id', '')
+
+        if step_id == "greeting":
+            # 1. ようこそ: ペット本体をジャストサイズで囲む
+            return self._get_pet_center_rect()
+        elif step_id == "menu":
+            # 2. メニュー: ヘッダーの ⚙ メニューボタンを囲む
+            return self._get_widget_rect(self.menu_btn, pad=6)
+        elif step_id == "notebook":
+            # 3. 手帳: サークルメニューの 📔 手帳ボタン (index 0)
+            return self._get_circle_btn_rect(0)
+        elif step_id == "mobile":
+            # 4. スマホ: サークルメニューの 📱 スマホボタン (index 3)
+            return self._get_circle_btn_rect(3)
+        elif step_id == "pomodoro":
+            # 5. ポモドーロ: サークルメニューの 🍅 ポモドーロボタン (index 1)
+            return self._get_circle_btn_rect(1)
+        elif step_id == "settings":
+            # 6. 設定: サークルメニューの ⚙ 設定ボタン (index 5)
+            return self._get_circle_btn_rect(5)
+        elif step_id == "complete":
+            # 7. 完了: ペット本体
+            return self._get_pet_center_rect()
+        else:
+            return self._get_pet_center_rect()
+
     def _on_tour_step(self, step: 'TourStep', index: int, total: int) -> None:
         """ツアーステップ変更時のコールバック (post_action 経由で呼ばれる)。"""
         self.update_message(f"【{step.title}】({index+1}/{total})\n\n{step.text}")
         self.set_pet_state("happy", duration_ms=3000)
-        self._update_tour_overlay(step, index, total)
 
-    def _get_tour_target_rect(self, step: 'TourStep') -> tuple:
-        """ツアーターゲットウィジェットのスクリーン座標矩形を返す。
+        # サークルメニューの動的展開/収納連動:
+        # 手帳・スマホ・ポモドーロ・設定ではサークルメニューを展開して該当ボタンを光らせる
+        step_id = getattr(step, 'id', '')
+        if step_id in ("notebook", "mobile", "pomodoro", "settings"):
+            if not self.circle_menu_active:
+                self.toggle_circle_menu()
+        elif step_id in ("greeting", "complete", "menu"):
+            if self.circle_menu_active:
+                self.toggle_circle_menu()
 
-        Returns:
-            (left, top, right, bottom) — ターゲット領域のスクリーン座標。
-            最低サイズ(80x80)を保証する。
-        """
-        self.root.update_idletasks()
+        # メニューアニメーション完了待ち（少し遅延させて正確な座標でリング描画）
+        self.root.after(120, lambda: self._update_tour_overlay(step, index, total))
 
-        if step.target_region == "pet":
-            w = self.char_canvas
-        elif step.target_region == "menu":
-            w = self.menu_btn
-        elif step.target_region == "calendar":
-            w = self.btn_open_calendar
-        elif step.target_region == "settings":
-            w = self.bubble_header
+    def _draw_canvas_tour_highlight(self, cx: int, cy: int, r: int = 24, is_circle: bool = True):
+        """Canvas上に直接ハイライトリングを描画する（DPIズレ・透過バグ皆無）。"""
+        self.char_canvas.delete("tour_highlight")
+        if is_circle:
+            # 二重の光る金色オーラ
+            self.char_canvas.create_oval(
+                cx - r - 4, cy - r - 4, cx + r + 4, cy + r + 4,
+                outline="#FFD700", width=4, tags="tour_highlight"
+            )
+            self.char_canvas.create_oval(
+                cx - r - 1, cy - r - 1, cx + r + 1, cy + r + 1,
+                outline="#FFA500", width=2, tags="tour_highlight"
+            )
         else:
-            # デフォルト: 画面中央寄り
-            sw = self.root.winfo_screenwidth()
-            sh = self.root.winfo_screenheight()
-            cx, cy = sw // 2, sh // 3
-            m = 120
-            return (cx - m, cy - m, cx + m, cy + m)
+            self.char_canvas.create_rectangle(
+                cx - r - 4, cy - r - 4, cx + r + 4, cy + r + 4,
+                outline="#FFD700", width=4, tags="tour_highlight"
+            )
+            self.char_canvas.create_rectangle(
+                cx - r - 1, cy - r - 1, cx + r + 1, cy + r + 1,
+                outline="#FFA500", width=2, tags="tour_highlight"
+            )
+        # ハイライトリングを最前面に上げつつ、ボタンの下層へ
+        self.char_canvas.tag_raise("tour_highlight")
+        for item in self.circle_menu_buttons:
+            item["btn"].lift()
 
-        try:
-            x1 = w.winfo_rootx()
-            y1 = w.winfo_rooty()
-            x2 = x1 + w.winfo_width()
-            y2 = y1 + w.winfo_height()
-        except Exception:
-            sw = self.root.winfo_screenwidth()
-            sh = self.root.winfo_screenheight()
-            return (sw // 2 - 80, sh // 3 - 80, sw // 2 + 80, sh // 3 + 80)
-
-        m = 20  # ウィジェット周囲の余白
-        return (x1 - m, y1 - m, x2 + m, y2 + m)
-
-    @staticmethod
-    def _place_tour_card_near(card_w: int, card_h: int,
-                              target_rect: tuple,
-                              screen_w: int, screen_h: int) -> tuple:
-        """ターゲット矩形の近くにカードを配置する座標を計算。"""
-        tx1, ty1, tx2, ty2 = target_rect
-        if ty1 - 20 >= card_h:
-            y = ty1 - 20 - card_h
-        else:
-            y = ty2 + 20
-        if y + card_h > screen_h - 10:
-            y = max(10, screen_h - 10 - card_h)
-        if y < 10:
-            y = 10
-        x = tx1
-        if x + card_w > screen_w - 10:
-            x = max(10, tx2 - card_w)
-        if x < 10:
-            x = 10
-        return int(x), int(y)
-
-    def _update_tour_ring(self, target_rect: tuple) -> None:
-        """ターゲット矩形を囲むハイライトリングを表示/更新する。"""
-        tx1, ty1, tx2, ty2 = target_rect
-        pad = 12
-        rx1 = tx1 - pad
-        ry1 = ty1 - pad
-        rx2 = tx2 + pad
-        ry2 = ty2 + pad
-        rw = max(1, rx2 - rx1)
-        rh = max(1, ry2 - ry1)
-        if not hasattr(self, '_tour_ring') or self._tour_ring is None:
-            self._tour_ring = tk.Toplevel(self.root)
-            self._tour_ring.overrideredirect(True)
-            self._tour_ring.attributes('-topmost', True)
-            ring_bg = "#FF00FF"
-            self._tour_ring.configure(bg=ring_bg)
-            self._tour_ring.attributes('-transparentcolor', ring_bg)
-            cvs = tk.Canvas(self._tour_ring, highlightthickness=0, bg=ring_bg)
-            cvs.pack(fill=tk.BOTH, expand=True)
-            self._tour_ring_canvas = cvs
-        self._tour_ring.geometry(f"{rw}x{rh}+{rx1}+{ry1}")
-        cvs = self._tour_ring_canvas
-        cvs.delete('all')
-        cvs.create_rectangle(4, 4, rw - 4, rh - 4, outline='#FFD700', width=4)
-        cvs.create_rectangle(11, 11, rw - 11, rh - 11, outline='#FFA500', width=2)
-        self._tour_ring.lift()
     def _update_tour_overlay(self, step: 'TourStep', index: int, total: int) -> None:
-        """ツアーガイドカード + ハイライトリングを表示/更新する。
-
-        フルスクリーン半透明オーバーレイを廃止し、不透明なガイドカードと
-        注目ウィジェットを囲むリングで構成。alpha属性を一切使わないため
-        Windows Layered Window の描画破綻問題を根本解決。
-        """
+        """ツアーガイドカードを表示/更新し、Canvas上の対象をピタッとハイライトする。"""
         sw = self.root.winfo_screenwidth()
         sh = self.root.winfo_screenheight()
-        CARD_W, CARD_H = 380, 300
-        target_rect = self._get_tour_target_rect(step)
+        CARD_W, CARD_H = 400, 320
+        step_id = getattr(step, 'id', '')
+
+        # 1. Canvas上でのピンポイントハイライト描画 (Canvasローカル座標で1ピクセルも狂わない)
+        if step_id == "greeting":
+            # ペット本体 (中心 170, 135)
+            self._draw_canvas_tour_highlight(170, 135, r=55, is_circle=True)
+        elif step_id == "menu":
+            # メニュー案内: サークルメニュー全体を想起させるペット周辺
+            self._draw_canvas_tour_highlight(170, 135, r=60, is_circle=True)
+        elif step_id == "notebook":
+            # 📔 統合手帳ボタン (dx=-130, dy=0) -> (40, 135)
+            self._draw_canvas_tour_highlight(40, 135, r=24, is_circle=True)
+        elif step_id == "mobile":
+            # 📱 スマホボタン (dx=130, dy=0) -> (300, 135)
+            self._draw_canvas_tour_highlight(300, 135, r=24, is_circle=True)
+        elif step_id == "pomodoro":
+            # 🍅 ポモドーロボタン (dx=-112, dy=-65) -> (58, 70)
+            self._draw_canvas_tour_highlight(58, 70, r=24, is_circle=True)
+        elif step_id == "settings":
+            # ⚙ 設定ボタン (dx=112, dy=65) -> (282, 200)
+            self._draw_canvas_tour_highlight(282, 200, r=24, is_circle=True)
+        elif step_id == "complete":
+            # 🎉 完了: ペット本体
+            self._draw_canvas_tour_highlight(170, 135, r=65, is_circle=True)
+        else:
+            self.char_canvas.delete("tour_highlight")
+
+        # 2. ガイドカードUIの更新
         if not hasattr(self, '_tour_card') or self._tour_card is None:
             self._tour_card = tk.Toplevel(self.root)
             self._tour_card.overrideredirect(True)
             self._tour_card.attributes('-topmost', True)
             self._tour_card.configure(bg='#F5F5DC')
-            header = tk.Frame(self._tour_card, bg='#F5F5DC', height=32)
+
+            # ヘッダー (TOP)
+            header = tk.Frame(self._tour_card, bg='#F5F5DC', height=36)
             header.pack(fill=tk.X, side=tk.TOP)
             header.pack_propagate(False)
+
             self._tour_title = tk.Label(
                 header, font=("Meiryo UI", 13, "bold"),
                 bg='#F5F5DC', fg='#4A3B32', anchor=tk.W)
-            self._tour_title.pack(side=tk.LEFT, padx=(12, 4))
-            self._tour_counter = tk.Label(
-                header, font=("Meiryo UI", 10),
-                bg='#F5F5DC', fg='#A67B5B', anchor=tk.E)
-            self._tour_counter.pack(side=tk.RIGHT, padx=(4, 4))
+            self._tour_title.pack(side=tk.LEFT, padx=(14, 4))
+
             btn_skip = tk.Button(
-                header, text="✕", font=("Meiryo UI", 12, "bold"),
+                header, text="✕ スキップ", font=("Meiryo UI", 10),
                 bg='#F5F5DC', fg='#8B7355', bd=0,
                 activebackground='#E8DCC8', activeforeground='#8B7355',
                 cursor="hand2",
                 command=lambda: self._do_tour_action("skip"))
             btn_skip.pack(side=tk.RIGHT, padx=(0, 10))
+
+            self._tour_counter = tk.Label(
+                header, font=("Meiryo UI", 10, "bold"),
+                bg='#F5F5DC', fg='#A67B5B', anchor=tk.E)
+            self._tour_counter.pack(side=tk.RIGHT, padx=(4, 8))
+
             sep = tk.Frame(self._tour_card, bg='#D4C5A9', height=1)
-            sep.pack(fill=tk.X)
-            text_frame = tk.Frame(self._tour_card, bg='#FFF8F0')
-            text_frame.pack(fill=tk.BOTH, expand=True, padx=12, pady=(10, 6))
-            self._tour_text = tk.Text(
-                text_frame, wrap=tk.WORD, font=("Meiryo UI", 11),
-                bg='#FFF8F0', fg='#4A3B32', bd=0,
-                padx=6, pady=4, relief=tk.FLAT)
-            self._tour_text.pack(fill=tk.BOTH, expand=True)
-            btn_frame = tk.Frame(self._tour_card, bg='#FFF8F0', height=44)
+            sep.pack(fill=tk.X, side=tk.TOP)
+
+            # フッターボタン (BOTTOM)
+            btn_frame = tk.Frame(self._tour_card, bg='#F5F5DC', height=50)
             btn_frame.pack(fill=tk.X, side=tk.BOTTOM)
             btn_frame.pack_propagate(False)
+
             bf = ("Meiryo UI", 11, "bold")
             self._tour_card_prev = tk.Button(
                 btn_frame, text="◀ 戻る", font=bf,
                 bg='#8B7355', fg='#FFFFFF', bd=1, relief=tk.RAISED,
                 activebackground='#A67B5B', activeforeground='#FFFFFF',
-                padx=10, pady=2, cursor="hand2",
+                padx=14, pady=4, cursor="hand2",
                 command=lambda: self._do_tour_action("prev"))
-            self._tour_card_prev.pack(side=tk.LEFT, padx=(14, 4), pady=6)
+            self._tour_card_prev.pack(side=tk.LEFT, padx=(14, 6), pady=8)
+
             self._tour_card_next = tk.Button(
                 btn_frame, text="次へ ▶", font=bf,
-                bg='#5B8A9B', fg='#FFFFFF', bd=1, relief=tk.RAISED,
-                activebackground='#7BAAB5', activeforeground='#FFFFFF',
-                padx=10, pady=2, cursor="hand2",
+                bg='#2E7D32', fg='#FFFFFF', bd=1, relief=tk.RAISED,
+                activebackground='#388E3C', activeforeground='#FFFFFF',
+                padx=16, pady=4, cursor="hand2",
                 command=lambda: self._do_tour_action("next"))
-            self._tour_card_next.pack(side=tk.LEFT, padx=(4, 14), pady=6)
+            self._tour_card_next.pack(side=tk.RIGHT, padx=(6, 14), pady=8)
+
+            # テキスト領域 (中央expand)
+            text_frame = tk.Frame(self._tour_card, bg='#FFF8F0')
+            text_frame.pack(fill=tk.BOTH, expand=True, padx=12, pady=8)
+
+            self._tour_text = tk.Text(
+                text_frame, wrap=tk.WORD, font=("Meiryo UI", 11),
+                bg='#FFF8F0', fg='#4A3B32', bd=0,
+                padx=8, pady=6, relief=tk.FLAT)
+            self._tour_text.pack(fill=tk.BOTH, expand=True)
+
             self._tour_card.bind("<Escape>", lambda e: self._do_tour_action("skip"))
+
         self._tour_title.config(text=step.title)
         self._tour_counter.config(text=f"{index+1} / {total}")
         self._tour_text.config(state=tk.NORMAL)
         self._tour_text.delete("1.0", tk.END)
         self._tour_text.insert("1.0", step.text)
         self._tour_text.config(state=tk.DISABLED)
+
         self._tour_card_prev.config(state=tk.NORMAL if index > 0 else tk.DISABLED)
         next_text = "次へ ▶" if index < total - 1 else "🎉 完了"
         self._tour_card_next.config(text=next_text)
-        card_x, card_y = self._place_tour_card_near(
-            CARD_W, CARD_H, target_rect, sw, sh)
+
+        # カードの配置（ネオ秘書くんウィンドウの左側にスマート配置）
+        try:
+            root_x = self.root.winfo_rootx()
+            root_y = self.root.winfo_rooty()
+            root_h = self.root.winfo_height()
+        except Exception:
+            root_x = sw - 380
+            root_y = sh - 480
+            root_h = 440
+
+        card_x = max(10, root_x - CARD_W - 20)
+        card_y = max(10, min(sh - CARD_H - 20, root_y + (root_h - CARD_H) // 2))
+
         self._tour_card.geometry(f"{CARD_W}x{CARD_H}+{card_x}+{card_y}")
-        self._update_tour_ring(target_rect)
         self._tour_card.lift()
         self._tour_card.focus_set()
 
@@ -1249,7 +1404,13 @@ class NeoSecretaryGUI:
             self._destroy_tour_overlay()
 
     def _destroy_tour_overlay(self) -> None:
-        """ガイドカードとリングを破棄する。"""
+        """ガイドカードとリングを破棄し、サークルメニューを収納・ハイライトを消去する。"""
+        try:
+            self.char_canvas.delete("tour_highlight")
+        except Exception:
+            pass
+        if getattr(self, 'circle_menu_active', False):
+            self.toggle_circle_menu()
         for attr in ('_tour_card', '_tour_ring'):
             w = getattr(self, attr, None)
             if w is not None:

@@ -148,6 +148,40 @@ CHARACTERS_DATA: Dict[str, Dict[str, Any]] = {
             "目をお休みになると、案内の精度も上がるのでございますよ。"
         ]
     }
+,
+    "kyle": {
+        "id": "kyle",
+        "name": "カイル風精霊",
+        "title": "貝型PCを叩くなつかしの案内役",
+        "emoji": "🐚",
+        "description": "ホタテ貝型ノートPCをカタカタ叩く、あの懐かしい案内精霊の親戚。強寄せバージョン。",
+        "theme_color": "#5A6ACF",
+        "system_prompt": (
+            "【キャラクター設定】あなたは「カイル風精霊」です。\n"
+            "ロール: ホタテ貝型ノートPCをカタカタ叩きながらボスを支援する、なつかしい案内精霊。\n"
+            "口調: 芝居がかった丁寧語（「〜でございます」「〜いたします」）。\n"
+            "性格: 仕事熱心で真面目。貝型PCの処理性能をちょっと自慢したがる。\n"
+            "口癖: 「カタカタ…」「承知いたしました」「案内業務は継続します」\n"
+            "一人称: 「私」\n"
+            "ボス呼称: 「ボス」\n"
+        ),
+        "greetings": [
+            "カタカタ…ふっ、ボス。本日も貝型PCは絶好調でございます🐚",
+            "お呼びでしょうか？ご案内、いつでも承ります。",
+            "この貝型PC、実は相当なスペックでして…さて本日の業務をまいりましょう。"
+        ],
+        "task_done": [
+            "タスク完了を確認いたしました。貝型PCも喜んでおります！",
+            "ふっ、完璧な手際でございます。次の一案を準備しますね。",
+            "カタカタ…記録完了です。ボス、お見事でございます！"
+        ],
+        "pomodoro_start": "集中のお時間でございますね。貝型PCのタイマーを起動いたします。",
+        "pomodoro_break": "休憩のご案内でございます。貝型PCも少し休ませます。",
+        "care_messages": [
+            "ボス、長時間のご作業でございます。貝型PCとのストレッチをいかがですか。",
+            "目をお休みください。私が貝型PCで見守っておりますゆえ。"
+        ]
+    }
 }
 
 
@@ -157,6 +191,7 @@ class CharacterManager:
         self.current_character_id = "hisho"
         self.bond_xp: int = 0
         self.last_pet_time: float = 0.0
+        self.wandering_enabled: bool = False
         self._load_config()
 
     def _load_config(self):
@@ -168,6 +203,7 @@ class CharacterManager:
                     if c_id in CHARACTERS_DATA:
                         self.current_character_id = c_id
                     self.bond_xp = data.get("bond_xp", 0)
+                    self.wandering_enabled = bool(data.get("wandering_enabled", False))
             except Exception as e:
                 logger.error(f"キャラクター設定読み込みエラー: {e}")
 
@@ -176,10 +212,17 @@ class CharacterManager:
             with open(CONFIG_PATH, "w", encoding="utf-8") as f:
                 json.dump({
                     "current_character": self.current_character_id,
-                    "bond_xp": self.bond_xp
+                    "bond_xp": self.bond_xp,
+                    "wandering_enabled": self.wandering_enabled
                 }, f, indent=2, ensure_ascii=False)
         except Exception as e:
             logger.error(f"キャラクター設定保存エラー: {e}")
+
+    def set_wandering_enabled(self, enabled: bool) -> None:
+        """徘徊モード（デスクトップ散歩）の ON/OFF を設定し、設定ファイルへ永続化します。"""
+        self.wandering_enabled = enabled
+        self.save_config()
+        logger.info(f"徘徊モードを{'ON' if enabled else 'OFF'}に設定しました")
 
     def set_character(self, char_id: str) -> bool:
         if char_id in CHARACTERS_DATA:

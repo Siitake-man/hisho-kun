@@ -225,6 +225,29 @@ class DeviceLinkMonitor:
                     self.latest_notification = None
             return None
 
+    def set_easter_egg_event(self, stage: int, daily_count: int, attempt_count: int, message: str = "") -> None:
+        """最新のイースターエッグ発火イベントを保持し、スマホへ演出要求を発行"""
+        with self._lock:
+            self.latest_easter_egg_event = {
+                "id": f"ee_{uuid.uuid4().hex[:6]}",
+                "stage": stage,
+                "daily_count": daily_count,
+                "attempt_count": attempt_count,
+                "message": message,
+                "timestamp": time.time()
+            }
+            self.buzz_requested = True
+
+    def get_active_easter_egg_event(self) -> Optional[Dict[str, Any]]:
+        """直近25秒以内のイースターエッグイベントを返す"""
+        with self._lock:
+            if hasattr(self, 'latest_easter_egg_event') and self.latest_easter_egg_event:
+                if time.time() - self.latest_easter_egg_event["timestamp"] <= 25.0:
+                    return self.latest_easter_egg_event
+                else:
+                    self.latest_easter_egg_event = None
+            return None
+
 
 _global_link_monitor = DeviceLinkMonitor()
 
@@ -612,7 +635,17 @@ class DeskPetSyncHandler(SimpleHTTPRequestHandler):
                 pomodoro_label = "☕ 休憩中" if pomodoro_is_break else "🍅 集中中"
                 
                 pet_state = "alarm_ask" if pending_req else ("focus" if (pomodoro_active and not pomodoro_is_break) else "idle")
-                default_msg = "ボス！エージェントからコマンド実行の許可要請が届いています！" if pending_req else ("集中タイムです！ボス、一緒に頑張りましょう！🔥" if (pomodoro_active and not pomodoro_is_break) else "ボス、いつもお疲れ様です！スマホからも見守っていますよ！")
+                # 台詞の優先順位: 承認要請 > 集中タイム > PCペット最新セリフ（ミラー） > キャラ別ローテーション挨拶
+                pc_message = str(getattr(gui, "current_message", "") or "").strip() if gui else ""
+                use_greeting_rotation = not (pending_req or (pomodoro_active and not pomodoro_is_break) or pc_message)
+                if pending_req:
+                    default_msg = "ボス！エージェントからコマンド実行の許可を求められています！"
+                elif pomodoro_active and not pomodoro_is_break:
+                    default_msg = "集中タイムです！ボス、一緒に頑張りましょう！🔥"
+                elif pc_message:
+                    default_msg = pc_message
+                else:
+                    default_msg = "ボス、いつもお疲れ様です！スマホからも見守っていますよ！"
                 
                 from suggest_engine import get_suggestion_engine
                 suggest_eng = get_suggestion_engine()
@@ -659,6 +692,43 @@ class DeskPetSyncHandler(SimpleHTTPRequestHandler):
                 heatmap_data = database.get_habit_heatmap_data(days=70)
                 bond_info = char_mgr.get_bond_info()
 
+                # キャラ別挨拶 × 時間帯 × 90秒ローテーション（固定文言の解消）
+                if use_greeting_rotation:
+                    try:
+                        greetings = list(char_mgr.get_current_character().get("greetings", []))
+                    except Exception:
+                        greetings = []
+                    hour = time.localtime().tm_hour
+                    if 5 <= hour < 11:
+                        greetings.append("おはようございます、ボス！今日も一日よろしくです！")
+                    elif 11 <= hour < 18:
+                        greetings.append("ボス、午後の業務もここから見守っていますよ！")
+                    elif 18 <= hour < 23:
+                        greetings.append("ボス、今日も一日お疲れ様です！もう少しだけ付き合ってください✨")
+                    else:
+                        greetings.append("ふぁ…まだ起きています？無理は禁物ですよ、ボス。")
+                    if greetings:
+                        default_msg = greetings[int(time.time() // 90) % len(greetings)]
+
+                # イースターエッグ状態（最新イベント ＆ 永続化状態）
+                try:
+                    import easter_egg_engine
+                    ee_state = easter_egg_engine.load_state()
+                    ee_payload = {
+                        "attempt_count": ee_state.attempt_count,
+                        "daily_count": ee_state.daily_count,
+                        "secret_game_unlocked": ee_state.secret_game_unlocked,
+                        "active_event": monitor.get_active_easter_egg_event()
+                    }
+                except Exception as ee_err:
+                    logger.debug(f"イースターエッグ状態取得スキップ: {ee_err}")
+                    ee_payload = {
+                        "attempt_count": 0,
+                        "daily_count": 0,
+                        "secret_game_unlocked": False,
+                        "active_event": None
+                    }
+
                 payload = {
                     "status": "ok",
                     "pet_state": pet_state,
@@ -676,6 +746,7 @@ class DeskPetSyncHandler(SimpleHTTPRequestHandler):
                     "pending_approval": pending_req,
                     "active_event": active_event,
                     "latest_notification": active_notification,
+                    "easter_egg": ee_payload,
                     "tasks": _cached_tasks_data,
                     "events": _cached_events_data,
                     "suggestions": suggestions_data,
@@ -848,10 +919,9 @@ class DeskPetSyncHandler(SimpleHTTPRequestHandler):
                 req = hub.create_question_request(agent_name, question, choices, details, timeout_sec=timeout, requester_ip=client_ip)
                 get_link_monitor().trigger_buzz()
                 
-                # PCペットのメッセージとリアクション
+                # PCペットのメッセージとリアクション（非表示状態は維持）
                 gui = get_gui_instance()
                 if gui:
-                    gui.post_action(gui.show_pc_pet)
                     gui.post_action(gui.update_message, f"【{agent_name}】{question}")
                     gui.post_action(gui.set_pet_state, "alarm_ask", 6000)
                 
@@ -937,10 +1007,9 @@ class DeskPetSyncHandler(SimpleHTTPRequestHandler):
                 hub = get_bridge_hub()
                 hub.set_completed_event(agent_name, title, message, details)
                 
-                # PCペットのリアクションとメッセージ更新
+                # PCペットのリアクションとメッセージ更新（非表示状態は維持）
                 gui = get_gui_instance()
                 if gui:
-                    gui.post_action(gui.show_pc_pet)
                     full_text = f"【{agent_name}】{title}\n{message}" if message else f"【{agent_name}】{title}"
                     gui.post_action(gui.update_message, full_text)
                     gui.post_action(gui.set_pet_state, pet_reaction, 6000)
@@ -1088,6 +1157,33 @@ class DeskPetSyncHandler(SimpleHTTPRequestHandler):
                     if app and voice_text:
                         app.post_human_message(voice_text)
                     self.wfile.write(json.dumps({"status": "success", "text": voice_text}).encode("utf-8"))
+                    return
+                elif action == "easter_egg_trigger":
+                    phrase = data.get("phrase", "お前を消す方法")
+                    import easter_egg_engine
+                    ee_event = easter_egg_engine.observe_message(phrase)
+                    if ee_event:
+                        get_link_monitor().set_easter_egg_event(
+                            stage=ee_event["stage"],
+                            daily_count=ee_event["daily_count"],
+                            attempt_count=ee_event["attempt_count"],
+                            message=ee_event["fallback_reply"]
+                        )
+                        gui = get_gui_instance()
+                        if gui:
+                            gui.post_action(gui.update_message, ee_event["fallback_reply"])
+                            if ee_event["stage"] >= 3:
+                                gui.post_action(gui.set_pet_state, "thinking", 3000)
+                        logger.info(f"📱 スマホ側からイースターエッグ発火: stage={ee_event['stage']}")
+                        self.wfile.write(json.dumps({
+                            "status": "success",
+                            "stage": ee_event["stage"],
+                            "reply": ee_event["fallback_reply"],
+                            "daily_count": ee_event["daily_count"],
+                            "attempt_count": ee_event["attempt_count"]
+                        }, ensure_ascii=False).encode("utf-8"))
+                    else:
+                        self.wfile.write(json.dumps({"status": "no_trigger"}).encode("utf-8"))
                     return
                         
                 self.wfile.write(json.dumps({"status": "unknown_action"}).encode("utf-8"))

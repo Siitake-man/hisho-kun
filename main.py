@@ -17,7 +17,7 @@ from langchain_core.messages import HumanMessage, AIMessage
 
 from gui import NeoSecretaryGUI
 from agent import build_agent_graph
-from easter_egg_engine import handle_message
+from easter_egg_engine import observe_message
 
 # ログ設定
 logging.basicConfig(
@@ -305,12 +305,26 @@ class NeoSecretaryApp:
         """エージェントによる思考処理 (非同期)"""
         logger.info(f"ユーザー入力の処理開始: {user_text}")
         
-        # イースターエッグ検知（「お前を消す方法」等）: LLM推論をスキップして専用リアクションを返す
-        egg_reply = handle_message(user_text)
-        if egg_reply is not None:
-            self.gui.update_message(egg_reply)
+        # イースターエッグ検知（「お前を消す方法」等）: 発火時は LLM に文脈指示を注入し、
+        # キャラクターが文脈を理解した上でリアクションする。LLM失敗時は固定台詞へフォールバック。
+        egg_fallback = None
+        egg_event = observe_message(user_text)
+        if egg_event is not None:
+            logger.info(f"イースターエッグ発火: stage={egg_event['stage']}")
+            self.gui.update_message("……！？")
             self.gui.set_pet_state("thinking", duration_ms=3000)
-            return
+            egg_fallback = egg_event["fallback_reply"]
+            user_text = f"{user_text}\n\n{egg_event['directive']}"
+            try:
+                from local_sync_server import get_link_monitor
+                get_link_monitor().set_easter_egg_event(
+                    stage=egg_event["stage"],
+                    daily_count=egg_event["daily_count"],
+                    attempt_count=egg_event["attempt_count"],
+                    message=egg_event["fallback_reply"]
+                )
+            except Exception as ee_err:
+                logger.debug(f"PWAイースターエッグ通知スキップ: {ee_err}")
 
         initial_state = {"messages": [HumanMessage(content=user_text)]}
         
@@ -339,7 +353,7 @@ class NeoSecretaryApp:
                 # 応答完了時: 4秒間笑顔になり、その後通常待機へ復帰
                 self.gui.set_pet_state("happy", duration_ms=4000)
             else:
-                self.gui.update_message("（返答がありませんでした）")
+                self.gui.update_message(egg_fallback or "（返答がありませんでした）")
                 self.gui.set_pet_state("idle")
                 
             # AIの推論（DB操作を含む可能性がある）が完了したタイミングで付箋UIを更新する
@@ -347,7 +361,7 @@ class NeoSecretaryApp:
                 
         except Exception as e:
             logger.error(f"推論中にエラーが発生: {e}", exc_info=True)
-            self.gui.update_message("申し訳ありません、脳内でエラーが発生しました...")
+            self.gui.update_message(egg_fallback or "申し訳ありません、脳内でエラーが発生しました...")
             self.gui.set_pet_state("idle")
 
 

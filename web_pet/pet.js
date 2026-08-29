@@ -18,6 +18,9 @@ let suggestIndex = 0;
 let currentApprovalRequest = null;
 let currentActiveEvent = null;
 let currentPomodoro = { active: false, is_break: false, remaining_seconds: 0, mode_label: "" };
+let petStateNow = 'idle';
+// 歩行フレーム(walk_1/2)を持つキャラ（未保有キャラは歩行中も idle フレームで代用）
+const WALK_CAPABLE_CHARS = ['retro_dolphin', 'kyle'];
 let wakeLock = null;
 let currentCharacterId = 'seal';
 
@@ -454,15 +457,56 @@ function cycleEnvTheme() {
   showToast(`🏞️ ${theme.label}テーマに変わりました`);
 }
 
-/** 短時間表示されるトースト通知 */
+/** 高視認性HUDトースト通知 */
 let toastTimer = null;
-function showToast(message) {
-  const toast = document.getElementById('theme-toast');
-  if (!toast) return;
-  toast.innerText = message;
-  toast.classList.add('show');
+function showToast(message, duration = 3500, isHighlight = false) {
+  let toast = document.getElementById('global-hud-toast');
+  if (!toast) {
+    toast = document.createElement('div');
+    toast.id = 'global-hud-toast';
+    toast.style.cssText = `
+      position: fixed;
+      top: 42px;
+      left: 50%;
+      transform: translateX(-50%) translateY(-10px);
+      background: linear-gradient(135deg, rgba(30, 20, 14, 0.97), rgba(46, 28, 20, 0.97));
+      border: 2px solid var(--accent-amber);
+      color: #F5F5DC;
+      padding: 9px 18px;
+      border-radius: 8px;
+      font-family: 'DotGothic16', monospace;
+      font-size: 13px;
+      font-weight: bold;
+      z-index: 999999;
+      box-shadow: 0 8px 30px rgba(0,0,0,0.85), 0 0 15px rgba(255,184,0,0.5);
+      opacity: 0;
+      transition: all 0.3s cubic-bezier(0.18, 0.89, 0.32, 1.28);
+      pointer-events: none;
+      text-align: center;
+      max-width: 90vw;
+      word-break: break-word;
+      line-height: 1.4;
+    `;
+    document.body.appendChild(toast);
+  }
+
+  if (isHighlight) {
+    toast.style.borderColor = '#00E676';
+    toast.style.boxShadow = '0 8px 30px rgba(0,0,0,0.85), 0 0 20px rgba(0,230,118,0.7)';
+  } else {
+    toast.style.borderColor = '#FFB800';
+    toast.style.boxShadow = '0 8px 30px rgba(0,0,0,0.85), 0 0 15px rgba(255,184,0,0.5)';
+  }
+
+  toast.innerHTML = message;
+  toast.style.opacity = '1';
+  toast.style.transform = 'translateX(-50%) translateY(0)';
+
   if (toastTimer) clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => toast.classList.remove('show'), 1600);
+  toastTimer = setTimeout(() => {
+    toast.style.opacity = '0';
+    toast.style.transform = 'translateX(-50%) translateY(-10px)';
+  }, duration);
 }
 
 // =============================================================================
@@ -665,6 +709,8 @@ const CHARACTERS = [
   { id: 'kinoko', name: 'キノコ君', emoji: '🍄' }
 ,
   { id: 'retro_dolphin', name: 'レトロ案内精霊', emoji: '🐬' }
+,
+  { id: 'kyle', name: 'カイル風精霊', emoji: '🐚' }
 ];
 
 function cycleCharacter() {
@@ -880,6 +926,9 @@ async function fetchStatus() {
       fetchBackoffActive = false;
     }
 
+    // 0. ペット状態（歩行コントローラーのガード用）
+    petStateNow = data.pet_state || 'idle';
+
     // 1. メッセージ
     if (data.message) {
       const bubble = document.getElementById('speech-bubble');
@@ -982,11 +1031,37 @@ async function fetchStatus() {
         if (dismissBtn) dismissBtn.style.display = ev.type === 'completed' ? '' : 'none';
         if (isNew) {
           playAlertChime(2);
+          showToast(`🎉 【${ev.agent_name || 'AI'}】${ev.title || ev.summary || '作業完了！'}`);
+          if (navigator.vibrate) navigator.vibrate([120, 80, 120, 80, 240]);
+          petStateNow = 'celebrate';
+          if (window.EasterEggEngine) EasterEggEngine.playSound('revive');
         }
       } else {
         currentActiveEvent = null;
         lastActiveEventKey = null;
         eventBanner.style.display = 'none';
+      }
+    }
+
+    // 5.4. 🌟 最新通知（latest_notification）の即座フィードバック
+    if (data.latest_notification) {
+      const notif = data.latest_notification;
+      const notifKey = `${notif.id || ''}:${notif.timestamp || ''}`;
+      if (window._lastNotifKey !== notifKey) {
+        window._lastNotifKey = notifKey;
+        petStateNow = notif.reaction || 'celebrate';
+        const msgEl = document.getElementById('speech-bubble');
+        if (msgEl) {
+          msgEl.innerText = `🎉 【${notif.agent_name}】${notif.title}\n${notif.message}`;
+        }
+        const fullMsg = notif.message ? `🎉 【${notif.agent_name}】${notif.title}<br><span style="font-size:11px;opacity:0.9;font-weight:normal;">${escapeHtml(notif.message)}</span>` : `🎉 【${notif.agent_name}】${notif.title}`;
+        showToast(fullMsg, 4000, true);
+        if (navigator.vibrate) navigator.vibrate([120, 80, 120, 80, 240]);
+        if (window.EasterEggEngine) {
+          EasterEggEngine.playSound('revive');
+        } else {
+          playAlertChime(2);
+        }
       }
     }
 
@@ -1011,6 +1086,11 @@ async function fetchStatus() {
     if (data.buzz) {
       playAlertChime(2);
       showToast('📲 ボスが呼んでいます！');
+    }
+
+    // 5.7. ⚡ イースターエッグ演出同期
+    if (window.EasterEggEngine && data.easter_egg) {
+      EasterEggEngine.syncFromStatus(data);
     }
 
     // 6. 🌈 自律生活ドリーマー状態（天候・生活イベント）
@@ -1357,6 +1437,7 @@ function openSettingsModal() {
     <div class="note-item" onclick="toggleNoSleep(); closeBottomSheet();"><div class="note-title">💡 常時画面ON</div><div class="note-desc">画面の自動消灯を防ぎます（卓上スマートディスプレイ用）</div></div>
     <div class="note-item" onclick="toggleFullscreen(); closeBottomSheet();"><div class="note-title">⛶ 全画面表示</div><div class="note-desc">ブラウザUIを隠して全画面表示にします</div></div>
     <div class="note-item" onclick="showPcPet()"><div class="note-title">🖥️ PCのペットを呼び出す</div><div class="note-desc">デスクトップのペットを再表示します</div></div>
+    <div class="note-item" onclick="closeBottomSheet(); if (window.EasterEggEngine) EasterEggEngine.triggerFromPwa();"><div class="note-title">⚡ イースターエッグ演出テスト</div><div class="note-desc">「お前を消す方法」の演出を発火テストします</div></div>
     <div class="note-item" onclick="closeBottomSheet()"><div class="note-title">✖ 閉じる</div></div>`;
   openBottomSheet({ icon: '⚙️', tag: '設定', title: '設定' }, html);
 }
@@ -1487,3 +1568,65 @@ function updateNoSleepUI() {
   }
   if (banner) banner.style.display = nosleepActive ? 'none' : '';
 }
+
+// =============================================================================
+// 12. 自律歩行コントローラー（テクテク歩き ＆ フレームアニメ）
+//     - idle_1/idle_2 のフレーム切替で呼吸感を演出
+//     - 地面ライン上をランダムに歩行（方向転換あり・進行方向へスプライト反転）
+//     - 集中中・承認待ち等の特別状態では歩行を中断し既存描画に任せる
+// =============================================================================
+const WANDER = { mode: 'idle', dir: 1, x: 0.5, until: Date.now() + 5000, frame: 0, lastFrameAt: 0, lastTick: 0 };
+const WALK_MIN = 0.18, WALK_MAX = 0.82, WALK_SPEED = 0.045;
+
+function _setPetSprite(name) {
+  const el = document.getElementById('pet-sprite');
+  if (!el) return;
+  const url = '/assets/dot/' + currentCharacterId + '/' + name + '.png';
+  if (el.src.indexOf(url) !== -1) return;
+  // 歩行フレーム未保有キャラ等で 404 になった場合は idle へフォールバック
+  el.onerror = function () {
+    el.onerror = null;
+    el.src = '/assets/dot/' + currentCharacterId + '/idle_1.png';
+  };
+  el.src = url;
+}
+
+function petWanderTick() {
+  if (typeof currentPomodoro !== 'undefined' && currentPomodoro && currentPomodoro.active) return;
+  if (petStateNow && petStateNow !== 'idle') return;
+  const wrap = document.querySelector('.pet-img-wrap');
+  if (!wrap) return;
+  const now = Date.now();
+  const dt = Math.min(0.5, (now - (WANDER.lastTick || now)) / 1000);
+  WANDER.lastTick = now;
+  if (WANDER.mode === 'walk') {
+    WANDER.x += WANDER.dir * WALK_SPEED * dt;
+    if (WANDER.x < WALK_MIN) { WANDER.x = WALK_MIN; WANDER.dir = 1; }
+    if (WANDER.x > WALK_MAX) { WANDER.x = WALK_MAX; WANDER.dir = -1; }
+    wrap.style.left = (WANDER.x * 100) + '%';
+    wrap.style.transform = WANDER.dir < 0 ? 'scaleX(-1)' : 'none';
+    if (now - WANDER.lastFrameAt > 160) {
+      WANDER.lastFrameAt = now;
+      WANDER.frame = 1 - WANDER.frame;
+      const hasWalk = WALK_CAPABLE_CHARS.indexOf(currentCharacterId) !== -1;
+      _setPetSprite(WANDER.frame ? (hasWalk ? 'walk_1' : 'idle_2') : (hasWalk ? 'walk_2' : 'idle_1'));
+    }
+    if (now > WANDER.until) {
+      WANDER.mode = 'idle';
+      WANDER.until = now + 4000 + Math.random() * 6000;
+    }
+  } else {
+    wrap.style.transform = 'none';
+    if (now - WANDER.lastFrameAt > 700) {
+      WANDER.lastFrameAt = now;
+      WANDER.frame = 1 - WANDER.frame;
+      _setPetSprite(WANDER.frame ? 'idle_2' : 'idle_1');
+    }
+    if (now > WANDER.until) {
+      WANDER.mode = 'walk';
+      WANDER.dir = Math.random() < 0.5 ? -1 : 1;
+      WANDER.until = now + 2000 + Math.random() * 2500;
+    }
+  }
+}
+setInterval(petWanderTick, 120);

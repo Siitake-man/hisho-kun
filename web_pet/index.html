@@ -368,7 +368,10 @@
 
     /* ペット画像の呼吸・浮遊アニメーション */
     .pet-img-wrap {
-      position: relative;
+      position: absolute;
+      bottom: 34px;
+      left: 50%;
+      margin-left: -70px;
       width: 140px;
       height: 140px;
       display: flex;
@@ -695,6 +698,98 @@
     }
 
     /* =========================================================================
+       イースターエッグ演出 (Easter Egg FX)
+       ========================================================================= */
+    .fx-shake-light {
+      animation: ee-shake 0.4s cubic-bezier(.36,.07,.19,.97) both;
+    }
+    @keyframes ee-shake {
+      10%, 90% { transform: translate3d(-2px, 0, 0); }
+      20%, 80% { transform: translate3d(3px, 0, 0); }
+      30%, 50%, 70% { transform: translate3d(-3px, 0, 0); }
+      40%, 60% { transform: translate3d(3px, 0, 0); }
+    }
+
+    .fx-reject-pulse {
+      animation: ee-reject 1.2s ease forwards;
+    }
+    @keyframes ee-reject {
+      0% { filter: hue-rotate(0deg) contrast(100%); }
+      30% { filter: hue-rotate(300deg) contrast(150%) drop-shadow(0 0 15px rgba(255,23,68,0.8)); }
+      100% { filter: hue-rotate(0deg) contrast(100%); }
+    }
+
+    .fx-glitch-active {
+      animation: ee-glitch 0.6s infinite;
+      position: relative;
+    }
+    .fx-glitch-active::before {
+      content: " ";
+      position: absolute;
+      top: 0; left: 0; bottom: 0; right: 0;
+      background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.4) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+      background-size: 100% 3px, 6px 100%;
+      pointer-events: none;
+      z-index: 9999;
+    }
+    @keyframes ee-glitch {
+      0% { transform: translate(0); filter: drop-shadow(-2px 0 red) drop-shadow(2px 0 cyan); }
+      20% { transform: translate(-3px, 2px); filter: drop-shadow(2px 0 red) drop-shadow(-2px 0 cyan); }
+      40% { transform: translate(-2px, -2px); filter: drop-shadow(-2px 0 green); }
+      60% { transform: translate(3px, 1px); filter: drop-shadow(3px 0 red) drop-shadow(-3px 0 blue); }
+      80% { transform: translate(1px, -1px); filter: none; }
+      100% { transform: translate(0); filter: drop-shadow(-2px 0 red) drop-shadow(2px 0 cyan); }
+    }
+
+    .fx-blackout {
+      filter: brightness(0) !important;
+      transition: filter 0.5s ease;
+    }
+
+    .fx-revive-burst {
+      animation: ee-revive 2.5s ease-out forwards;
+    }
+    @keyframes ee-revive {
+      0% { filter: brightness(3) drop-shadow(0 0 30px #FFF); }
+      40% { filter: brightness(1.5) drop-shadow(0 0 20px #00E676); }
+      100% { filter: brightness(1) drop-shadow(0 0 0 transparent); }
+    }
+
+    .fx-pet-revive {
+      animation: ee-pet-pop 0.8s cubic-bezier(0.18, 0.89, 0.32, 1.28) forwards;
+    }
+    @keyframes ee-pet-pop {
+      0% { transform: scale(0) rotate(-180deg); }
+      100% { transform: scale(1) rotate(0deg); }
+    }
+
+    .secret-game-badge {
+      font-size: 10px;
+      font-weight: bold;
+      background: linear-gradient(135deg, #FFB800, #FF8F00);
+      color: #0E0A08;
+      border: 1px solid #FFE082;
+      padding: 2px 7px;
+      border-radius: 4px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+      box-shadow: 0 0 10px rgba(255, 184, 0, 0.6);
+      transition: transform 0.2s;
+    }
+    .secret-game-badge:active {
+      transform: scale(0.92);
+    }
+    .badge-unlocked-pulse {
+      animation: ee-badge-pulse 1s infinite alternate;
+    }
+    @keyframes ee-badge-pulse {
+      0% { box-shadow: 0 0 4px #FFB800; transform: scale(1); }
+      100% { box-shadow: 0 0 16px #FFB800, 0 0 24px #FF1744; transform: scale(1.08); }
+    }
+
+    /* =========================================================================
        横画面（landscape）レイアウト: ペット左 ＋ 情報右の2カラム化
        ========================================================================= */
     @media (orientation: landscape) {
@@ -739,6 +834,9 @@
         <div class="clock-badge-large" id="clock-display">12:00:00</div>
       </div>
       <div class="header-widgets">
+        <span id="secret-game-badge" class="secret-game-badge" style="display:none;" onclick="showEasterEggToast('👾 シークレットゲーム: 準備中！', '#FFB800')">
+          👾 秘密の部屋
+        </span>
         <div id="pomodoro-btn" class="pomodoro-badge" onclick="togglePomodoro()">
           <span>🍅</span>
           <span id="pomodoro-timer-text">25:00</span>
@@ -860,6 +958,7 @@
   <!-- 常時画面ON (NoSleep): Canvas無限生配信を流す不可視video（HTTP環境で唯一確実に動作する方式） -->
   <video id="nosleep-video" muted playsinline autoplay style="position:fixed; left:0; bottom:0; width:2px; height:2px; opacity:0.01; pointer-events:none; z-index:-1;"></video>
 
+  <script src="easter_eggs.js"></script>
   <script src="pet.js"></script>
 </body>
 </html>
