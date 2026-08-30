@@ -497,7 +497,8 @@ class LLMFactory:
         if provider == LLMProvider.GEMINI:
             api_key = os.getenv("GOOGLE_API_KEY", "")
             if not api_key:
-                logger.warning("GOOGLE_API_KEY が設定されていません。")
+                # 未設定は正常な状態 (未利用プロバイダ) のため INFO 相当
+                logger.info("GOOGLE_API_KEY が設定されていません。")
             return ChatGoogleGenerativeAI(
                 model=model_name,
                 temperature=temperature,
@@ -508,7 +509,8 @@ class LLMFactory:
         elif provider == LLMProvider.CLAUDE:
             api_key = os.getenv("ANTHROPIC_API_KEY", "")
             if not api_key:
-                logger.warning("ANTHROPIC_API_KEY が設定されていません。")
+                # 未設定は正常な状態 (未利用プロバイダ) のため INFO 相当
+                logger.info("ANTHROPIC_API_KEY が設定されていません。")
             try:
                 from langchain_anthropic import ChatAnthropic
                 return ChatAnthropic(

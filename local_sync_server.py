@@ -9,6 +9,7 @@ Claude Code, Codex, Antigravity, Cursor, Aider 等のコーディングエージ
 """
 
 import os
+import sys
 import json
 import time
 import uuid
@@ -18,6 +19,40 @@ import logging
 import threading
 from datetime import datetime
 from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
+
+
+class QuietThreadingHTTPServer(ThreadingHTTPServer):
+    """クライアント切断時のトレースバック出力を抑制するHTTPサーバー。
+
+    PWA のポーリング中にスマホ側が画面を閉じる等で発生する
+    ``ConnectionAbortedError`` (WinError 10053) や ``ConnectionResetError``
+    は日常的な切断であり、DEBUG レベルに格下げして起動ログのノイズを
+    排除する。それ以外の予期しない例外は従来どおり WARNING で出力する。
+    """
+
+    def handle_error(self, request, client_address):
+        """リクエスト処理中の例外をログレベルを分けて記録する。
+
+        Args:
+            request: リクエストオブジェクト (ソケット等)。
+            client_address: クライアントのアドレス (host, port)。
+        """
+        exc = sys.exc_info()[1]
+        if isinstance(exc, (ConnectionAbortedError, ConnectionResetError, BrokenPipeError)):
+            logger.debug(
+                "クライアント切断 (%s:%s): %s",
+                client_address[0],
+                client_address[1],
+                type(exc).__name__,
+            )
+        else:
+            logger.warning(
+                "リクエスト処理中に例外 (%s:%s): %s",
+                client_address[0],
+                client_address[1],
+                exc,
+                exc_info=True,
+            )
 from pathlib import Path
 from typing import Dict, Any, Optional, List, Set
 from urllib.parse import urlsplit, parse_qs
@@ -1463,7 +1498,7 @@ class LocalSyncServer:
         except Exception as e:
             logger.warning(f"🌈 [LifeDreamer] 起動をスキップしました: {e}")
         try:
-            self.httpd = ThreadingHTTPServer(("0.0.0.0", self.port), DeskPetSyncHandler)
+            self.httpd = QuietThreadingHTTPServer(("0.0.0.0", self.port), DeskPetSyncHandler)
             self.thread = threading.Thread(target=self.httpd.serve_forever, daemon=True)
             self.thread.start()
             logger.info(f"📱 [Agent Bridge Hub] Desk Pet 同期サーバーが起動しました: http://localhost:{self.port} (LAN/Bluetooth対応)")
