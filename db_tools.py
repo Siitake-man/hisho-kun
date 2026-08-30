@@ -244,6 +244,8 @@ def quick_add_task_tool(quick_text: str) -> str:
         return f"クイック追加に失敗しました: {e}"
 
 
+@tool
+def complete_task_tool(task_id: int) -> str:
     """指定されたIDのTODOタスクを完了（完了済みにマーク）します。
     
     引数:
