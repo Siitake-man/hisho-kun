@@ -151,7 +151,12 @@
         e.preventDefault();
         break;
       case 'Escape':
-        hide();
+        // arcade稼働時はarcade経由で閉じる (カートリッジ状態の不整合を防ぐ)
+        if (window.MinigameArcade && window.MinigameArcade.isActive()) {
+          window.MinigameArcade.hide();
+        } else {
+          hide();
+        }
         break;
       default:
         break;
@@ -231,7 +236,12 @@
    */
   function onOverlayClick(e) {
     if (e.target === overlay) {
-      hide();
+      // arcade稼働時はarcade経由で閉じる (カートリッジ状態の不整合を防ぐ)
+      if (window.MinigameArcade && window.MinigameArcade.isActive()) {
+        window.MinigameArcade.hide();
+      } else {
+        hide();
+      }
     }
   }
 
@@ -727,28 +737,46 @@
   }
 
   /**
-   * ミニゲームモーダルを開いてゲームを開始する。
+   * サーバーからハイスコアを取得してHUDへ反映する。
+   * (arcadeカートリッジ切替直後でも正しいHIを表示するため)
    */
-  function show() {
-    initialize();
-    if (!isInitialized) return;
-    overlay.classList.add('active');
-    isRunning = true;
-    lastTime = performance.now();
-    getCtx(); // ユーザー操作起点でAudioContextを解錠
-    rafId = requestAnimationFrame(loop);
+  function fetchHighScore() {
+    const doFetch = window.authFetch || window.fetch.bind(window);
+    doFetch('/api/minigame/high?game_id=' + encodeURIComponent(GAME_ID))
+      .then((res) => (res.ok ? res.json() : Promise.reject(new Error(`HTTP ${res.status}`))))
+      .then((data) => {
+        if (data && typeof data.high_score === 'number') {
+          game.highScore = Math.max(game.highScore, data.high_score);
+          updateHud();
+        }
+      })
+      .catch((e) => console.debug('[PixelDefense] ハイスコア取得失敗:', e));
   }
 
   /**
-   * ミニゲームモーダルを閉じてゲームを停止する。
+   * ゲームループを起動する (オーバーレイ管理はarcadeに委譲)。
+   * @returns {boolean} 起動に成功したか
    */
-  function hide() {
+  function activate() {
+    initialize();
+    if (!isInitialized) return false;
+    isRunning = true;
+    lastTime = performance.now();
+    getCtx(); // ユーザー操作起点でAudioContextを解錠
+    fetchHighScore();
+    rafId = requestAnimationFrame(loop);
+    return true;
+  }
+
+  /**
+   * ゲームループを停止して入力状態をリセットする (オーバーレイは閉じない)。
+   */
+  function deactivate() {
     isRunning = false;
     if (rafId !== null) {
       cancelAnimationFrame(rafId);
       rafId = null;
     }
-    if (overlay) overlay.classList.remove('active');
     input.left = false;
     input.right = false;
     input.fire = false;
@@ -756,6 +784,51 @@
     game.state = 'idle';
   }
 
-  // グローバル公開（疎結合API）
-  window.PixelDefense = { show: show, hide: hide };
+  /**
+   * ミニゲームモーダルを開いてゲームを開始する。
+   */
+  function show() {
+    initialize();
+    if (!isInitialized) return;
+    overlay.classList.add('active');
+    activate();
+  }
+
+  /**
+   * ミニゲームモーダルを閉じてゲームを停止する。
+   */
+  function hide() {
+    deactivate();
+    if (overlay) overlay.classList.remove('active');
+  }
+
+  // ==========================================================================
+  // MinigameArcade カートリッジ登録 ＆ 後方互換エイリアス
+  // ==========================================================================
+
+  // arcade環境では register+activate/deactivate でカートリッジとして動作し、
+  // show()/hide() はarcadeへの迂回 (オーバーレイ管理をarcadeに一元化)。
+  // arcade不在環境では従来どおり show()/hide() が直接動作する。
+  if (window.MinigameArcade) {
+    window.MinigameArcade.register({
+      id: 'pixel_defense',
+      title: '👾 Pixel Defense',
+      usesArrowKeys: true,
+      start: activate,
+      stop: deactivate
+    });
+    window.PixelDefense = {
+      show: window.MinigameArcade.show,
+      hide: window.MinigameArcade.hide,
+      _legacy: {
+        show: show,
+        hide: hide
+      }
+    };
+  } else {
+    window.PixelDefense = {
+      show: show,
+      hide: hide
+    };
+  }
 })();

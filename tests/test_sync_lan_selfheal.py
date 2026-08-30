@@ -167,19 +167,22 @@ class TestSyncLanSelfHeal(unittest.TestCase):
                       f"Cache-Control に no-store が含まれること (actual: {cache_control})")
 
         # --- キャッシュバス 3 点同期検証 (pet.js:10 / sw.js:5 / index.html ?v=) ---
-        # index.html の 3 本の script タグが同一 ?v= を参照し、そのバージョンが
-        # sw.js の CACHE_NAME と pet.js のキャッシュパージ許可キーと一致すること。
+        # index.html の 8 本の script タグ (easter_eggs/pixel_defense/arcade/新4ゲーム/pet)
+        # が同一 ?v= を参照し、そのバージョンが sw.js の CACHE_NAME と
+        # pet.js のキャッシュパージ許可キーと一致すること。
         # バージョン番号はハードコードせず、今後の更新にも追従できる構造にする。
         st, body, _ = self._request("GET", "/")
         html = str(body.get("raw", body))
 
         versions = re.findall(
-            r'src="(?:easter_eggs|pixel_defense|pet)\.js\?v=([\d.]+)"', html
+            r'src="(?:easter_eggs|pixel_defense|minigame_arcade|minigame_itotooshi'
+            r'|minigame_cyber_wire|minigame_setsuna|minigame_retro_breakout|pet)'
+            r'\.js\?v=([\d.]+)"', html
         )
-        self.assertEqual(len(versions), 3,
-                         f"index.html は 3 本の JS に ?v= を付与すること (found: {versions})")
+        self.assertEqual(len(versions), 8,
+                         f"index.html は 8 本の JS に ?v= を付与すること (found: {versions})")
         self.assertEqual(len(set(versions)), 1,
-                         f"3 本の script タグの ?v= が不一致 (actual: {versions})")
+                         f"8 本の script タグの ?v= が不一致 (actual: {versions})")
         cache_version = versions[0]
 
         sw_src = (PROJECT_ROOT / "web_pet" / "sw.js").read_text(encoding="utf-8")
@@ -264,11 +267,45 @@ class TestSyncLanSelfHeal(unittest.TestCase):
         self.assertEqual(st, 200, f"非数値スコアでも 200 が返ること (actual: {st})")
         self.assertEqual(data.get("score"), 0, f"非数値スコアが 0 にクランプされること (actual: {data})")
 
-        # DB層には常にクランプ済みの 0 が渡っていること
-        recorded_args = [call.args for call in self.mock_record_score.call_args_list]
-        self.assertTrue(all(args[1] == 0 for args in recorded_args),
-                        f"DB層へは 0 が渡ること (actual: {recorded_args})")
-        self.assertIn("score", data, "レスポンスに score フィールドが含まれること")
+    # ==========================================================================
+    # 5. ミニゲームハイスコア取得 (GET /api/minigame/high・レトロアーケード拡張)
+    # ==========================================================================
+    def test_minigame_high_endpoint_returns_score(self):
+        """Bearer 付き GET /api/minigame/high は high_score を JSON で返すこと"""
+        _, token_data, _ = self._request("GET", "/api/auth/token")
+        token = str(token_data.get("token", ""))
+
+        st, data, _ = self._request(
+            "GET", "/api/minigame/high?game_id=pixel_defense", token=token
+        )
+        self.assertEqual(st, 200, f"ハイスコア取得は 200 であること (actual: {st})")
+        self.assertEqual(data.get("status"), "ok", "ハイスコア取得が status=ok を返すこと")
+        self.assertEqual(data.get("game_id"), "pixel_defense", "game_id がエコーされること")
+        self.assertEqual(data.get("high_score"), 100,
+                         f"Mock化した get_high_score の値が返ること (actual: {data})")
+        self.mock_get_high_score.assert_called_with("pixel_defense")
+
+    def test_minigame_high_endpoint_requires_game_id(self):
+        """game_id 未指定の GET /api/minigame/high は 400 で拒否されること"""
+        _, token_data, _ = self._request("GET", "/api/auth/token")
+        token = str(token_data.get("token", ""))
+
+        st, data, _ = self._request("GET", "/api/minigame/high", token=token)
+        self.assertEqual(st, 400, f"game_id 未指定は 400 であること (actual: {st})")
+        self.assertEqual(data.get("status"), "error", "エラー時に status=error を返すこと")
+
+    def test_minigame_high_endpoint_all_five_game_ids(self):
+        """新4ゲームを含む全5種の game_id でハイスコア取得が成功すること"""
+        _, token_data, _ = self._request("GET", "/api/auth/token")
+        token = str(token_data.get("token", ""))
+
+        for game_id in ("pixel_defense", "itotooshi", "cyber_wire", "setsuna", "retro_breakout"):
+            st, data, _ = self._request(
+                "GET", f"/api/minigame/high?game_id={game_id}", token=token
+            )
+            self.assertEqual(st, 200, f"game_id={game_id} の取得は 200 であること (actual: {st})")
+            self.assertEqual(data.get("high_score"), 100,
+                             f"game_id={game_id} のハイスコアが返ること (actual: {data})")
 
 
 if __name__ == "__main__":

@@ -20,6 +20,7 @@ from datetime import datetime
 from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
 from pathlib import Path
 from typing import Dict, Any, Optional, List, Set
+from urllib.parse import urlsplit, parse_qs
 
 
 def _fmt_event_dt(ms_val: Any) -> str:
@@ -643,6 +644,32 @@ class DeskPetSyncHandler(SimpleHTTPRequestHandler):
             self._set_cors_headers()
             self.end_headers()
             self.wfile.write(json.dumps({"status": "ok", "token": tm.token}, ensure_ascii=False).encode("utf-8"))
+            return
+
+        # 0.5 ミニゲームハイスコア取得 (GET /api/minigame/high?game_id=xxx)
+        if self.path.startswith("/api/minigame/high"):
+            if not self._check_auth():
+                return
+
+            def _json_response(status_code: int, payload: Dict[str, Any]) -> None:
+                """JSONレスポンスを送信する (既存ハンドラと同一のヘッダ構成)。"""
+                self.send_response(status_code)
+                self.send_header("Content-Type", "application/json; charset=utf-8")
+                self._set_cors_headers()
+                self.end_headers()
+                self.wfile.write(json.dumps(payload, ensure_ascii=False).encode("utf-8"))
+
+            try:
+                query = parse_qs(urlsplit(self.path).query)
+                game_id = (query.get("game_id", [""])[0]).strip()
+                if not game_id:
+                    _json_response(400, {"status": "error", "message": "game_id is required"})
+                    return
+                high = database.get_high_score(game_id)
+                _json_response(200, {"status": "ok", "game_id": game_id, "high_score": high})
+            except Exception as e:
+                logger.error(f"⚠️ [Minigame] ハイスコア取得エラー: {e}")
+                _json_response(500, {"status": "error", "message": "internal error"})
             return
 
         # 1. 状態同期API (GET /api/status)

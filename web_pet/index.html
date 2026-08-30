@@ -964,6 +964,18 @@
       padding: 0 6px;
       user-select: none;
     }
+    /* カートリッジ切替ボタン (◀[L] / ▶[R]) */
+    .minigame-nav {
+      cursor: pointer;
+      color: #00E676;
+      padding: 2px 4px;
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .minigame-nav:active {
+      color: #fff;
+      text-shadow: 0 0 6px #00E676;
+    }
     #pixel-defense-canvas {
       image-rendering: pixelated;
       background: #050510;
@@ -1238,11 +1250,15 @@
   <!-- 👾 サークル暗転（アイリスアウト）トランジション用オーバーレイ -->
   <div id="iris-transition-overlay" class="iris-transition-overlay"><div class="iris-hole"></div></div>
 
-  <!-- 👾 Pixel Defense ミニゲームモーダル (Phase L5: メインのペットAI・ブリーフィング機能に非依存の疎結合設計) -->
+  <!-- 🕹️ レトロミニゲームセンター モーダル (オムニバス5種: MinigameArcade がガチャ起動・カートリッジ切替を管理) -->
   <div id="minigame-overlay" class="minigame-overlay">
     <div class="minigame-panel">
       <div class="minigame-header">
-        <span>👾 PIXEL DEFENSE</span>
+        <span>
+          <span class="minigame-nav" id="minigame-prev">◀[L]</span>
+          <span id="minigame-title">👾 MINIGAME</span>
+          <span class="minigame-nav" id="minigame-next">▶[R]</span>
+        </span>
         <span>HI <span id="pixel-defense-high">0</span> / SCORE <span id="pixel-defense-score">0</span></span>
         <span class="minigame-close" onclick="if (window.PixelDefense) window.PixelDefense.hide()">✖</span>
       </div>
@@ -1253,8 +1269,13 @@
   <!-- 常時画面ON (NoSleep): Canvas無限生配信を流す不可視video（HTTP環境で唯一確実に動作する方式） -->
   <video id="nosleep-video" muted playsinline autoplay style="position:fixed; left:0; bottom:0; width:2px; height:2px; opacity:0.01; pointer-events:none; z-index:-1;"></video>
 
-  <script src="easter_eggs.js?v=5.10"></script>
-  <script src="pixel_defense.js?v=5.10"></script>
-  <script src="pet.js?v=5.10"></script>
+  <script src="easter_eggs.js?v=5.11"></script>
+  <script src="pixel_defense.js?v=5.11"></script>
+  <script src="minigame_arcade.js?v=5.11"></script>
+  <script src="minigame_itotooshi.js?v=5.11"></script>
+  <script src="minigame_cyber_wire.js?v=5.11"></script>
+  <script src="minigame_setsuna.js?v=5.11"></script>
+  <script src="minigame_retro_breakout.js?v=5.11"></script>
+  <script src="pet.js?v=5.11"></script>
 </body>
 </html>
