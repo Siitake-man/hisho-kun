@@ -553,45 +553,87 @@ class SuggestionEngine:
         self._last_news_fetch = now
         return news_list
 
+    @staticmethod
+    def _extract_content_points(description: str, clean_title: str, media: str = "", max_points: int = 3) -> List[str]:
+        """RSS概要文を文単位に分解し、ニュース本文由来のポイントを抽出する。
+
+        「タップで詳細」等の案内文ではなく、読者に伝わる実内容のポイントのみを
+        返す。タイトルの反復・媒体名のみ・日付のみ等のノイズ行は除外する。
+
+        Args:
+            description: RSS item の description（HTML含む可能性あり）。
+            clean_title: HTMLタグ除去済みの記事タイトル。
+            media: メディア名（サフィックス除去に使用）。
+            max_points: 抽出する最大ポイント数。
+
+        Returns:
+            List[str]: 本文由来のポイント文字列（各行80字以内にトリム済み）。
+        """
+        if not description:
+            return []
+        clean_desc = re.sub(r"<[^>]+>", "", description).strip()
+        clean_desc = (clean_desc
+                      .replace("&nbsp;", " ")
+                      .replace("&quot;", '"')
+                      .replace("&amp;", '&')
+                      .replace("&lt;", '<')
+                      .replace("&gt;", '>'))
+        # 末尾の媒体名サフィックス（" - Yahoo!ニュース" 等）を分離
+        if media and clean_desc.endswith(f"- {media}"):
+            clean_desc = clean_desc[: -len(f"- {media}")].strip()
+        # 末尾・途中の連続ドット・三点リーダーを除去
+        clean_desc = re.sub(r"[\.\．…\s]+$", "", clean_desc)
+
+        title_norm = _normalize_for_compare(clean_title)
+        points: List[str] = []
+        # 文単位に分解（。！？!?\n および全角パイプを区切りに使用）
+        for raw in re.split(r"[。！？!?\n｜]+", clean_desc):
+            part = raw.strip()
+            # 末尾の連続ドット・媒体名のみの断片を清掃
+            part = re.sub(r"[\.\．…\s]+$", "", part).strip()
+            if media:
+                part = re.sub(rf"[-−‐ー]\s*{re.escape(media)}\s*$", "", part).strip()
+            if len(part) < 6:
+                continue
+            # 「（2026年8月27日）」等の括弧書きのみの行はポイントにならない
+            if re.fullmatch(r"[（(][^）)]*[)）]", part):
+                continue
+            # 「プレスリリース」「速報」等のラベル語のみの行もポイントにならない
+            if re.fullmatch(r"(プレスリリース|ニュース|速報|レポート|コラム|解説)", part):
+                continue
+            norm = _normalize_for_compare(part)
+            if not norm or _texts_near_duplicate(norm, title_norm):
+                continue
+            # 抽出済みポイントとの重複も排除
+            if any(_texts_near_duplicate(norm, _normalize_for_compare(p)) for p in points):
+                continue
+            if len(part) > 80:
+                part = part[:80].rstrip() + "…"
+            points.append(part)
+            if len(points) >= max_points:
+                break
+        return points
+
     def _generate_3line_summary(self, title: str, description: str, media: str = "") -> str:
         """
-        ニュースタイトルと概要から、LLMまたはルールベースで『3行サマリ』を動的生成。
+        ニュースタイトルと概要から、LLMまたはルールベースで『3ポイントサマリ』を動的生成。
         Google News RSS 特有の末尾の ... や HTMLゴミを徹底クリーンアップし、
-        画面上で自然に折り返して読める綺麗な3行箇条書きを構築します。
+        「ニュースの実内容3ポイント」を優先して構築します。
+        案内文（タップで詳細 等）は本文ポイントが不足する場合の最後の1行に限り使用し、
+        複数行を案内文で埋めることはしません。
         """
         clean_title = re.sub(r"<[^>]+>", "", title).strip()
         clean_title = clean_title.replace("&quot;", '"').replace("&amp;", '&').replace("&lt;", '<').replace("&gt;", '>')
 
-        # 1. ルールベースによるフォールバック文字列の構築
-        fallback_lines = []
-        
-        # 行1: タイトルを箇条書き1行目として提示（これが自然に折り返されて読める）
-        fallback_lines.append(f"・{clean_title}")
+        # 0. 本文（description）由来のポイント抽出 — LLM不発時の核となる3ポイント源
+        desc_points = self._extract_content_points(description, clean_title, media=media, max_points=3)
 
-        # 行2: description からの要約文抽出（末尾の ... や &nbsp; を徹底クリーンアップ）
-        if description:
-            clean_desc = re.sub(r"<[^>]+>", "", description).strip()
-            clean_desc = clean_desc.replace("&nbsp;", " ").replace("&quot;", '"').replace("&amp;", '&').strip()
-            # 末尾や途中の連続するドットや三点リーダーを除去
-            clean_desc = re.sub(r"[\.．…\s]+$", "", clean_desc)
-            # 末尾の媒体名サフィックス（" - Yahoo!ニュース" 等）を分離
-            if media and clean_desc.endswith(f"- {media}"):
-                clean_desc = clean_desc[: -len(f"- {media}")].strip()
-            # 過長の説明文は読める長さへトリム
-            if len(clean_desc) > 80:
-                clean_desc = clean_desc[:80].rstrip() + "…"
-            # タイトル（またはその反復）とほぼ同一内容の行は採用しない
-            # （Google News RSS の description はタイトルの反復であることが多いため）
-            desc_norm = _normalize_for_compare(clean_desc)
-            if desc_norm and len(desc_norm) >= 6 and not _texts_near_duplicate(desc_norm, _normalize_for_compare(clean_title)):
-                fallback_lines.append(f"・{clean_desc}")
-
-        # 行3: メディア名・詳細誘導
-        fallback_lines.append(f"・{media or '公式'}の最新ニュース（タップで詳細）")
-
-        # 3行に満たない場合の補完
-        while len(fallback_lines) < 3:
-            fallback_lines.append("・タップで元記事の詳細を確認できます")
+        # 1. ルールベースによるフォールバックサマリの構築
+        #    ポイント1 = タイトル、ポイント2-3 = 本文抽出分（重複は除外済み）
+        fallback_lines = [f"・{clean_title}"] + [f"・{p}" for p in desc_points[:2]]
+        # 3行に満たない場合は案内文で補完するのは「1行」のみ（複数行の案内文埋めはしない）
+        if len(fallback_lines) < 3:
+            fallback_lines.append(f"・{media or '公式'}の記事はタップで詳細を閲覧できます")
 
         fallback_summary = "\n".join(fallback_lines[:3])
 
@@ -609,14 +651,15 @@ class SuggestionEngine:
             if llm is not None:
                 prompt = (
                     "以下のニュース記事の要点を、忙しいエンジニアがひと目で把握できるように、"
-                    "「・」で始まる簡潔な3行の箇条書き（合計3行のみ）で要約してください。\n"
+                    "「・」で始まる簡潔な3つのポイント（合計3行のみ）で要約してください。\n"
                     f"【タイトル】: {clean_title}\n"
                     f"【概要】: {description[:400]}\n"
-                    "出力は3行の箇条書きテキストのみにしてください。同じ内容を繰り返さないでください。"
+                    "出力は3行の箇条書きテキストのみにしてください。同じ内容を繰り返さず、"
+                    "「タップで詳細」等の案内文は書かないでください。"
                 )
                 response = llm.invoke(prompt)
                 res_text = response.content if hasattr(response, "content") else str(response)
-                
+
                 # 3行箇条書きの抽出・整形
                 clean_lines = [
                     ln.strip() if ln.strip().startswith("・") or ln.strip().startswith("- ") else f"・{ln.strip()}"
@@ -627,11 +670,15 @@ class SuggestionEngine:
                 if clean_lines and self._summary_lines_are_degenerate(clean_lines, clean_title):
                     logger.debug("AI 3行サマリが反復・劣化したためルールベースへフォールバック")
                     clean_lines = []
-                if len(clean_lines) >= 3:
-                    return "\n".join(clean_lines[:3])
-                elif clean_lines:
-                    while len(clean_lines) < 3:
-                        clean_lines.append("・タップで詳細記事を確認できます")
+                if clean_lines:
+                    # 3行未満の場合は本文抽出ポイントで補完する（案内文の複数行埋めはしない）
+                    for p in desc_points:
+                        if len(clean_lines) >= 3:
+                            break
+                        pn = _normalize_for_compare(p)
+                        if any(_texts_near_duplicate(pn, _normalize_for_compare(ln)) for ln in clean_lines):
+                            continue
+                        clean_lines.append(f"・{p}")
                     return "\n".join(clean_lines[:3])
         except Exception as e:
             logger.debug(f"AI 3行サマリ生成スキップ (ルールベース適用): {e}")

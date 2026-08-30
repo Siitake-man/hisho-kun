@@ -35,6 +35,8 @@ import database
 
 # 同期サーバーBearer認証用HTTP POST共通関数を agent_bridge_client から借用 (DRY原則)
 from agent_bridge_client import _post_to_hub
+# 通知元エージェントの自動識別 (Cline / Claude Code / Codex / Cursor 等)
+from agent_identity import resolve_agent_name
 
 # ロギング設定（stdio通信を汚さないため stderr に出力）
 logging.basicConfig(
@@ -54,7 +56,7 @@ def execute_ask_human_approval(
     summary: str = "",
     details: str = "",
     timeout_sec: int = 180,
-    agent_name: str = "Coding Agent"
+    agent_name: str = ""
 ) -> Dict[str, Any]:
     """スマホDesk Pet端末へコマンド実行の承認要請を送信し、ワンタップ判定を受け取ります。
 
@@ -63,14 +65,15 @@ def execute_ask_human_approval(
         summary (str, optional): コマンドの目的・概要。 Defaults to "".
         details (str, optional): 詳細な説明や想定リスク。 Defaults to "".
         timeout_sec (int, optional): 待機タイムアウト秒数。 Defaults to 180.
-        agent_name (str, optional): エージェント名。 Defaults to "Coding Agent".
+        agent_name (str, optional): エージェント名。省略時は実行環境から自動検出する。
 
     Returns:
         Dict[str, Any]: 判定結果 (status, decision, message)
     """
+    effective_agent_name = resolve_agent_name(agent_name)
     effective_summary = summary if summary.strip() else f"『{command}』の実行許可"
     payload = {
-        "agent_name": agent_name,
+        "agent_name": effective_agent_name,
         "command": command,
         "summary": effective_summary,
         "details": details,
@@ -103,11 +106,16 @@ def execute_ask_human_approval(
 def execute_notify_task_completed(
     title: str = "作業完了",
     message: str = "",
-    agent_name: str = "Codex"
+    agent_name: str = ""
 ) -> Dict[str, Any]:
-    """作業完了をペットとスマホDesk Petへ通知し、大喜び（celebrate）させます。"""
+    """作業完了をペットとスマホDesk Petへ通知し、大喜び（celebrate）させます。
+
+    agent_name を省略した場合は実行環境（環境変数・親プロセス）から
+    呼び出し元エージェントを自動識別する。
+    """
+    effective_agent_name = resolve_agent_name(agent_name)
     payload = {
-        "agent_name": agent_name,
+        "agent_name": effective_agent_name,
         "title": title,
         "message": message,
         "reaction": "celebrate"
@@ -117,20 +125,25 @@ def execute_notify_task_completed(
         return {"status": "error", "message": f"通知送信失敗: {res_data.get('message', '')}"}
     return {
         "status": "success",
-        "message": f"ペットとスマホへ作業完了通知を送りました（{agent_name}: {title}）"
+        "message": f"ペットとスマホへ作業完了通知を送りました（{effective_agent_name}: {title}）"
     }
 
 
 def execute_notify_user_input_needed(
     question: str,
     choices: str = "",
-    agent_name: str = "Codex",
+    agent_name: str = "",
     timeout_sec: int = 180
 ) -> Dict[str, Any]:
-    """ユーザーへの確認・入力待ちをペットとスマホDesk Petへ送信し、選択肢または自由回答を受け取ります。"""
+    """ユーザーへの確認・入力待ちをペットとスマホDesk Petへ送信し、選択肢または自由回答を受け取ります。
+
+    agent_name を省略した場合は実行環境（環境変数・親プロセス）から
+    呼び出し元エージェントを自動識別する。
+    """
+    effective_agent_name = resolve_agent_name(agent_name)
     parsed_choices = [c.strip() for c in choices.split(",") if c.strip()] if isinstance(choices, str) and choices else (choices if isinstance(choices, list) else [])
     payload = {
-        "agent_name": agent_name,
+        "agent_name": effective_agent_name,
         "question": question,
         "choices": parsed_choices,
         "timeout": timeout_sec,
@@ -418,17 +431,17 @@ def run_fastmcp_server() -> None:
 
     # ------------------ Tools ------------------
     @mcp.tool(description="机の上の古いスマホDesk Pet端末へコマンド実行の承認要請を送信し、ボスのワンタップ判定（承認/拒否）を受け取ります。")
-    def ask_human_approval(command: str, summary: str = "", details: str = "", timeout_sec: int = 180, agent_name: str = "Codex") -> Dict[str, Any]:
+    def ask_human_approval(command: str, summary: str = "", details: str = "", timeout_sec: int = 180, agent_name: str = "") -> Dict[str, Any]:
         """スマホDesk Pet端末へコマンド実行の承認を求めます。"""
         return execute_ask_human_approval(command, summary, details, timeout_sec, agent_name)
 
     @mcp.tool(description="コーディング作業やタスクが完了した際に、PCペットとスマホDesk Petへ完了通知を送り、大喜び（celebrate）リアクションさせます。")
-    def notify_task_completed(title: str = "タスク完了", message: str = "", agent_name: str = "Codex") -> Dict[str, Any]:
+    def notify_task_completed(title: str = "タスク完了", message: str = "", agent_name: str = "") -> Dict[str, Any]:
         """作業完了をペットとスマホへ通知します。"""
         return execute_notify_task_completed(title, message, agent_name)
 
     @mcp.tool(description="ユーザーへの質問・選択肢の確認・入力待ちが発生した際に、ペットとスマホDesk Petへ通知してアラート呼び出し（alarm_ask）を行います。")
-    def notify_user_input_needed(question: str, choices: str = "", agent_name: str = "Codex") -> Dict[str, Any]:
+    def notify_user_input_needed(question: str, choices: str = "", agent_name: str = "") -> Dict[str, Any]:
         """ユーザー入力待機をペットとスマホへ通知します。"""
         return execute_notify_user_input_needed(question, choices, agent_name)
 
@@ -503,7 +516,7 @@ def run_fallback_jsonrpc_server() -> None:
                     "summary": {"type": "string", "description": "コマンドの概要・目的"},
                     "details": {"type": "string", "description": "詳細やリスク"},
                     "timeout_sec": {"type": "integer", "default": 180, "description": "タイムアウト秒数"},
-                    "agent_name": {"type": "string", "default": "Codex", "description": "エージェント名"}
+                    "agent_name": {"type": "string", "description": "エージェント名（省略時は実行環境から自動検出）"}
                 },
                 "required": ["command"]
             }
@@ -516,7 +529,7 @@ def run_fallback_jsonrpc_server() -> None:
                 "properties": {
                     "title": {"type": "string", "default": "タスク完了", "description": "通知タイトル"},
                     "message": {"type": "string", "default": "", "description": "完了メッセージ・詳細"},
-                    "agent_name": {"type": "string", "default": "Codex", "description": "エージェント名"}
+                    "agent_name": {"type": "string", "description": "エージェント名（省略時は実行環境から自動検出）"}
                 }
             }
         },
@@ -528,7 +541,7 @@ def run_fallback_jsonrpc_server() -> None:
                 "properties": {
                     "question": {"type": "string", "description": "確認したい質問内容"},
                     "choices": {"type": "string", "default": "", "description": "選択肢一覧"},
-                    "agent_name": {"type": "string", "default": "Codex", "description": "エージェント名"}
+                    "agent_name": {"type": "string", "description": "エージェント名（省略時は実行環境から自動検出）"}
                 },
                 "required": ["question"]
             }
@@ -652,19 +665,19 @@ def run_fallback_jsonrpc_server() -> None:
                         summary=args.get("summary", ""),
                         details=args.get("details", ""),
                         timeout_sec=int(args.get("timeout_sec", 180)),
-                        agent_name=args.get("agent_name", "Codex")
+                        agent_name=args.get("agent_name", "")
                     )
                 elif name == "notify_task_completed":
                     res = execute_notify_task_completed(
                         title=args.get("title", "タスク完了"),
                         message=args.get("message", ""),
-                        agent_name=args.get("agent_name", "Codex")
+                        agent_name=args.get("agent_name", "")
                     )
                 elif name == "notify_user_input_needed":
                     res = execute_notify_user_input_needed(
                         question=args.get("question", ""),
                         choices=args.get("choices", ""),
-                        agent_name=args.get("agent_name", "Codex")
+                        agent_name=args.get("agent_name", "")
                     )
                 elif name == "create_task":
                     res = execute_create_task(

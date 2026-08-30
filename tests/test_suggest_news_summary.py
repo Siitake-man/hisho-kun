@@ -89,6 +89,68 @@ class TestSuggestNewsSummary(unittest.TestCase):
             self.assertEqual(len(lines), 3)
             self.assertTrue(all(line.startswith("・") for line in lines))
 
+    def test_extract_content_points_splits_sentences(self):
+        """descriptionが文単位のポイントに分解され、タイトル反復・ノイズ行が除外されるか検証"""
+        engine = SuggestionEngine()
+        title = "新技術の発表会が開催"
+        desc = "新技術の発表会が開催された。処理速度が3倍に向上した。対応機器が拡大している。 - Tech Media"
+        points = engine._extract_content_points(desc, title, media="Tech Media")
+        self.assertGreaterEqual(len(points), 2)
+        # タイトル反復の先頭文はポイントに含まれない
+        self.assertFalse(any("発表会が開催された" in p for p in points))
+        # 実内容の文は含まれる
+        self.assertTrue(any("処理速度" in p for p in points))
+        # 媒体名サフィックスは除去されている
+        self.assertFalse(any("Tech Media" in p for p in points))
+
+    def test_fallback_no_meta_filler_when_desc_has_content(self):
+        """descriptionに実内容がある場合、案内文（タップで詳細）で行を埋めないか検証"""
+        engine = SuggestionEngine()
+        title = "次世代AIチップが発表"
+        desc = "消費電力を従来の半分に抑えた。推論性能は2倍に向上した。"
+        with patch("llm_factory.get_llm_factory", side_effect=Exception("LLM offline")):
+            summary = engine._generate_3line_summary(title, desc, media="HW Times")
+            lines = summary.splitlines()
+            self.assertEqual(len(lines), 3)
+            # 3行すべてが実内容ポイントであり、案内文は混入しない
+            self.assertNotIn("タップ", summary)
+
+    def test_fallback_tap_hint_limited_to_one_line(self):
+        """descriptionがタイトル反復のみの場合、案内文は1行に限られるか検証"""
+        engine = SuggestionEngine()
+        title = "国産セキュリティサービス提供開始（2026年8月27日）"
+        # Google News RSS 特有の「タイトルの反復＋媒体名」パターン
+        desc = "国産セキュリティサービス提供開始（2026年8月27日）：プレスリリース - NEC"
+        with patch("llm_factory.get_llm_factory", side_effect=Exception("LLM offline")):
+            summary = engine._generate_3line_summary(title, desc, media="NEC")
+            lines = summary.splitlines()
+            # 1ポイント（タイトル）+ 案内文1行 = 2行（案内文の複数行埋めは廃止）
+            self.assertEqual(len(lines), 2)
+            self.assertEqual(summary.count("タップ"), 1)
+
+    def test_llm_short_output_filled_from_description(self):
+        """LLM出力が3行未満の場合、description由来のポイントで補完されるか検証"""
+        engine = SuggestionEngine()
+        title = "量子ネットワーク実証実験に成功"
+        desc = "東京と大阪間で量子もつれを安定生成した。誤り訂正技術を実装した。通信距離は500kmに到達した。"
+        llm_response = MagicMock()
+        llm_response.content = "・量子もつれの安定生成に成功\n・誤り訂正技術を実装"
+        mock_llm = MagicMock()
+        mock_llm.invoke.return_value = llm_response
+        mock_factory = MagicMock()
+        mock_factory.create_model.return_value = mock_llm
+
+        from llm_factory import LLMProvider
+        mock_factory.current_provider = LLMProvider.OPENAI
+
+        with patch("llm_factory.get_llm_factory", return_value=mock_factory):
+            summary = engine._generate_3line_summary(title, desc, media="Science Daily")
+            lines = summary.splitlines()
+            self.assertEqual(len(lines), 3)
+            self.assertNotIn("タップ", summary)
+            # LLMの2行 + description由来ポイントの補完1行で3ポイント構成
+            self.assertTrue(any(("500km" in ln) or ("安定生成した" in ln) for ln in lines))
+
 
 if __name__ == "__main__":
     unittest.main()

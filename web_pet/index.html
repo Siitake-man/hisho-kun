@@ -943,6 +943,8 @@
       flex-direction: column;
       gap: 8px;
       max-width: 94vw;
+      /* 横画面（ランドスケープ）でもヘッダー含めて画面内に収める */
+      max-height: 96vh;
     }
     .minigame-header {
       display: flex;
@@ -967,7 +969,11 @@
       background: #050510;
       border: 1px solid #1e2a3a;
       touch-action: none;
-      width: min(86vw, 320px);
+      /* 横画面での見切れ対策: 幅優先だけでなく「縦方向の残り領域」からも逆算する。
+         キャンバスは 320x420 (縦横比 320/420 ≒ 0.7619) で、height:auto により
+         アスペクト比が維持されるため、幅を (利用可能高さ × 0.7619) に制限すれば
+         ヘッダー(約40px)+パネル余白(約16px)を含めて必ず画面内に収まる。 */
+      width: min(86vw, 320px, calc((94vh - 56px) * 0.7619));
       height: auto;
     }
     @keyframes ee-badge-pulse {
@@ -1247,8 +1253,8 @@
   <!-- 常時画面ON (NoSleep): Canvas無限生配信を流す不可視video（HTTP環境で唯一確実に動作する方式） -->
   <video id="nosleep-video" muted playsinline autoplay style="position:fixed; left:0; bottom:0; width:2px; height:2px; opacity:0.01; pointer-events:none; z-index:-1;"></video>
 
-  <script src="easter_eggs.js?v=5.9"></script>
-  <script src="pixel_defense.js?v=5.9"></script>
-  <script src="pet.js?v=5.9"></script>
+  <script src="easter_eggs.js?v=5.10"></script>
+  <script src="pixel_defense.js?v=5.10"></script>
+  <script src="pet.js?v=5.10"></script>
 </body>
 </html>
