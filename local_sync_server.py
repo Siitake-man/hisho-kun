@@ -1290,6 +1290,33 @@ class DeskPetSyncHandler(SimpleHTTPRequestHandler):
                         logger.info(f"📱 スマホ側から習慣作成を受信: ID={h_id}, Title={title}")
                         self.wfile.write(json.dumps({"status": "success", "habit_id": h_id}).encode("utf-8"))
                         return
+                elif action == "quick_add_task":
+                    # 🚀 クイック追加バー用 (TickTick拡張):
+                    # 自然言語1行から task_parser が期限/タグ/優先度を解析する
+                    quick_text = data.get("text", "").strip()
+                    if quick_text:
+                        from task_parser import parse_input, tags_to_db_string
+                        parsed = parse_input(quick_text)
+                        if parsed.title:
+                            task_id = database.create_task(database.Task(
+                                title=parsed.title,
+                                description="",
+                                due_date=parsed.due_date,
+                                priority=parsed.priority,
+                                status="todo",
+                                tags=tags_to_db_string(parsed.tags),
+                            ))
+                            logger.info(f"📱 スマホ側からクイック追加を受信: ID={task_id}, Title={parsed.title}")
+                            self.wfile.write(json.dumps({
+                                "status": "success",
+                                "task_id": task_id,
+                                "title": parsed.title,
+                            }).encode("utf-8"))
+                            return
+                        self.wfile.write(json.dumps({
+                            "status": "error", "message": "タスク名を抽出できませんでした"
+                        }).encode("utf-8"))
+                        return
                 elif action == "start_pomodoro":
                     gui = get_gui_instance()
                     if gui:

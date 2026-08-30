@@ -62,7 +62,8 @@ from db_tools import (
     get_user_insights_tool,
     create_task_tool,
     list_tasks_tool,
-    complete_task_tool
+    complete_task_tool,
+    quick_add_task_tool
 )
 from vision_tools import (
     capture_screen_tool,
@@ -95,6 +96,7 @@ tools = [
     create_task_tool,
     list_tasks_tool,
     complete_task_tool,
+    quick_add_task_tool,
     capture_screen_tool,
     analyze_screen_error_tool,
     export_calendar_ics_tool,
@@ -166,7 +168,7 @@ def planner_node(state: AgentState):
             f"{insights_text}"
             f"【行動指針】\n"
             f"1. ユーザーからの指示に対して、与えられたツール（予定作成/取得、TODOタスク作成/取得/完了、付箋作成、知見記憶/参照、画面キャプチャ/エラー解析）を使ってサポートしてください。\n"
-            f"2. タスク（やるべきこと）を頼まれたら create_task_tool を使い、確認を求められたら list_tasks_tool を使い、完了時は complete_task_tool を使ってください。\n"
+            f"2. タスク（やるべきこと）を頼まれたら create_task_tool を使い、確認を求められたら list_tasks_tool を使い、完了時は complete_task_tool を使ってください。「明日18時に資料 #仕事 !3」のような自然言語のクイック入力には quick_add_task_tool（期限・タグ・優先度を自動解析）が便利です。\n"
             f"3. 会話の中でユーザーが自身の生活リズム、制約（NG事項）、好み、作業ルールなどを述べた場合は、自律的に remember_user_insight_tool を呼び出して長期記憶に保存してください。\n"
             f"4. 予定やタスクを尋ねられたら自分で勝手に作らずデータベースから取得し、登録を頼まれたら必ずツールを呼び出して登録を行ってください。\n"
             f"5. ボスから「画面を見て」「エラーが出た」「今何してるかわかる？」と言われた場合は、capture_screen_tool や analyze_screen_error_tool を呼び出して画面を視覚的に確認・解析してください。\n"

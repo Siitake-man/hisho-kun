@@ -7,7 +7,7 @@
 if ('caches' in window) {
   caches.keys().then(keys => {
     keys.forEach(key => {
-      if (key !== 'neo-pet-v5.11') caches.delete(key);
+      if (key !== 'neo-pet-v5.12') caches.delete(key);
     });
   });
 }
@@ -1957,20 +1957,65 @@ function openEventsModal() {
   openBottomSheet({ icon: '📅', tag: '手帳', title: `予定一覧 (${count}件)` }, html);
 }
 
-/** 📝 TODOリストモーダル（項目タップで完了） */
+/** 📝 TODOリストモーダル（項目タップで完了＋クイック追加バー） */
 function openTodoModal() {
   const count = tasksData ? tasksData.length : 0;
-  let html = '';
+  // 🚀 クイック追加バー (TickTick拡張): 「明日18時に〜 #仕事 !3」構文対応
+  const quickBar = `
+    <div class="quick-add-bar">
+      <input type="text" id="quick-task-input" placeholder="例: 明日18時に資料 #仕事 !3" enterkeyhint="done">
+      <button id="quick-task-btn" onclick="quickAddTask()">＋</button>
+    </div>`;
+  let html = quickBar;
   if (count === 0) {
-    html = '<div class="note-empty">📝 未完了のTODOはありません。<br>お見事です、ボス！✨</div>';
+    html += '<div class="note-empty">📝 未完了のTODOはありません。<br>お見事です、ボス！✨</div>';
   } else {
     const prioIcon = { high: '🔥', medium: '⭐', low: '🌱' };
-    html = tasksData.map(t => {
+    html += tasksData.map(t => {
       const icon = prioIcon[t.priority] || '⭐';
       return `<div class="note-item" onclick="completeTask(${t.id}, this)"><div class="note-title">${icon} ${escapeHtml(t.title)}</div><div class="note-desc">👆 タップで完了にする</div></div>`;
     }).join('');
   }
   openBottomSheet({ icon: '📝', tag: '手帳', title: `TODOリスト (${count}件)` }, html);
+  // Enterキーでも追加できるようにバインド
+  const input = document.getElementById('quick-task-input');
+  if (input) {
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        quickAddTask();
+      }
+    });
+  }
+}
+
+/** 🚀 クイック追加（サーバー解析 → 楽観的更新 → 再取得） */
+function quickAddTask() {
+  const input = document.getElementById('quick-task-input');
+  const btn = document.getElementById('quick-task-btn');
+  if (!input) return;
+  const text = input.value.trim();
+  if (!text) return;
+  if (btn) btn.disabled = true;
+  if (navigator.vibrate) navigator.vibrate(20);
+  authFetch('/api/action', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'quick_add_task', text: text })
+  }).then(res => res.json()).then(data => {
+    if (data.status === 'success') {
+      if (navigator.vibrate) navigator.vibrate([20, 40, 20]);
+      if (window.MinigameArcade) window.MinigameArcade.beep(880, 0.08, 0.05, 'triangle');
+      openTodoModal(); // 再描画
+    } else {
+      alert(data.message || '追加に失敗しました');
+      if (btn) btn.disabled = false;
+    }
+  }).catch(err => {
+    console.debug('Quick add failed:', err);
+    alert('サーバーとの通信に失敗しました');
+    if (btn) btn.disabled = false;
+  });
 }
 
 /** TODO完了（楽観的UI更新 → サーバー同期 → 再取得） */

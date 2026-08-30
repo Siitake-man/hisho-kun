@@ -208,8 +208,21 @@ class Task(BaseModel):
     priority: int = Field(default=0, ge=0, le=3)
     status: str = Field(default="todo", pattern=r'^(todo|in_progress|completed)$')
     parent_id: Optional[int] = None
+    list_id: Optional[int] = None
+    tags: str = Field(default="", max_length=500)  # カンマ区切りタグ (例: "仕事,急ぎ")
     created_at: int = Field(default_factory=lambda: int(datetime.now().timestamp() * 1000))
     updated_at: int = Field(default_factory=lambda: int(datetime.now().timestamp() * 1000))
+
+
+class TaskList(BaseModel):
+    """
+    タスクリスト (TickTick風のリスト分類) を表すモデル。
+    """
+    id: Optional[int] = None
+    name: str = Field(..., min_length=1, max_length=50)
+    emoji: str = Field(default="📋")
+    sort_order: int = Field(default=0)
+    created_at: int = Field(default_factory=lambda: int(datetime.now().timestamp() * 1000))
 
 
 class Habit(BaseModel):
@@ -350,11 +363,34 @@ def init_db(db_path: str = "neo_secretary.db") -> None:
                 priority INTEGER NOT NULL DEFAULT 0,
                 status TEXT NOT NULL DEFAULT 'todo',
                 parent_id INTEGER,
+                list_id INTEGER,
+                tags TEXT NOT NULL DEFAULT '',
                 created_at INTEGER NOT NULL,
                 updated_at INTEGER NOT NULL,
                 FOREIGN KEY (parent_id) REFERENCES tasks (id)
             )
         """)
+
+        # task_listsテーブル (TickTick風タスクリスト分類)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS task_lists (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                emoji TEXT NOT NULL DEFAULT '📋',
+                sort_order INTEGER NOT NULL DEFAULT 0,
+                created_at INTEGER NOT NULL
+            )
+        """)
+
+        # tasks.list_id / tasks.tags マイグレーション（既存DBへのカラム追加）
+        cursor.execute("PRAGMA table_info(tasks)")
+        task_columns = {row[1] for row in cursor.fetchall()}
+        if "list_id" not in task_columns:
+            cursor.execute("ALTER TABLE tasks ADD COLUMN list_id INTEGER")
+            logger.info("tasks.list_id カラムを追加しました (TickTick拡張)")
+        if "tags" not in task_columns:
+            cursor.execute("ALTER TABLE tasks ADD COLUMN tags TEXT NOT NULL DEFAULT ''")
+            logger.info("tasks.tags カラムを追加しました (TickTick拡張)")
 
         # habitsテーブル (習慣トラッカー)
         cursor.execute("""
@@ -1052,8 +1088,8 @@ def create_task(task: Task, db_path: str = "neo_secretary.db") -> int:
     with get_db_connection(db_path) as conn:
         cursor = conn.cursor()
         cursor.execute("""
-            INSERT INTO tasks (title, description, due_date, priority, status, parent_id, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO tasks (title, description, due_date, priority, status, parent_id, list_id, tags, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             task.title,
             task.description or "",
@@ -1061,6 +1097,8 @@ def create_task(task: Task, db_path: str = "neo_secretary.db") -> int:
             task.priority,
             task.status,
             task.parent_id,
+            task.list_id,
+            task.tags or "",
             task.created_at,
             task.updated_at
         ))
@@ -1074,6 +1112,7 @@ def get_tasks(
     status: Optional[str] = None, 
     min_priority: int = 0, 
     limit: int = 50, 
+    list_id: Optional[int] = None,
     db_path: str = "neo_secretary.db"
 ) -> List[Task]:
     """
@@ -1083,6 +1122,7 @@ def get_tasks(
         status: 取得する状態 ('todo', 'in_progress', 'completed')。Noneで未完了タスク(todo, in_progress)。
         min_priority: 最小優先度
         limit: 最大取得件数
+        list_id: タスクリストIDで絞り込む (Noneで全リスト対象)
         db_path: データベースファイルのパス
         
     Returns:
@@ -1090,23 +1130,27 @@ def get_tasks(
     """
     with get_db_connection(db_path) as conn:
         cursor = conn.cursor()
+        where_parts = []
+        params: List[object] = []
         if status:
-            cursor.execute("""
-                SELECT id, title, description, due_date, priority, status, parent_id, created_at, updated_at
-                FROM tasks
-                WHERE status = ? AND priority >= ?
-                ORDER BY priority DESC, (due_date IS NULL) ASC, due_date ASC, id ASC
-                LIMIT ?
-            """, (status, min_priority, limit))
+            where_parts.append("status = ?")
+            params.append(status)
         else:
-            cursor.execute("""
-                SELECT id, title, description, due_date, priority, status, parent_id, created_at, updated_at
-                FROM tasks
-                WHERE status != 'completed' AND priority >= ?
-                ORDER BY priority DESC, (due_date IS NULL) ASC, due_date ASC, id ASC
-                LIMIT ?
-            """, (min_priority, limit))
-            
+            where_parts.append("status != 'completed'")
+        where_parts.append("priority >= ?")
+        params.append(min_priority)
+        if list_id is not None:
+            where_parts.append("list_id = ?")
+            params.append(list_id)
+        params.append(limit)
+        cursor.execute(f"""
+            SELECT id, title, description, due_date, priority, status, parent_id, list_id, tags, created_at, updated_at
+            FROM tasks
+            WHERE {' AND '.join(where_parts)}
+            ORDER BY priority DESC, (due_date IS NULL) ASC, due_date ASC, id ASC
+            LIMIT ?
+        """, tuple(params))
+        
         rows = cursor.fetchall()
         tasks = []
         for r in rows:
@@ -1118,8 +1162,10 @@ def get_tasks(
                 priority=r[4],
                 status=r[5],
                 parent_id=r[6],
-                created_at=r[7],
-                updated_at=r[8]
+                list_id=r[7],
+                tags=r[8],
+                created_at=r[9],
+                updated_at=r[10]
             ))
         return tasks
 
@@ -1138,7 +1184,7 @@ def get_subtasks(parent_id: int, db_path: str = "neo_secretary.db") -> List[Task
     with get_db_connection(db_path) as conn:
         cursor = conn.cursor()
         cursor.execute("""
-            SELECT id, title, description, due_date, priority, status, parent_id, created_at, updated_at
+            SELECT id, title, description, due_date, priority, status, parent_id, list_id, tags, created_at, updated_at
             FROM tasks
             WHERE parent_id = ?
             ORDER BY status = 'completed' ASC, id ASC
@@ -1154,8 +1200,10 @@ def get_subtasks(parent_id: int, db_path: str = "neo_secretary.db") -> List[Task
                 priority=r[4],
                 status=r[5],
                 parent_id=r[6],
-                created_at=r[7],
-                updated_at=r[8]
+                list_id=r[7],
+                tags=r[8],
+                created_at=r[9],
+                updated_at=r[10]
             ))
         return subtasks
 
@@ -1212,6 +1260,117 @@ def delete_task(task_id: int, db_path: str = "neo_secretary.db") -> bool:
         if success:
             logger.info(f"タスクを削除しました: ID={task_id}")
         return success
+
+
+def get_task_lists(db_path: str = "neo_secretary.db") -> List[TaskList]:
+    """
+    タスクリスト一覧を作成順で取得します。
+
+    Args:
+        db_path: データベースファイルのパス
+
+    Returns:
+        TaskListオブジェクトのリスト
+    """
+    with get_db_connection(db_path) as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT id, name, emoji, sort_order, created_at
+            FROM task_lists
+            ORDER BY sort_order ASC, id ASC
+        """)
+        rows = cursor.fetchall()
+        lists = []
+        for r in rows:
+            lists.append(TaskList(
+                id=r[0],
+                name=r[1],
+                emoji=r[2],
+                sort_order=r[3],
+                created_at=r[4]
+            ))
+        return lists
+
+
+def create_task_list(name: str, emoji: str = "📋", sort_order: int = 0, db_path: str = "neo_secretary.db") -> int:
+    """
+    新しいタスクリストを作成します。
+
+    Args:
+        name: リスト名 (空・空白のみはValueError)
+        emoji: リストに表示する絵文字
+        sort_order: ソート順 (小さいほど先頭)
+        db_path: データベースファイルのパス
+
+    Returns:
+        作成されたリストのID
+
+    Raises:
+        ValueError: リスト名が空の場合
+    """
+    clean_name = (name or "").strip()
+    if not clean_name:
+        raise ValueError("タスクリスト名が空です")
+    with get_db_connection(db_path) as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO task_lists (name, emoji, sort_order, created_at)
+            VALUES (?, ?, ?, ?)
+        """, (
+            clean_name,
+            emoji or "📋",
+            sort_order,
+            int(datetime.now().timestamp() * 1000)
+        ))
+        list_id = cursor.lastrowid
+        logger.info(f"タスクリストを作成しました: ID={list_id}, name={clean_name}")
+        return list_id
+
+
+def delete_task_list(list_id: int, db_path: str = "neo_secretary.db") -> bool:
+    """
+    タスクリストを削除します。所属タスクはリスト未分類 (list_id=NULL) へ移行されます。
+
+    Args:
+        list_id: 削除するリストID
+        db_path: データベースファイルのパス
+
+    Returns:
+        削除成功時はTrue
+    """
+    with get_db_connection(db_path) as conn:
+        cursor = conn.cursor()
+        now = int(datetime.now().timestamp() * 1000)
+        cursor.execute("UPDATE tasks SET list_id = NULL, updated_at = ? WHERE list_id = ?", (now, list_id))
+        cursor.execute("DELETE FROM task_lists WHERE id = ?", (list_id,))
+        success = cursor.rowcount > 0
+        if success:
+            logger.info(f"タスクリストを削除しました: ID={list_id} (所属タスクは未分類へ)")
+        return success
+
+
+def update_task_tags(task_id: int, tags: str, db_path: str = "neo_secretary.db") -> bool:
+    """
+    タスクのタグを更新します (カンマ区切り)。
+
+    Args:
+        task_id: 対象タスクID
+        tags: カンマ区切りタグ文字列
+        db_path: データベースファイルのパス
+
+    Returns:
+        更新成功時はTrue
+    """
+    with get_db_connection(db_path) as conn:
+        cursor = conn.cursor()
+        now = int(datetime.now().timestamp() * 1000)
+        cursor.execute("UPDATE tasks SET tags = ?, updated_at = ? WHERE id = ?", (tags or "", now, task_id))
+        success = cursor.rowcount > 0
+        if success:
+            logger.info(f"タスクのタグを更新しました: ID={task_id}, tags={tags}")
+        return success
+
+
 
 
 # =============================================================================

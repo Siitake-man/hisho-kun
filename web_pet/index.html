@@ -785,6 +785,49 @@
       margin-left: 6px;
       vertical-align: middle;
     }
+    /* 🚀 クイック追加バー (TickTick拡張) */
+    .quick-add-bar {
+      display: flex;
+      gap: 6px;
+      margin-bottom: 10px;
+    }
+    .quick-add-bar input {
+      flex: 1;
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 8px;
+      color: var(--text-main, #eee);
+      font-size: 12px;
+      padding: 9px 10px;
+      outline: none;
+      min-width: 0;
+    }
+    .quick-add-bar input:focus {
+      border-color: var(--accent-amber, #ffb800);
+      background: rgba(255, 184, 0, 0.06);
+    }
+    .quick-add-bar input::placeholder {
+      color: var(--text-muted, #888);
+      font-size: 11px;
+    }
+    .quick-add-bar button {
+      flex-shrink: 0;
+      width: 38px;
+      border: none;
+      border-radius: 8px;
+      background: linear-gradient(135deg, #ffb800, #ff8c00);
+      color: #1a1a2e;
+      font-size: 18px;
+      font-weight: bold;
+      cursor: pointer;
+      transition: transform 0.1s ease, opacity 0.1s ease;
+    }
+    .quick-add-bar button:active {
+      transform: scale(0.92);
+    }
+    .quick-add-bar button:disabled {
+      opacity: 0.5;
+    }
 
     /* =========================================================================
        朝会/終礼ブリーフィング UI (Phase L3)
@@ -1269,13 +1312,13 @@
   <!-- 常時画面ON (NoSleep): Canvas無限生配信を流す不可視video（HTTP環境で唯一確実に動作する方式） -->
   <video id="nosleep-video" muted playsinline autoplay style="position:fixed; left:0; bottom:0; width:2px; height:2px; opacity:0.01; pointer-events:none; z-index:-1;"></video>
 
-  <script src="easter_eggs.js?v=5.11"></script>
-  <script src="pixel_defense.js?v=5.11"></script>
-  <script src="minigame_arcade.js?v=5.11"></script>
-  <script src="minigame_itotooshi.js?v=5.11"></script>
-  <script src="minigame_cyber_wire.js?v=5.11"></script>
-  <script src="minigame_setsuna.js?v=5.11"></script>
-  <script src="minigame_retro_breakout.js?v=5.11"></script>
-  <script src="pet.js?v=5.11"></script>
+  <script src="easter_eggs.js?v=5.12"></script>
+  <script src="pixel_defense.js?v=5.12"></script>
+  <script src="minigame_arcade.js?v=5.12"></script>
+  <script src="minigame_itotooshi.js?v=5.12"></script>
+  <script src="minigame_cyber_wire.js?v=5.12"></script>
+  <script src="minigame_setsuna.js?v=5.12"></script>
+  <script src="minigame_retro_breakout.js?v=5.12"></script>
+  <script src="pet.js?v=5.12"></script>
 </body>
 </html>

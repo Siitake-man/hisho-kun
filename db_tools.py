@@ -205,7 +205,45 @@ def list_tasks_tool(status: str = "todo") -> str:
         return f"タスクの取得に失敗しました: {e}"
 
 @tool
-def complete_task_tool(task_id: int) -> str:
+def quick_add_task_tool(quick_text: str) -> str:
+    """クイック追加構文でTODOタスクを一括作成します。
+
+    自然言語から期限・タグ・優先度を自動解析します。
+    構文例: 「明日18時に会議資料を作る #仕事 !3」
+      - 日時: 今日/明日/明後日/曜日名/N日後/○月○日(+午前午後・○時)
+      - タグ: #タグ名 (複数可)
+      - 優先度: !1(低)〜!3(高) または !低/!中/!高
+
+    引数:
+    - quick_text: クイック追加構文のテキスト
+    """
+    try:
+        from task_parser import parse_input, tags_to_db_string
+        parsed = parse_input(quick_text)
+        if not parsed.title:
+            return "タスク名を抽出できませんでした。例: 「明日18時に資料を作る #仕事 !3」"
+        task = database.Task(
+            title=parsed.title,
+            description="",
+            due_date=parsed.due_date,
+            priority=parsed.priority,
+            status="todo",
+            tags=tags_to_db_string(parsed.tags),
+        )
+        task_id = database.create_task(task)
+        parts = [f"タスク「{parsed.title}」(ID: {task_id}) を登録しました！"]
+        if parsed.due_date:
+            dt = datetime.fromtimestamp(parsed.due_date / 1000)
+            parts.append(f"期限: {dt.strftime('%Y/%m/%d %H:%M')}")
+        if parsed.tags:
+            parts.append(f"タグ: {', '.join(parsed.tags)}")
+        if parsed.priority > 0:
+            parts.append(f"優先度: {parsed.priority}")
+        return " / ".join(parts)
+    except Exception as e:
+        return f"クイック追加に失敗しました: {e}"
+
+
     """指定されたIDのTODOタスクを完了（完了済みにマーク）します。
     
     引数:
