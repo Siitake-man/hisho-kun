@@ -61,6 +61,8 @@
       flex-direction: column;
       gap: 4px;
       position: relative;
+      box-sizing: border-box;
+      overflow: hidden;
     }
 
     /* 背景環境レイヤー (Room / Cafe / Forest / Ocean / Cyber) */
@@ -110,20 +112,22 @@
       display: flex;
       justify-content: space-between;
       align-items: center;
-      padding: 0 8px;
-      height: 32px;
+      padding: 0 6px;
+      height: 36px;
       flex-shrink: 0;
-      background: rgba(30, 20, 14, 0.85);
+      background: rgba(30, 20, 14, 0.9);
       backdrop-filter: blur(12px);
       -webkit-backdrop-filter: blur(12px);
       border-radius: 6px;
       border: 1px solid var(--glass-border);
+      overflow: hidden;
     }
 
     .header-left {
       display: flex;
       align-items: center;
-      gap: 6px;
+      gap: 4px;
+      flex-shrink: 0;
     }
 
     .clock-badge-large {
@@ -133,6 +137,7 @@
       font-family: 'Space Mono', monospace;
       letter-spacing: 0.5px;
       text-shadow: 0 0 8px rgba(255, 184, 0, 0.4);
+      white-space: nowrap;
     }
 
     .weather-badge {
@@ -158,30 +163,26 @@
       50% { box-shadow: 0 0 10px rgba(255,235,59,0.8); }
     }
 
-    .header-left {
-      display: flex;
-      flex-direction: column;
-      gap: 2px;
-    }
-
     .header-widgets {
       display: flex;
-      gap: 5px;
+      gap: 4px;
       align-items: center;
+      flex-shrink: 0;
     }
 
     .pomodoro-badge {
-      font-size: 10.5px;
+      font-size: 10px;
       font-weight: bold;
       background: rgba(229, 57, 53, 0.25);
       color: #FF8A80;
       border: 1px solid #E53935;
-      padding: 2px 7px;
+      padding: 2px 6px;
       border-radius: 4px;
       cursor: pointer;
       display: flex;
       align-items: center;
-      gap: 4px;
+      gap: 3px;
+      white-space: nowrap;
       transition: all 0.2s;
     }
     .pomodoro-badge.active {
@@ -195,13 +196,14 @@
       background: rgba(255, 255, 255, 0.08);
       border: 1px solid var(--glass-border);
       color: var(--text-main);
-      font-size: 10.5px;
-      padding: 3px 7px;
+      font-size: 10px;
+      padding: 3px 5px;
       border-radius: 4px;
       cursor: pointer;
       display: flex;
       align-items: center;
-      gap: 3px;
+      gap: 2px;
+      white-space: nowrap;
       transition: all 0.2s;
     }
     .btn-header:active {
@@ -219,11 +221,13 @@
       border: 1.5px solid var(--border-amber);
       box-shadow: inset 0 0 20px rgba(0,0,0,0.6), 0 0 15px rgba(255, 184, 0, 0.1);
       border-radius: 8px;
-      padding: 6px 8px;
+      padding: 4px 6px;
       display: flex;
       flex-direction: column;
-      gap: 5px;
-      flex: 1;
+      gap: 4px;
+      flex: 1 1 0;
+      min-height: 0;
+      box-sizing: border-box;
       overflow: hidden;
     }
 
@@ -352,28 +356,30 @@
     /* ペット生息地（Habitat Viewport） */
     .pet-stage {
       position: relative;
-      flex: 1.2;
-      min-height: 140px;
+      flex: 1 1 0;
+      min-height: 110px;
       display: flex;
       flex-direction: column;
-      justify-content: center;
+      justify-content: flex-end;
       align-items: center;
       cursor: pointer;
+      padding-bottom: 2px;
     }
     /* 天気バッジ（ペットステージ下側） */
     .pet-stage .weather-badge {
-      margin-top: 4px;
+      margin-top: 2px;
       font-size: 9px;
+      z-index: 2;
     }
 
     /* ペット画像の呼吸・浮遊アニメーション */
     .pet-img-wrap {
       position: absolute;
-      bottom: 34px;
+      bottom: 18px;
       left: 50%;
-      margin-left: -70px;
-      width: 140px;
-      height: 140px;
+      margin-left: -55px;
+      width: 110px;
+      height: 110px;
       display: flex;
       justify-content: center;
       align-items: center;
@@ -383,21 +389,21 @@
       transform: scale(0.92);
     }
     .pet-img {
-      width: 120px;
-      height: 120px;
+      width: 100px;
+      height: 100px;
       image-rendering: pixelated;
       image-rendering: -moz-crisp-edges;
       image-rendering: crisp-edges;
       animation: breathe 3.2s ease-in-out infinite;
-      filter: drop-shadow(0 8px 12px rgba(0,0,0,0.6));
+      filter: drop-shadow(0 6px 10px rgba(0,0,0,0.6));
     }
 
     /* 足元ドロップシャドウ */
     .pet-shadow {
       position: absolute;
-      bottom: 8px;
-      width: 80px;
-      height: 14px;
+      bottom: 2px;
+      width: 70px;
+      height: 12px;
       background: radial-gradient(ellipse at center, rgba(0,0,0,0.6) 0%, rgba(0,0,0,0) 75%);
       border-radius: 50%;
       animation: shadow-scale 3.2s ease-in-out infinite;
@@ -410,33 +416,48 @@
       -webkit-backdrop-filter: blur(12px);
       border: 1px solid var(--glass-border);
       border-radius: 8px;
-      padding: 6px 10px;
-      font-size: 11.5px;
-      line-height: 1.45;
+      padding: 5px 8px;
+      font-size: 11px;
+      line-height: 1.4;
       color: var(--text-main);
       text-align: center;
-      width: 92%;
-      max-height: 60px;
+      width: 94%;
+      max-height: 42px;
       overflow-y: auto;
-      margin-top: -6px;
+      margin-bottom: 2px;
       box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+      z-index: 2;
     }
 
-    /* サジェストカード (AIニュース / 予定 / TODO) */
+    /* 情報・サジェスト領域ラッパー (Info Column) */
+    .info-column {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+      flex: 0 0 auto;
+      max-height: 155px;
+      width: 100%;
+    }
+
+    /* サジェストカード (AIニュース / 予定 / TODO) — 固定高さで崩れを物理的に防止 */
     .suggest-card {
-      background: rgba(46, 28, 20, 0.6);
+      background: rgba(46, 28, 20, 0.75);
       backdrop-filter: blur(10px);
       -webkit-backdrop-filter: blur(10px);
       border: 1px solid var(--border-amber);
       border-radius: 8px;
-      padding: 8px 10px;
+      padding: 6px 10px;
       display: flex;
       flex-direction: column;
-      gap: 3px;
+      gap: 2px;
       cursor: pointer;
       transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
       position: relative;
       overflow: hidden;
+      flex: 0 0 auto;
+      height: 118px;
+      max-height: 118px;
+      box-sizing: border-box;
     }
     .suggest-card:active {
       transform: scale(0.98);
@@ -449,6 +470,8 @@
       font-size: 10px;
       color: var(--accent-amber);
       font-weight: bold;
+      flex-shrink: 0;
+      height: 16px;
     }
     .suggest-title {
       font-size: 12px;
@@ -457,24 +480,33 @@
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
+      flex-shrink: 0;
+      line-height: 1.3;
     }
     .suggest-desc {
-      font-size: 10.5px;
+      font-size: 11px;
       color: var(--text-muted);
-      line-height: 1.35;
-      display: -webkit-box;
-      -webkit-line-clamp: 2;
-      -webkit-box-orient: vertical;
-      overflow: hidden;
+      line-height: 1.45;
+      white-space: pre-wrap;
+      word-break: break-word;
+      overflow-y: auto;
+      flex: 1 1 0;
+      min-height: 0;
+      display: block;
     }
 
-    /* 操作ドック (Bottom Dock) */
+    /* 操作ドック (Bottom Dock) — 画面最下部固定 */
     .bottom-dock {
       display: grid;
       grid-template-columns: repeat(4, 1fr);
       gap: 4px;
+      flex: 0 0 42px;
       height: 42px;
-      flex-shrink: 0;
+      width: 100%;
+      box-sizing: border-box;
+      margin-top: auto;
+      position: relative;
+      z-index: 10;
     }
     .dock-btn {
       background: var(--glass-bg);
@@ -575,6 +607,43 @@
       gap: 8px;
       margin-top: 6px;
     }
+    .suggest-nav {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .btn-suggest-quick-complete {
+      background: linear-gradient(135deg, #00E676, #00C853);
+      color: #003300;
+      font-weight: bold;
+      font-size: 9px;
+      padding: 1px 6px;
+      border-radius: 3px;
+      border: none;
+      cursor: pointer;
+      line-height: 1.3;
+      box-shadow: 0 1px 4px rgba(0, 230, 118, 0.4);
+      transition: transform 0.15s;
+      white-space: nowrap;
+    }
+    .btn-suggest-quick-complete:active {
+      transform: scale(0.92);
+    }
+    .btn-suggest-nav {
+      background: rgba(255, 184, 0, 0.15);
+      border: 1px solid var(--accent-amber);
+      color: var(--accent-amber);
+      font-size: 9px;
+      padding: 1px 6px;
+      border-radius: 3px;
+      cursor: pointer;
+      line-height: 1.3;
+      transition: background 0.15s;
+    }
+    .btn-suggest-nav:active {
+      background: var(--accent-amber);
+      color: #1E140E;
+    }
     .btn-sheet-link {
       flex: 1;
       background: var(--accent-amber);
@@ -590,6 +659,26 @@
       justify-content: center;
       align-items: center;
       gap: 6px;
+    }
+    .btn-sheet-complete {
+      flex: 1;
+      background: linear-gradient(135deg, #00E676, #00C853);
+      color: #003300;
+      font-weight: bold;
+      font-size: 13px;
+      padding: 10px;
+      border-radius: 8px;
+      border: none;
+      cursor: pointer;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 6px;
+      box-shadow: 0 4px 12px rgba(0, 230, 118, 0.35);
+      transition: transform 0.15s;
+    }
+    .btn-sheet-complete:active {
+      transform: scale(0.96);
     }
     .btn-sheet-close {
       background: rgba(255,255,255,0.1);
@@ -803,19 +892,25 @@
     }
 
     .secret-game-badge {
+      position: absolute;
+      top: 6px;
+      right: 8px;
+      z-index: 10;
       font-size: 10px;
       font-weight: bold;
-      background: linear-gradient(135deg, #FFB800, #FF8F00);
+      background: linear-gradient(135deg, rgba(255, 184, 0, 0.95), rgba(255, 143, 0, 0.95));
       color: #0E0A08;
       border: 1px solid #FFE082;
-      padding: 2px 7px;
-      border-radius: 4px;
+      padding: 3px 8px;
+      border-radius: 6px;
       cursor: pointer;
       display: inline-flex;
       align-items: center;
       gap: 3px;
-      box-shadow: 0 0 10px rgba(255, 184, 0, 0.6);
-      transition: transform 0.2s;
+      white-space: nowrap;
+      line-height: 1.2;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4), 0 0 10px rgba(255, 184, 0, 0.5);
+      transition: transform 0.2s, box-shadow 0.2s;
     }
     .secret-game-badge:active {
       transform: scale(0.92);
@@ -880,35 +975,106 @@
       100% { box-shadow: 0 0 16px #FFB800, 0 0 24px #FF1744; transform: scale(1.08); }
     }
 
+    /* 👾 サークル暗転（アイリスアウト）トランジション
+       旧マリオ風の「吸い込み」演出: 黒幕を丸くクリップするのではなく、
+       タップ位置中心の「透明な穴＋穴の外側を埋める巨大な黒い影(.iris-hole)」で、
+       穴の width/height を直接縮小/拡大する。
+       ※ 旧方式の transform: scale は黒影の外周まで一緒に縮めてしまうため、
+         演出終盤に黒が画面端から剥がれて「黒い円が縮むだけ」になる不具合の根源だった。
+         width/height 方式なら黒影スプレッド(120vmax)は常に画面端に張り付いたまま
+         内側へ浸食し、穴=0 の最終フレームで数学的に全面黒が保証される。 */
+    .iris-transition-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 100001;  /* ゲームモーダル(100000)の上 → 開幕のアイリスインも見せる */
+      pointer-events: none;
+      display: none;
+      overflow: hidden;
+    }
+    .iris-hole {
+      position: absolute;
+      left: var(--iris-x, 85%);
+      top: var(--iris-y, 15%);
+      width: 220vmax;
+      height: 220vmax;
+      border-radius: 50%;
+      box-shadow: 0 0 0 120vmax #000000;
+      transform: translate(-50%, -50%);
+      transition: width 0.4s cubic-bezier(0.7, 0, 0.3, 1),
+                  height 0.4s cubic-bezier(0.7, 0, 0.3, 1);
+    }
+    .iris-transition-overlay.closing .iris-hole {
+      width: 0;
+      height: 0;
+    }
+    .iris-transition-overlay.opening .iris-hole {
+      width: 220vmax;
+      height: 220vmax;
+    }
+    /* 軽量化ポリシー: モーション低減設定環境ではアニメを省略し即座に暗転/復帰する */
+    @media (prefers-reduced-motion: reduce) {
+      .iris-hole {
+        transition: none;
+      }
+    }
+
     /* =========================================================================
        横画面（landscape）レイアウト: ペット左 ＋ 情報右の2カラム化
        ========================================================================= */
     @media (orientation: landscape) {
       .screen {
         flex-direction: row;
-        flex-wrap: wrap;
+        flex-wrap: nowrap;
         align-content: stretch;
-        gap: 6px;
+        gap: 8px;
+        flex: 1 1 0;
+        min-height: 0;
       }
       .wake-banner,
       #active-event-banner,
       #update-banner {
-        flex-basis: 100%;
-        flex-shrink: 0;
+        position: absolute;
+        top: 40px;
+        left: 10px;
+        right: 10px;
+        z-index: 20;
       }
       .pet-stage {
-        flex: 1 1 46%;
-        min-height: 0;
-      }
-      #suggest-card {
         flex: 1 1 50%;
+        min-height: 0;
+        max-height: none;
+      }
+      .info-column {
+        flex: 1 1 50%;
+        min-height: 0;
+        max-height: 100%;
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+        width: auto;
+        overflow: hidden;
+      }
+      .info-column .suggest-card {
+        flex: 1 1 0;
+        min-height: 0;
+        height: auto;
+        max-height: 100%;
+        overflow: hidden;
       }
       .suggest-desc {
-        -webkit-line-clamp: 4;
+        font-size: 11px;
+        line-height: 1.45;
+        white-space: pre-wrap;
+        word-break: break-word;
+        max-height: none;
+        flex: 1 1 0;
+        min-height: 0;
+        overflow-y: auto;
       }
       .bottom-dock {
-        flex-basis: 100%;
-        flex-shrink: 0;
+        flex: 0 0 38px;
+        height: 38px;
+        margin-top: 2px;
       }
     }
   </style>
@@ -925,24 +1091,20 @@
         <div class="clock-badge-large" id="clock-display">12:00:00</div>
       </div>
       <div class="header-widgets">
-        <span id="secret-game-badge" class="secret-game-badge" style="display:none;" onclick="if (window.PixelDefense) { window.PixelDefense.show(); } else { showEasterEggToast('👾 シークレットゲーム: 準備中！', '#FFB800'); }">
-          👾 秘密の部屋
-        </span>
-        <div id="pomodoro-btn" class="pomodoro-badge" onclick="togglePomodoro()">
-          <span>🍅</span>
+        <div id="pomodoro-btn" class="pomodoro-badge" onclick="togglePomodoro()" title="🍅 ポモドーロ開始（25分）">
+          <span id="pomodoro-icon">🍅</span>
           <span id="pomodoro-timer-text">25:00</span>
         </div>
-        <button class="btn-header" onclick="cycleEnvTheme()">
+        <button class="btn-header" onclick="cycleEnvTheme()" title="🏞️ 背景テーマ切替">
           <span>🏞️</span>
-          <span id="env-label">書斎</span>
         </button>
-        <button class="btn-header" id="nosleep-btn" onclick="toggleNoSleep()" title="常時画面ON（自動消灯防止）">
+        <button class="btn-header" id="nosleep-btn" onclick="toggleNoSleep()" title="💡 常時画面ON（自動消灯防止）">
           <span id="nosleep-icon">💡</span>
         </button>
-        <button class="btn-header" onclick="toggleFullscreen()" title="全画面表示">
+        <button class="btn-header" onclick="toggleFullscreen()" title="⛶ 全画面表示">
           <span>⛶</span>
         </button>
-        <button class="btn-header" id="mic-btn" onclick="startVoiceInput()" title="音声で質問する（🎤 ねえ秘書くん）">
+        <button class="btn-header" id="mic-btn" onclick="startVoiceInput()" title="🎤 音声で質問する">
           <span>🎤</span>
         </button>
       </div>
@@ -988,8 +1150,12 @@
 
       <!-- ペット生息地ステージ -->
       <section class="pet-stage" onclick="onPetTap(event)">
+        <!-- 👾 秘密の部屋（隠しポータル） -->
+        <span id="secret-game-badge" class="secret-game-badge" style="display:none;" onclick="event.stopPropagation(); triggerSecretRoomIris(event);" title="👾 秘密の部屋">
+          👾 秘密の部屋
+        </span>
         <div class="pet-img-wrap">
-          <img id="pet-sprite" class="pet-img" src="/assets/mascot_seal_idle.png" alt="Pet">
+          <img id="pet-sprite" class="pet-img" src="/assets/dot/seal/idle_1.png" alt="Pet">
           <div class="pet-shadow"></div>
         </div>
         <div id="speech-bubble" class="speech-bubble">
@@ -998,42 +1164,49 @@
         <div id="weather-badge" class="weather-badge" title="リアルタイム天気">☀️ 晴れ</div>
       </section>
 
-      <!-- 朝会/終礼ブリーフィング クイックバナー -->
-      <div id="briefing-quick-btn" class="briefing-quick-banner" onclick="openBriefingModal()">
-        <span id="briefing-quick-text">☀️ 朝会ブリーフィングを聞く</span>
-        <span style="font-size:10px; opacity:0.8;">タップ 📖</span>
-      </div>
-
-      <!-- サジェストカード (AIニュース / 予定 / TODO) -->
-      <section id="suggest-card" class="suggest-card" onclick="onSuggestCardClick()">
-        <div class="suggest-header">
-          <span id="suggest-tag">💡 サジェスト</span>
-          <span style="font-size: 9px; opacity: 0.7;">タップで詳細 📖</span>
+      <!-- 情報・サジェスト領域 (Info Column) -->
+      <div class="info-column">
+        <!-- 朝会/終礼ブリーフィング クイックバナー -->
+        <div id="briefing-quick-btn" class="briefing-quick-banner" onclick="openBriefingModal()">
+          <span id="briefing-quick-text">☀️ 朝会ブリーフィングを聞く</span>
+          <span style="font-size:10px; opacity:0.8;">タップ 📖</span>
         </div>
-        <div id="suggest-title" class="suggest-title">最新のAIトレンドをチェック</div>
-        <div id="suggest-desc" class="suggest-desc">読み込み中...</div>
-      </section>
 
-      <!-- 操作ドック -->
-      <footer class="bottom-dock">
-        <button class="dock-btn" onclick="openEventsModal()">
-          <span class="icon">📅</span>
-          <span>予定</span>
-        </button>
-        <button class="dock-btn" onclick="openTodoModal()">
-          <span class="icon">📝</span>
-          <span>TODO</span>
-        </button>
-        <button class="dock-btn" onclick="openNotesModal()">
-          <span class="icon">🌱</span>
-          <span>習慣</span>
-        </button>
-        <button class="dock-btn" onclick="openSettingsModal()">
-          <span class="icon">⚙️</span>
-          <span>設定</span>
-        </button>
-      </footer>
+        <!-- サジェストカード (AIニュース / 予定 / TODO) -->
+        <section id="suggest-card" class="suggest-card" onclick="onSuggestCardClick()">
+          <div class="suggest-header">
+            <span id="suggest-tag">💡 サジェスト</span>
+            <div class="suggest-nav">
+              <button id="suggest-quick-complete-btn" class="btn-suggest-quick-complete" style="display:none;" onclick="event.stopPropagation(); quickCompleteCurrentTask();" title="このタスクを完了">✅ 完了</button>
+              <button class="btn-suggest-nav" onclick="event.stopPropagation(); prevSuggest();" title="前のサジェスト">◀</button>
+              <button class="btn-suggest-nav" onclick="event.stopPropagation(); nextSuggest();" title="次のサジェスト">▶</button>
+            </div>
+          </div>
+          <div id="suggest-title" class="suggest-title">最新のAIトレンドをチェック</div>
+          <div id="suggest-desc" class="suggest-desc">読み込み中...</div>
+        </section>
+      </div>
     </main>
+
+    <!-- 操作ドック (最下部固定) -->
+    <footer class="bottom-dock">
+      <button class="dock-btn" onclick="openEventsModal()">
+        <span class="icon">📅</span>
+        <span>予定</span>
+      </button>
+      <button class="dock-btn" onclick="openTodoModal()">
+        <span class="icon">📝</span>
+        <span>TODO</span>
+      </button>
+      <button class="dock-btn" onclick="openNotesModal()">
+        <span class="icon">🌱</span>
+        <span>習慣</span>
+      </button>
+      <button class="dock-btn" onclick="openSettingsModal()">
+        <span class="icon">⚙️</span>
+        <span>設定</span>
+      </button>
+    </footer>
   </div>
 
   <!-- Glass Bottom Sheet (アプリ内ニュース・詳細リーダー) -->
@@ -1044,6 +1217,10 @@
     <div id="sheet-title" class="sheet-title">記事タイトル</div>
     <div id="sheet-body" class="sheet-body">記事内容の要約...</div>
     <div class="sheet-actions">
+      <button id="sheet-complete-btn" class="btn-sheet-complete" style="display:none;" onclick="onSheetCompleteTask()">
+        <span>✅</span>
+        <span>このタスクを完了にする</span>
+      </button>
       <a id="sheet-link-btn" href="#" target="_blank" rel="noopener noreferrer" class="btn-sheet-link">
         <span>🌐</span>
         <span>元記事をブラウザで開く</span>
@@ -1051,6 +1228,9 @@
       <button class="btn-sheet-close" onclick="closeBottomSheet()">閉じる</button>
     </div>
   </div>
+
+  <!-- 👾 サークル暗転（アイリスアウト）トランジション用オーバーレイ -->
+  <div id="iris-transition-overlay" class="iris-transition-overlay"><div class="iris-hole"></div></div>
 
   <!-- 👾 Pixel Defense ミニゲームモーダル (Phase L5: メインのペットAI・ブリーフィング機能に非依存の疎結合設計) -->
   <div id="minigame-overlay" class="minigame-overlay">
@@ -1067,8 +1247,8 @@
   <!-- 常時画面ON (NoSleep): Canvas無限生配信を流す不可視video（HTTP環境で唯一確実に動作する方式） -->
   <video id="nosleep-video" muted playsinline autoplay style="position:fixed; left:0; bottom:0; width:2px; height:2px; opacity:0.01; pointer-events:none; z-index:-1;"></video>
 
-  <script src="easter_eggs.js"></script>
-  <script src="pixel_defense.js"></script>
-  <script src="pet.js"></script>
+  <script src="easter_eggs.js?v=5.9"></script>
+  <script src="pixel_defense.js?v=5.9"></script>
+  <script src="pet.js?v=5.9"></script>
 </body>
 </html>

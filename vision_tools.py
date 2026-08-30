@@ -18,8 +18,10 @@ from langchain_core.tools import tool
 
 logger = logging.getLogger(__name__)
 
-# スクリーンショット一時保存ディレクトリ
-SCREENSHOT_DIR = Path(__file__).parent / "assets" / "screenshots"
+# スクリーンショット一時保存ディレクトリ (frozen時は exe 直下に生成)
+import app_paths
+
+SCREENSHOT_DIR = app_paths.get_app_root() / "assets" / "screenshots"
 SCREENSHOT_DIR.mkdir(parents=True, exist_ok=True)
 
 

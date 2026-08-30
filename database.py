@@ -1124,6 +1124,62 @@ def get_tasks(
         return tasks
 
 
+def get_subtasks(parent_id: int, db_path: str = "neo_secretary.db") -> List[Task]:
+    """
+    指定された親タスクに紐づく子タスク（サブタスク・チェックリスト）一覧を取得します。
+    
+    Args:
+        parent_id: 親タスクのID
+        db_path: データベースファイルのパス
+        
+    Returns:
+        Taskオブジェクトのリスト（ID昇順）
+    """
+    with get_db_connection(db_path) as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT id, title, description, due_date, priority, status, parent_id, created_at, updated_at
+            FROM tasks
+            WHERE parent_id = ?
+            ORDER BY status = 'completed' ASC, id ASC
+        """, (parent_id,))
+        rows = cursor.fetchall()
+        subtasks = []
+        for r in rows:
+            subtasks.append(Task(
+                id=r[0],
+                title=r[1],
+                description=r[2],
+                due_date=r[3],
+                priority=r[4],
+                status=r[5],
+                parent_id=r[6],
+                created_at=r[7],
+                updated_at=r[8]
+            ))
+        return subtasks
+
+
+def add_subtask(parent_id: int, title: str, db_path: str = "neo_secretary.db") -> int:
+    """
+    親タスクに子タスク（サブタスク）を追加します。
+    
+    Args:
+        parent_id: 親タスクID
+        title: 子タスクのタイトル
+        db_path: DBパス
+        
+    Returns:
+        作成された子タスクID
+    """
+    new_sub = Task(
+        title=title,
+        parent_id=parent_id,
+        status="todo"
+    )
+    return create_task(new_sub, db_path=db_path)
+
+
 def complete_task(task_id: int, db_path: str = "neo_secretary.db") -> bool:
     """
     タスクを完了状態 ('completed') に更新します。

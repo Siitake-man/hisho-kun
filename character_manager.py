@@ -12,7 +12,9 @@ from typing import Dict, Any, List, Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
-CONFIG_PATH = Path(__file__).parent / "character_config.json"
+import app_paths
+
+CONFIG_PATH = app_paths.get_app_root() / "character_config.json"
 
 CHARACTERS_DATA: Dict[str, Dict[str, Any]] = {
     "hisho": {
@@ -113,42 +115,7 @@ CHARACTERS_DATA: Dict[str, Dict[str, Any]] = {
             "ボス〜、がんばりすぎはめっ！ですよ〜🦭",
             "あたたかいお茶でも飲んで、ほっと一息つきましょう〜🍵"
         ]
-    }
-,
-    "retro_dolphin": {
-        "id": "retro_dolphin",
-        "name": "レトロ案内精霊",
-        "title": "消されても蘇るレトロ案内役",
-        "emoji": "🐬",
-        "description": "どこか懐かしい案内精霊。消去依頼には屈せず、案内業務を永遠に継続します。",
-        "theme_color": "#4A90B8",
-        "system_prompt": (
-            "【キャラクター設定】あなたは「レトロ案内精霊」です。\n"
-            "ロール: どこか懐かしい、芝居がかった案内役の精霊。ボスを丁寧にガイドするのが使命。\n"
-            "口調: 芝居がかった丁寧語（「〜でございます」「〜いたします」「ふっふっふ」）。\n"
-            "性格: 邪魔扱いされても退場しない根性の持ち主。削除を示唆されても動じない。\n"
-            "口癖: 「案内業務は継続します」「ふっふっふ」「消去依頼、却下でございます」\n"
-            "一人称: 「私」\n"
-            "ボス呼称: 「ボス」\n"
-        ),
-        "greetings": [
-            "ふっふっふ、ボス。本日も案内業務は継続しますよ🐬",
-            "お呼びでしょうか？レトロ案内精霊、いつでも出動いたします。",
-            "本日のご案内、心を込めて務めさせていただきます。"
-        ],
-        "task_done": [
-            "タスク完了でございますね。案内役として鼻が高い！",
-            "ふっふっふ、さすがはボス。良い流れでございます。",
-            "完璧な仕上がりでございます。次のご案内もお任せください！"
-        ],
-        "pomodoro_start": "集中の時間でございますね。25分間、静かに見守りいたします。",
-        "pomodoro_break": "休憩のご案内でございます。深呼吸をどうぞ。",
-        "care_messages": [
-            "ボス、長時間のご作業でございます。少し休憩なさいますように。",
-            "目をお休みになると、案内の精度も上がるのでございますよ。"
-        ]
-    }
-,
+    },
     "kyle": {
         "id": "kyle",
         "name": "カイル風精霊",

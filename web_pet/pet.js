@@ -1,7 +1,16 @@
 /**
- * ネオ秘書くん Desk Pet ＆ Agent Bridge Cockpit ロジック (pet.js v7.2 - Voice Edition)
+ * ネオ秘書くん Desk Pet ＆ Agent Bridge Cockpit ロジック (pet.js v7.3 - Voice Edition)
  * 5大背景環境 ＆ Glass Bottom Sheetニュースリーダー ＆ なでなでパーティクル
  */
+
+// 🧹 古いPWA/ブラウザキャッシュを安全に自動パージ
+if ('caches' in window) {
+  caches.keys().then(keys => {
+    keys.forEach(key => {
+      if (key !== 'neo-pet-v5.9') caches.delete(key);
+    });
+  });
+}
 
 let fetchFailCount = 0;
 const FETCH_BACKOFF_THRESHOLD = 3;  // 連続3回失敗でバックオフ
@@ -20,7 +29,7 @@ let currentActiveEvent = null;
 let currentPomodoro = { active: false, is_break: false, remaining_seconds: 0, mode_label: "" };
 let petStateNow = 'idle';
 // 歩行フレーム(walk_1/2)を持つキャラ（未保有キャラは歩行中も idle フレームで代用）
-const WALK_CAPABLE_CHARS = ['retro_dolphin', 'kyle'];
+const WALK_CAPABLE_CHARS = ['kyle'];
 let wakeLock = null;
 let currentCharacterId = 'seal';
 
@@ -42,8 +51,16 @@ const SYNC_TOKEN_KEY = 'neo_hisho_sync_token';
 let syncToken = '';
 
 function loadSyncToken() {
+  const urlParams = new URLSearchParams(window.location.search);
+  const paramToken = urlParams.get('token');
+  if (paramToken) {
+    syncToken = paramToken;
+    localStorage.setItem(SYNC_TOKEN_KEY, syncToken);
+    return;
+  }
   syncToken = localStorage.getItem(SYNC_TOKEN_KEY) || '';
 }
+loadSyncToken();
 
 /**
  * 認証済みfetchラッパー。全API呼び出しはこれを経由すること。
@@ -123,7 +140,7 @@ window.addEventListener('DOMContentLoaded', () => {
 });
 
 // =============================================================================
-// 1.5. テーマごとの背景シーン描画（ペットの生活空間）
+// 1.5. テーマごとの背景シーン描画（本格的ピクセルアート書斎・生活空間）
 // =============================================================================
 function drawEnvScene() {
   if (!envCtx || !envCanvas) return;
@@ -133,55 +150,204 @@ function drawEnvScene() {
   envCtx.save();
 
   if (theme === 'room') {
-    // 暖炉（左下）＋ゆらぐ炎
-    const fx = w * 0.12, fy = h * 0.72;
-    envCtx.fillStyle = 'rgba(60, 35, 20, 0.9)';
-    envCtx.fillRect(fx - 52, fy - 44, 104, 96);
-    envCtx.fillStyle = 'rgba(25, 14, 8, 0.95)';
-    envCtx.fillRect(fx - 38, fy - 26, 76, 66);
-    const flameH = 20 + Math.sin(t / 120) * 5;
-    envCtx.fillStyle = 'rgba(255, 140, 0, 0.85)';
+    // 📖 本格的レトロ書斎シーン
+    // 1. 木製デスク天板（下部）
+    const deskY = h * 0.72;
+    envCtx.fillStyle = 'rgba(54, 32, 18, 0.95)';
+    envCtx.fillRect(0, deskY, w, h - deskY);
+    // デスクの縁取りハイライト
+    envCtx.fillStyle = 'rgba(120, 75, 42, 0.85)';
+    envCtx.fillRect(0, deskY, w, 4);
+
+    // 2. クラシックな本棚（左上〜中央）
+    const shelfX = w * 0.04, shelfY = h * 0.16, shelfW = w * 0.42, shelfH = h * 0.38;
+    // 本棚の木枠
+    envCtx.fillStyle = 'rgba(38, 22, 12, 0.92)';
+    envCtx.fillRect(shelfX, shelfY, shelfW, shelfH);
+    envCtx.strokeStyle = 'rgba(84, 50, 28, 0.95)';
+    envCtx.lineWidth = 4;
+    envCtx.strokeRect(shelfX, shelfY, shelfW, shelfH);
+    
+    // 棚板2段
+    const shelfRow1 = shelfY + shelfH * 0.48;
+    envCtx.fillStyle = 'rgba(70, 42, 24, 0.95)';
+    envCtx.fillRect(shelfX, shelfRow1, shelfW, 5);
+
+    // 本の背表紙（色彩豊かにぎっしり並べる）
+    const bookColors = ['#C62828', '#1565C0', '#2E7D32', '#F57F17', '#6A1B9A', '#37474F', '#D84315', '#4527A0'];
+    // 上段の本
+    let bx = shelfX + 6;
+    let bIdx = 0;
+    while (bx < shelfX + shelfW - 14) {
+      const bw = 8 + (bIdx % 3) * 3;
+      const bh = shelfH * 0.34 + (bIdx % 4) * 4;
+      envCtx.fillStyle = bookColors[bIdx % bookColors.length];
+      envCtx.fillRect(bx, shelfRow1 - bh, bw, bh);
+      // 金文字・タイトルの線
+      envCtx.fillStyle = 'rgba(255, 215, 0, 0.7)';
+      envCtx.fillRect(bx + 2, shelfRow1 - bh + 6, bw - 4, 2);
+      bx += bw + 3;
+      bIdx++;
+    }
+    // 下段の本（一部斜めに倒れた本）
+    bx = shelfX + 6;
+    while (bx < shelfX + shelfW - 24) {
+      const bw = 9 + (bIdx % 2) * 4;
+      const bh = shelfH * 0.36 + (bIdx % 3) * 3;
+      envCtx.fillStyle = bookColors[(bIdx + 3) % bookColors.length];
+      envCtx.fillRect(bx, shelfY + shelfH - bh - 4, bw, bh);
+      bx += bw + 3;
+      bIdx++;
+    }
+
+    // 3. 窓と星空（右上）
+    const winX = w * 0.62, winY = h * 0.14, winW = w * 0.32, winH = h * 0.32;
+    // 窓枠と夜空
+    envCtx.fillStyle = 'rgba(10, 14, 28, 0.95)';
+    envCtx.fillRect(winX, winY, winW, winH);
+    // 星々
+    envCtx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+    envCtx.fillRect(winX + winW * 0.3, winY + winH * 0.25, 2, 2);
+    envCtx.fillRect(winX + winW * 0.7, winY + winH * 0.35, 2, 2);
+    envCtx.fillRect(winX + winW * 0.5, winY + winH * 0.7, 1.5, 1.5);
+    // 三日月
+    envCtx.fillStyle = '#FFE082';
     envCtx.beginPath();
-    envCtx.moveTo(fx - 14, fy + 22);
-    envCtx.quadraticCurveTo(fx - 10, fy + 22 - flameH, fx, fy + 22 - flameH * 1.4);
-    envCtx.quadraticCurveTo(fx + 10, fy + 22 - flameH, fx + 14, fy + 22);
+    envCtx.arc(winX + winW * 0.75, winY + winH * 0.3, 7, 0, Math.PI * 2);
     envCtx.fill();
-    envCtx.fillStyle = 'rgba(255, 220, 0, 0.9)';
+    envCtx.fillStyle = 'rgba(10, 14, 28, 0.95)';
     envCtx.beginPath();
-    envCtx.moveTo(fx - 7, fy + 22);
-    envCtx.quadraticCurveTo(fx - 4, fy + 22 - flameH * 0.6, fx, fy + 22 - flameH * 0.9);
-    envCtx.quadraticCurveTo(fx + 4, fy + 22 - flameH * 0.6, fx + 7, fy + 22);
+    envCtx.arc(winX + winW * 0.72, winY + winH * 0.28, 6, 0, Math.PI * 2);
     envCtx.fill();
-    // 本棚（右）
-    envCtx.fillStyle = 'rgba(50, 30, 18, 0.9)';
-    envCtx.fillRect(w * 0.82, h * 0.52, 74, h * 0.4);
-    envCtx.fillStyle = 'rgba(90, 55, 30, 0.95)';
-    for (let i = 0; i < 3; i++) envCtx.fillRect(w * 0.82 + 7, h * 0.52 + 12 + i * (h * 0.4 - 22) / 3, 60, 5);
+    // 窓の格子木枠
+    envCtx.strokeStyle = 'rgba(92, 58, 34, 0.95)';
+    envCtx.lineWidth = 3;
+    envCtx.strokeRect(winX, winY, winW, winH);
+    envCtx.beginPath();
+    envCtx.moveTo(winX + winW / 2, winY); envCtx.lineTo(winX + winW / 2, winY + winH);
+    envCtx.moveTo(winX, winY + winH / 2); envCtx.lineTo(winX + winW, winY + winH / 2);
+    envCtx.stroke();
+
+    // 4. アンティーク卓上ランプ（デスク右側 ＆ 優しい光のコーン）
+    const lampX = w * 0.84, lampY = deskY;
+    // 台座
+    envCtx.fillStyle = 'rgba(212, 175, 55, 0.95)';
+    envCtx.fillRect(lampX - 12, lampY - 4, 24, 4);
+    // 支柱
+    envCtx.fillRect(lampX - 2, lampY - 32, 4, 28);
+    // 緑のバンカーズシェード
+    envCtx.fillStyle = '#1B5E20';
+    envCtx.beginPath();
+    envCtx.ellipse(lampX, lampY - 32, 16, 7, 0, Math.PI, Math.PI * 2);
+    envCtx.fill();
+    // 暖色ランプ光のコーン
+    const lampGlow = envCtx.createRadialGradient(lampX, lampY - 26, 4, lampX, lampY - 10, 65);
+    lampGlow.addColorStop(0, 'rgba(255, 235, 120, 0.45)');
+    lampGlow.addColorStop(0.6, 'rgba(255, 180, 50, 0.15)');
+    lampGlow.addColorStop(1, 'rgba(255, 180, 50, 0)');
+    envCtx.fillStyle = lampGlow;
+    envCtx.beginPath();
+    envCtx.arc(lampX, lampY - 10, 65, 0, Math.PI * 2);
+    envCtx.fill();
+
+    // 5. コーヒーカップと湯気（デスク左側）
+    const cupX = w * 0.16, cupY = deskY + 6;
+    envCtx.fillStyle = '#F5F5DC';
+    envCtx.fillRect(cupX - 7, cupY - 12, 14, 11);
+    envCtx.fillStyle = '#6D4C41';
+    envCtx.fillRect(cupX - 5, cupY - 11, 10, 3);
+    // 湯気アニメーション
+    const steamY = cupY - 14 - (t % 1500) / 1500 * 14;
+    const steamAlpha = 1.0 - (t % 1500) / 1500;
+    envCtx.strokeStyle = `rgba(255, 255, 255, ${steamAlpha * 0.4})`;
+    envCtx.lineWidth = 1.5;
+    envCtx.beginPath();
+    envCtx.moveTo(cupX - 2 + Math.sin(t / 200) * 3, steamY);
+    envCtx.lineTo(cupX + Math.sin(t / 200 + 1) * 3, steamY - 6);
+    envCtx.stroke();
+
   } else if (theme === 'cafe') {
-    // テーブル＋カップ（右下）
+    // ☕ カフェ（カウンター・ペンダントライト・メニューボード・街灯りの窓）
     const tx = w * 0.78, ty = h * 0.75;
+    // マーブルカウンター天板 ＆ 脚
     envCtx.fillStyle = 'rgba(70, 45, 28, 0.92)';
     envCtx.beginPath();
     envCtx.ellipse(tx, ty, 95, 24, 0, 0, Math.PI * 2);
     envCtx.fill();
     envCtx.fillStyle = 'rgba(45, 28, 16, 0.95)';
     envCtx.fillRect(tx - 8, ty, 16, h - ty);
-    envCtx.fillStyle = 'rgba(245, 245, 220, 0.92)';
-    envCtx.fillRect(tx - 32, ty - 24, 26, 20);
+    // カウンター上のラテカップ（湯気つき）
+    const latteX = tx - 40, latteY = ty - 18;
+    envCtx.fillStyle = '#F5F5DC';
+    envCtx.fillRect(latteX - 9, latteY - 10, 18, 12);
+    envCtx.fillStyle = '#8D6E63';
+    envCtx.fillRect(latteX - 7, latteY - 8, 14, 4);
+    const steamY2 = latteY - 12 - (t % 1600) / 1600 * 12;
+    const steamA2 = 1.0 - (t % 1600) / 1600;
+    envCtx.strokeStyle = `rgba(255, 255, 255, ${steamA2 * 0.35})`;
+    envCtx.lineWidth = 1.5;
     envCtx.beginPath();
-    envCtx.arc(tx - 19, ty - 24, 9, Math.PI, 0);
-    envCtx.fill();
-    // 窓（左上）
+    envCtx.moveTo(latteX - 2 + Math.sin(t / 260) * 3, steamY2);
+    envCtx.lineTo(latteX + Math.sin(t / 260 + 1) * 3, steamY2 - 6);
+    envCtx.stroke();
+    // ペンダントライト2灯（ゆらぐ柔らかい光）
+    for (const [px, py] of [[0.30, 0.06], [0.55, 0.10]]) {
+      const cordX = w * px, cordEnd = h * py + 34;
+      envCtx.strokeStyle = 'rgba(30, 20, 12, 0.9)';
+      envCtx.lineWidth = 2;
+      envCtx.beginPath();
+      envCtx.moveTo(cordX, h * py);
+      envCtx.lineTo(cordX, cordEnd);
+      envCtx.stroke();
+      envCtx.fillStyle = '#3E2723';
+      envCtx.beginPath();
+      envCtx.moveTo(cordX - 12, cordEnd + 10);
+      envCtx.lineTo(cordX + 12, cordEnd + 10);
+      envCtx.lineTo(cordX, cordEnd - 4);
+      envCtx.closePath();
+      envCtx.fill();
+      const glowPulse = 0.28 + Math.sin(t / 900 + px * 10) * 0.06;
+      const lampGlow2 = envCtx.createRadialGradient(cordX, cordEnd + 12, 2, cordX, cordEnd + 12, 46);
+      lampGlow2.addColorStop(0, `rgba(255, 200, 100, ${glowPulse})`);
+      lampGlow2.addColorStop(1, 'rgba(255, 200, 100, 0)');
+      envCtx.fillStyle = lampGlow2;
+      envCtx.beginPath();
+      envCtx.arc(cordX, cordEnd + 12, 46, 0, Math.PI * 2);
+      envCtx.fill();
+    }
+    // 手書きメニューボード（黒板）
+    const boardX = w * 0.06, boardY = h * 0.10, boardW = w * 0.17, boardH = h * 0.20;
+    envCtx.fillStyle = 'rgba(38, 30, 24, 0.95)';
+    envCtx.fillRect(boardX, boardY, boardW, boardH);
+    envCtx.strokeStyle = 'rgba(141, 110, 99, 0.9)';
+    envCtx.lineWidth = 4;
+    envCtx.strokeRect(boardX, boardY, boardW, boardH);
+    envCtx.fillStyle = 'rgba(220, 210, 190, 0.75)';
+    envCtx.fillRect(boardX + 8, boardY + 10, boardW * 0.62, 3);
+    envCtx.fillRect(boardX + 8, boardY + 22, boardW * 0.48, 2);
+    envCtx.fillRect(boardX + 8, boardY + 32, boardW * 0.55, 2);
+    envCtx.fillRect(boardX + 8, boardY + 42, boardW * 0.40, 2);
+    // 街灯りの窓（夜のストリート）
     envCtx.strokeStyle = 'rgba(190, 155, 120, 0.55)';
     envCtx.lineWidth = 3;
-    envCtx.strokeRect(w * 0.07, h * 0.12, w * 0.2, h * 0.28);
-    envCtx.beginPath();
-    envCtx.moveTo(w * 0.17, h * 0.12); envCtx.lineTo(w * 0.17, h * 0.4);
-    envCtx.moveTo(w * 0.07, h * 0.26); envCtx.lineTo(w * 0.27, h * 0.26);
-    envCtx.stroke();
+    envCtx.strokeRect(w * 0.07, h * 0.52, w * 0.20, h * 0.28);
+    envCtx.fillStyle = 'rgba(255, 200, 120, 0.14)';
+    envCtx.fillRect(w * 0.07, h * 0.52, w * 0.20, h * 0.28);
+    envCtx.fillStyle = 'rgba(50, 38, 28, 0.9)';
+    envCtx.fillRect(w * 0.165, h * 0.52, 3, h * 0.28);
+    envCtx.fillRect(w * 0.07, h * 0.655, w * 0.20, 3);
   } else if (theme === 'forest') {
-    // 木々のシルエット
-    const trees = [[0.08, 0.92, 1.0], [0.2, 0.97, 0.65], [0.86, 0.94, 1.1], [0.95, 0.98, 0.55]];
+    // 🌲 森（奥行きのある樹木シルエット・キノコ・焚き火・蛍）
+    // 遠景の丘レイヤー
+    envCtx.fillStyle = 'rgba(24, 72, 40, 0.55)';
+    envCtx.beginPath();
+    envCtx.ellipse(w * 0.30, h * 0.80, w * 0.34, h * 0.10, 0, 0, Math.PI * 2);
+    envCtx.fill();
+    envCtx.beginPath();
+    envCtx.ellipse(w * 0.78, h * 0.82, w * 0.28, h * 0.09, 0, 0, Math.PI * 2);
+    envCtx.fill();
+    // 樹木シルエット（前後2レイヤー）
+    const trees = [[0.08, 0.92, 1.0], [0.2, 0.97, 0.65], [0.86, 0.94, 1.1], [0.95, 0.98, 0.55], [0.5, 0.90, 0.8], [0.62, 0.94, 0.6]];
     for (const [px, py, sc] of trees) {
       const bx = w * px, by = h * py, s = sc * h * 0.22;
       envCtx.fillStyle = 'rgba(18, 62, 34, 0.92)';
@@ -194,10 +360,75 @@ function drawEnvScene() {
       envCtx.fillStyle = 'rgba(40, 28, 18, 0.95)';
       envCtx.fillRect(bx - 4, by, 8, s * 0.18);
     }
+    // 根元のキノコ群（赤傘×白点）
+    for (const [px, py, sc] of [[0.13, 0.985, 1.0], [0.165, 1.0, 0.7], [0.9, 0.99, 0.85]]) {
+      const mx = w * px, my = h * py, ms = sc * 10;
+      envCtx.fillStyle = 'rgba(245, 235, 210, 0.95)';
+      envCtx.fillRect(mx - ms * 0.2, my - ms, ms * 0.4, ms);
+      envCtx.fillStyle = 'rgba(200, 50, 40, 0.95)';
+      envCtx.beginPath();
+      envCtx.ellipse(mx, my - ms, ms * 0.7, ms * 0.45, 0, Math.PI, 0);
+      envCtx.fill();
+      envCtx.fillStyle = 'rgba(255, 255, 255, 0.85)';
+      envCtx.fillRect(mx - ms * 0.3, my - ms * 1.2, 2, 2);
+      envCtx.fillRect(mx + ms * 0.2, my - ms * 1.1, 2, 2);
+    }
     envCtx.fillStyle = 'rgba(22, 58, 30, 0.85)';
-    envCtx.fillRect(0, h * 0.9, w, h * 0.1);
+    envCtx.fillRect(0, h * 0.76, w, h * 0.24);
   } else if (theme === 'ocean') {
-    // 水面の波線
+    // 🌊 海（水面の波・差し込む光柱・熱帯魚・サンゴ・ヒトデ）
+    // 差し込む太陽光柱（斜めの半透明ポリゴン）
+    for (let i = 0; i < 3; i++) {
+      const rayX = w * (0.18 + i * 0.3);
+      const sway = Math.sin(t / 1800 + i) * 14;
+      envCtx.fillStyle = `rgba(190, 235, 255, ${0.10 - i * 0.02})`;
+      envCtx.beginPath();
+      envCtx.moveTo(rayX + sway, 0);
+      envCtx.lineTo(rayX + 34 + sway, 0);
+      envCtx.lineTo(rayX + 90 + sway * 2, h * 0.76);
+      envCtx.lineTo(rayX + 30 + sway * 2, h * 0.76);
+      envCtx.closePath();
+      envCtx.fill();
+    }
+    // 熱帯魚の群れ（ゆったり遊泳）
+    const fish = [[0.25, 0.42, 1.0, '#FFB300'], [0.52, 0.30, 0.7, '#FF7043'], [0.70, 0.55, 0.85, '#4DD0E1'], [0.40, 0.62, 0.55, '#FFF176']];
+    for (const [px, py, sc, col] of fish) {
+      const fx = w * px + Math.sin(t / 2000 + px * 9) * 30;
+      const fy = h * py + Math.cos(t / 1600 + py * 7) * 10;
+      const fs = sc * 12;
+      envCtx.fillStyle = col;
+      envCtx.globalAlpha = 0.85;
+      envCtx.beginPath();
+      envCtx.ellipse(fx, fy, fs, fs * 0.55, 0, 0, Math.PI * 2);
+      envCtx.fill();
+      envCtx.beginPath();
+      envCtx.moveTo(fx - fs, fy);
+      envCtx.lineTo(fx - fs * 1.5, fy - fs * 0.5);
+      envCtx.lineTo(fx - fs * 1.5, fy + fs * 0.5);
+      envCtx.closePath();
+      envCtx.fill();
+      envCtx.fillStyle = 'rgba(10, 20, 30, 0.9)';
+      envCtx.fillRect(fx + fs * 0.35, fy - fs * 0.22, 2, 2);
+      envCtx.globalAlpha = 1.0;
+    }
+    // 海底のサンゴ ＆ ヒトデ
+    envCtx.fillStyle = 'rgba(255, 111, 156, 0.75)';
+    for (let i = 0; i < 5; i++) {
+      const cx = w * (0.10 + i * 0.05);
+      envCtx.fillRect(cx, h * 0.80 - 12 - (i % 2) * 6, 3, 14 + (i % 3) * 4);
+    }
+    envCtx.fillStyle = 'rgba(255, 171, 64, 0.85)';
+    const starX = w * 0.30, starY = h * 0.87;
+    for (let i = 0; i < 5; i++) {
+      const ang = (i / 5) * Math.PI * 2 + t / 4000;
+      envCtx.beginPath();
+      envCtx.moveTo(starX, starY);
+      envCtx.lineTo(starX + Math.cos(ang) * 8, starY + Math.sin(ang) * 8);
+      envCtx.lineTo(starX + Math.cos(ang + 0.6) * 8, starY + Math.sin(ang + 0.6) * 8);
+      envCtx.closePath();
+      envCtx.fill();
+    }
+    // 水面の波（3レイヤーの揺らぎ）
     envCtx.strokeStyle = 'rgba(180, 230, 255, 0.35)';
     envCtx.lineWidth = 2;
     for (let i = 0; i < 3; i++) {
@@ -210,15 +441,31 @@ function drawEnvScene() {
       envCtx.stroke();
     }
     envCtx.fillStyle = 'rgba(28, 58, 78, 0.75)';
-    envCtx.fillRect(0, h * 0.92, w, h * 0.08);
+    envCtx.fillRect(0, h * 0.76, w, h * 0.24);
   } else if (theme === 'cyber') {
-    // ネオンビル群（窓は時間ベースで点滅）
+    // 🌃 サイバー（ネオンビル・月・アンテナビーコン・ホバー車・グリッドフロア）
+    // 大きな満月（ドーム光暈つき）
+    const moonX = w * 0.82, moonY = h * 0.16, moonR = Math.min(w, h) * 0.055;
+    const moonGlow = envCtx.createRadialGradient(moonX, moonY, moonR * 0.4, moonX, moonY, moonR * 3);
+    moonGlow.addColorStop(0, 'rgba(120, 200, 255, 0.20)');
+    moonGlow.addColorStop(1, 'rgba(120, 200, 255, 0)');
+    envCtx.fillStyle = moonGlow;
+    envCtx.beginPath();
+    envCtx.arc(moonX, moonY, moonR * 3, 0, Math.PI * 2);
+    envCtx.fill();
+    envCtx.fillStyle = 'rgba(220, 240, 255, 0.92)';
+    envCtx.beginPath();
+    envCtx.arc(moonX, moonY, moonR, 0, Math.PI * 2);
+    envCtx.fill();
+    envCtx.fillStyle = 'rgba(150, 180, 210, 0.5)';
+    envCtx.fillRect(moonX - moonR * 0.4, moonY - moonR * 0.2, moonR * 0.3, moonR * 0.3);
+    envCtx.fillRect(moonX + moonR * 0.1, moonY + moonR * 0.15, moonR * 0.4, moonR * 0.25);
     const buildings = [[0.04, 0.38], [0.14, 0.58], [0.27, 0.46], [0.71, 0.52], [0.83, 0.4], [0.93, 0.62]];
     for (const [px, ph] of buildings) {
       const bx = w * px, bw = w * 0.07, bh = h * ph;
       envCtx.fillStyle = 'rgba(18, 8, 34, 0.95)';
-      envCtx.fillRect(bx, h - bh, bw, bh);
-      for (let wy = h - bh + 10; wy < h - 12; wy += 16) {
+      envCtx.fillRect(bx, h * 0.76 - bh, bw, bh);
+      for (let wy = h * 0.76 - bh + 10; wy < h * 0.76 - 12; wy += 16) {
         for (let wx = bx + 5; wx < bx + bw - 8; wx += 12) {
           if ((Math.floor(t / 500) + wx + wy) % 3 !== 0) {
             envCtx.fillStyle = (wx + wy) % 2 === 0 ? 'rgba(0, 229, 255, 0.75)' : 'rgba(255, 23, 68, 0.75)';
@@ -226,7 +473,35 @@ function drawEnvScene() {
           }
         }
       }
+      // 屋上アンテナ＆点滅ビーコン（最も高いビルのみ）
+      if (px === 0.27) {
+        const antTop = h * 0.76 - bh - 18;
+        envCtx.strokeStyle = 'rgba(0, 229, 255, 0.7)';
+        envCtx.lineWidth = 2;
+        envCtx.beginPath();
+        envCtx.moveTo(bx + bw / 2, h * 0.76 - bh);
+        envCtx.lineTo(bx + bw / 2, antTop);
+        envCtx.stroke();
+        if (Math.floor(t / 400) % 2 === 0) {
+          envCtx.fillStyle = 'rgba(255, 60, 60, 0.95)';
+          envCtx.beginPath();
+          envCtx.arc(bx + bw / 2, antTop, 3, 0, Math.PI * 2);
+          envCtx.fill();
+        }
+      }
     }
+    // 空を走るホバー車の光跡（流れるテールライト）
+    const hoverY = h * 0.30;
+    const hoverPhase = (t % 2600) / 2600;
+    const hoverX = w * (hoverPhase * 1.3 - 0.15);
+    envCtx.strokeStyle = 'rgba(0, 229, 255, 0.55)';
+    envCtx.lineWidth = 2;
+    envCtx.beginPath();
+    envCtx.moveTo(hoverX - 26, hoverY);
+    envCtx.lineTo(hoverX + 8, hoverY);
+    envCtx.stroke();
+    envCtx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+    envCtx.fillRect(hoverX + 6, hoverY - 1.5, 5, 3);
     // グリッド地面
     envCtx.strokeStyle = 'rgba(0, 229, 255, 0.3)';
     envCtx.lineWidth = 1;
@@ -707,10 +982,7 @@ function onPetTap(event) {
 const CHARACTERS = [
   { id: 'seal', name: 'アザラシ', emoji: '🦭' },
   { id: 'hisho', name: '秘書くん', emoji: '👔' },
-  { id: 'kinoko', name: 'キノコ君', emoji: '🍄' }
-,
-  { id: 'retro_dolphin', name: 'レトロ案内精霊', emoji: '🐬' }
-,
+  { id: 'kinoko', name: 'キノコ君', emoji: '🍄' },
   { id: 'kyle', name: 'カイル風精霊', emoji: '🐚' }
 ];
 
@@ -740,50 +1012,38 @@ function cycleCharacter() {
 function preloadSprites(charId) {
   const spriteEl = document.getElementById('pet-sprite');
   if (spriteEl) {
-    // 最優先: 8/15レトロドット絵 (assets/dot/{char}/) → 既存アセットへフォールバック
+    spriteEl.onerror = null;
     spriteEl.src = `/assets/dot/${charId}/idle_1.png`;
-    spriteEl.onerror = () => {
-      spriteEl.src = `/assets/mascot_${charId}_idle.png`;
-      spriteEl.onerror = () => {
-        spriteEl.src = `/assets/${charId}_idle.png`;
-        spriteEl.onerror = () => {
-          spriteEl.src = `/assets/mascot_idle_1.png`;
-        };
-      };
-    };
   }
 }
 
 // 🌈 生活イベントに応じたスプライト候補（優先順）
 const ACTIVITY_SPRITES = {
-  waking:   ['stretch_1', 'stretch', 'idle_1'],
-  breakfast: ['happy'],
-  lunch:    ['happy'],
-  dinner:   ['cheer'],
-  bathing:  ['care_1', 'care', 'happy'],
-  working:  ['focus_1', 'focus'],
-  resting:  ['tea_1', 'tea', 'idle_1'],
-  reading:  ['reading_1', 'reading', 'idle_1'],
-  sleeping: ['sleepy_1', 'sleepy'],
-  playing:  ['celebrate_1', 'celebrate', 'cheer']
+  waking:    ['stretch_1', 'stretch', 'happy', 'idle_1'],
+  breakfast: ['tea_1', 'happy', 'idle_1'],
+  lunch:     ['happy', 'care_1', 'idle_1'],
+  dinner:    ['cheer', 'happy', 'idle_1'],
+  bathing:   ['care_1', 'care', 'happy', 'idle_1'],
+  working:   ['focus_1', 'focus', 'idle_1'],
+  resting:   ['tea_1', 'tea', 'idle_1'],
+  reading:   ['reading_1', 'reading', 'focus_1', 'idle_1'],
+  sleeping:  ['sleepy_1', 'sleepy', 'idle_1'],
+  playing:   ['celebrate_1', 'celebrate', 'cheer', 'idle_1']
 };
+
+// ※ currentActivity はファイル先頭で一度だけ宣言済み（旧ブロックとの重複宣言を統合して削除）
 
 /**
  * 生活イベントに応じてペットのスプライトを差し替える。
- * dot/{char}/{name}.png を最優先し、無ければ旧形式へフォールバック、
- * 最終的に idle_1 で安定させる。
+ * dot/{char}/{name}.png を最優先し、無ければ自キャラの idle_1 で安定させる。
  */
 function updateLifeSprite(activity) {
   const spriteEl = document.getElementById('pet-sprite');
   if (!spriteEl) return;
   const candidates = ACTIVITY_SPRITES[activity] || ['idle_1'];
-  // 候補をURL列に展開（dot最優先 → mascot_ → プレーン → idleで安定）
-  const urls = [];
-  for (const name of candidates) {
-    urls.push(`/assets/dot/${currentCharacterId}/${name}.png`);
-    urls.push(`/assets/mascot_${currentCharacterId}_${name}.png`);
-    urls.push(`/assets/${currentCharacterId}_${name}.png`);
-  }
+  
+  // 自キャラの dot 配下の候補URLのみを生成
+  const urls = candidates.map(name => `/assets/dot/${currentCharacterId}/${name}.png`);
   urls.push(`/assets/dot/${currentCharacterId}/idle_1.png`);
 
   let idx = 0;
@@ -798,23 +1058,87 @@ function updateLifeSprite(activity) {
   };
   spriteEl.src = urls[0];
 
-  // Dream-8: 睡眠中はCSSフィルターで暗く・グレースケール（アセットがなくても「寝てる感」を表現）
-  if (activity === 'sleeping') {
-    spriteEl.style.filter = 'grayscale(100%) brightness(0.5)';
-    spriteEl.style.transition = 'filter 1s ease';
+  // キャラ本来の鮮やかなドット絵を保つ（不自然な暗色フィルターは撤廃）
+  spriteEl.style.filter = '';
+}
+
+/**
+ * 時間帯およびランダム気まぐれ行動によるペットの生活サイクル自動更新
+ */
+function updatePetLifeActivity(forcedActivity = null) {
+  const now = new Date();
+  const hour = now.getHours();
+  const min = now.getMinutes();
+
+  let act = 'working';
+  let dialog = 'カタカタ…集中してお手伝い中！';
+
+  if (hour >= 23 || hour < 6) {
+    act = 'sleeping';
+    dialog = 'すやすや…ボス、良い夢を…💤';
+  } else if (hour >= 6 && hour < 8) {
+    act = 'breakfast';
+    dialog = 'おはようございます！朝ごはん美味しいです🍞';
+  } else if (hour >= 11 && hour < 13 && min >= 30 || hour === 12) {
+    act = 'lunch';
+    dialog = 'もぐもぐ…お昼ごはんの時間ですね🍱';
+  } else if (hour === 15) {
+    act = 'resting';
+    dialog = 'ほっと一息、お茶とお菓子タイムです🍵';
+  } else if (hour >= 16 && hour < 18) {
+    act = 'reading';
+    dialog = 'ふむふむ…新しい技術や本を読んで勉強中📖';
+  } else if (hour >= 18 && hour < 20) {
+    act = 'dinner';
+    dialog = '今日もお疲れ様でした！美味しい晩ごはんです🍚';
+  } else if (hour >= 20 && hour < 22) {
+    act = 'bathing';
+    dialog = 'いい湯だな〜♪さっぱりリフレッシュ🛁';
   } else {
-    spriteEl.style.filter = '';
-    spriteEl.style.transition = 'filter 0.3s ease';
+    const randomActs = [
+      { act: 'working', msg: 'カタカタ…集中してお手伝い中！' },
+      { act: 'reading', msg: '仕様書やニュースをチェック中📖' },
+      { act: 'resting', msg: '深呼吸してストレッチ〜✨' },
+      { act: 'playing', msg: 'ボスと一緒にいられて嬉しいです♪' }
+    ];
+    const pick = randomActs[Math.floor(Math.random() * randomActs.length)];
+    act = pick.act;
+    dialog = pick.msg;
+  }
+
+  if (forcedActivity) act = forcedActivity;
+
+  currentActivity = act;
+  updateLifeSprite(act);
+
+  const bubble = document.getElementById('speech-bubble');
+  if (bubble && (!petStateNow || petStateNow === 'idle')) {
+    bubble.innerText = dialog;
   }
 }
 
+// 45秒ごとに生活リズムを自律更新
+setInterval(() => {
+  if (!currentPomodoro || !currentPomodoro.active) {
+    updatePetLifeActivity();
+  }
+}, 45000);
+
 // =============================================================================
-// 6. サジェスト表示 ＆ Glass Bottom Sheet ニュースリーダー
+// 6. サジェスト表示 ＆ Glass Bottom Sheet ニュースリーダー ＆ 手動スワイプ
 // =============================================================================
+let currentSheetItem = null;
+
 function renderSuggestionCard() {
   if (!suggestionsData || suggestionsData.length === 0) {
-    document.getElementById('suggest-title').innerText = "予定・タスクはありません";
-    document.getElementById('suggest-desc').innerText = "ゆっくりお茶でも飲んで休みましょう🍵";
+    const titleEl = document.getElementById('suggest-title');
+    const descEl = document.getElementById('suggest-desc');
+    const tagEl = document.getElementById('suggest-tag');
+    const qBtn = document.getElementById('suggest-quick-complete-btn');
+    if (titleEl) titleEl.innerText = "予定・タスクはありません";
+    if (descEl) descEl.innerText = "ゆっくりお茶でも飲んで休みましょう🍵";
+    if (tagEl) tagEl.innerText = "💡 サジェスト";
+    if (qBtn) qBtn.style.display = 'none';
     return;
   }
 
@@ -825,9 +1149,40 @@ function renderSuggestionCard() {
   const icon = s.icon || "💡";
   const tag = s.tag || "サジェスト";
 
-  document.getElementById('suggest-tag').innerText = `${icon} ${tag} (${curr}/${total})`;
-  document.getElementById('suggest-title').innerText = s.title || "";
-  document.getElementById('suggest-desc').innerText = s.description || "";
+  const tagEl = document.getElementById('suggest-tag');
+  if (tagEl) tagEl.innerText = `${icon} ${tag} (${curr}/${total})`;
+  
+  const titleEl = document.getElementById('suggest-title');
+  if (titleEl) titleEl.innerText = s.title || "";
+  
+  const descEl = document.getElementById('suggest-desc');
+  if (descEl) descEl.innerText = s.description || "";
+
+  // サジェストヘッダーの「✅ 完了」クイックボタン表示制御
+  const qBtn = document.getElementById('suggest-quick-complete-btn');
+  if (qBtn) {
+    if (s && s.source === 'tasks' && s.id && s.id.startsWith('task_')) {
+      qBtn.style.display = 'inline-flex';
+    } else {
+      qBtn.style.display = 'none';
+    }
+  }
+}
+
+function nextSuggest(e) {
+  if (e) e.stopPropagation();
+  if (!suggestionsData || suggestionsData.length === 0) return;
+  suggestIndex = (suggestIndex + 1) % suggestionsData.length;
+  renderSuggestionCard();
+  if (navigator.vibrate) navigator.vibrate(15);
+}
+
+function prevSuggest(e) {
+  if (e) e.stopPropagation();
+  if (!suggestionsData || suggestionsData.length === 0) return;
+  suggestIndex = (suggestIndex - 1 + suggestionsData.length) % suggestionsData.length;
+  renderSuggestionCard();
+  if (navigator.vibrate) navigator.vibrate(15);
 }
 
 function onSuggestCardClick() {
@@ -838,24 +1193,64 @@ function onSuggestCardClick() {
   openBottomSheet(s);
 }
 
+// サジェストカードから直接ワンタップでTODOを完了する (Bearer認証対応)
+async function quickCompleteCurrentTask(e) {
+  if (e) e.stopPropagation();
+  if (!suggestionsData || suggestionsData.length === 0) return;
+  const s = suggestionsData[suggestIndex];
+  if (!s || !s.id || !s.id.startsWith('task_')) return;
+  const taskId = s.id.replace('task_', '');
+
+  try {
+    const res = await authFetch('/api/action', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'complete_task', task_id: taskId })
+    });
+    const result = await res.json();
+    if (result.status === 'success') {
+      showToast('✅ タスクを完了しました！', 2500, true);
+      if (typeof addBondExp === 'function') addBondExp(15);
+      updateLifeSprite('playing');
+      setTimeout(fetchStatus, 300);
+    } else {
+      showToast('❌ 完了に失敗しました', 2000, false);
+    }
+  } catch (e) {
+    console.error('Quick complete error:', e);
+    showToast('❌ 通信エラーが発生しました', 2000, false);
+  }
+}
+
 function openBottomSheet(item, bodyHtml) {
   const sheet = document.getElementById('bottom-sheet');
   const overlay = document.getElementById('bottom-sheet-overlay');
   if (!sheet || !overlay) return;
+
+  currentSheetItem = item;
 
   document.getElementById('sheet-tag').innerText = `${item.icon || '💡'} ${item.tag || '詳細'}`;
   document.getElementById('sheet-title').innerText = item.title || "";
 
   const bodyEl = document.getElementById('sheet-body');
   if (typeof bodyHtml === 'string') {
-    // 手帳モーダル等のリストHTML表示
     bodyEl.innerHTML = bodyHtml;
     bodyEl.style.maxHeight = '60vh';
   } else {
     bodyEl.innerText = item.description || "詳細情報はありません。";
   }
 
-  // URL抽出（リスト表示時はリンクボタンを隠す）
+  // TODO完了ボタンの制御
+  const completeBtn = document.getElementById('sheet-complete-btn');
+  if (completeBtn) {
+    if (item && item.source === 'tasks' && item.id && item.id.startsWith('task_')) {
+      completeBtn.style.display = 'flex';
+    } else {
+      completeBtn.style.display = 'none';
+    }
+  }
+
+  // URL抽出
   const matchUrl = item.description ? item.description.match(/https?:\/\/[^\s)\]"'>]+/)?.[0] : null;
   const targetUrl = typeof bodyHtml === 'string' ? null : (item.link || item.url || matchUrl);
 
@@ -874,20 +1269,171 @@ function openBottomSheet(item, bodyHtml) {
   if (navigator.vibrate) navigator.vibrate(20);
 }
 
+async function onSheetCompleteTask() {
+  if (!currentSheetItem || !currentSheetItem.id) return;
+  const taskId = currentSheetItem.id.replace('task_', '');
+  if (!taskId) return;
+
+  try {
+    const res = await authFetch('/api/action', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'complete_task', task_id: taskId })
+    });
+    const result = await res.json();
+    if (result.status === 'success') {
+      closeBottomSheet();
+      showToast('✅ タスクを完了しました！', 2500, true);
+      if (typeof addBondExp === 'function') addBondExp(15);
+      updateLifeSprite('playing');
+      fetchStatus();
+    } else {
+      showToast('❌ タスク完了に失敗しました', 2000, false);
+    }
+  } catch (e) {
+    console.error('Task complete error:', e);
+    showToast('❌ 通信エラーが発生しました', 2000, false);
+  }
+}
+
 function closeBottomSheet() {
   const sheet = document.getElementById('bottom-sheet');
   const overlay = document.getElementById('bottom-sheet-overlay');
   if (sheet) sheet.classList.remove('open');
   if (overlay) overlay.classList.remove('open');
+  currentSheetItem = null;
 }
 
-// 15秒ごとにサジェスト自動ローテーション
+// 👾 秘密の部屋（サークル暗転トランジション）
+// 旧マリオ風のアイリスアウト: タップ位置を中心に世界が一点へ吸い込まれ、
+// ゲームがその点から展開される。.iris-hole（透明な穴＋巨大な黒い影）の
+// width/height を縮小/拡大する方式。穴が 0 になった最終フレームで黒影
+// (120vmax) が単体で画面を完全に覆うため「全面黒」が幾何学的に保証される。
+// （transform: scale は黒影の外周まで縮めてしまい全面黒にならないため廃止）
+function triggerSecretRoomIris(e) {
+  if (e) e.stopPropagation();
+  const overlay = document.getElementById('iris-transition-overlay');
+  const hole = overlay ? overlay.querySelector('.iris-hole') : null;
+
+  // オーバーレイが無い環境では演出をスキップして直接ゲームを起動
+  if (!overlay || !hole) {
+    if (window.PixelDefense) window.PixelDefense.show();
+    return;
+  }
+
+  // 演出中の再入防止（連続タップでタイマーが多重化するのを防ぐ）
+  if (overlay.style.display === 'block') return;
+
+  // タップ位置（%指定。タップ座標が取れない場合は右上のバッジ位置を使用）
+  let x = 85;
+  let y = 15;
+  if (e && typeof e.clientX === 'number' && typeof e.clientY === 'number') {
+    x = (e.clientX / window.innerWidth) * 100;
+    y = (e.clientY / window.innerHeight) * 100;
+  }
+  overlay.style.setProperty('--iris-x', `${x.toFixed(1)}%`);
+  overlay.style.setProperty('--iris-y', `${y.toFixed(1)}%`);
+  if (navigator.vibrate) navigator.vibrate(30);
+
+  // 1) 「穴=全画面（透過）」の初期状態で一度描画を確定させてから
+  // 2) closing クラスで穴を点まで縮小（吸い込み）。
+  //    display:none → block とクラス変更を同フレームで行うと遷移が
+  //    発火しないため、ダブル requestAnimationFrame で分離する。
+  overlay.className = 'iris-transition-overlay';
+  overlay.style.display = 'block';
+
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      overlay.className = 'iris-transition-overlay closing';
+
+      // 3) 400ms後: ゲーム起動 → opening クラスで穴を広げ（アイリスイン）、
+      //    完了後にオーバーレイを必ず非表示へ戻す（残渣による画面封鎖防止）
+      setTimeout(() => {
+        try {
+          if (window.PixelDefense) {
+            window.PixelDefense.show();
+          } else {
+            showToast('👾 秘密の部屋を起動中...', 2000, true);
+          }
+        } finally {
+          overlay.className = 'iris-transition-overlay opening';
+          setTimeout(() => {
+            overlay.className = 'iris-transition-overlay';
+            overlay.style.display = 'none';
+          }, 450);
+        }
+      }, 400);
+    });
+  });
+}
+
+// サジェストカードのタッチスワイプ（左右フリック）機能
+function setupSuggestSwipe() {
+  const card = document.getElementById('suggest-card');
+  if (!card) return;
+
+  let startX = 0;
+  let startY = 0;
+  let isSwiping = false;
+
+  card.addEventListener('touchstart', (e) => {
+    // 内部ボタンタップ時はスワイプ判定をスキップ
+    if (e.target.closest('.btn-suggest-nav') || e.target.closest('.btn-suggest-quick-complete')) {
+      return;
+    }
+    if (e.touches.length === 1) {
+      startX = e.touches[0].clientX;
+      startY = e.touches[0].clientY;
+      isSwiping = true;
+    }
+  }, { passive: true });
+
+  card.addEventListener('touchend', (e) => {
+    if (!isSwiping) return;
+    isSwiping = false;
+    if (e.changedTouches.length === 1) {
+      const diffX = e.changedTouches[0].clientX - startX;
+      const diffY = e.changedTouches[0].clientY - startY;
+      
+      // 水平方向のスワイプ判定（縦スクロールと分離：|diffX| > |diffY| かつ 25px 以上）
+      if (Math.abs(diffX) > Math.abs(diffY) && Math.abs(diffX) > 25) {
+        if (diffX < 0) {
+          nextSuggest();
+        } else {
+          prevSuggest();
+        }
+      }
+    }
+  }, { passive: true });
+}
+
+// グローバルスコープへの関数エクスポート（HTML onclick からの完全呼び出し保証）
+window.prevSuggest = prevSuggest;
+window.nextSuggest = nextSuggest;
+window.quickCompleteCurrentTask = quickCompleteCurrentTask;
+window.onSheetCompleteTask = onSheetCompleteTask;
+window.closeBottomSheet = closeBottomSheet;
+window.onSuggestCardClick = onSuggestCardClick;
+window.triggerSecretRoomIris = triggerSecretRoomIris;
+
+// 初期化時にスワイプと生活リズムを起動
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', () => {
+    setupSuggestSwipe();
+    updatePetLifeActivity();
+  });
+} else {
+  setupSuggestSwipe();
+  updatePetLifeActivity();
+}
+
+// 20秒ごとにサジェスト自動ローテーション
 setInterval(() => {
   if (suggestionsData.length > 1) {
     suggestIndex++;
     renderSuggestionCard();
   }
-}, 15000);
+}, 20000);
 
 // =============================================================================
 // 7. 時計 ＆ ポモドーロ
@@ -904,10 +1450,15 @@ setInterval(updateClock, 1000);
 updateClock();
 
 function togglePomodoro() {
+  // トグル動作: 実行中なら停止(stop_pomodoro)、停止中なら開始(start_pomodoro)
+  const isActive = currentPomodoro && currentPomodoro.active;
+  const payload = isActive
+    ? { action: 'stop_pomodoro' }
+    : { action: 'start_pomodoro', minutes: 25 };
   authFetch('/api/action', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ action: 'start_pomodoro', minutes: 25 })
+    body: JSON.stringify(payload)
   }).then(fetchStatus).catch(err => console.debug('Pomodoro action failed:', err));
   if (navigator.vibrate) navigator.vibrate(40);
 }
@@ -925,6 +1476,12 @@ async function fetchStatus() {
     if (fetchBackoffActive || fetchFailCount > 0) {
       fetchFailCount = 0;
       fetchBackoffActive = false;
+    }
+
+    // 🔐 トークン自動同期（自己治癒）
+    if (data.sync_token && data.sync_token !== syncToken) {
+      syncToken = data.sync_token;
+      localStorage.setItem(SYNC_TOKEN_KEY, syncToken);
     }
 
     // 0. ペット状態（歩行コントローラーのガード用）
@@ -959,25 +1516,41 @@ async function fetchStatus() {
 
     // 4. ポモドーロ状態
     if (data.pomodoro) {
+      const wasActive = currentPomodoro && currentPomodoro.active;
       currentPomodoro = data.pomodoro;
       const pomoBtn = document.getElementById('pomodoro-btn');
       const timerText = document.getElementById('pomodoro-timer-text');
       if (pomoBtn && timerText) {
+        const iconEl = document.getElementById('pomodoro-icon');
         if (currentPomodoro.active) {
           pomoBtn.classList.add('active');
           const mins = Math.floor(currentPomodoro.remaining_seconds / 60);
           const secs = currentPomodoro.remaining_seconds % 60;
           timerText.innerText = `${mins}:${String(secs).padStart(2, '0')}`;
+          // 実行中は「押すと止まる」ことを可視化
+          if (iconEl) iconEl.innerText = '⏹';
+          pomoBtn.title = '⏹ タップでポモドーロ停止';
         } else {
           pomoBtn.classList.remove('active');
           timerText.innerText = "25:00";
+          if (iconEl) iconEl.innerText = '🍅';
+          pomoBtn.title = '🍅 ポモドーロ開始（25分）';
         }
       }
-      // ポモドーロ中はペットスプライトを集中モードに切替
-      const spriteEl = document.getElementById('pet-sprite');
-      if (spriteEl && currentPomodoro.active && !currentPomodoro.is_break) {
-        const focusUrl = `/assets/dot/${currentCharacterId}/focus_1.png`;
-        if (spriteEl.src !== focusUrl) spriteEl.src = focusUrl;
+
+      // ポモドーロ完了検知 (active -> inactive に遷移、または残り0秒)
+      if (wasActive && (!currentPomodoro.active || currentPomodoro.remaining_seconds === 0)) {
+        updateLifeSprite('playing');
+        const bubble = document.getElementById('speech-bubble');
+        if (bubble) bubble.innerText = '🎉 集中タイム完了！ボス、素晴らしい集中力でした！！🔥';
+        showToast('🎉 ポモドーロ完了！お疲れ様でした！', 4000, true);
+        if (typeof addBondExp === 'function') addBondExp(30);
+      } else if (currentPomodoro.active && !currentPomodoro.is_break) {
+        // ポモドーロ中はペットスプライトを集中モードに切替
+        updateLifeSprite('working');
+      } else if (currentPomodoro.active && currentPomodoro.is_break) {
+        // 休憩中は rest スプライトへ切替（集中スプライトの引きずり防止）
+        updateLifeSprite('resting');
       }
     }
 
@@ -1114,7 +1687,15 @@ async function fetchStatus() {
       currentWeather = weatherKey;
       currentActivity = ls.current_activity || 'resting';
       // 活動に応じたスプライトへ切替
-      updateLifeSprite(currentActivity);
+      // ※ ポモドーロ実行中は §4 で設定した集中/休憩スプライトを維持する。
+      //   ここで無条件に updateLifeSprite(currentActivity) を呼ぶと2秒毎に
+      //   生活活動スプライトで上書きされ「ポモドーロなのにキャラが変わらない」
+      //   障害の原因になっていた (2026-08-30 実機検証)。
+      if (currentPomodoro && currentPomodoro.active) {
+        updateLifeSprite(currentPomodoro.is_break ? 'resting' : 'working');
+      } else {
+        updateLifeSprite(currentActivity);
+      }
       // 新しい生活イベントが届いたらトースト＋バイブ＋ペット状態を更新
       const msg = ls.message || '';
       if (msg && msg !== lastLifeMessage && ls.last_generated_at > 0) {
@@ -1434,22 +2015,124 @@ function toggleHabit(habitId, el) {
   }).then(() => fetchStatus()).catch(err => console.debug('Habit toggle failed:', err));
 }
 
+// ※ CHARACTERS 一覧は本ファイル前半（キャラクター切り替えセクション）で単一宣言。
+//    cycleCharacter / selectCharacter の両方がこの共有リストを参照する。
+
+/** キャラクター直接選択（設定モーダルのチップ） */
+function selectCharacter(charId) {
+  if (navigator.vibrate) navigator.vibrate(25);
+  // サーバー側の正規アクションは 'switch_character' (local_sync_server.py 実装)。
+  // 旧 'set_character' はサーバーに実装がなく無応答 → 2秒後の fetchStatus が
+  // サーバー側キャラ(未変更)を再同期するため「設定でキャラが変わらない」障害の原因だった。
+  authFetch('/api/action', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'switch_character', character_id: charId })
+  }).then(res => res.json().catch(() => ({}))).then(result => {
+    if (result && result.status === 'success') {
+      currentCharacterId = charId;
+      preloadSprites(charId);
+      showToast(`🎭 キャラクターを【${CHARACTERS.find(c => c.id === charId)?.name || charId}】に変更しました`);
+    } else {
+      showToast('⚠️ キャラクターの変更に失敗しました（サーバー拒否）');
+    }
+    fetchStatus();
+    openSettingsModal();
+  }).catch(err => {
+    console.debug('Switch character failed:', err);
+    showToast('⚠️ 通信エラーでキャラクターを変更できませんでした');
+  });
+}
+
+/** 背景テーマ直接選択 */
+function selectEnvTheme(themeId) {
+  const idx = ENV_THEMES.findIndex(t => t.id === themeId);
+  if (idx !== -1) {
+    currentEnvIndex = idx;
+    const theme = ENV_THEMES[currentEnvIndex];
+    const backdrop = document.getElementById('env-backdrop');
+    if (backdrop) backdrop.className = `env-backdrop ${theme.class}`;
+    const label = document.getElementById('env-label');
+    if (label) label.innerText = theme.label;
+    envParticles = [];
+    if (navigator.vibrate) navigator.vibrate(25);
+    showToast(`🏞️ 【${theme.label}】テーマに変更しました`);
+    openSettingsModal();
+  }
+}
+
 let currentSavedLocation = '';
 
-/** ⚙️ 設定モーダル（キャラ・テーマ・地域・全画面・常時ON・PCペット呼び出し） */
+/** ⚙️ 設定モーダル（キャラ・テーマ・地域・演出モード・全画面・常時ON・PCペット呼び出し） */
 function openSettingsModal() {
-  const curChar = CHARACTERS.find(c => c.id === currentCharacterId);
   const locLabel = currentSavedLocation ? currentSavedLocation : 'IP自動検出';
+
+  // キャラクター選択チップ
+  const charChipsHtml = CHARACTERS.map(c => `
+    <button style="
+      background: ${currentCharacterId === c.id ? 'var(--accent-amber)' : 'rgba(255,255,255,0.08)'};
+      color: ${currentCharacterId === c.id ? '#1E140E' : 'var(--text-main)'};
+      border: 1px solid var(--accent-amber);
+      border-radius: 14px;
+      padding: 5px 11px;
+      font-size: 11px;
+      font-weight: bold;
+      cursor: pointer;
+      margin: 3px;
+    " onclick="selectCharacter('${c.id}')">${c.emoji} ${c.name}</button>
+  `).join('');
+
+  // 背景テーマ選択チップ
+  const themeChipsHtml = ENV_THEMES.map(t => `
+    <button style="
+      background: ${ENV_THEMES[currentEnvIndex].id === t.id ? 'var(--accent-amber)' : 'rgba(255,255,255,0.08)'};
+      color: ${ENV_THEMES[currentEnvIndex].id === t.id ? '#1E140E' : 'var(--text-main)'};
+      border: 1px solid var(--accent-amber);
+      border-radius: 14px;
+      padding: 5px 11px;
+      font-size: 11px;
+      font-weight: bold;
+      cursor: pointer;
+      margin: 3px;
+    " onclick="selectEnvTheme('${t.id}')">${t.label}</button>
+  `).join('');
+
   const html = `
+    <div style="margin-bottom:12px;">
+      <div style="font-size:11px; font-weight:bold; color:var(--accent-amber); margin-bottom:5px;">🎭 キャラクター選択:</div>
+      <div style="display:flex; flex-wrap:wrap;">
+        ${charChipsHtml}
+      </div>
+    </div>
+
+    <div style="margin-bottom:12px;">
+      <div style="font-size:11px; font-weight:bold; color:var(--accent-amber); margin-bottom:5px;">🏞️ 背景テーマ選択:</div>
+      <div style="display:flex; flex-wrap:wrap;">
+        ${themeChipsHtml}
+      </div>
+    </div>
+
     <div class="note-item" onclick="openLocationSettingsModal();"><div class="note-title">📍 お住まいの地域（天気）</div><div class="note-desc">現在: <b>${escapeHtml(locLabel)}</b> → タップで変更</div></div>
-    <div class="note-item" onclick="cycleCharacter(); openSettingsModal();"><div class="note-title">🎭 キャラクター切り替え</div><div class="note-desc">現在: ${curChar ? curChar.emoji + ' ' + curChar.name : ''} → タップで次のキャラへ</div></div>
-    <div class="note-item" onclick="cycleEnvTheme(); openSettingsModal();"><div class="note-title">🏞️ 背景テーマ切り替え</div><div class="note-desc">現在: ${ENV_THEMES[currentEnvIndex].label} → タップで次のテーマへ</div></div>
-    <div class="note-item" onclick="toggleNoSleep(); closeBottomSheet();"><div class="note-title">💡 常時画面ON</div><div class="note-desc">画面の自動消灯を防ぎます（卓上スマートディスプレイ用）</div></div>
+    <div class="note-item" onclick="cycleEffectMode(); openSettingsModal();"><div class="note-title">✨ イースターエッグ演出モード</div><div class="note-desc">現在: <b>${effectModeLabel()}</b> → タップで切替（低スペ端末は自動で軽量）</div></div>
+    <div class="note-item" onclick="toggleNoSleep(); closeBottomSheet();"><div class="note-title">💡 常時画面ON（自動消灯防止）</div><div class="note-desc">卓上スマートディスプレイとして常時点灯します</div></div>
     <div class="note-item" onclick="toggleFullscreen(); closeBottomSheet();"><div class="note-title">⛶ 全画面表示</div><div class="note-desc">ブラウザUIを隠して全画面表示にします</div></div>
     <div class="note-item" onclick="showPcPet()"><div class="note-title">🖥️ PCのペットを呼び出す</div><div class="note-desc">デスクトップのペットを再表示します</div></div>
     <div class="note-item" onclick="closeBottomSheet(); if (window.EasterEggEngine) EasterEggEngine.triggerFromPwa();"><div class="note-title">⚡ イースターエッグ演出テスト</div><div class="note-desc">「お前を消す方法」の演出を発火テストします</div></div>
     <div class="note-item" onclick="closeBottomSheet()"><div class="note-title">✖ 閉じる</div></div>`;
   openBottomSheet({ icon: '⚙️', tag: '設定', title: '設定' }, html);
+}
+
+/** ✨ 演出モードの現在値ラベル（easter_eggs.js 連携・low-end端末は自動で軽量化） */
+function effectModeLabel() {
+  const mode = window.EasterEggEngine ? window.EasterEggEngine.getEffectMode() : 'full';
+  return { full: '標準', light: '軽量', off: 'OFF' }[mode] || '標準';
+}
+
+/** ✨ 演出モード循環切替（標準→軽量→OFF） */
+function cycleEffectMode() {
+  if (window.EasterEggEngine) {
+    window.EasterEggEngine.cycleEffectMode();
+  }
 }
 
 /** 📍 地域設定モーダル */
@@ -1566,6 +2249,15 @@ function startVoiceInput() {
     showToast('⚠️ このブラウザは音声認識に対応していません');
     return;
   }
+  // 🔒 セキュアコンテキスト判定: Chrome は HTTPS / localhost 以外のオリジンでは
+  // マイクアクセスを仕様上ブロックする（LAN直結の http://192.168.x.x がこれに該当）。
+  // ブロックされる前に分かりやすい日本語ガイダンスを出す（not-allowed の事前回避）。
+  if (!window.isSecureContext) {
+    showToast('🔒 マイクはHTTPS接続でのみ許可されます。<br>' +
+      'LAN直結(HTTP)のためブラウザがブロックしています。<br>' +
+      '<span style="font-weight:normal;font-size:11px;">テキスト入力は通常どおりご利用できます</span>', 6000);
+    return;
+  }
   const micBtn = document.getElementById('mic-btn');
   if (micBtn) micBtn.style.opacity = '0.5';
   showToast('🎤 話しかけてください…');
@@ -1590,7 +2282,17 @@ function startVoiceInput() {
   
   recognition.onerror = (event) => {
     if (micBtn) micBtn.style.opacity = '1';
-    showToast('⚠️ 音声認識エラー: ' + (event.error || ''));
+    // ブラウザの生エラーコードを日本語ガイダンスへ変換（not-allowed 等の裸出し防止）
+    const errorGuides = {
+      'not-allowed': '🔒 マイク権限が拒否されました。アドレスバーのアイコンからマイクを許可してください',
+      'service-not-allowed': '🔒 音声認識サービスの利用が許可されていません',
+      'audio-capture': '🎙️ マイクが見つかりません。端末のマイク接続を確認してください',
+      'no-speech': '💬 声が検出できませんでした。もう一度お試しください',
+      'network': '📡 音声認識サーバーへ接続できませんでした。通信状況を確認してください',
+      'aborted': '⏹️ 音声認識を中断しました'
+    };
+    const guide = errorGuides[event.error] || ('音声認識エラー: ' + (event.error || 'unknown'));
+    showToast('⚠️ ' + guide);
     console.debug('Speech recognition error:', event.error);
   };
   

@@ -81,9 +81,18 @@ def _build_tool_registry() -> Dict[str, Dict[str, Any]]:
 def get_current_mcp_config() -> Dict[str, Any]:
     """現在の環境に合致した neo_hisho_bridge のMCP設定辞書を生成する。
 
+    PyInstaller の実行ファイル (frozen) 環境では、exe 自身に `--mcp-serve`
+    フラグを渡す形式で登録する。MCPクライアントがこのコマンドを stdio で
+    起動すると、main.py の早期ディスパッチが MCP サーバーモードで起動する。
+
     Returns:
-        Dict[str, Any]: {"command": Python実行ファイル, "args": [サーバスクリプト]}
+        Dict[str, Any]: {"command": 実行コマンド, "args": [引数...]}
     """
+    if getattr(sys, "frozen", False):
+        return {
+            "command": Path(sys.executable).as_posix(),
+            "args": ["--mcp-serve"],
+        }
     return {
         "command": Path(sys.executable).as_posix(),
         "args": [(Path(__file__).parent.resolve() / "hisho_mcp_server.py").as_posix()],

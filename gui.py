@@ -13,6 +13,8 @@ import tkinter as tk
 from typing import Callable, Optional, Dict, Any, List
 from pathlib import Path
 import logging
+
+import app_paths
 from PIL import Image, ImageTk
 
 # UIパッケージからのサブウィンドウ・ダイアログのインポート (Deep Module Seam)
@@ -292,7 +294,7 @@ class NeoSecretaryGUI:
         self.toggle_circle_menu()
         from character_manager import get_character_manager
         char_mgr = get_character_manager()
-        order = ["hisho", "kinoko", "seal", "retro_dolphin", "kyle"]
+        order = ["hisho", "kinoko", "seal", "kyle"]
         cur = char_mgr.current_character_id
         next_idx = (order.index(cur) + 1) % len(order) if cur in order else 0
         self.switch_character_skin(order[next_idx])
@@ -407,28 +409,35 @@ class NeoSecretaryGUI:
         self.mascot_images.clear()
         self.mascot_pil_images.clear()
         self.mascot_flip_images.clear()
+        
+        # 自キャラのフォールバック用基本画像 (idle_1) を先に取得
+        char_dot_dir = assets_dir / "dot" / current_char
+        default_idle_path = char_dot_dir / "idle_1.png"
+        if not default_idle_path.exists():
+            default_idle_path = char_dot_dir / "idle.png"
+
+        default_pil = None
+        if default_idle_path.exists():
+            try:
+                default_pil = Image.open(default_idle_path).convert("RGBA")
+            except Exception as e:
+                logger.error(f"デフォルト idle ロード失敗 ({default_idle_path}): {e}")
+
         for name in all_sprites:
-            candidates = [
-                # 最優先: 8/15レトロドット絵 (assets/dot/{char}/) — キノコ・アザラシは同テイスト再生成まで既存アセット
-                assets_dir / "dot" / current_char / f"{name}.png",
-                assets_dir / f"mascot_{current_char}_{name}.png",
-                assets_dir / f"{current_char}_{name}.png",
-                assets_dir / f"mascot_{name}.png",
-                assets_dir / f"{name}.png",
-                assets_dir / f"mascot_{current_char}_idle.png",
-                assets_dir / f"{current_char}_idle.png",
-                assets_dir / f"mascot_idle_1.png",
-                assets_dir / "idle_1.png"
-            ]
-            for p in candidates:
-                if p.exists():
-                    try:
-                        pil_img = Image.open(p).convert("RGBA")
-                        self.mascot_pil_images[name] = pil_img
-                        self.mascot_images[name] = ImageTk.PhotoImage(pil_img)
-                        break
-                    except Exception as e:
-                        logger.error(f"画像ロード失敗 ({p}): {e}")
+            p = char_dot_dir / f"{name}.png"
+            if p.exists():
+                try:
+                    pil_img = Image.open(p).convert("RGBA")
+                    self.mascot_pil_images[name] = pil_img
+                    self.mascot_images[name] = ImageTk.PhotoImage(pil_img)
+                    continue
+                except Exception as e:
+                    logger.error(f"画像ロード失敗 ({p}): {e}")
+            
+            # 自キャラの dot 内に対象フレームが無い場合は、自キャラの idle_1 で安全に代用
+            if default_pil is not None:
+                self.mascot_pil_images[name] = default_pil
+                self.mascot_images[name] = ImageTk.PhotoImage(default_pil)
 
     def switch_character_skin(self, char_id: str):
         """キャラクタースキンを切り替える"""
@@ -866,6 +875,7 @@ class NeoSecretaryGUI:
         menu.add_command(label=b_label, command=self._show_briefing)
         
         menu.add_command(label="📔 統合手帳（予定・TODO・知見）", command=self._open_calendar)
+        menu.add_command(label="📌 新しい付箋を貼る", command=self._on_create_quick_sticky)
         menu.add_command(label="📱 スマホDesk Pet接続 (QRコード)", command=self._open_qr_connection)
         
         auto_min = getattr(self, 'auto_minimize_on_link', False)
@@ -977,6 +987,27 @@ class NeoSecretaryGUI:
         except Exception as e:
             logger.error(f"ブリーフィング生成エラー: {e}")
             self.update_message("申し訳ありません、ブリーフィングの生成中にエラーが発生しました。")
+
+    def _on_create_quick_sticky(self):
+        """メニューから手動でクイックに新しい付箋を作成・表示"""
+        import database
+        # ペットの近く（やや右下）にデフォルト配置
+        x = max(50, self.root.winfo_x() - 150)
+        y = max(50, self.root.winfo_y() + 50)
+        note = database.StickyNote(
+            content="",
+            color="#FFEB3B",
+            position_x=x,
+            position_y=y,
+            width=200,
+            height=200
+        )
+        note_id = database.create_sticky_note(note)
+        note.id = note_id
+        win = StickyNoteWindow(self, note)
+        self.sticky_windows[note_id] = win
+        win.textbox.focus_set()
+        self.update_message("📌 デスクトップに新しい付箋を貼りました！\n自由にメモを書いてくださいね。")
 
     def _open_qr_connection(self):
         """スマホDesk Pet接続用のQRコードダイアログを開く"""
@@ -1456,7 +1487,7 @@ class NeoSecretaryGUI:
 
     def _check_first_launch_tour(self) -> None:
         """初回起動かどうかを確認し、未完了ならツアーを自動開始する。"""
-        flag_file = os.path.join(os.path.dirname(__file__), "backups", ".tour_completed")
+        flag_file = str(app_paths.get_app_root() / "backups" / ".tour_completed")
         if not os.path.exists(flag_file):
             self.update_message(
                 "🎓 はじめまして、ボス！\n"
@@ -1484,7 +1515,7 @@ class NeoSecretaryGUI:
             return  # 冪等性ガード
         self._tour_completed = True
         self._destroy_tour_overlay()
-        flag_dir = os.path.join(os.path.dirname(__file__), "backups")
+        flag_dir = str(app_paths.get_app_root() / "backups")
         os.makedirs(flag_dir, exist_ok=True)
         with open(os.path.join(flag_dir, ".tour_completed"), "w") as f:
             f.write("1")

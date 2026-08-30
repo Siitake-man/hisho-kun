@@ -5,15 +5,17 @@
 holistic-code-review (2026-08-25) の P0 対策として実装した以下のセキュリティ機構を、
 GUI 無しの自己完結型シナリオで検証します:
 
-  1. Bearer認証 (トークンなしアクセスの401拒否)
-  2. ペアリングモード Fail-Closed (/api/auth/token はQRペアリング中のみ応答)
+  1. Bearer認証 (POST書き込みのトークンなし拒否)
+  2. ペアリングモード Fail-Closed → 2026-08-30 自己治癒仕様に更新:
+     同一LAN (private IP) からの /api/auth/token はペアリング非開放でも配布される。
+     LAN外からの配布は引き続き 403 拒否。
   3. エージェント発信API (ask/notify) の localhost 制限
      → LAN攻撃者相当(127.0.0.2)からの ask 作成を遮断
   4. 自己承認(RCE)防止
      → 承認要求元と同一IPからの respond を拒否、別端末(スマホ相当)からの正当承認は成功
 
 実行:
-    venv\\Scripts\\python.exe test_sync_auth.py
+    venv\\Scripts\\python.exe tests\\test_sync_auth.py
 
 注意:
     ポート8765が使用中(ネオ秘書くん本番アプリ起動中)の場合は中止します。
@@ -138,10 +140,21 @@ def main() -> int:
     request_id = ""
 
     try:
-        # T1: ペアリング非開放中のトークン配布は拒否されるべき (Fail-Closed)
+        # T1: LAN内(ループバック相当)からのトークン要求は、ペアリング非開放でも
+        #     自己治癒配布される (2026-08-30 スマホ復旧仕様: 同一LAN or ペアリング中のみ配布)
         st, data = _request("GET", "/api/auth/token")
-        _check("T1 ペアリング非開放中の GET /api/auth/token が拒否される (403)",
-               st == 403, f"HTTP {st} {data}")
+        token_lan = str(data.get("token", ""))
+        _check("T1 LAN内からの GET /api/auth/token は自己治癒配布される (200)",
+               st == 200 and len(token_lan) >= 32, f"HTTP {st} token_len={len(token_lan)}")
+
+        # T1b: LAN外(攻撃者相当 127.0.0.2)からのトークン要求は引き続き拒否されるべき (Fail-Closed)
+        try:
+            st, data = _request("GET", "/api/auth/token", source_ip="127.0.0.2")
+            _check("T1b LAN外(127.0.0.2)からの GET /api/auth/token が拒否される (403)",
+                   st == 403, f"HTTP {st} {data}")
+        except OSError as e:
+            print(f"⏭ SKIP | T1b (この環境では 127.0.0.2 バインド不可): {e}")
+            _results.append(("T1b (環境制約によりスキップ)", True))
 
         # T2: ペアリング開放後は配布される
         tm.unlock_pairing(duration_sec=60)
@@ -150,9 +163,15 @@ def main() -> int:
         _check("T2 ペアリング開放後にトークン取得できる (200)",
                st == 200 and len(token) >= 32, f"HTTP {st} token_len={len(token)}")
 
-        # T3: トークンなしの API 呼び出しは 401 拒否されるべき
+        # T3: トークンなしの GET /api/status は LAN内からは閲覧許可される (自己治癒・2026-08-30)
         st, data = _request("GET", "/api/status")
-        _check("T3 トークンなし GET /api/status が拒否される (401)",
+        _check("T3 トークンなし GET /api/status (LAN内) は閲覧許可される (200)",
+               st == 200, f"HTTP {st}")
+
+        # T3b: トークンなしの POST /api/action は引き続き 401 で拒否されるべき
+        #      (閲覧は自己治癒許可、書き込みは Bearer 必須という境界を守る)
+        st, data = _request("POST", "/api/action", body={"action": "ping_test"})
+        _check("T3b トークンなし POST /api/action は拒否される (401)",
                st == 401, f"HTTP {st} {data}")
 
         # T4: 有効トークン付きなら成功する

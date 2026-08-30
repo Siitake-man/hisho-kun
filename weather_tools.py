@@ -52,7 +52,8 @@ def save_location(location_str: str) -> None:
     set_location(loc_clean)
     try:
         from dotenv import set_key
-        env_path = Path(__file__).parent / ".env"
+        import app_paths
+        env_path = app_paths.get_app_root() / ".env"
         set_key(str(env_path), WEATHER_LOCATION_ENV_KEY, loc_clean)
         os.environ[WEATHER_LOCATION_ENV_KEY] = loc_clean
         logger.info(f"地域設定を .env に保存しました: {loc_clean}")

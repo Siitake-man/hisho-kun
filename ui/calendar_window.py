@@ -599,14 +599,16 @@ class CalendarWindow(ctk.CTkToplevel):
         self.refresh_tasks()
 
     def refresh_tasks(self):
-        """TODOタスク一覧を再描画"""
+        """TODOタスク一覧（親タスク ＆ サブタスク/チェックリスト）を再描画"""
         for widget in self.tasks_scroll.winfo_children():
             widget.destroy()
             
         import database
-        tasks = database.get_tasks(status="todo", limit=50)
+        all_tasks = database.get_tasks(status="todo", limit=100)
+        # 親タスクのみを抽出 (parent_id is None)
+        parent_tasks = [t for t in all_tasks if t.parent_id is None]
         
-        if not tasks:
+        if not parent_tasks:
             lbl = ctk.CTkLabel(self.tasks_scroll, text="すべてのタスクが完了しています！✨", font=self.font_body, text_color="#2E7D32")
             lbl.pack(pady=30)
             return
@@ -614,9 +616,13 @@ class CalendarWindow(ctk.CTkToplevel):
         pri_colors = {3: "#D32F2F", 2: "#F57C00", 1: "#388E3C", 0: "#757575"}
         pri_labels = {3: "🔥 高", 2: "中", 1: "低", 0: ""}
         
-        for t in tasks:
-            row = ctk.CTkFrame(self.tasks_scroll, fg_color="#FFFFFF", border_color="#E0D8C8", border_width=1, corner_radius=6)
-            row.pack(fill="x", pady=3, padx=2)
+        for t in parent_tasks:
+            # 親タスクカード
+            card = ctk.CTkFrame(self.tasks_scroll, fg_color="#FFFFFF", border_color="#E0D8C8", border_width=1, corner_radius=6)
+            card.pack(fill="x", pady=3, padx=2)
+            
+            row = ctk.CTkFrame(card, fg_color="transparent")
+            row.pack(fill="x", padx=4, pady=4)
             
             def make_complete_cb(task_id=t.id):
                 return lambda: self._on_complete_task(task_id)
@@ -630,10 +636,27 @@ class CalendarWindow(ctk.CTkToplevel):
                 fg_color=self.primary_color,
                 command=make_complete_cb(t.id)
             )
-            cb.pack(side="left", padx=(8, 4), pady=6)
+            cb.pack(side="left", padx=(4, 4), pady=2)
             
-            ctk.CTkLabel(row, text=t.title, font=self.font_body, text_color=self.text_color, anchor="w", wraplength=340).pack(side="left", fill="x", expand=True, padx=4)
+            ctk.CTkLabel(row, text=t.title, font=self.font_body, text_color=self.text_color, anchor="w", wraplength=310).pack(side="left", fill="x", expand=True, padx=4)
             
+            # サブタスク追加ボタン（＋）
+            def make_add_sub_cb(parent_id=t.id, p_title=t.title):
+                return lambda: self._prompt_add_subtask(parent_id, p_title)
+                
+            btn_add_sub = ctk.CTkButton(
+                row,
+                text="＋子タスク",
+                width=62,
+                height=22,
+                font=self.font_small,
+                fg_color="#F5F5DC",
+                text_color="#8B634A",
+                hover_color="#E0D8C8",
+                command=make_add_sub_cb(t.id, t.title)
+            )
+            btn_add_sub.pack(side="right", padx=4)
+
             if t.priority > 0:
                 pri_lbl = ctk.CTkLabel(
                     row,
@@ -641,11 +664,60 @@ class CalendarWindow(ctk.CTkToplevel):
                     font=self.font_small,
                     text_color=pri_colors.get(t.priority, "#757575")
                 )
-                pri_lbl.pack(side="right", padx=(2, 8))
+                pri_lbl.pack(side="right", padx=(2, 4))
+                
+            # サブタスク一覧のインデント表示
+            subtasks = database.get_subtasks(t.id)
+            if subtasks:
+                sub_frame = ctk.CTkFrame(card, fg_color="#FBF9F5", corner_radius=4)
+                sub_frame.pack(fill="x", padx=20, pady=(0, 6))
+                
+                for st in subtasks:
+                    sub_row = ctk.CTkFrame(sub_frame, fg_color="transparent")
+                    sub_row.pack(fill="x", padx=6, pady=2)
+                    
+                    is_sub_done = st.status == "completed"
+                    def make_sub_complete_cb(sub_id=st.id):
+                        return lambda: self._on_complete_task(sub_id)
+                        
+                    sub_cb = ctk.CTkCheckBox(
+                        sub_row,
+                        text="",
+                        width=18,
+                        checkbox_width=16,
+                        checkbox_height=16,
+                        fg_color=self.primary_color,
+                        command=make_sub_complete_cb(st.id)
+                    )
+                    if is_sub_done:
+                        sub_cb.select()
+                    sub_cb.pack(side="left", padx=(2, 4))
+                    
+                    st_text_color = "#9E9E9E" if is_sub_done else "#5D4037"
+                    st_font = (self.font_small[0], self.font_small[1], "overstrike") if is_sub_done else self.font_small
+                    ctk.CTkLabel(
+                        sub_row, 
+                        text=f"└ {st.title}", 
+                        font=st_font, 
+                        text_color=st_text_color, 
+                        anchor="w"
+                    ).pack(side="left", fill="x", expand=True)
+
+    def _prompt_add_subtask(self, parent_id: int, parent_title: str):
+        """サブタスク追加ダイアログ"""
+        dialog = ctk.CTkInputDialog(text=f"『{parent_title[:15]}…』に追加する子タスク名:", title="サブタスク追加")
+        sub_title = dialog.get_input()
+        if sub_title and sub_title.strip():
+            import database
+            database.add_subtask(parent_id, sub_title.strip())
+            self.refresh_tasks()
 
     def _on_complete_task(self, task_id: int):
         import database
         database.complete_task(task_id)
+        # タスク完了時の歓喜リアクション
+        if hasattr(self.parent_gui, 'animator'):
+            self.parent_gui.animator.trigger_reaction("task_complete")
         self.after(200, self.refresh_tasks)
 
     # =========================================================================

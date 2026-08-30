@@ -74,3 +74,4 @@ Desktop.ini
 build/
 dist/
 *.spec
+!neo_hisho.spec

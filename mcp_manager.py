@@ -18,7 +18,9 @@ from langchain_core.tools import BaseTool, StructuredTool
 
 logger = logging.getLogger(__name__)
 
-CONFIG_PATH = Path(__file__).parent / "mcp_config.json"
+import app_paths
+
+CONFIG_PATH = app_paths.get_app_root() / "mcp_config.json"
 
 DEFAULT_MCP_CONFIG = {
     "mcpServers": {

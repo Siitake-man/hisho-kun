@@ -29,7 +29,9 @@ logging.basicConfig(
 )
 
 # ローカル同期サーバーのBearer認証トークン (.sync_token)
-SYNC_TOKEN_FILE = Path(__file__).resolve().parent / ".sync_token"
+import app_paths
+
+SYNC_TOKEN_FILE = app_paths.get_app_root() / ".sync_token"
 
 
 def get_sync_token() -> str:

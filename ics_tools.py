@@ -69,7 +69,8 @@ def ensure_default_calendar_source() -> None:
     それを「メインカレンダー」として source 1 に取り込む。
     """
     from dotenv import load_dotenv
-    load_dotenv(Path(__file__).parent / ".env")
+    import app_paths
+    load_dotenv(app_paths.get_app_root() / ".env")
     if database.get_all_calendar_sources():
         return
     legacy_url = os.getenv(ICAL_URL_ENV_KEY, "").strip()

@@ -8,10 +8,75 @@ GUI(gui.py) と エージェント(agent.py) を「asyncio」を使い共存さ�
 
 import asyncio
 import logging
+import os
 import subprocess
 import sys
 import tkinter as tk
 from typing import Dict, Any, Optional
+
+
+def _early_cli_dispatch() -> None:
+    """GUI起動前に CLI サブコマンド (--mcp-serve / --setup-model) を処理する。
+
+    PyInstaller の単一 exe が「GUIアプリ / MCPサーバー / モデルDLツール」の
+    3役を担うためのエントリポイント。重い GUI/LangGraph の import より前に
+    処理することで、MCP クライアントからの起動を高速化する。
+
+    Note:
+        いずれかのサブコマンドが処理された場合は sys.exit() で終了し、
+        本関数は呼び出し元に戻らない。GUI 起動時は何もせず即 return する。
+    """
+    if "--mcp-serve" not in sys.argv and "--setup-model" not in sys.argv:
+        return
+
+    import io
+    import app_paths
+
+    # MCPサーバー / モデルDLモードでは DB や .env をアプリデータルートに解決するため CWD を固定
+    os.chdir(app_paths.get_app_root())
+    app_paths.ensure_env_file()
+
+    # windowed ビルドでは標準入出力が None の場合がある
+    # (--mcp-serve 時は MCP クライアントが実パイプを接続するため通常は None でない)
+    if sys.stdout is None:
+        sys.stdout = io.StringIO()
+    if sys.stderr is None:
+        sys.stderr = io.StringIO()
+
+    if "--mcp-serve" in sys.argv:
+        import hisho_mcp_server
+        hisho_mcp_server.main()
+        sys.exit(0)
+
+    # --setup-model [350m|1.2b] → setup_local_model.py の --model へ翻訳 (省略時は推奨の 350m)
+    idx = sys.argv.index("--setup-model")
+    model_key = sys.argv[idx + 1] if idx + 1 < len(sys.argv) else "350m"
+    sys.argv = [sys.argv[0], "--model", model_key]
+
+    from tools.setup_local_model import main as setup_model_main
+    exit_code = setup_model_main()
+
+    # windowed exe では進捗が見えないため、結果をメッセージボックスで通知する
+    if isinstance(sys.stdout, io.StringIO):
+        import ctypes
+        if exit_code == 0:
+            text = (
+                "ローカルAIモデルのセットアップが完了しました。\n"
+                f"モデル: {model_key}\n\n"
+                "ネオ秘書くんを再起動するとオフラインAI (local_gguf) が有効になります。"
+            )
+        else:
+            text = (
+                "モデルのセットアップに失敗しました。\n"
+                "ネットワーク接続を確認して再度お試しください。"
+            )
+        ctypes.windll.user32.MessageBoxW(
+            0, text, "ネオ秘書くん モデルセットアップ", 0x40 if exit_code == 0 else 0x10
+        )
+    sys.exit(exit_code)
+
+
+_early_cli_dispatch()
 
 from langchain_core.messages import HumanMessage, AIMessage
 
@@ -411,6 +476,17 @@ async def async_mainloop(app: NeoSecretaryApp):
             await asyncio.sleep(0.02)
 
 def main():
+    # frozen (exe) 環境のブートストラップ: CWD を exe 直下に固定し .env を保証する
+    import app_paths
+    if app_paths.is_frozen():
+        os.chdir(app_paths.get_app_root())
+        app_paths.ensure_env_file()
+        # windowed exe では標準入出力が None になり得るため print() クラッシュを防止
+        if sys.stdout is None:
+            sys.stdout = open(os.devnull, "w", encoding="utf-8")
+        if sys.stderr is None:
+            sys.stderr = open(os.devnull, "w", encoding="utf-8")
+
     # 二重起動の防止 (Single Instance Lock)
     import socket
     lock_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)

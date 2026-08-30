@@ -22,8 +22,10 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from dotenv import load_dotenv, set_key
 
 # 環境変数の読み込み
-ENV_PATH = Path(__file__).parent / ".env"
-DISCOVERED_MODELS_PATH = Path(__file__).parent / "discovered_models.json"
+import app_paths
+
+ENV_PATH = app_paths.get_app_root() / ".env"
+DISCOVERED_MODELS_PATH = app_paths.get_app_root() / "discovered_models.json"
 load_dotenv(dotenv_path=ENV_PATH)
 
 logger = logging.getLogger(__name__)
@@ -92,7 +94,8 @@ FALLBACK_MODELS = {
         {"id": "custom-model", "name": "custom-model (カスタム指定モデル)"},
     ],
     LLMProvider.LOCAL_GGUF: [
-        {"id": "lfm2.5-2.6b", "name": "LFM 2.5 (2.6B) - Liquid Foundation超軽量ハイブリッド"},
+        {"id": "LFM2.5-350M-QAD-Q4_0.gguf", "name": "LFM 2.5 350M QAD-Q4_0 - 推奨・超軽量モード (約230MB)"},
+        {"id": "LFM2.5-1.2B-Instruct-QAD-Q4_0.gguf", "name": "LFM 2.5 1.2B Instruct QAD-Q4_0 - 高品質モード (約770MB)"},
         {"id": "minicpm5-1b-claude-opus-fable5-v2-thinking", "name": "MiniCPM-5 (1B) - オンデバイス思考モデル"},
         {"id": "google/gemma-4-e4b", "name": "Gemma 4 (E4B) - Google最新エッジ"},
         {"id": "Bonsai-1.5B-Japanese", "name": "Bonsai (1.5B) - 日本語特化超低レイテンシ"},
@@ -120,8 +123,8 @@ class LLMFactory:
     任意のカスタムOpenAI互換エンドポイント、内包ローカルモデルまでをシームレスに一元管理します。
     """
     
-    MODELS_DIR = Path(__file__).parent / "models"
-    
+    MODELS_DIR = app_paths.get_app_root() / "models"
+
     DEFAULT_CONFIGS = {
         LLMProvider.GEMINI: {
             "name": "Google Gemini",
@@ -167,7 +170,7 @@ class LLMFactory:
         },
         LLMProvider.LOCAL_GGUF: {
             "name": "内包ローカルLLM (GGUF / Sidecar)",
-            "default_model": os.getenv("LOCAL_GGUF_MODEL", "lfm2.5-2.6b"),
+            "default_model": os.getenv("LOCAL_GGUF_MODEL", "LFM2.5-350M-QAD-Q4_0.gguf"),
             "base_url": os.getenv("LOCAL_GGUF_BASE_URL", "http://localhost:8080/v1"),
             "api_key_env": None,
         },
@@ -691,6 +694,18 @@ class LLMFactory:
                 streaming=True
             )
 
+    def supports_tool_calling(self) -> bool:
+        """現在選択中のプロバイダが関数呼び出し（tool calling）に対応しているかを判定する。
+
+        内包ローカルGGUFモデルは bind_tools が空のツールバインディングを返す実装のため
+        非対応と判定する。クラウドプロバイダおよび OpenAI互換・ローカルサーバー
+        （Ollama / LM Studio）は対応とみなす。
+
+        Returns:
+            bool: tool calling に対応している場合 True。
+        """
+        return self.current_provider != LLMProvider.LOCAL_GGUF
+
     def is_provider_configured(self, provider: LLMProvider) -> bool:
         """指定されたプロバイダが現在実際に利用可能（有効なAPIキー設定済み、または実機モデル稼働中）かを判定"""
         load_dotenv(dotenv_path=ENV_PATH, override=True)
@@ -706,7 +721,7 @@ class LLMFactory:
 
         # 2. 内包ローカルLLM (models/ ディレクトリ内に実際に .gguf ファイルが存在するか)
         if provider == LLMProvider.LOCAL_GGUF:
-            models_dir = Path(__file__).parent / "models"
+            models_dir = app_paths.get_app_root() / "models"
             if models_dir.exists():
                 ggufs = list(models_dir.glob("*.gguf"))
                 return len(ggufs) > 0

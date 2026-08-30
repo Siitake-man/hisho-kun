@@ -148,6 +148,7 @@ class SuggestSettingsDialog(ctk.CTkToplevel):
         
         sources = self.config.get("sources", {})
         self.check_vars = {}
+        self.news_keywords_entry = None
         
         for key, info in sources.items():
             card = ctk.CTkFrame(scroll, fg_color="#FDFBF7", corner_radius=6, border_color="#E0D8C8", border_width=1)
@@ -170,7 +171,34 @@ class SuggestSettingsDialog(ctk.CTkToplevel):
             
             desc = info.get("description", "")
             if desc:
-                ctk.CTkLabel(card, text=desc, font=self.font_small, text_color="#6D4C41", anchor="w").pack(fill="x", padx=28, pady=(0, 6))
+                ctk.CTkLabel(card, text=desc, font=self.font_small, text_color="#6D4C41", anchor="w").pack(fill="x", padx=28, pady=(0, 4))
+
+            # news_topics の場合に関心キーワード入力欄を追加
+            if key == "news_topics":
+                kw_frame = ctk.CTkFrame(card, fg_color="transparent")
+                kw_frame.pack(fill="x", padx=28, pady=(0, 6))
+                
+                ctk.CTkLabel(
+                    kw_frame, 
+                    text="関心キーワード (カンマ区切り):", 
+                    font=("Meiryo UI", 8, "bold"), 
+                    text_color="#8B634A"
+                ).pack(anchor="w")
+                
+                kw_list = self.engine.get_news_keywords()
+                kw_str = ", ".join(kw_list)
+                
+                self.news_keywords_entry = ctk.CTkEntry(
+                    kw_frame,
+                    font=("Meiryo UI", 9),
+                    height=26,
+                    fg_color="#FFFFFF",
+                    border_color="#D5C7B8",
+                    border_width=1,
+                    text_color=self.text_color
+                )
+                self.news_keywords_entry.insert(0, kw_str)
+                self.news_keywords_entry.pack(fill="x", pady=(2, 0))
 
         btn_close = ctk.CTkButton(
             self,
@@ -179,7 +207,7 @@ class SuggestSettingsDialog(ctk.CTkToplevel):
             fg_color=self.primary_color,
             hover_color="#8B634A",
             height=32,
-            command=self.destroy
+            command=self._on_save_and_close
         )
         btn_close.pack(fill="x", padx=pad, pady=10)
 
@@ -187,6 +215,15 @@ class SuggestSettingsDialog(ctk.CTkToplevel):
         self.engine.toggle_source(key, var.get())
         if hasattr(self.parent_gui, '_update_suggestion_card'):
             self.parent_gui._update_suggestion_card()
+
+    def _on_save_and_close(self):
+        """キーワード設定を永続保存して閉じる"""
+        if self.news_keywords_entry:
+            kw_val = self.news_keywords_entry.get().strip()
+            self.engine.set_news_keywords(kw_val)
+        if hasattr(self.parent_gui, '_update_suggestion_card'):
+            self.parent_gui._update_suggestion_card()
+        self.destroy()
 
 
 class SettingsWindow(ctk.CTkToplevel):
@@ -717,6 +754,30 @@ class SettingsWindow(ctk.CTkToplevel):
         self.entry_slack_webhook.insert(0, os.getenv("SLACK_WEBHOOK_URL", ""))
         self.entry_slack_webhook.pack(fill="x", padx=8, pady=(2, 6))
 
+        # 3.5. 外部SaaS・マルチ中継 Webhook (Zapier / Make / GAS / IFTTT)
+        import webhook_tools
+        wh_cfg = webhook_tools.get_webhook_config()
+        
+        card_webhook = ctk.CTkFrame(content_tools, fg_color="#FFFFFF", border_width=1, border_color="#E0D8C8", corner_radius=6)
+        card_webhook.pack(fill="x", pady=4, padx=2)
+        ctk.CTkLabel(card_webhook, text="🌐 外部SaaS・マルチ中継 Webhook (Zapier / Make / GAS)", font=("Meiryo UI", 11, "bold"), text_color="#0D47A1", anchor="w").pack(fill="x", padx=8, pady=(6, 2))
+        ctk.CTkLabel(card_webhook, text="Google認証の人数制限を回避し、予定やTODOをZapier/Make/GAS経由で双方向同期します。", font=self.font_small, text_color="#757575", anchor="w").pack(fill="x", padx=8, pady=(0, 4))
+
+        ctk.CTkLabel(card_webhook, text="送信先 Webhook URL (Zapier / Make / GAS):", font=self.font_body, text_color=self.text_color, anchor="w").pack(fill="x", padx=8)
+        self.entry_webhook_outgoing = ctk.CTkEntry(card_webhook, placeholder_text="https://hooks.zapier.com/hooks/catch/...")
+        self.entry_webhook_outgoing.insert(0, wh_cfg.get("outgoing_webhook_url", ""))
+        self.entry_webhook_outgoing.pack(fill="x", padx=8, pady=(2, 4))
+
+        ctk.CTkLabel(card_webhook, text="Webhook 共有シークレット (任意・認証用):", font=self.font_body, text_color=self.text_color, anchor="w").pack(fill="x", padx=8)
+        self.entry_webhook_secret = ctk.CTkEntry(card_webhook, placeholder_text="任意のパスワードまたは未設定", show="*")
+        self.entry_webhook_secret.insert(0, wh_cfg.get("webhook_secret", ""))
+        self.entry_webhook_secret.pack(fill="x", padx=8, pady=(2, 4))
+
+        wh_info_frame = ctk.CTkFrame(card_webhook, fg_color="#F5F5F5", corner_radius=4)
+        wh_info_frame.pack(fill="x", padx=8, pady=(2, 6))
+        ctk.CTkLabel(wh_info_frame, text="📥 秘書くん受信用 URL (外部からPOST送信):", font=("Meiryo UI", 8, "bold"), text_color="#5D4037", anchor="w").pack(anchor="w", padx=6, pady=(4, 1))
+        ctk.CTkLabel(wh_info_frame, text="予定: http://<PCのIP>:8765/api/webhook/calendar\nタスク: http://<PCのIP>:8765/api/webhook/task", font=("Consolas", 8), text_color="#424242", justify="left", anchor="w").pack(anchor="w", padx=6, pady=(0, 4))
+
         # 4. 外部MCPプラグイン一覧
         card_mcp_list = ctk.CTkFrame(content_tools, fg_color="#FFFFFF", border_width=1, border_color="#E0D8C8", corner_radius=6)
         card_mcp_list.pack(fill="x", pady=4, padx=2)
@@ -904,28 +965,6 @@ class SettingsWindow(ctk.CTkToplevel):
             self.lbl_copy_toast.configure(text=msg, text_color="#2E7D32")
         else:
             self.lbl_copy_toast.configure(text=msg, text_color="#C62828")
-
-    def _copy_claude_mcp_config(self):
-        """Claude Desktop / Cursor / Antigravity用のMCP設定JSONをコピー"""
-        project_root = Path(__file__).resolve().parent.parent
-        python_exe = sys.executable
-        server_script = project_root / "hisho_mcp_server.py"
-        
-        config = {
-            "mcpServers": {
-                "neo_hisho_bridge": {
-                    "command": str(python_exe),
-                    "args": [str(server_script)]
-                }
-            }
-        }
-        json_str = json.dumps(config, indent=2, ensure_ascii=False)
-        try:
-            self.clipboard_clear()
-            self.clipboard_append(json_str)
-            self.lbl_copy_toast.configure(text="✓ Claude/Cursor/Antigravity用 MCP設定JSONをコピーしました！", text_color="#2E7D32")
-        except Exception as e:
-            self.lbl_copy_toast.configure(text=f"❌ コピー失敗: {e}", text_color="#C62828")
 
     def _run_google_oauth(self):
         """Google OAuth 2.0 ブラウザ同意画面を起動してログイン"""
@@ -1142,7 +1181,8 @@ class SettingsWindow(ctk.CTkToplevel):
         """Tailscale ホスト名を .env に保存し、QRダイアログの外出先接続に反映する"""
         from dotenv import set_key
         host = self.entry_tailscale_host.get().strip()
-        env_path = Path(__file__).parent.parent / ".env"
+        import app_paths
+        env_path = app_paths.get_app_root() / ".env"
         set_key(str(env_path), "TAILSCALE_HOSTNAME", host)
         os.environ["TAILSCALE_HOSTNAME"] = host
         messagebox.showinfo(
@@ -1209,15 +1249,13 @@ class SettingsWindow(ctk.CTkToplevel):
 
     def _copy_claude_mcp_config(self):
         """Claude Desktop / Cursor / Antigravity用のMCP設定JSONをコピー"""
-        project_root = Path(__file__).resolve().parent.parent
-        python_exe = sys.executable
-        server_script = project_root / "hisho_mcp_server.py"
-        
+        import mcp_installer
+        mcp_def = mcp_installer.get_current_mcp_config()
         config = {
             "mcpServers": {
                 "neo_hisho_bridge": {
-                    "command": str(python_exe),
-                    "args": [str(server_script)]
+                    "command": mcp_def["command"],
+                    "args": mcp_def["args"]
                 }
             }
         }
@@ -1231,11 +1269,11 @@ class SettingsWindow(ctk.CTkToplevel):
 
     def _copy_codex_mcp_config(self):
         """Codex用のMCP設定TOMLをコピー"""
-        project_root = Path(__file__).resolve().parent.parent
-        python_exe = sys.executable.replace("\\", "/")
-        server_script = (project_root / "hisho_mcp_server.py").as_posix()
-        
-        toml_str = f'[mcp_servers.neo_hisho_bridge]\ncommand = "{python_exe}"\nargs = ["{server_script}"]'
+        import mcp_installer
+        mcp_def = mcp_installer.get_current_mcp_config()
+        command = mcp_def["command"]
+        args_str = ", ".join(f'"{arg}"' for arg in mcp_def["args"])
+        toml_str = f'[mcp_servers.neo_hisho_bridge]\ncommand = "{command}"\nargs = [{args_str}]'
         try:
             self.clipboard_clear()
             self.clipboard_append(toml_str)
@@ -1245,11 +1283,11 @@ class SettingsWindow(ctk.CTkToplevel):
 
     def _copy_claude_code_cmd(self):
         """Claude Code用のmcp addコマンドをコピー"""
-        project_root = Path(__file__).resolve().parent.parent
-        python_exe = sys.executable.replace("\\", "/")
-        server_script = (project_root / "hisho_mcp_server.py").as_posix()
-        
-        cmd = f'claude mcp add neo_hisho_bridge "{python_exe}" "{server_script}"'
+        import mcp_installer
+        mcp_def = mcp_installer.get_current_mcp_config()
+        command = mcp_def["command"]
+        args_str = " ".join(mcp_def["args"])
+        cmd = f'claude mcp add neo_hisho_bridge "{command}" "{args_str}"'
         try:
             self.clipboard_clear()
             self.clipboard_append(cmd)
@@ -1295,7 +1333,15 @@ class SettingsWindow(ctk.CTkToplevel):
         for s_id, var in self.mcp_checkboxes.items():
             mcp_mgr.update_server_status(s_id, var.get())
 
-        self.parent_gui.update_message("⚙ AI設定 ＆ 外部連携（Google/GitHub/Slack/MCP）を保存・適用しました！")
+        # 3. 外部SaaS・マルチ中継 Webhook 設定の保存
+        if hasattr(self, 'entry_webhook_outgoing') and hasattr(self, 'entry_webhook_secret'):
+            import webhook_tools
+            cur_wh = webhook_tools.get_webhook_config()
+            cur_wh["outgoing_webhook_url"] = self.entry_webhook_outgoing.get().strip()
+            cur_wh["webhook_secret"] = self.entry_webhook_secret.get().strip()
+            webhook_tools.save_webhook_config(cur_wh)
+
+        self.parent_gui.update_message("⚙ AI設定 ＆ 外部連携（Google/GitHub/Slack/Webhook/MCP）を保存・適用しました！")
         self.destroy()
 
     def _restart_tour(self) -> None:

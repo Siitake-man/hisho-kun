@@ -35,6 +35,7 @@ class StickyNoteWindow(tk.Toplevel):
         self.header.pack(fill=tk.X)
         self.header.bind("<ButtonPress-1>", self._start_move)
         self.header.bind("<B1-Motion>", self._do_move)
+        self.header.bind("<ButtonRelease-1>", self._stop_move)
         
         # 閉じるボタン（DBからも削除する）
         close_btn = tk.Label(self.header, text="✖", bg="#E6D235", fg="#4A3B32", cursor="hand2", font=("Arial", 8))
@@ -95,6 +96,15 @@ class StickyNoteWindow(tk.Toplevel):
         
         self.note.position_x = x
         self.note.position_y = y
+
+    def _stop_move(self, event):
+        """ドラッグ移動完了時に位置座標をDBへ自動永続化"""
+        import database
+        try:
+            database.update_sticky_note(self.note)
+            logger.debug(f"📌 付箋の移動位置をDBに保存しました: ({self.note.position_x}, {self.note.position_y})")
+        except Exception as e:
+            logger.error(f"付箋の位置保存に失敗: {e}")
 
 # 後方互換エイリアス
 DraggableStickyNote = StickyNoteWindow

@@ -4,6 +4,7 @@
 
 ボスの作業状況、直近の予定、高優先度TODO、MentisDB知見、プロアクティブ健康ケアから
 「今、ボスが目を通すべきこと／対応が必要なこと」をスマートにサジェストします。
+関心ニュースキーワードのカスタマイズと超軽量3行AIサマリ動的生成に対応。
 各ソースの個別ON/OFF設定を管理・永続化します。
 """
 
@@ -12,12 +13,17 @@ import json
 import time
 import datetime
 import logging
+import re
 from typing import Dict, List, Any, Optional
 from pathlib import Path
 
+import web_tools
+
 logger = logging.getLogger(__name__)
 
-CONFIG_PATH = Path(__file__).parent / "suggest_config.json"
+import app_paths
+
+CONFIG_PATH = app_paths.get_app_root() / "suggest_config.json"
 
 DEFAULT_SUGGEST_CONFIG = {
     "sources": {
@@ -43,8 +49,9 @@ DEFAULT_SUGGEST_CONFIG = {
         },
         "news_topics": {
             "name": "🌐 関心ニュース・AIトレンド",
-            "enabled": False,
-            "description": "登録キーワードやAI最新動向のトピック"
+            "enabled": True,
+            "description": "登録キーワードや最新技術動向のトピック",
+            "keywords": ["AI", "ネットワーク", "クラウド"]
         },
         "gmail_unread": {
             "name": "📧 Gmail 重要未読メール",
@@ -60,6 +67,52 @@ DEFAULT_SUGGEST_CONFIG = {
 }
 
 
+def _normalize_for_compare(text: str) -> str:
+    """重複判定用にテキストを正規化する。
+
+    HTMLタグ・HTMLエンティティ・空白・省略記号・括弧・ハイフン等を除去し、
+    小文字化した文字内容のみで比較できるようにする。
+
+    Args:
+        text: 正規化前のテキスト。
+
+    Returns:
+        str: 正規化済みテキスト（入力が空の場合は空文字）。
+    """
+    if not text:
+        return ""
+    t = re.sub(r"<[^>]+>", "", str(text))
+    t = t.replace("&nbsp;", " ").replace("&quot;", "").replace("&amp;", "&").replace("&lt;", "").replace("&gt;", "")
+    t = re.sub(r"[\s\.\．…・、。，,「」『』【】\-\u2014\u2015]+", "", t)
+    return t.lower()
+
+
+def _texts_near_duplicate(a: str, b: str, threshold: float = 0.6) -> bool:
+    """正規化済み2テキストがほぼ同一内容かを判定する。
+
+    片方包含の関係と文字集合のJaccard係数で判定する。
+    Google News RSS の description がタイトルの反復になっているケースや、
+    軽量LLMが同一内容を複数行に繰り返す劣化出力の検出に用いる。
+
+    Args:
+        a: 正規化済みテキスト1。
+        b: 正規化済みテキスト2。
+        threshold: 近似重複とみなすJaccard係数の閾値。
+
+    Returns:
+        bool: 近似重複とみなせる場合 True。
+    """
+    if not a or not b:
+        return False
+    if a in b or b in a:
+        return True
+    set_a, set_b = set(a), set(b)
+    union = set_a | set_b
+    if not union:
+        return False
+    return (len(set_a & set_b) / len(union)) >= threshold
+
+
 class SuggestionEngine:
     """サジェスト情報の集約と配信を行うエンジン"""
 
@@ -67,13 +120,22 @@ class SuggestionEngine:
         self.config = self._load_config()
         self._cache_suggestions: List[Dict[str, Any]] = []
         self._last_update_time: float = 0.0
+        self._news_cache: List[Dict[str, Any]] = []
+        self._last_news_fetch: float = 0.0
+        self._summary_cache: Dict[str, str] = {}  # 記事URL/ID -> 3行サマリのキャッシュ
 
     def _load_config(self) -> Dict[str, Any]:
         """設定のロード"""
         if CONFIG_PATH.exists():
             try:
                 with open(CONFIG_PATH, "r", encoding="utf-8") as f:
-                    return json.load(f)
+                    cfg = json.load(f)
+                    # 既存設定に keywords がない場合はデフォルト補完
+                    sources = cfg.get("sources", {})
+                    news_src = sources.get("news_topics", {})
+                    if "keywords" not in news_src:
+                        news_src["keywords"] = ["AI", "ネットワーク", "クラウド"]
+                    return cfg
             except Exception as e:
                 logger.error(f"サジェスト設定読み込み失敗: {e}")
         return DEFAULT_SUGGEST_CONFIG.copy()
@@ -101,6 +163,39 @@ class SuggestionEngine:
         if source_key in self.config["sources"]:
             self.config["sources"][source_key]["enabled"] = enabled
             self.save_config(self.config)
+
+    def get_news_keywords(self) -> List[str]:
+        """設定されている関心ニュースキーワード一覧を取得"""
+        sources = self.config.get("sources", {})
+        news_src = sources.get("news_topics", {})
+        kw = news_src.get("keywords", ["AI", "ネットワーク", "クラウド"])
+        if isinstance(kw, list):
+            return kw
+        elif isinstance(kw, str):
+            return [k.strip() for k in re.split(r"[,、\s]+", kw) if k.strip()]
+        return ["AI", "ネットワーク", "クラウド"]
+
+    def set_news_keywords(self, keywords: Any) -> None:
+        """関心ニュースキーワードを更新・永続化"""
+        if "sources" not in self.config:
+            self.config["sources"] = {}
+        if "news_topics" not in self.config["sources"]:
+            self.config["sources"]["news_topics"] = DEFAULT_SUGGEST_CONFIG["sources"]["news_topics"].copy()
+
+        if isinstance(keywords, list):
+            clean_kw = [str(k).strip() for k in keywords if str(k).strip()]
+        elif isinstance(keywords, str):
+            clean_kw = [k.strip() for k in re.split(r"[,、\s]+", keywords) if k.strip()]
+        else:
+            clean_kw = ["AI", "ネットワーク", "クラウド"]
+
+        if not clean_kw:
+            clean_kw = ["AI", "ネットワーク", "クラウド"]
+
+        self.config["sources"]["news_topics"]["keywords"] = clean_kw
+        self.save_config(self.config)
+        # キーワード変更時はニュースキャッシュを破棄して次回即座に再取得
+        self._last_news_fetch = 0.0
 
     def generate_suggestions(self) -> List[Dict[str, Any]]:
         """現在の各データソースからサジェストカード一覧を動的生成"""
@@ -195,8 +290,6 @@ class SuggestionEngine:
             })
 
         # 4.5 Gmail 重要未読メール (Google Workspace / OAuth認証済み時のみ)
-        # 注意: search_gmail_messages_tool は @tool デコレータ付きのため
-        # LangChain Toolオブジェクトであり、.invoke() で呼ぶ必要がある
         if self.is_source_enabled("gmail_unread"):
             try:
                 from google_workspace_tools import get_google_auth_status, search_gmail_messages_tool
@@ -223,10 +316,9 @@ class SuggestionEngine:
                             "tag": "Gmail"
                         })
             except Exception as e:
-                logger.debug(f"Gmailサジェスト生成スキップ（未認証または取得失敗）: {e}")
+                logger.debug(f"Gmailサジェスト生成スキップ: {e}")
 
         # 4.6 Googleカレンダー直前予定 (Google Workspace / OAuth認証済み時のみ)
-        # 注意: get_google_calendar_events_tool も @tool デコレータ付き
         if self.is_source_enabled("google_calendar"):
             try:
                 from google_workspace_tools import get_google_auth_status, get_google_calendar_events_tool
@@ -248,9 +340,9 @@ class SuggestionEngine:
                             "tag": "Google Calendar"
                         })
             except Exception as e:
-                logger.debug(f"Googleカレンダーサジェスト生成スキップ（未認証または取得失敗）: {e}")
+                logger.debug(f"Googleカレンダーサジェスト生成スキップ: {e}")
 
-        # 5. AI・技術トレンドニュース (News Topics)
+        # 5. パーソナライズ関心ニュース ＆ 3行AIサマリ (News Topics)
         if self.is_source_enabled("news_topics"):
             try:
                 news_items = self._get_cached_ai_news()
@@ -259,9 +351,9 @@ class SuggestionEngine:
                         "id": f"news_{n['id']}",
                         "source": "news",
                         "icon": "🌐",
-                        "title": n["title"],
+                        "title": f"【{n['media']}】{n['title']}",
                         "description": n["snippet"],
-                        "tag": "AIニュース",
+                        "tag": "技術トレンド",
                         "link": n.get("link", "")
                     })
             except Exception as e:
@@ -283,47 +375,195 @@ class SuggestionEngine:
         return suggestions
 
     def _get_cached_ai_news(self) -> List[Dict[str, Any]]:
-        """Google News RSS (AI / LLM / Python) から最新ニュースを取得・キャッシュ (30分更新)"""
+        """設定された関心キーワードでRSSを取得し、3行AIサマリを付与してキャッシュ (30分更新)"""
         now = time.time()
-        if hasattr(self, '_news_cache') and (now - getattr(self, '_last_news_fetch', 0)) < 1800:
+        # 古いフォーマット（... が含まれるサマリ）がキャッシュされている場合は即座に破棄
+        has_legacy_summary = False
+        if hasattr(self, '_news_cache') and self._news_cache:
+            for item in self._news_cache:
+                if "..." in item.get("snippet", "") or "…" in item.get("snippet", ""):
+                    has_legacy_summary = True
+                    break
+
+        if not has_legacy_summary and hasattr(self, '_news_cache') and self._news_cache and (now - getattr(self, '_last_news_fetch', 0)) < 1800:
             return self._news_cache
 
-        import xml.etree.ElementTree as ET
-        import urllib.request
+        # キャッシュパージ
+        if has_legacy_summary:
+            self._summary_cache.clear()
+            self._news_cache.clear()
 
-        url = "https://news.google.com/rss/search?q=AI+LLM+Python+%E7%94%9F%E6%88%90AI&hl=ja&gl=JP&ceid=JP:ja"
-        news_list = []
-        try:
-            req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"})
-            with urllib.request.urlopen(req, timeout=5) as res:
-                xml_data = res.read()
-                root = ET.fromstring(xml_data)
-                for item in root.findall("./channel/item")[:5]:
-                    title_elem = item.find("title")
-                    title = title_elem.text if title_elem is not None else ""
-                    link_elem = item.find("link")
-                    link = link_elem.text if link_elem is not None else ""
-                    # 媒体名（- 〇〇）の分離
-                    parts = title.rsplit(" - ", 1)
-                    main_title = parts[0] if parts else title
-                    media = parts[1] if len(parts) > 1 else "AIトピック"
-                    
-                    news_list.append({
-                        "id": abs(hash(title)) % 100000,
-                        "title": f"【{media}】{main_title}",
-                        "snippet": "AI業界の最新動向です。「元記事を開く」ボタンで詳細をチェックできます。",
-                        "link": link
-                    })
-        except Exception as e:
-            logger.debug(f"ニュースRSS取得スキップ: {e}")
+        keywords = self.get_news_keywords()
+        query = " OR ".join(keywords) if keywords else "AI OR ネットワーク OR クラウド"
+        
+        raw_news = web_tools.fetch_news_rss(query=query, limit=5)
+        news_list: List[Dict[str, Any]] = []
+
+        if not raw_news:
+            # フォールバック
             news_list = [
-                {"id": 1, "title": "【AIトレンド】最新のLLMエージェント技術が急速進化中", "snippet": "自律コーディングとマルチエージェント協調が注目されています。"},
-                {"id": 2, "title": "【Python開発】LangGraphによるグラフ型AI設計が普及拡大", "snippet": "堅牢なループ制御と状態管理で実用アプリ開発が進んでいます。"}
+                {
+                    "id": 1, 
+                    "title": "最新のLLMエージェント技術が急速進化中", 
+                    "media": "AIトレンド",
+                    "snippet": "・自律コーディングと並列協調が注目\n・軽量モデルの内包化が進む\n・常駐秘書エージェントの実用化拡大",
+                    "link": ""
+                },
+                {
+                    "id": 2, 
+                    "title": "LangGraphによるグラフ型AI設計が普及拡大", 
+                    "media": "Python開発",
+                    "snippet": "・ステートマシン制御による堅牢ループ\n・ToolNodeとHuman-in-the-loop統合\n・非同期UI共存のベストプラクティス",
+                    "link": ""
+                }
             ]
+        else:
+            # タイトル正規化による重複排除（同一記事が複数行として並ぶ障害の防止）
+            seen_titles: set = set()
+            for item in raw_news:
+                title_norm = _normalize_for_compare(item.get("title", ""))
+                if title_norm and title_norm in seen_titles:
+                    continue
+                if title_norm:
+                    seen_titles.add(title_norm)
+                cache_key = item["link"] or str(item["id"])
+                # 古いキャッシュに ... があれば再生成
+                if cache_key in self._summary_cache and "..." not in self._summary_cache[cache_key]:
+                    summary = self._summary_cache[cache_key]
+                else:
+                    summary = self._generate_3line_summary(
+                        title=item["title"],
+                        description=item.get("description", ""),
+                        media=item.get("media", "")
+                    )
+                    self._summary_cache[cache_key] = summary
+
+                news_list.append({
+                    "id": item["id"],
+                    "title": item["title"],
+                    "media": item["media"],
+                    "snippet": summary,
+                    "link": item["link"]
+                })
+                # サマリ生成はサジェスト表示枠（最大3件）分のみで十分
+                # （クラウドLLM利用時の応答レイテンシ抑制）
+                if len(news_list) >= 3:
+                    break
 
         self._news_cache = news_list
         self._last_news_fetch = now
         return news_list
+
+    def _generate_3line_summary(self, title: str, description: str, media: str = "") -> str:
+        """
+        ニュースタイトルと概要から、LLMまたはルールベースで『3行サマリ』を動的生成。
+        Google News RSS 特有の末尾の ... や HTMLゴミを徹底クリーンアップし、
+        画面上で自然に折り返して読める綺麗な3行箇条書きを構築します。
+        """
+        clean_title = re.sub(r"<[^>]+>", "", title).strip()
+        clean_title = clean_title.replace("&quot;", '"').replace("&amp;", '&').replace("&lt;", '<').replace("&gt;", '>')
+
+        # 1. ルールベースによるフォールバック文字列の構築
+        fallback_lines = []
+        
+        # 行1: タイトルを箇条書き1行目として提示（これが自然に折り返されて読める）
+        fallback_lines.append(f"・{clean_title}")
+
+        # 行2: description からの要約文抽出（末尾の ... や &nbsp; を徹底クリーンアップ）
+        if description:
+            clean_desc = re.sub(r"<[^>]+>", "", description).strip()
+            clean_desc = clean_desc.replace("&nbsp;", " ").replace("&quot;", '"').replace("&amp;", '&').strip()
+            # 末尾や途中の連続するドットや三点リーダーを除去
+            clean_desc = re.sub(r"[\.．…\s]+$", "", clean_desc)
+            # 末尾の媒体名サフィックス（" - Yahoo!ニュース" 等）を分離
+            if media and clean_desc.endswith(f"- {media}"):
+                clean_desc = clean_desc[: -len(f"- {media}")].strip()
+            # 過長の説明文は読める長さへトリム
+            if len(clean_desc) > 80:
+                clean_desc = clean_desc[:80].rstrip() + "…"
+            # タイトル（またはその反復）とほぼ同一内容の行は採用しない
+            # （Google News RSS の description はタイトルの反復であることが多いため）
+            desc_norm = _normalize_for_compare(clean_desc)
+            if desc_norm and len(desc_norm) >= 6 and not _texts_near_duplicate(desc_norm, _normalize_for_compare(clean_title)):
+                fallback_lines.append(f"・{clean_desc}")
+
+        # 行3: メディア名・詳細誘導
+        fallback_lines.append(f"・{media or '公式'}の最新ニュース（タップで詳細）")
+
+        # 3行に満たない場合の補完
+        while len(fallback_lines) < 3:
+            fallback_lines.append("・タップで元記事の詳細を確認できます")
+
+        fallback_summary = "\n".join(fallback_lines[:3])
+
+        # 2. 超軽量AI（LLMFactory）による高精度サマリ生成の試行
+        try:
+            from llm_factory import get_llm_factory, LLMProvider
+            factory = get_llm_factory()
+            # 旧実装は存在しない factory.get_llm() を呼び出しており LLM 経路が恒久的に
+            # 不発していた。また軽量ローカルモデル（GGUF）はトークン反復により同一内容を
+            # 複数行に繰り返す劣化出力を起こすため、クラウドプロバイダ時のみ
+            # create_model() で生成した LLM による要約を試行する（失敗時はルールベース）。
+            llm = None
+            if factory.current_provider != LLMProvider.LOCAL_GGUF:
+                llm = factory.create_model()
+            if llm is not None:
+                prompt = (
+                    "以下のニュース記事の要点を、忙しいエンジニアがひと目で把握できるように、"
+                    "「・」で始まる簡潔な3行の箇条書き（合計3行のみ）で要約してください。\n"
+                    f"【タイトル】: {clean_title}\n"
+                    f"【概要】: {description[:400]}\n"
+                    "出力は3行の箇条書きテキストのみにしてください。同じ内容を繰り返さないでください。"
+                )
+                response = llm.invoke(prompt)
+                res_text = response.content if hasattr(response, "content") else str(response)
+                
+                # 3行箇条書きの抽出・整形
+                clean_lines = [
+                    ln.strip() if ln.strip().startswith("・") or ln.strip().startswith("- ") else f"・{ln.strip()}"
+                    for ln in res_text.splitlines() if ln.strip()
+                ]
+                clean_lines = [re.sub(r"^[-*]\s*", "・", ln) for ln in clean_lines]
+                # 同一内容の反復に崩壊した出力は破棄し、ルールベースへフォールバックする
+                if clean_lines and self._summary_lines_are_degenerate(clean_lines, clean_title):
+                    logger.debug("AI 3行サマリが反復・劣化したためルールベースへフォールバック")
+                    clean_lines = []
+                if len(clean_lines) >= 3:
+                    return "\n".join(clean_lines[:3])
+                elif clean_lines:
+                    while len(clean_lines) < 3:
+                        clean_lines.append("・タップで詳細記事を確認できます")
+                    return "\n".join(clean_lines[:3])
+        except Exception as e:
+            logger.debug(f"AI 3行サマリ生成スキップ (ルールベース適用): {e}")
+
+        return fallback_summary
+
+    @staticmethod
+    def _summary_lines_are_degenerate(lines: List[str], title: str) -> bool:
+        """3行サマリが「同一内容の反復」に崩壊していないかを判定する。
+
+        Args:
+            lines: LLM出力から抽出した箇条書き行。
+            title: 元記事のタイトル。
+
+        Returns:
+            bool: 崩壊している（ルールベースへフォールバックすべき）場合 True。
+        """
+        norm_lines = [ln for ln in (_normalize_for_compare(ln) for ln in lines) if ln]
+        if len(norm_lines) < 2:
+            return True
+        # 近似重複行をグルーピングして実質的な行数を数える
+        distinct: List[str] = []
+        for ln in norm_lines:
+            if not any(_texts_near_duplicate(ln, d) for d in distinct):
+                distinct.append(ln)
+        if len(distinct) < 2:
+            return True
+        # タイトル行を除いた残りがすべてタイトルの近似反復なら崩壊扱い
+        title_norm = _normalize_for_compare(title)
+        non_title = [ln for ln in distinct if not _texts_near_duplicate(ln, title_norm)]
+        return len(non_title) == 0
 
 
 # シングルトンインスタンス

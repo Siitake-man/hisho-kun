@@ -15,6 +15,100 @@
   let isEffectRunning = false;
   let lastProcessedEventId = '';
 
+  // ==========================================================================
+  // 演出モード管理 (11.3: 低スペ端末向け軽量化 + スキップ設定)
+  // 'full' = 標準演出 / 'light' = 軽量演出(重いエフェクト省略) / 'off' = 演出スキップ
+  // ==========================================================================
+  const EFFECT_MODE_KEY = 'hisho_effect_mode';
+  const EFFECT_MODES = ['full', 'light', 'off'];
+  const EFFECT_MODE_LABELS = { full: '標準', light: '軽量', off: 'OFF' };
+
+  /**
+   * 端末性能から推奨演出モードを判定する（初回のみ）。
+   * @returns {string} 'full' | 'light'
+   */
+  function detectDefaultMode() {
+    try {
+      // OSの「動きを減らす」設定を最優先で尊重
+      if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        return 'light';
+      }
+      const mem = navigator.deviceMemory;
+      const cores = navigator.hardwareConcurrency;
+      if ((mem && mem <= 2) || (cores && cores <= 4)) {
+        return 'light';
+      }
+    } catch (e) {
+      console.debug('Effect mode detection error:', e);
+    }
+    return 'full';
+  }
+
+  /**
+   * 現在の演出モードを取得する（未設定なら端末性能から自動判定して保存）。
+   * @returns {string} 'full' | 'light' | 'off'
+   */
+  function getEffectMode() {
+    let mode = null;
+    try {
+      mode = localStorage.getItem(EFFECT_MODE_KEY);
+    } catch (e) {
+      console.debug('localStorage unavailable:', e);
+    }
+    if (!mode || EFFECT_MODES.indexOf(mode) === -1) {
+      mode = detectDefaultMode();
+      saveEffectMode(mode);
+    }
+    return mode;
+  }
+
+  /**
+   * 演出モードを保存する。
+   * @param {string} mode - 'full' | 'light' | 'off'
+   */
+  function saveEffectMode(mode) {
+    if (EFFECT_MODES.indexOf(mode) === -1) return;
+    try {
+      localStorage.setItem(EFFECT_MODE_KEY, mode);
+    } catch (e) {
+      console.debug('localStorage unavailable:', e);
+    }
+  }
+
+  /**
+   * 演出モードを設定する（設定UIから呼び出し）。
+   * @param {string} mode - 'full' | 'light' | 'off'
+   * @returns {string} 設定後のモード
+   */
+  function setEffectMode(mode) {
+    saveEffectMode(mode);
+    const label = EFFECT_MODE_LABELS[getEffectMode()] || mode;
+    showEasterEggToast(`✨ 演出モード: ${label}`, '#00E676', 2000);
+    return getEffectMode();
+  }
+
+  /**
+   * 演出モードを 標準→軽量→OFF→標準 の順で循環切替する（設定UI用）。
+   * @returns {string} 切替後のモード
+   */
+  function cycleEffectMode() {
+    const idx = EFFECT_MODES.indexOf(getEffectMode());
+    const next = EFFECT_MODES[(idx + 1) % EFFECT_MODES.length];
+    return setEffectMode(next);
+  }
+
+  /**
+   * ミニゲーム解放バッジ（👾 秘密の部屋）を点灯させる。
+   * 演出モードに関係なく、解放ロジック自体は必ず実行される。
+   */
+  function unlockSecretGameBadge() {
+    const badge = document.getElementById('secret-game-badge');
+    if (badge) {
+      badge.style.display = 'inline-flex';
+      badge.classList.add('badge-unlocked-pulse');
+    }
+  }
+
   /**
    * Web Audio API コンテキストの取得＆アンロック
    */
@@ -239,48 +333,93 @@
     if (isEffectRunning) return;
     isEffectRunning = true;
 
+    // 演出OFF: 視覚・音響演出を完全スキップ。
+    // ただし解放バッジ点灯などの「実ロジック」は必ず維持する（機能が壊れないことを優先）。
+    if (getEffectMode() === 'off') {
+      const offModeMsg = document.getElementById('pet-message');
+      if (offModeMsg && eventData.message) {
+        offModeMsg.textContent = eventData.message;
+      }
+      if (stage >= 4) {
+        unlockSecretGameBadge();
+        showEasterEggToast('👾 シークレットゲーム解放！（演出OFF）', '#00E676', 3000);
+      }
+      isEffectRunning = false;
+      return;
+    }
+
+    const lightMode = getEffectMode() === 'light';
     const casing = document.querySelector('.device-casing') || document.body;
     const petImg = document.getElementById('pet-img');
     const msgEl = document.getElementById('pet-message');
 
-    // 1. Stage 1: 微振動 ＆ とぼけ
+    // 1. Stage 1: 微振動 ＆ とぼけ（軽量モードでは振動エフェクトを省略）
     if (stage === 1) {
       playSynthSound('blip');
-      casing.classList.add('fx-shake-light');
       showEasterEggToast('❓ 消去コマンド検知…？', '#FFB800', 2500);
-      setTimeout(() => {
-        casing.classList.remove('fx-shake-light');
+      if (!lightMode) {
+        casing.classList.add('fx-shake-light');
+        setTimeout(() => {
+          casing.classList.remove('fx-shake-light');
+          isEffectRunning = false;
+        }, 600);
+      } else {
         isEffectRunning = false;
-      }, 600);
+      }
 
-    // 2. Stage 2: 却下 ＆ 赤スキャンライン
+    // 2. Stage 2: 却下 ＆ 赤スキャンライン（軽量モードではパルスエフェクトを省略）
     } else if (stage === 2) {
       playSynthSound('reject');
-      casing.classList.add('fx-reject-pulse');
       showEasterEggToast('⛔ 削除要求を却下しました', '#FF1744', 3000);
       if (msgEl && eventData.message) {
         msgEl.textContent = eventData.message;
       }
-      setTimeout(() => {
-        casing.classList.remove('fx-reject-pulse');
+      if (!lightMode) {
+        casing.classList.add('fx-reject-pulse');
+        setTimeout(() => {
+          casing.classList.remove('fx-reject-pulse');
+          isEffectRunning = false;
+        }, 1200);
+      } else {
         isEffectRunning = false;
-      }, 1200);
+      }
 
-    // 3. Stage 3: CRT走査線 ＆ RGB色収差グリッチ
+    // 3. Stage 3: CRT走査線 ＆ RGB色収差グリッチ（軽量モードではグリッチエフェクトを省略）
     } else if (stage === 3) {
       playSynthSound('glitch');
-      casing.classList.add('fx-glitch-active');
       showEasterEggToast('⚡ 回線ノイズ発生…！', '#AB47BC', 3000);
       if (msgEl && eventData.message) {
         msgEl.textContent = eventData.message;
       }
-      setTimeout(() => {
-        casing.classList.remove('fx-glitch-active');
+      if (!lightMode) {
+        casing.classList.add('fx-glitch-active');
+        setTimeout(() => {
+          casing.classList.remove('fx-glitch-active');
+          isEffectRunning = false;
+        }, 2000);
+      } else {
         isEffectRunning = false;
-      }, 2000);
+      }
 
     // 4. Stage 4: 暗転 ➔ ピクセル粒子消滅 ➔ 復活ファンファーレ ＆ 解放
     } else if (stage === 4 || stage >= 5) {
+      // 軽量モード: 暗転・全画面Canvas粒子を省略し、短いフェードで復活を表現
+      if (lightMode) {
+        playSynthSound('revive');
+        showEasterEggToast('✨ 案内精霊は復活しました！（軽量演出）', '#00E676', 2500);
+        if (petImg) {
+          petImg.style.transition = 'opacity 0.4s ease';
+          petImg.style.opacity = '0.2';
+          setTimeout(() => {
+            petImg.style.opacity = '1';
+            petImg.style.transition = '';
+          }, 400);
+        }
+        unlockSecretGameBadge();
+        isEffectRunning = false;
+        return;
+      }
+
       playSynthSound('glitch');
       casing.classList.add('fx-blackout');
       showEasterEggToast('💀 消滅プロセス開始……', '#FF1744', 2000);
@@ -303,11 +442,7 @@
             showEasterEggToast('✨ 案内精霊は完全復活しました！', '#00E676', 4000);
 
             // ミニゲーム解放バッジの点灯
-            const badge = document.getElementById('secret-game-badge');
-            if (badge) {
-              badge.style.display = 'inline-flex';
-              badge.classList.add('badge-unlocked-pulse');
-            }
+            unlockSecretGameBadge();
 
             setTimeout(() => {
               casing.classList.remove('fx-revive-burst');
@@ -382,7 +517,10 @@
     trigger: triggerEffect,
     syncFromStatus: syncFromStatus,
     triggerFromPwa: triggerFromPwa,
-    playSound: playSynthSound
+    playSound: playSynthSound,
+    getEffectMode: getEffectMode,
+    setEffectMode: setEffectMode,
+    cycleEffectMode: cycleEffectMode
   };
 
 })(window);

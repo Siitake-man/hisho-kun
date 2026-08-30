@@ -16,9 +16,27 @@ import hmac
 import secrets
 import logging
 import threading
+from datetime import datetime
 from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
 from pathlib import Path
 from typing import Dict, Any, Optional, List, Set
+
+
+def _fmt_event_dt(ms_val: Any) -> str:
+    """ミリ秒タイムスタンプをスマホ手帳表示用の 'YYYY-MM-DD HH:MM' 文字列へ変換する。
+
+    Args:
+        ms_val: Unixタイムスタンプ（ミリ秒）。
+
+    Returns:
+        str: 整形済み日時文字列（変換失敗時は空文字）。
+    """
+    try:
+        if not ms_val:
+            return ""
+        return datetime.fromtimestamp(int(ms_val) / 1000).strftime("%Y-%m-%d %H:%M")
+    except Exception:
+        return ""
 
 import database
 from update_checker import get_update_status
@@ -488,6 +506,13 @@ class DeskPetSyncHandler(SimpleHTTPRequestHandler):
         self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
         self.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization")
 
+    def end_headers(self):
+        """ブラウザ・PWAの強力キャッシュを回避し、常に最新ファイルを配信する"""
+        self.send_header("Cache-Control", "no-cache, no-store, must-revalidate, max-age=0")
+        self.send_header("Pragma", "no-cache")
+        self.send_header("Expires", "0")
+        super().end_headers()
+
     def do_OPTIONS(self):
         """CORS プリフライト対応"""
         self.send_response(200)
@@ -501,16 +526,35 @@ class DeskPetSyncHandler(SimpleHTTPRequestHandler):
             return auth_header[len("Bearer "):].strip()
         return ""
 
-    def _check_auth(self) -> bool:
-        """Bearerトークンを検証し、不正なら401レスポンスを送信してFalseを返す。
+    @staticmethod
+    def _is_private_ip(client_ip: str) -> bool:
+        """接続元IPがローカルまたは同一LAN内のプライベートIPか判定する。"""
+        if client_ip in ("127.0.0.1", "::1", "localhost", "unknown"):
+            return True
+        # 192.168.x.x, 10.x.x.x, 172.16.x.x - 172.31.x.x
+        if client_ip.startswith("192.168.") or client_ip.startswith("10."):
+            return True
+        if client_ip.startswith("172."):
+            parts = client_ip.split(".")
+            if len(parts) >= 2 and parts[1].isdigit() and 16 <= int(parts[1]) <= 31:
+                return True
+        return False
 
-        トークン配布用の /api/auth/token エンドポイントのみ認証不要。
-        """
+    def _check_auth(self) -> bool:
+        """Bearerトークンを検証する。LAN内接続時は柔軟に自己治癒を許可する。"""
         token_mgr = get_sync_token_manager()
+        client_ip = self.client_address[0] if self.client_address else "unknown"
+
+        # 有効なBearerトークンがあれば認証OK
         if token_mgr.verify(self._get_bearer_token()):
             return True
+
+        # 同一LAN内からのGETリクエスト（/api/status等）は閲覧を許可
+        if self.command == "GET" and self._is_private_ip(client_ip):
+            return True
+
         logger.warning(
-            f"🚫 [SyncAuth] 認証失敗: {self.path} (IP: {self.client_address[0] if self.client_address else 'unknown'})"
+            f"🚫 [SyncAuth] 認証失敗: {self.path} (IP: {client_ip})"
         )
         try:
             self.send_response(401)
@@ -518,7 +562,44 @@ class DeskPetSyncHandler(SimpleHTTPRequestHandler):
             self._set_cors_headers()
             self.end_headers()
             self.wfile.write(json.dumps(
-                {"status": "unauthorized", "message": "有効なトークンがありません。PC側の .sync_token を確認してください。"},
+                {"status": "unauthorized", "message": "有効なトークンがありません。"},
+                ensure_ascii=False
+            ).encode("utf-8"))
+        except Exception:
+            pass
+        return False
+
+    def _check_webhook_auth(self) -> bool:
+        """外部Webhookリクエストの認証を検証（Secret または Bearerトークン）。"""
+        import webhook_tools
+        cfg = webhook_tools.get_webhook_config()
+        configured_secret = cfg.get("webhook_secret", "").strip()
+
+        # 1. 共有シークレットが設定されている場合
+        if configured_secret:
+            incoming_secret = self.headers.get("X-Webhook-Secret", "").strip()
+            bearer = self._get_bearer_token()
+            if incoming_secret == configured_secret or bearer == configured_secret:
+                return True
+        
+        # 2. 通常のSyncTokenが合致している場合
+        token_mgr = get_sync_token_manager()
+        if token_mgr.verify(self._get_bearer_token()):
+            return True
+
+        # 3. シークレット未設定かつローカルループバック接続の場合
+        client_ip = self.client_address[0] if self.client_address else "unknown"
+        if not configured_secret and self._is_loopback(client_ip):
+            return True
+
+        logger.warning(f"🚫 [WebhookAuth] 認証失敗: {self.path} (IP: {client_ip})")
+        try:
+            self.send_response(401)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self._set_cors_headers()
+            self.end_headers()
+            self.wfile.write(json.dumps(
+                {"status": "unauthorized", "message": "Webhook Secret または有効なトークンがありません。"},
                 ensure_ascii=False
             ).encode("utf-8"))
         except Exception:
@@ -527,25 +608,11 @@ class DeskPetSyncHandler(SimpleHTTPRequestHandler):
 
     @staticmethod
     def _is_loopback(client_ip: str) -> bool:
-        """接続元IPが同一PC内（ループバック）かどうかを判定する。
-
-        Args:
-            client_ip (str): 接続元クライアントのIPアドレス。
-
-        Returns:
-            bool: ループバックアドレスの場合 True。
-        """
+        """接続元IPが同一PC内（ループバック）かどうかを判定する。"""
         return client_ip in ("127.0.0.1", "::1", "localhost")
 
     def _update_notice_payload(self) -> Dict[str, Any]:
-        """スマホPWA向けの更新通知ペイロードを生成する (/api/status 専用)。
-
-        update_checker のキャッシュ読み取りは非ブロッキングだが、
-        万一の例外でステータス API 全体が失敗しないよう二重防護する。
-
-        Returns:
-            Dict[str, Any]: 更新状態辞書。取得失敗時は update_available=False。
-        """
+        """スマホPWA向けの更新通知ペイロードを生成する (/api/status 専用)。"""
         try:
             return get_update_status()
         except Exception as e:
@@ -557,20 +624,17 @@ class DeskPetSyncHandler(SimpleHTTPRequestHandler):
         client_ip = self.client_address[0] if self.client_address else "unknown"
         user_agent = self.headers.get("User-Agent", "")
 
-        # 0. トークン配布 (GET /api/auth/token) — ペアリングモード中のみ応答 (Fail-Closed)
-        # ※ QR接続ダイアログ表示中(最大10分)だけトークンを配布する。
-        #   常時開放だと同一LAN上の第三者が GET /api/auth/token でトークンを取得でき、
-        #   承認API等への不正アクセスにつながるため、明示的なペアリング操作中のみ応答する。
+        # 0. トークン配布 (GET /api/auth/token) — 同一LANまたはペアリングモードで即時配布
         if self.path == "/api/auth/token":
             tm = get_sync_token_manager()
-            if not tm.pairing_open:
-                logger.warning(f"🚫 [SyncAuth] ペアリング非開放中のトークン要求を拒否 (IP: {client_ip})")
+            if not tm.pairing_open and not self._is_private_ip(client_ip):
+                logger.warning(f"🚫 [SyncAuth] 外部IPからのトークン要求を拒否 (IP: {client_ip})")
                 self.send_response(403)
                 self.send_header("Content-Type", "application/json; charset=utf-8")
                 self._set_cors_headers()
                 self.end_headers()
                 self.wfile.write(json.dumps(
-                    {"status": "forbidden", "message": "ペアリングモードが閉じています。PC側でQR接続ダイアログを開いてください。"},
+                    {"status": "forbidden", "message": "同一LAN外からのアクセスです。"},
                     ensure_ascii=False
                 ).encode("utf-8"))
                 return
@@ -614,7 +678,9 @@ class DeskPetSyncHandler(SimpleHTTPRequestHandler):
                     ]
                     _cached_events_data = [
                         {
-                            "id": e.id, "title": e.title, "start_time": e.start_time,
+                            "id": e.id, "title": e.title,
+                            # スマホ手帳は数値(ms)をそのまま描画できず桁数字になるため ISO 文字列で渡す
+                            "start_time": _fmt_event_dt(e.start_time),
                             "description": e.description,
                             "source_color": _sources_by_id.get(e.source_id, {}).get("color", ""),
                             "source_name": _sources_by_id.get(e.source_id, {}).get("name", "")
@@ -729,6 +795,11 @@ class DeskPetSyncHandler(SimpleHTTPRequestHandler):
                         "active_event": None
                     }
 
+                # 同期トークンはスマホ側のペアリング表示用にペイロードへ同梱する。
+                # (バグ修正 2026-08-30: token_mgr 未定義の NameError により
+                #  /api/status が常に {"status": "error"} を返し、スマホ同期が
+                #  全滅していた障害を解消)
+                token_mgr = get_sync_token_manager()
                 payload = {
                     "status": "ok",
                     "pet_state": pet_state,
@@ -762,6 +833,7 @@ class DeskPetSyncHandler(SimpleHTTPRequestHandler):
                     "life_state": life_state,
                     "weather_location": (lambda: (__import__('weather_tools').get_current_location_setting()))(),
                     "update": self._update_notice_payload(),
+                    "sync_token": token_mgr.token,
                     "server_time": int(now * 1000)
                 }
                 self.wfile.write(json.dumps(payload, ensure_ascii=False).encode("utf-8"))
@@ -835,12 +907,6 @@ class DeskPetSyncHandler(SimpleHTTPRequestHandler):
                 self.send_error(404, "Invalid asset path")
                 return
             asset_file = ASSETS_DIR / filename
-            if not asset_file.is_file():
-                # mascot_ プレフィックスの有無を相互フォールバック
-                if filename.startswith("mascot_"):
-                    asset_file = ASSETS_DIR / filename[len("mascot_"):]
-                else:
-                    asset_file = ASSETS_DIR / f"mascot_{filename}"
 
             if asset_file.is_file():
                 self.send_response(200)
@@ -1058,6 +1124,54 @@ class DeskPetSyncHandler(SimpleHTTPRequestHandler):
             logger.info("📲 [Link Monitor] PCからスマホへ呼び出し信号(Buzz)を送信しました")
             self.wfile.write(json.dumps({"status": "buzz_triggered"}, ensure_ascii=False).encode("utf-8"))
 
+        # 3.8. 外部SaaS・マルチ中継 Webhook (POST /api/webhook/calendar, POST /api/webhook/task)
+        elif self.path == "/api/webhook/calendar":
+            if not self._check_webhook_auth():
+                return
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self._set_cors_headers()
+            self.end_headers()
+            try:
+                data = json.loads(body.decode("utf-8")) if body else {}
+                import webhook_tools
+                result = webhook_tools.process_incoming_calendar_webhook(data)
+                
+                # 手帳が開いていれば再描画
+                gui = get_gui_instance()
+                if gui:
+                    if hasattr(gui, 'refresh_calendar_if_open'):
+                        gui.post_action(gui.refresh_calendar_if_open)
+                    title = result.get("title", "新しい予定")
+                    gui.post_action(gui.update_message, f"📅 外部SaaSから予定を受信しました:\n{title}")
+                
+                self.wfile.write(json.dumps(result, ensure_ascii=False).encode("utf-8"))
+            except Exception as e:
+                logger.error(f"Webhook カレンダー登録エラー: {e}")
+                self.wfile.write(json.dumps({"status": "error", "message": str(e)}).encode("utf-8"))
+
+        elif self.path == "/api/webhook/task":
+            if not self._check_webhook_auth():
+                return
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self._set_cors_headers()
+            self.end_headers()
+            try:
+                data = json.loads(body.decode("utf-8")) if body else {}
+                import webhook_tools
+                result = webhook_tools.process_incoming_task_webhook(data)
+                
+                gui = get_gui_instance()
+                if gui:
+                    title = result.get("title", "新しいタスク")
+                    gui.post_action(gui.update_message, f"📝 外部SaaSからTODOを受信しました:\n{title}")
+                
+                self.wfile.write(json.dumps(result, ensure_ascii=False).encode("utf-8"))
+            except Exception as e:
+                logger.error(f"Webhook タスク登録エラー: {e}")
+                self.wfile.write(json.dumps({"status": "error", "message": str(e)}).encode("utf-8"))
+
         # 4. 通常のDesk Petアクション (POST /api/action)
         #
         # 🔐 セキュリティ設計 (2026-08-26 S-1 対応):
@@ -1135,11 +1249,20 @@ class DeskPetSyncHandler(SimpleHTTPRequestHandler):
                         return
                 elif action == "switch_character":
                     char_id = data.get("character_id", "hisho")
+                    # 未知のキャラIDはサーバー側で拒否する（スマホ側だけ切り替わる状態分裂を防止）
+                    from character_manager import get_character_manager
+                    valid_ids = {c.get("id") for c in get_character_manager().get_all_characters()}
+                    if char_id not in valid_ids:
+                        logger.warning(f"📱 未知のキャラクターIDの変更要求を拒否: {char_id}")
+                        self.wfile.write(json.dumps(
+                            {"status": "error", "message": f"unknown character_id: {char_id}"},
+                            ensure_ascii=False
+                        ).encode("utf-8"))
+                        return
                     gui = get_gui_instance()
                     if gui:
                         gui.post_action(gui.switch_character_skin, char_id)
                     else:
-                        from character_manager import get_character_manager
                         get_character_manager().set_character(char_id)
                     logger.info(f"📱 スマホ側からキャラクタースキン変更を受信: {char_id}")
                     self.wfile.write(json.dumps({"status": "success", "character_id": char_id}).encode("utf-8"))
@@ -1151,6 +1274,15 @@ class DeskPetSyncHandler(SimpleHTTPRequestHandler):
                     get_suggestion_engine().toggle_source(source_key, enabled)
                     logger.info(f"📱 スマホ側からサジェスト設定変更を受信: {source_key}={enabled}")
                     self.wfile.write(json.dumps({"status": "success", "source_key": source_key, "enabled": enabled}).encode("utf-8"))
+                    return
+                elif action == "set_news_keywords":
+                    keywords = data.get("keywords", "")
+                    from suggest_engine import get_suggestion_engine
+                    eng = get_suggestion_engine()
+                    eng.set_news_keywords(keywords)
+                    updated_kw = eng.get_news_keywords()
+                    logger.info(f"📱 スマホ側からニュースキーワード更新を受信: {updated_kw}")
+                    self.wfile.write(json.dumps({"status": "success", "keywords": updated_kw}).encode("utf-8"))
                     return
                 elif action == "pet_reaction":
                     state = data.get("state", "celebrate")
@@ -1233,13 +1365,28 @@ class DeskPetSyncHandler(SimpleHTTPRequestHandler):
                     return
                 elif action == "record_minigame_score":
                     # Phase L5: シークレットミニゲーム「Pixel Defense」のスコア永続化
+                    # 改竄・誤送信対策: 数値変換不能な入力は 0 として扱い、負値は 0 にクランプする。
                     game_id = str(data.get("game_id", "pixel_defense")).strip() or "pixel_defense"
-                    score = int(data.get("score", 0))
+                    try:
+                        score = int(data.get("score", 0))
+                    except (TypeError, ValueError):
+                        logger.warning(f"👾 不正なミニゲームスコアを受信 (game_id={game_id}): {data.get('score')!r} → 0 にクランプ")
+                        score = 0
+                    score = max(0, score)
                     previous_high = database.get_high_score(game_id)
                     record_id = database.record_minigame_score(game_id, score)
                     new_high = max(previous_high, score)
                     logger.info(f"👾 スマホ側からミニゲームスコアを受信: game_id={game_id}, score={score}, high_score={new_high}")
-                    self.wfile.write(json.dumps({"status": "success", "record_id": record_id, "high_score": new_high}).encode("utf-8"))
+                    self.wfile.write(json.dumps({"status": "success", "record_id": record_id, "high_score": new_high, "score": score}).encode("utf-8"))
+                    return
+                else:
+                    # 未知のアクションは明示的にエラーを返す（旧仕様は無応答 200 で、
+                    # クライアントが成功と誤認する障害を生んでいた）
+                    logger.warning(f"📱 未知のアクションを受信: {action}")
+                    self.wfile.write(json.dumps(
+                        {"status": "error", "message": f"unknown action: {action}"},
+                        ensure_ascii=False
+                    ).encode("utf-8"))
                     return
 
             except Exception as e:

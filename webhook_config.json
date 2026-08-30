@@ -1,0 +1,6 @@
+{
+  "outgoing_webhook_url": "",
+  "webhook_secret": "",
+  "sync_events": true,
+  "sync_tasks": true
+}

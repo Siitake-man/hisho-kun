@@ -1,0 +1,106 @@
+# -*- mode: python ; coding: utf-8 -*-
+"""
+ネオ秘書くん - PyInstaller ビルド定義 (neo_hisho.spec)
+
+配布形態: onedir (フォルダ + zip) — 起動が速く、AV (ウイルス対策ソフト) の
+誤検知リスクが onefile より低い (ボス承認済み方針)。
+
+設計方針 (Why):
+- 読み取り専用リソース (web_pet/, assets/, docs/guides/, .env.example) は
+  datas で _internal/ へ同梱する。アプリ側の ``Path(__file__).parent`` 相対
+  ロジックは onedir では _internal を指すため、アプリコードは無変更で動作する。
+- 書き込みデータ (DB, .env, models/, backups/, 各種設定JSON) は同梱せず、
+  app_paths.get_app_root() が解決する exe 直下 (ポータブル運用) に置かれる。
+- LLM モデル (GGUF) は同梱しない。``NeoHisho.exe --setup-model`` で
+  Hugging Face からダウンロードする (tools/setup_local_model.py を利用)。
+
+実行方法 (ボス手動):
+    venv\\Scripts\\python.exe build_exe.py
+"""
+
+from PyInstaller.utils.hooks import collect_data_files, collect_dynamic_libs
+
+a = Analysis(
+    ['main.py'],
+    pathex=[],
+    # llama-cpp-python が ctypes でロードする llama.dll 等のネイティブDLL
+    # (import 解析では検出されないため明示収集が必須)
+    binaries=collect_dynamic_libs('llama_cpp'),
+    datas=[
+        ('web_pet', 'web_pet'),
+        ('assets', 'assets'),
+        ('docs/guides', 'docs/guides'),
+        ('.env.example', '.'),
+        # customtkinter のテーマJSON等データファイル (未同梱だと起動時クラッシュする)
+    ] + collect_data_files('customtkinter') + collect_data_files('llama_cpp'),
+    hiddenimports=[
+        # 関数内 import / 動的 import の取りこぼし防止のため明示列挙する
+        'app_paths',
+        'agent',
+        'agent_bridge_client',
+        'agent_watcher',
+        'briefing_engine',
+        'character_manager',
+        'database',
+        'db_tools',
+        'easter_egg_engine',
+        'google_workspace_tools',
+        'gui',
+        'hisho_mcp_server',
+        'ics_tools',
+        'life_dreamer',
+        'llm_factory',
+        'local_sync_server',
+        'mcp_installer',
+        'mcp_manager',
+        'pet_animator',
+        'proactive_engine',
+        'suggest_engine',
+        'task_narrator',
+        'tour_engine',
+        'update_checker',
+        'version',
+        'vision_tools',
+        'weather_tools',
+        'webhook_tools',
+        'web_tools',
+        'ui.settings_window',
+        'ui.calendar_window',
+        'ui.db_viewer',
+        'ui.qr_dialog',
+        'ui.sticky_note',
+        'tools.setup_local_model',
+        # 関数内 import だが、事前解析を確実に通すため明示列挙 (保険)
+        'llama_cpp',
+        'llama_cpp.llama_chat_format',
+    ],
+    hookspath=[],
+    hooksconfig={},
+    runtime_hooks=[],
+    excludes=[],
+    noarchive=False,
+)
+pyz = PYZ(a.pure)
+
+exe = EXE(
+    pyz,
+    a.scripts,
+    [],
+    exclude_binaries=True,
+    name='NeoHisho',
+    debug=False,
+    bootloader_ignore_signals=False,
+    strip=False,
+    upx=False,
+    console=False,  # windowed: ダブルクリックで黒コンソールを出さない GUI アプリ
+    icon=None,
+)
+coll = COLLECT(
+    exe,
+    a.binaries,
+    a.datas,
+    strip=False,
+    upx=False,
+    upx_exclude=[],
+    name='NeoHisho',
+)

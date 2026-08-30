@@ -17,13 +17,30 @@
     },
     "boss_insights": {
       "name": "🧠 開発知見・マインドセット",
-      "enabled": true,
+      "enabled": false,
       "description": "MentisDBに蓄積されたボスのルールや天風哲学のTips"
     },
     "news_topics": {
       "name": "🌐 関心ニュース・AIトレンド",
       "enabled": true,
-      "description": "登録キーワードやAI最新動向のトピック"
+      "description": "登録キーワードや最新技術動向のトピック",
+      "keywords": [
+        "AI",
+        "ネットワーク",
+        "クラウド",
+        "セキュリティ",
+        "環境保護"
+      ]
+    },
+    "gmail_unread": {
+      "name": "📧 Gmail 重要未読メール",
+      "enabled": true,
+      "description": "Google OAuth認証済みの場合、Gmailの重要な未読メールを通知"
+    },
+    "google_calendar": {
+      "name": "📅 Googleカレンダー直前予定",
+      "enabled": true,
+      "description": "Google OAuth認証済みの場合、直近1時間以内の予定をリマインド"
     }
   }
 }

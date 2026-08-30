@@ -36,6 +36,8 @@
   const INVADER_DESCENT = 14; // 壁反射時の降下量 px
   const MAX_LIVES = 3;
   const SCORE_PER_INVADER = 100;
+  // ゲームオーバー直後の入力無視時間（誤タップ連打で GAME OVER 画面を飛ばされるのを防ぐ）
+  const GAMEOVER_COOLDOWN_MS = 1000;
   const PIXEL_COLORS = {
     player: '#00E676',
     bullet: '#FFFFFF',
@@ -76,7 +78,8 @@
     invaderSpeed: INVADER_BASE_SPEED,
     particles: [], // {x, y, vx, vy, life}
     fireCooldown: 0,
-    invaderFireTimer: 0
+    invaderFireTimer: 0,
+    gameoverAt: 0 // ゲームオーバー時刻（リトライクールダウン判定用）
   };
 
   /** 入力状態 */
@@ -530,6 +533,7 @@
   function endGame() {
     if (game.state !== 'playing') return;
     game.state = 'gameover';
+    game.gameoverAt = performance.now();
     sounds.gameOver();
     updateHud();
     submitScore(game.score);
@@ -693,11 +697,17 @@
     const dt = Math.min(0.05, (time - lastTime) / 1000 || 0);
     lastTime = time;
 
-    // idle/gameover 状態でも入力で開始/リトライできるようにする
+    // idle/gameover 状態でも入力で開始/リトライできるようにする。
+    // ただしゲームオーバー直後 GAMEOVER_COOLDOWN_MS は入力を無視し、
+    // GAME OVER 表示（スコア確認）が誤タップで飛ばされるのを防ぐ。
     if (game.state !== 'playing' && (input.fire || input.pointerX !== null)) {
+      const inCooldown = game.state === 'gameover' &&
+        (performance.now() - game.gameoverAt) < GAMEOVER_COOLDOWN_MS;
       input.fire = false;
       input.pointerX = null;
-      startGame();
+      if (!inCooldown) {
+        startGame();
+      }
     }
 
     if (game.state === 'playing') {
