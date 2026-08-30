@@ -227,6 +227,9 @@ class LLMFactory:
         # 動的にAPIから取得したモデルキャッシュ (provider -> List[Dict[str, str]])
         self._discovered_models: Dict[LLMProvider, List[Dict[str, str]]] = {}
         self._load_cached_discovered_models()
+        # is_provider_configured のTTLキャッシュ (provider -> (失効時刻epoch秒, 判定値))
+        # 短期改善 Step 3: メニュー展開時の load_dotenv 連打（.env ファイルI/O）を排除する
+        self._configured_cache: Dict[LLMProvider, tuple] = {}
         
         logger.info(f"LLMFactory が初期化されました。現在のプロバイダ: {self._current_provider.value} (モデル: {self.current_model_name})")
 
@@ -438,18 +441,31 @@ class LLMFactory:
         """
         全プロバイダのAPIエンドポイントやmodels/ディレクトリを巡回し、
         最新の利用可能モデル一覧を動的取得してキャッシュを更新・永続化します。
+
+        短期改善 Step 3: 直列巡回（未起動ポートのタイムアウト待ちが最大10秒×N累積）を
+        ThreadPoolExecutor による並列取得に変更し、所要時間を実質「最遅1プロバイダ分」に短縮。
         """
         import threading
+        from concurrent.futures import ThreadPoolExecutor
+
+        def _sync_one(prov: LLMProvider) -> tuple:
+            try:
+                models = self.fetch_available_models(prov.value)
+                return (prov.value, len(models))
+            except Exception as ex:
+                return (prov.value, f"Error: {ex}")
 
         def _sync_worker():
-            logger.info("🌐 全プロバイダの最新モデル一覧を巡回・同期中...")
+            logger.info("🌐 全プロバイダの最新モデル一覧を並列巡回・同期中...")
             results = {}
-            for prov in LLMProvider:
-                try:
-                    models = self.fetch_available_models(prov.value)
-                    results[prov.value] = len(models)
-                except Exception as ex:
-                    results[prov.value] = f"Error: {ex}"
+            with ThreadPoolExecutor(max_workers=4, thread_name_prefix="LLMModelSync") as pool:
+                futures = [pool.submit(_sync_one, prov) for prov in LLMProvider]
+                for fut in futures:
+                    try:
+                        key, val = fut.result(timeout=30)
+                        results[key] = val
+                    except Exception as ex:
+                        logger.warning(f"モデル同期ワーカーで例外: {ex}")
             logger.info(f"✓ 全プロバイダのモデル同期が完了しました: {results}")
             return results
 
@@ -706,8 +722,29 @@ class LLMFactory:
         """
         return self.current_provider != LLMProvider.LOCAL_GGUF
 
+    # プロバイダ設定済み判定のTTLキャッシュ（秒）。
+    # .env はメニュー展開のたびに変わらないため、is_provider_configured 内の
+    # load_dotenv（ファイルI/O）を60秒に1回だけに抑える（短期改善 Step 3）。
+    _CONFIGURED_TTL_SEC = 60.0
+
     def is_provider_configured(self, provider: LLMProvider) -> bool:
-        """指定されたプロバイダが現在実際に利用可能（有効なAPIキー設定済み、または実機モデル稼働中）かを判定"""
+        """指定されたプロバイダが現在実際に利用可能（有効なAPIキー設定済み、または実機モデル稼働中）かを判定
+
+        判定結果は60秒TTLでキャッシュされる（メニュー展開のたびに .env を再読込しない）。
+        .env 変更後は :meth:`save_settings` 経由でキャッシュが自動無効化される。
+        """
+        now = time.time()
+        cached = self._configured_cache.get(provider)
+        if cached is not None:
+            expires_at, value = cached
+            if now < expires_at:
+                return value
+        value = self._compute_provider_configured(provider)
+        self._configured_cache[provider] = (now + self._CONFIGURED_TTL_SEC, value)
+        return value
+
+    def _compute_provider_configured(self, provider: LLMProvider) -> bool:
+        """is_provider_configured の実体判定（キャッシュ無し・直接実行される内部メソッド）"""
         load_dotenv(dotenv_path=ENV_PATH, override=True)
         config = self.DEFAULT_CONFIGS.get(provider, {})
         api_key_env = config.get("api_key_env")
@@ -777,6 +814,8 @@ class LLMFactory:
                 if val is not None:
                     set_key(str(ENV_PATH), key, val)
                     os.environ[key] = val
+            # .env を変更したので設定済み判定のTTLキャッシュを無効化する（短期改善 Step 3）
+            self._configured_cache.clear()
             logger.info("設定を .env ファイルに保存・同期しました。")
             return True
         except Exception as e:

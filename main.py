@@ -11,6 +11,7 @@ import logging
 import os
 import subprocess
 import sys
+import threading
 import tkinter as tk
 from typing import Dict, Any, Optional
 
@@ -161,8 +162,18 @@ class NeoSecretaryApp:
         self.gui.input_entry.bind("<Return>", self._on_submit)
         
         # 6. バックグラウンドでの最新LLMモデル動的自動同期（常に最新リストを維持）
+        # 短期改善 Step 3: 起動直後のGUI描画・サーバー起動と同期処理がGILを奪い合わないよう
+        # 15秒遅延させてからバックグラウンド同期を開始する
         from llm_factory import get_llm_factory
-        get_llm_factory().sync_all_discovered_models(background=True)
+
+        def _delayed_llm_sync() -> None:
+            threading.Event().wait(15.0)
+            try:
+                get_llm_factory().sync_all_discovered_models(background=True)
+            except Exception as e:
+                logger.warning(f"起動時LLMモデル同期に失敗しました: {e}")
+
+        threading.Thread(target=_delayed_llm_sync, name="DelayedLLMSync", daemon=True).start()
         
         # 7. フルハイブリッドAgentログ監視 ＆ タスクナレーションエンジンの開始
         from agent_watcher import get_agent_watcher
