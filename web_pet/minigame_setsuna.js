@@ -25,6 +25,7 @@
   let reactionMs = 0;
   let flashAlpha = 0;
   let lastReactionText = '';
+  let resultTimer = 0; // result状態の表示秒数カウンタ
 
   /** スコア換算: 速いほど高得点 (BASE_MS=300点, PENALTY_MS以上は0点)。 */
   function scoreFor(ms) {
@@ -85,6 +86,11 @@
       }
     } else if (state === 'signal') {
       signalTimer += dt;
+    } else if (state === 'result') {
+      resultTimer += dt;
+      if (resultTimer >= 0.9) {
+        beginRound(); // 0.9秒表示後に次ラウンドへ
+      }
     }
     if (flashAlpha > 0) {
       flashAlpha = Math.max(0, flashAlpha - dt * 3);
@@ -138,6 +144,11 @@
         if (h !== null) api.setHigh(h);
       });
     } else {
+      // 結果を0.9秒表示してから次ラウンドへ (update側でbeginRound)
+      state = 'result';
+      resultTimer = 0;
+    }
+  }
 
   /**
    * 描画。

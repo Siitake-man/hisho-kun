@@ -233,6 +233,23 @@
     }
   }
 
+  /**
+   * マウス/タッチイベントを座標ソースに正規化する。
+   * タッチイベントの実体は e.touches[0] (move中) / e.changedTouches[0] (end時) で、
+   * e.clientX は存在しないため必ずこの関数を経由する。
+   * @param {Event} e - マウスまたはタッチイベント
+   * @returns {{clientX: number, clientY: number}} 座標を示すオブジェクト
+   */
+  function pointOf(e) {
+    if (e.touches && e.touches.length > 0) {
+      return e.touches[0];
+    }
+    if (e.changedTouches && e.changedTouches.length > 0) {
+      return e.changedTouches[0];
+    }
+    return e;
+  }
+
   function handleInput(type, e) {
     const rect = api.canvas.getBoundingClientRect();
     const sx = api.canvas.width / rect.width;
@@ -266,16 +283,13 @@
         resetBall();
         return;
       }
-      pointerX = (e.clientX - rect.left) * sx;
+      pointerX = Math.max(0, Math.min(W, (pointOf(e).clientX - rect.left) * sx));
       return;
     }
     if (type === 'touchmove' || type === 'mousemove') {
       if (state !== 'play') return;
-      if (type === 'mousemove' && e.buttons === 0) {
-        pointerX = (e.clientX - rect.left) * sx; // PCはホバー追従
-      } else {
-        pointerX = (e.clientX - rect.left) * sx;
-      }
+      // タッチは e.touches[0]、マウスはイベント自身から座標を取る (NaN防止)
+      pointerX = Math.max(0, Math.min(W, (pointOf(e).clientX - rect.left) * sx));
       return;
     }
     if (type === 'touchend' || type === 'mouseup') {

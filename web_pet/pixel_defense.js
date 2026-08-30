@@ -809,7 +809,13 @@
   // arcade環境では register+activate/deactivate でカートリッジとして動作し、
   // show()/hide() はarcadeへの迂回 (オーバーレイ管理をarcadeに一元化)。
   // arcade不在環境では従来どおり show()/hide() が直接動作する。
-  if (window.MinigameArcade) {
+  // arcadeが存在する場合のみカートリッジ登録し、window.PixelDefense を arcade
+  // へのエイリアスに差し替える。scriptロード順に依存しないよう、
+  // arcade未ロード時は load イベント後に再試行する。
+  function registerWithArcade() {
+    if (!window.MinigameArcade) {
+      return false;
+    }
     window.MinigameArcade.register({
       id: 'pixel_defense',
       title: '👾 Pixel Defense',
@@ -825,10 +831,18 @@
         hide: hide
       }
     };
-  } else {
-    window.PixelDefense = {
-      show: show,
-      hide: hide
-    };
+    return true;
+  }
+
+  if (!registerWithArcade()) {
+    window.addEventListener('load', function () {
+      if (!registerWithArcade()) {
+        // arcade自体が存在しない環境では単体起動にフォールバック
+        window.PixelDefense = {
+          show: show,
+          hide: hide
+        };
+      }
+    });
   }
 })();

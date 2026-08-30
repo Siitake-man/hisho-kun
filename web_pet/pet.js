@@ -7,7 +7,7 @@
 if ('caches' in window) {
   caches.keys().then(keys => {
     keys.forEach(key => {
-      if (key !== 'neo-pet-v5.12') caches.delete(key);
+      if (key !== 'neo-pet-v5.13') caches.delete(key);
     });
   });
 }

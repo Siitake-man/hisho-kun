@@ -22,6 +22,7 @@
   let goal = { x: W - 40, y: H - 50 };
   let probe = { x: 30, y: 30 };
   let dragging = false;
+  let lastPt = null; // ドラッグ基準点 (デルタ追従用)
   let scoreM = 0;
   let best = 0;
   let state = 'ready'; // ready | play | over | clear
@@ -248,10 +249,28 @@
     }
   }
 
+  /**
+   * マウス/タッチイベントを座標ソースに正規化する。
+   * タッチイベントの実体は e.touches[0] (move中) / e.changedTouches[0] (end時) で、
+   * e.clientX は存在しないため必ずこの関数を経由する。
+   * @param {Event} e - マウスまたはタッチイベント
+   * @returns {{clientX: number, clientY: number}} 座標を持つオブジェクト
+   */
+  function pointOf(e) {
+    if (e.touches && e.touches.length > 0) {
+      return e.touches[0];
+    }
+    if (e.changedTouches && e.changedTouches.length > 0) {
+      return e.changedTouches[0];
+    }
+    return e;
+  }
+
   function handleInput(type, e) {
     const rect = api.canvas.getBoundingClientRect();
     const sx = api.canvas.width / rect.width;
     const sy = api.canvas.height / rect.height;
+    const pt = pointOf(e);
     if (type === 'keydown') {
       if (e.code === 'Space' || e.key === ' ') {
         e.preventDefault();
@@ -261,24 +280,39 @@
     }
     if (type === 'touchstart' || type === 'mousedown') {
       e.preventDefault();
+      const cx = (pt.clientX - rect.left) * sx;
+      const cy = (pt.clientY - rect.top) * sy;
       if (state !== 'play') {
         startGame();
+        // スマホでは「タップで開始 → そのままドラッグ」が自然な操作なので
+        // 開始と同時にドラッグ状態へ入る (旧実装は dragging が立たず固まって見えた)
+        dragging = true;
+        lastPt = { x: cx, y: cy };
         return;
       }
+      // プローブはタップ位置へテレポートさせない (即ショート防止)。
+      // 基準点だけ更新し、以降の移動でデルタ追従する。
       dragging = true;
-      probe.x = (e.clientX - rect.left) * sx;
-      probe.y = (e.clientY - rect.top) * sy;
+      lastPt = { x: cx, y: cy };
       return;
     }
     if (type === 'touchmove' || type === 'mousemove') {
       if (!dragging || state !== 'play') return;
       e.preventDefault();
-      probe.x = (e.clientX - rect.left) * sx;
-      probe.y = (e.clientY - rect.top) * sy;
+      const cx = (pt.clientX - rect.left) * sx;
+      const cy = (pt.clientY - rect.top) * sy;
+      if (lastPt) {
+        // 指の移動量 (デルタ) だけプローブを動かす。
+        // 絶対座標追従だと画面を触った瞬間にワープ→即ショートになり操作不能。
+        probe.x = Math.max(0, Math.min(W, probe.x + (cx - lastPt.x)));
+        probe.y = Math.max(0, Math.min(H, probe.y + (cy - lastPt.y)));
+      }
+      lastPt = { x: cx, y: cy };
       return;
     }
     if (type === 'touchend' || type === 'mouseup') {
       dragging = false;
+      lastPt = null;
     }
   }
 
