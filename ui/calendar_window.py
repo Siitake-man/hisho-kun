@@ -5,7 +5,7 @@
 
 import logging
 import datetime
-from typing import Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple
 import tkinter as tk
 import customtkinter as ctk
 
@@ -18,6 +18,10 @@ logger = logging.getLogger(__name__)
 # この窓で get_events_between() を使う。
 EVENT_RANGE_PAST_DAYS = 120
 EVENT_RANGE_FUTURE_DAYS = 200
+
+# 手帳を開いている間の予定自動リフレッシュ周期（ミリ秒）。
+# 開きっぱなしの間にAIチャット/スマホ/MCP/webhookで登録された予定を取り込む。
+EVENT_AUTO_REFRESH_INTERVAL_MS = 60_000
 
 class CalendarWindow(ctk.CTkToplevel):
     """
@@ -41,6 +45,12 @@ class CalendarWindow(ctk.CTkToplevel):
         
         self._build_ui()
         self.refresh_all_data()
+
+        # 開きっぱなしの間に外部経路（AIチャット/スマホ/MCP/webhook）で登録された
+        # 予定を反映するための軽量自動リフレッシュ（手帳が閉じたら自動停止する）。
+        self._auto_refresh_job: Optional[str] = None
+        self.bind("<FocusIn>", self._on_focus_in)
+        self._schedule_auto_refresh()
 
     def _build_ui(self):
         # 1. ヘッダー領域
@@ -1018,8 +1028,17 @@ class CalendarWindow(ctk.CTkToplevel):
         database.delete_user_insight(insight_id)
         self.refresh_insights()
 
-    def refresh_all_data(self):
-        """全タブのデータを一括更新"""
+    def refresh_events_only(self) -> None:
+        """予定データのみを軽量に再取得して再描画する（他タブには触れない）。
+
+        手帳を開きっぱなしの間にAIチャット/スマホ/MCP/webhook/iCal同期で
+        登録された予定を反映するための低コスト更新経路。
+        全タブ再構築（refresh_all_data）と異なり、TODO/習慣/トリセツの
+        再取得・再描画は行わないため、UIスレッドを数ミリ秒しか塞がない。
+
+        Raises:
+            Exception: DBアクセスに失敗した場合（呼び出し側でログとフォールバックを行うこと）。
+        """
         import database
         # 購読ソース（仕事用/プライベート等）を読み込み、無効ソースの予定は表示から除外する
         self.calendar_sources = database.get_all_calendar_sources()
@@ -1031,7 +1050,48 @@ class CalendarWindow(ctk.CTkToplevel):
         events = database.get_events_between(range_start_ms, range_end_ms)
         events = [e for e in events if e.source_id is None or e.source_id in enabled_source_ids]
         self.load_events(events)
+
+    def refresh_all_data(self) -> None:
+        """全タブのデータを一括更新する。
+
+        予定の再取得は軽量経路 refresh_events_only() に委譲し、
+        TODO/習慣/トリセツの再取得を追加で実行する。
+        """
+        self.refresh_events_only()
         self.refresh_tasks()
         self.refresh_habits()
         self.refresh_insights()
+
+    def _schedule_auto_refresh(self) -> None:
+        """予定の自動リフレッシュを次回分予約する（手帳破棄後は静かに停止する）。"""
+        try:
+            self._auto_refresh_job = self.after(
+                EVENT_AUTO_REFRESH_INTERVAL_MS, self._auto_refresh_tick
+            )
+        except Exception as e:
+            # ウィンドウ破棄後やテスト環境など、after() が使えない場合は周期停止
+            logger.debug(f"手帳の自動リフレッシュ予約をスキップしました: {e}")
+
+    def _auto_refresh_tick(self) -> None:
+        """定期リフレッシュのTick。予定のみを軽量再取得し、生存中なら次回を予約する。"""
+        try:
+            if not self.winfo_exists():
+                return  # 手帳が閉じられたため周期を停止する
+            self.refresh_events_only()
+        except Exception as e:
+            logger.warning(f"手帳の自動リフレッシュに失敗: {e}")
+        self._schedule_auto_refresh()
+
+    def _on_focus_in(self, event: tk.Event) -> None:
+        """手帳ウィンドウ自体にフォーカスが戻ったタイミングで予定を即時再取得する。
+
+        Args:
+            event: TkinterのFocusInイベント（子ウィジェット由来のイベントは無視する）。
+        """
+        if event.widget is not self:
+            return
+        try:
+            self.refresh_events_only()
+        except Exception as e:
+            logger.warning(f"手帳のフォーカス時リフレッシュに失敗: {e}")
 

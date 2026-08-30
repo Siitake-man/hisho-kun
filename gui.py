@@ -1125,10 +1125,15 @@ class NeoSecretaryGUI:
         self._open_calendar()
 
     def refresh_calendar_if_open(self):
-        """統合手帳が開かれている場合のみデータを再読み込みする（バックグラウンドiCal同期後の呼び出し用）"""
+        """統合手帳が開かれている場合のみデータを再読み込みする（バックグラウンド登録・iCal同期後の呼び出し用）"""
         try:
             if self.calendar_window is not None and self.calendar_window.winfo_exists():
-                self.calendar_window.refresh_all_data()
+                # 重い全タブ再構築を避け、予定データの軽量リフレッシュを優先する
+                # （refresh_events_only は後方互換のため不在時は従来の全更新へフォールバック）
+                if hasattr(self.calendar_window, "refresh_events_only"):
+                    self.calendar_window.refresh_events_only()
+                else:
+                    self.calendar_window.refresh_all_data()
         except Exception as e:
             logger.warning(f"手帳の自動リフレッシュに失敗: {e}")
 

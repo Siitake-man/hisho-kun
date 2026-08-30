@@ -380,6 +380,12 @@ def execute_create_calendar_event(
         )
         event_id = database.create_event(event)
         logger.info(f"カレンダー予定を作成しました: ID={event_id}, Title='{title}'")
+        # 手帳が開いている場合に備えてGUIへ即時リフレッシュを依頼（MCPサーバー単体起動時は静かにスキップされる）
+        try:
+            import ui_notify
+            ui_notify.notify_calendar_changed()
+        except Exception as notify_err:
+            logger.debug(f"UI通知をスキップしました: {notify_err}")
         return {
             "status": "success",
             "event_id": event_id,

@@ -8,6 +8,7 @@ AI（LangGraph）が database.py の機能を直接扱えるようにするた�
 from langchain_core.tools import tool
 from datetime import datetime
 import database
+import ui_notify
 
 @tool
 def create_event_tool(title: str, start_dt: str, end_dt: str, description: str = "") -> str:
@@ -37,6 +38,9 @@ def create_event_tool(title: str, start_dt: str, end_dt: str, description: str =
         
         # 本物の関数を呼び出す
         event_id = database.create_event(event)
+        
+        # 手帳が開いている場合に備えてGUIへ即時リフレッシュを依頼（スレッド安全・ベストエフォート）
+        ui_notify.notify_calendar_changed()
         
         return f"予定「{title}」(ID: {event_id}) をカレンダーに作成しました！"
     except ValueError as ve:
