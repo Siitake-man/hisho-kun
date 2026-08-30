@@ -715,7 +715,10 @@ class DeskPetSyncHandler(SimpleHTTPRequestHandler):
                 
                 from suggest_engine import get_suggestion_engine
                 suggest_eng = get_suggestion_engine()
-                suggestions_data = suggest_eng.generate_suggestions()
+                # 短期改善 Step 2: 生成済みキャッシュの即時読み出しに変更。
+                # 重い生成処理（DB/LLM/RSS）は SuggestBgWorker スレッドに隔離済みで、
+                # ポーリングハンドラが GUI スレッドの GIL を奪わない。
+                suggestions_data = suggest_eng.get_cached_suggestions()
                 
                 from character_manager import get_character_manager
                 char_mgr = get_character_manager()

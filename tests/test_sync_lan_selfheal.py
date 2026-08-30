@@ -92,6 +92,8 @@ class TestSyncLanSelfHeal(unittest.TestCase):
         # --- 重い外部依存の隔離 (サジェスト生成 / 生活ドリーマー) ---
         suggest_engine_mock = MagicMock()
         suggest_engine_mock.generate_suggestions.return_value = []
+        # 短期改善 Step 2: /api/status はキャッシュAPI経由になったためこちらも設定する
+        suggest_engine_mock.get_cached_suggestions.return_value = []
         # /api/status は suggest_eng.config をそのまま JSON 化するため実値を設定する
         suggest_engine_mock.config = {"sources": {}, "news_keywords": []}
         cls._patchers.append(patch.object(

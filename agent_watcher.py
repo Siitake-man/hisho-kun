@@ -45,8 +45,22 @@ class AgentWatcher:
         # 既知のエージェント状態キャッシュ (agent_name -> state)
         self._current_agent_states: Dict[str, str] = {}
 
+        # ── 監視対象の列挙キャッシュ (短期改善 Step 2) ────────────────────
+        # ディレクトリ再帰globはセッション数に比例して重くなるため、
+        # 列挙は SCAN_INTERVAL 秒周期の別サイクルに分離し、
+        # 1.5秒周期の高頻度ループは既知ファイルの stat() 差分確認のみを行う。
+        self._cached_targets: List[Path] = []
+        self._last_target_scan: float = 0.0
+        self._target_scan_interval: float = 30.0
+
     def get_watch_targets(self) -> List[Path]:
-        """監視対象となるログファイル・ディレクトリの一覧を取得"""
+        """監視対象となるログファイル・ディレクトリの一覧を取得する。
+
+        Attention:
+            このメソッドは再帰globを含み、セッション数に比例してディスクI/Oが
+            増加する。高頻度ループからは :meth:`_get_watch_targets_cached` を
+            使用すること（30秒周期で列挙結果をキャッシュ）。
+        """
         targets: List[Path] = []
         user_home = Path.home()
         
@@ -72,6 +86,25 @@ class AgentWatcher:
 
         return targets
 
+    def _get_watch_targets_cached(self) -> List[Path]:
+        """監視対象一覧をキャッシュ付きで取得する（高頻度ループ用の軽量経路）。
+
+        30秒周期で実際のディレクトリ走査（:meth:`get_watch_targets`）を再実行し、
+        それ以外の呼び出しでは前回の列挙結果を返す。新規セッションログの検知が
+        最大30秒遅延するが、実害はない（初回読み取りは末尾合わせのため）。
+
+        Returns:
+            List[Path]: 監視対象ファイルパスのリスト。
+        """
+        now = time.time()
+        if (now - self._last_target_scan) >= self._target_scan_interval or not self._cached_targets:
+            try:
+                self._cached_targets = self.get_watch_targets()
+                self._last_target_scan = now
+            except Exception as e:
+                logger.error(f"監視対象の再列挙に失敗（前回キャッシュを継続使用）: {e}")
+        return self._cached_targets
+
     def start(self):
         """バックグラウンド監視スレッドを開始"""
         if self._running:
@@ -89,10 +122,16 @@ class AgentWatcher:
         logger.info("AgentWatcher が停止しました。")
 
     def _watch_loop(self):
-        """ログファイルを定期的にポーリング監視するメインループ"""
+        """ログファイルを定期的にポーリング監視するメインループ
+
+        高頻度周期（1.5秒）では列挙済みの既知ファイルの差分 stat()/読み取りのみを
+        行い、重いディレクトリ再列挙は _get_watch_targets_cached() 内で
+        30秒周期に分離される（短期改善 Step 2）。
+        """
         while self._running:
             try:
-                targets = self.get_watch_targets()
+                # 列挙はキャッシュ経由（30秒周期の裏で実行）。毎周期のglobを廃止。
+                targets = self._get_watch_targets_cached()
                 for file_path in targets:
                     self._check_file_updates(file_path)
             except Exception as e:

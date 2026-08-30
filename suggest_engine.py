@@ -14,12 +14,18 @@ import time
 import datetime
 import logging
 import re
+import threading
 from typing import Dict, List, Any, Optional
 from pathlib import Path
 
 import web_tools
 
 logger = logging.getLogger(__name__)
+
+# サジェストのバックグラウンド再生成周期（秒）。
+# /api/status ポーリング（1〜2秒毎）はキャッシュ参照のみになり、
+# DBクエリ・LLM推論・ネットワークI/OがHTTPハンドラスレッド上で走らなくなる。
+SUGGEST_REFRESH_INTERVAL_SEC = 30
 
 import app_paths
 
@@ -124,6 +130,17 @@ class SuggestionEngine:
         self._last_news_fetch: float = 0.0
         self._summary_cache: Dict[str, str] = {}  # 記事URL/ID -> 3行サマリのキャッシュ
 
+        # ── バックグラウンドワーカー（GIL分離の要） ──────────────────────
+        # generate_suggestions() の重い実体（DBクエリ/LLM推論/RSS取得）は
+        # このワーカースレッド内でのみ実行され、HTTPハンドラはキャッシュを
+        # 参照するだけになる。これにより /api/status ポーリングが GUI の
+        # 描画スレッドへ与える GIL 競合を解消する。
+        self._cache_lock = threading.Lock()
+        self._force_refresh = threading.Event()
+        self._worker_stop = threading.Event()
+        self._worker_thread: Optional[threading.Thread] = None
+        self._start_background_worker()
+
     def _load_config(self) -> Dict[str, Any]:
         """設定のロード"""
         if CONFIG_PATH.exists():
@@ -157,12 +174,16 @@ class SuggestionEngine:
         return src.get("enabled", True)
 
     def toggle_source(self, source_key: str, enabled: bool) -> None:
-        """ソースの有効/無効を切り替え"""
+        """ソースの有効/無効を切り替える
+
+        切替後、バックグラウンドワーカーへ即時再生成を依頼する（非ブロッキング）。
+        """
         if "sources" not in self.config:
             self.config["sources"] = {}
         if source_key in self.config["sources"]:
             self.config["sources"][source_key]["enabled"] = enabled
             self.save_config(self.config)
+            self.request_refresh()
 
     def get_news_keywords(self) -> List[str]:
         """設定されている関心ニュースキーワード一覧を取得"""
@@ -196,9 +217,87 @@ class SuggestionEngine:
         self.save_config(self.config)
         # キーワード変更時はニュースキャッシュを破棄して次回即座に再取得
         self._last_news_fetch = 0.0
+        # バックグラウンドワーカーに即時再生成を依頼（非ブロッキング）
+        self.request_refresh()
+
+    # =========================================================================
+    # 🔄 バックグラウンドキャッシュワーカー (2026-08-30 短期改善 Step 2)
+    # =========================================================================
+    def _start_background_worker(self) -> None:
+        """サジェスト再生成ワーカースレッドを起動する（デーモン・単一インスタンス）。"""
+        self._worker_thread = threading.Thread(
+            target=self._background_worker_loop,
+            name="SuggestBgWorker",
+            daemon=True,
+        )
+        self._worker_thread.start()
+        logger.info("サジェスト バックグラウンドワーカーを起動しました (周期 %s秒)", SUGGEST_REFRESH_INTERVAL_SEC)
+
+    def _background_worker_loop(self) -> None:
+        """重いサジェスト生成を周期実行する専用ループ（HTTP/GUIスレッドから分離）。
+
+        起動直後に1回生成して初期キャッシュを作り、以降は
+        ``SUGGEST_REFRESH_INTERVAL_SEC`` 周期（または強制更新フラグ）で再生成する。
+        """
+        # 起動直後の初回生成（イベント待ちを挟まず即実行）
+        self._refresh_cache_once()
+        while not self._worker_stop.wait(timeout=SUGGEST_REFRESH_INTERVAL_SEC):
+            forced = self._force_refresh.is_set()
+            self._force_refresh.clear()
+            if forced:
+                self._refresh_cache_once()
+                continue
+            self._refresh_cache_once()
+
+    def _refresh_cache_once(self) -> None:
+        """サジェストを1回生成してキャッシュへ格納する（ワーカースレッド専用）。
+
+        例外が発生してもワーカーループを停止させない（ログ出力して継続）。
+        """
+        try:
+            fresh = self.generate_suggestions()
+            with self._cache_lock:
+                self._cache_suggestions = fresh
+                self._last_update_time = time.time()
+        except Exception as e:
+            logger.error(f"サジェストのバックグラウンド生成に失敗しました: {e}")
+
+    def get_cached_suggestions(self) -> List[Dict[str, Any]]:
+        """キャッシュ済みサジェストを即時返す（ロック取得のみ・1ms未満）。
+
+        HTTPハンドラ（/api/status）はこのメソッドのみを呼ぶこと。
+        ``generate_suggestions()`` を直接呼ぶと重い処理がハンドラスレッド上で
+        実行され、GIL 競合による GUI カクつきの原因になる。
+
+        Returns:
+            List[Dict[str, Any]]: 直近のワーカー生成結果（初回生成前は空リスト）。
+        """
+        with self._cache_lock:
+            return list(self._cache_suggestions)
+
+    def request_refresh(self) -> None:
+        """次のワーカー周期を待たずに即時再生成を依頼する（非ブロッキング）。
+
+        設定変更（キーワード更新・ソースON/OFF等）後に呼ぶことで、
+        呼び出しスレッドを塞ぐことなくキャッシュを最新化できる。
+        """
+        self._force_refresh.set()
+
+    def shutdown_worker(self) -> None:
+        """バックグラウンドワーカーを停止する（アプリ終了時用・冪等）。"""
+        self._worker_stop.set()
+        if self._worker_thread is not None and self._worker_thread.is_alive():
+            self._worker_thread.join(timeout=2.0)
+        logger.info("サジェスト バックグラウンドワーカーを停止しました")
 
     def generate_suggestions(self) -> List[Dict[str, Any]]:
-        """現在の各データソースからサジェストカード一覧を動的生成"""
+        """現在の各データソースからサジェストカード一覧を動的生成する。
+
+        Attention:
+            このメソッドは重い（DB/LLM/ネットワーク）。HTTPハンドラやGUIから
+            直接呼ばず、バックグラウンドワーカー経由の
+            :meth:`get_cached_suggestions` を使用すること。
+        """
         suggestions: List[Dict[str, Any]] = []
         import database
 
