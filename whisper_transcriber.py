@@ -36,34 +36,55 @@ class WhisperTranscriber:
     """faster-whisper を用いたローカル音声文字起こしエンジン。
 
     Attributes:
-        model_size (str): Whisperモデルサイズ (base, small, medium, large-v3等)。既定は 'small'。
+        model_size (Optional[str]): Whisperモデルサイズ (base, small, medium, large-v3等)。
+            None の場合は環境変数 ``HISHO_WHISPER_MODEL`` を参照し、未設定なら 'small'。
         language (str): 文字起こし対象言語コード。既定は 'ja'。
         device (str): 実行デバイス ('cpu' または 'cuda')。既定は 'cpu'。
         compute_type (str): 量子化計算タイプ ('int8', 'float16', 'float32'等)。既定は 'int8'。
+        initial_prompt (Optional[str]): 認識精度向上のためのドメイン語彙プロンプト。
+            None の場合は環境変数 ``HISHO_WHISPER_PROMPT`` を参照し、未設定なら
+            タスク登録ドメインの既定プロンプトを使用する。
     """
 
     _cached_model: Optional[Any] = None
     _model_lock: threading.Lock = threading.Lock()
 
+    #: タスク登録ユースケースに最適化した既定のドメイン語彙プロンプト。
+    #: Whisper は最初の30秒ウィンドウでこの語彙を「事前文脈」として扱うため、
+    #: 「明日」「毎週」「〜して」「会議」等のタスク頻出語の誤認識が減る。
+    DEFAULT_INITIAL_PROMPT: str = (
+        "これはタスク登録用の音声メモです。明日、明後日、毎週、会議、打ち合わせ、"
+        "資料、レビュー、提出、返信、締め切りの予定を話します。"
+    )
+
     def __init__(
         self,
-        model_size: str = "small",
+        model_size: Optional[str] = None,
         language: str = "ja",
         device: str = "cpu",
         compute_type: str = "int8",
+        initial_prompt: Optional[str] = None,
     ) -> None:
         """WhisperTranscriber を初期化します。
 
         Args:
-            model_size (str): モデルサイズ ('base', 'small', 'medium')。
+            model_size (Optional[str]): モデルサイズ ('base', 'small', 'medium')。
+                None の場合は環境変数 ``HISHO_WHISPER_MODEL`` を優先し、
+                未設定時は 'small' を使用する。
             language (str): 言語コード ('ja')。
             device (str): 実行デバイス ('cpu' または 'cuda')。
             compute_type (str): 計算精度 ('int8' 等)。
+            initial_prompt (Optional[str]): ドメイン語彙プロンプト。
+                None の場合は環境変数 ``HISHO_WHISPER_PROMPT`` を優先し、
+                未設定時は ``DEFAULT_INITIAL_PROMPT`` を使用する。
         """
-        self.model_size = model_size
+        self.model_size = model_size or os.environ.get("HISHO_WHISPER_MODEL", "small")
         self.language = language
         self.device = device
         self.compute_type = compute_type
+        self.initial_prompt = initial_prompt or os.environ.get(
+            "HISHO_WHISPER_PROMPT", self.DEFAULT_INITIAL_PROMPT
+        )
 
     def is_available(self) -> bool:
         """faster-whisper ライブラリが利用可能かどうかを判定します。
@@ -140,11 +161,16 @@ class WhisperTranscriber:
             logger.info("音声文字起こしを開始します: size=%d bytes, tmp=%s", len(audio_bytes), tmp_file_path)
 
             # faster-whisper による文字起こし
+            # - initial_prompt: タスク頻出語を事前文脈として与え、ドメイン語彙の誤認識を抑制
+            # - condition_on_previous_text=False: 短いクリップでの幻覚連鎖
+            #   （無関係な語が前セグメントから繁殖する既知問題）を遮断
             segments, info = model.transcribe(
                 tmp_file_path,
                 language=self.language,
                 beam_size=5,
                 vad_filter=True,  # 無音区間の自動除去
+                initial_prompt=self.initial_prompt,
+                condition_on_previous_text=False,
             )
 
             transcript_parts: List[str] = []

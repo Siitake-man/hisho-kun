@@ -2081,7 +2081,90 @@ function todoQuadItem(t) {
     const d = new Date(t.due_date);
     due = `📅 ${pad(d.getMonth() + 1)}/${pad(d.getDate())}`;
   }
-  return `<div class="note-item" onclick="completeTask(${t.id}, this)"><div class="note-title">${escapeHtml(t.title)}</div><div class="note-desc">${due}</div></div>`;
+  return `<div class="note-item" onclick="completeTask(${t.id}, this)"><div class="note-title">${escapeHtml(t.title)}</div><div class="note-desc">${due} <span class="task-edit-link" onclick="event.stopPropagation();openTaskEditSheet(${t.id})">✏️</span></div></div>`;
+}
+
+/** 📅 期限 (epochミリ秒) を datetime-local 入力値へ変換 (空なら '') */
+function epochToDatetimeLocal(ms) {
+  if (!ms) return '';
+  const d = new Date(ms);
+  const pad = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+/** ✏️ タスク編集シート (タイトル・期限の編集＋削除。サーバー update_task / delete_task アクションと連携) */
+function openTaskEditSheet(taskId) {
+  const t = todoTasks.find(x => x.id === taskId);
+  if (!t) return;
+  if (navigator.vibrate) navigator.vibrate(15);
+  const inputStyle = 'width:100%;box-sizing:border-box;padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,0.3);background:rgba(0,0,0,0.2);color:inherit;font-size:14px;';
+  const html = `
+    <div style="display:flex;flex-direction:column;gap:10px;">
+      <label style="font-size:12px;opacity:0.8;">タイトル</label>
+      <input type="text" id="task-edit-title" value="${escapeHtml(t.title)}" maxlength="200" style="${inputStyle}">
+      <label style="font-size:12px;opacity:0.8;">期限 (空で期日なし)</label>
+      <input type="datetime-local" id="task-edit-due" value="${epochToDatetimeLocal(t.due_date)}" style="${inputStyle}">
+      <div class="approval-sheet-actions">
+        <button class="btn-approve" onclick="saveTaskEdit(${t.id})">💾 保存</button>
+        <button class="btn-deny" onclick="deleteTaskFromEdit(${t.id})">🗑 削除</button>
+      </div>
+    </div>`;
+  openBottomSheet({ icon: '✏️', tag: '編集', title: 'タスクを編集' }, html);
+}
+
+/** ✏️ 編集シートの保存 (update_task → 再取得 → モーダル再描画) */
+function saveTaskEdit(taskId) {
+  const titleEl = document.getElementById('task-edit-title');
+  const dueEl = document.getElementById('task-edit-due');
+  if (!titleEl) return;
+  const newTitle = titleEl.value.trim();
+  if (!newTitle) {
+    showToast('⚠️ タイトルを入力してください');
+    return;
+  }
+  authFetch('/api/action', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      action: 'update_task',
+      task_id: taskId,
+      title: newTitle,
+      due_date: (dueEl && dueEl.value) ? new Date(dueEl.value).getTime() : null
+    })
+  }).then(res => res.json()).then(res => {
+    if (res.status === 'success') {
+      showToast('💾 保存しました');
+      closeBottomSheet();
+      fetchTodoView().then(renderTodoModal);
+    } else {
+      showToast('⚠️ 保存に失敗しました');
+    }
+  }).catch(err => {
+    console.debug('update_task failed:', err);
+    showToast('⚠️ 通信エラー');
+  });
+}
+
+/** 🗑 編集シートからの削除 (確認ダイアログ → delete_task → 再取得) */
+function deleteTaskFromEdit(taskId) {
+  if (!window.confirm('このタスクを削除しますか？')) return;
+  if (navigator.vibrate) navigator.vibrate([20, 40, 20]);
+  authFetch('/api/action', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'delete_task', task_id: taskId })
+  }).then(res => res.json()).then(res => {
+    if (res.status === 'success') {
+      showToast('🗑 削除しました');
+      closeBottomSheet();
+      fetchTodoView().then(renderTodoModal);
+    } else {
+      showToast('⚠️ 削除に失敗しました');
+    }
+  }).catch(err => {
+    console.debug('delete_task failed:', err);
+    showToast('⚠️ 通信エラー');
+  });
 }
 
 /** 🎯 アイゼンハワー4象限グリッド描画 (Plan D) */
@@ -2187,7 +2270,7 @@ function renderTodoModal() {
         const d = new Date(t.due_date);
         dueHtml = ` 📅 ${pad(d.getMonth() + 1)}/${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
       }
-      return `<div class="note-item" onclick="completeTask(${t.id}, this)"><div class="note-title">${icon} ${escapeHtml(t.title)}${recBadge}${tagHtml}</div><div class="note-desc">${dueHtml || '👆 タップで完了にする'}</div></div>`;
+      return `<div class="note-item" onclick="completeTask(${t.id}, this)"><div class="note-title">${icon} ${escapeHtml(t.title)}${recBadge}${tagHtml}</div><div class="note-desc">${dueHtml || '👆 タップで完了にする'} <span class="task-edit-link" onclick="event.stopPropagation();openTaskEditSheet(${t.id})">✏️</span></div></div>`;
     }).join('');
   }
   todoTagCandidates = tagCandidates;
