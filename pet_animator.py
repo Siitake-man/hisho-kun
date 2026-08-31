@@ -11,9 +11,13 @@ import time
 import math
 import random
 import logging
+from pathlib import Path
 from typing import Dict, List, Optional, Callable, Any, Tuple
 
 logger = logging.getLogger(__name__)
+
+# 新生5大キャラクタースイート: キャラ固有スプライトの存在確認用アセットパス
+ASSETS_DOT_DIR: Path = Path(__file__).resolve().parent / "assets" / "dot"
 
 # 各ステートに対応するアニメーションフレーム定義
 ANIMATION_FRAMES: Dict[str, List[str]] = {
@@ -49,7 +53,14 @@ ANIMATION_FRAMES: Dict[str, List[str]] = {
     "look_left": ["look_left"],
     "look_right": ["look_right"],
     "look_up": ["look_up"],
-    "look_down": ["look_down"]
+    "look_down": ["look_down"],
+
+    # 新生5大キャラクタースイート 固有ステート (🦫 marmot / 🦭 seal)
+    # ※ キャラ固有スプライトのため、発火前に _character_has_frames() で存在確認を行い、
+    #    未搭載キャラでは既存の汎用ステートへフォールバックする。
+    "screaming": ["screaming_1", "screaming_2"],      # 🦫 締切絶叫「ア゛ーッ！」(marmot固有)
+    "petting": ["petting_1", "petting_2"],            # 🦫 なでなででとろける (marmot固有)
+    "tea_pillar": ["tea_pillar_1", "tea_pillar_2"]    # 🦭 茶柱を立ててお茶 (seal固有)
 }
 
 # 自律行動としてランダム発火する候補と持続時間(秒)
@@ -296,11 +307,39 @@ class PetAnimator:
 
         logger.debug(f"ペット状態遷移: {state_name} (duration={duration_sec}s)")
 
+    def _character_has_frames(self, state_name: str) -> bool:
+        """現在のキャラクターに該当ステートのスプライトが全て存在するか判定します。
+
+        新生5大キャラクタースイートのキャラ固有ステート (screaming / petting / tea_pillar)
+        を未搭載キャラで発火させないためのガードです。
+
+        Args:
+            state_name (str): 判定対象のアニメーションステート名。
+
+        Returns:
+            bool: 全フレームのPNGが存在する場合 True。キャラ情報取得に失敗した場合は False。
+        """
+        frames = ANIMATION_FRAMES.get(state_name, [])
+        if not frames:
+            return False
+        try:
+            from character_manager import get_character_manager
+            char_id = get_character_manager().get_sprite_prefix().rstrip("_")
+        except Exception:
+            # キャラ情報が取得できない環境 (単体テスト等) では固有ステートを発火させない
+            logger.debug("character_manager の取得に失敗したため、キャラ固有ステートを抑制します。")
+            return False
+        for frame in frames:
+            if not (ASSETS_DOT_DIR / char_id / f"{frame}.png").exists():
+                logger.debug(f"スプライト未搭載のため固有ステートを抑制: char={char_id} state={state_name} frame={frame}")
+                return False
+        return True
+
     def trigger_reaction(self, event_type: str) -> None:
         """外部イベントに応じたリアクションを発火させます。
 
         Args:
-            event_type (str): イベント種別 ('task_complete', 'care_tea', 'cheer', 'alarm', 'focus_start', 'coding_start', 'error_panic' 等)
+            event_type (str): イベント種別 ('task_complete', 'care_tea', 'cheer', 'alarm', 'deadline', 'reminder', 'focus_start', 'coding_start', 'error_panic' 等)
         """
         if event_type == "task_complete":
             # タスク完了: クラッカー＆大ジャンプ！ (5秒間)
@@ -315,15 +354,28 @@ class PetAnimator:
             self.set_state("coding", duration_sec=0.0)
             self.effects.set_effect("flame")
         elif event_type in ("care_tea", "proactive_care"):
-            # 45分作業ケア: お茶をどうぞ！ (7秒間)
+            # 45分作業ケア: お茶をどうぞ！ (7秒間) — seal は茶柱スプライトを優先
             self.effects.set_effect(None)
-            self.set_state("care", duration_sec=7.0)
+            if self._character_has_frames("tea_pillar"):
+                self.set_state("tea_pillar", duration_sec=7.0)
+            else:
+                self.set_state("care", duration_sec=7.0)
         elif event_type == "cheer":
             # 集中応援 (5秒間)
             self.set_state("cheer", duration_sec=5.0)
         elif event_type == "love":
-            # なでなで (3秒間)
-            self.set_state("pet_love", duration_sec=3.0)
+            # なでなで (3秒間) — marmot はとろける petting スプライトを優先
+            if self._character_has_frames("petting"):
+                self.set_state("petting", duration_sec=3.0)
+            else:
+                self.set_state("pet_love", duration_sec=3.0)
+        elif event_type in ("deadline", "reminder"):
+            # 締切・リマインダー接近 — marmot は全力絶叫「ア゛ーッ！」(4秒間)
+            self.effects.set_effect("sweat")
+            if self._character_has_frames("screaming"):
+                self.set_state("screaming", duration_sec=4.0)
+            else:
+                self.set_state("alarm_ask", duration_sec=4.0)
         elif event_type == "alarm":
             # 承認要請アラート (手動解除まで継続)
             self.effects.set_effect("sweat")

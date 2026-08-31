@@ -980,9 +980,10 @@ function onPetTap(event) {
 // 4. キャラクター切り替え
 // =============================================================================
 const CHARACTERS = [
-  { id: 'seal', name: 'アザラシ', emoji: '🦭' },
+  { id: 'seal', name: 'もちもちアザラシ', emoji: '🦭' },
   { id: 'hisho', name: '秘書くん', emoji: '👔' },
   { id: 'kinoko', name: 'キノコ君', emoji: '🍄' },
+  { id: 'marmot', name: 'マーモット', emoji: '🦫' },
   { id: 'kyle', name: 'カイル風精霊', emoji: '🐚' }
 ];
 
@@ -2859,4 +2860,160 @@ function stopBriefingSpeech() {
 
 function escapeJsString(str) {
   return (str || "").replace(/'/g, "\\'").replace(/"/g, '&quot;').replace(/\n/g, ' ');
+}
+
+// =============================================================================
+// 🎙️ PC Whisper 音声録音 ＆ タスク自動作成パイプライン (B20)
+// =============================================================================
+let _voiceMediaRecorder = null;
+let _voiceAudioChunks = [];
+let _voiceRecordTimeout = null;
+let _isVoiceRecording = false;
+
+/** スマホマイク録音の開始/停止トグル */
+async function startVoiceInput() {
+  const micBtn = document.getElementById('mic-btn');
+
+  // 既に録音中の場合はタップで停止して即時文字起こしへ
+  if (_isVoiceRecording) {
+    stopVoiceRecording();
+    return;
+  }
+
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    showToast("⚠️ お使いの端末・ブラウザはマイク録音に対応していません");
+    return;
+  }
+
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    _voiceAudioChunks = [];
+
+    // 最適な mimeType の選択
+    let mimeType = 'audio/webm;codecs=opus';
+    if (!MediaRecorder.isTypeSupported(mimeType)) {
+      if (MediaRecorder.isTypeSupported('audio/webm')) mimeType = 'audio/webm';
+      else if (MediaRecorder.isTypeSupported('audio/mp4')) mimeType = 'audio/mp4';
+      else mimeType = '';
+    }
+
+    _voiceMediaRecorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
+
+    _voiceMediaRecorder.ondataavailable = (e) => {
+      if (e.data && e.data.size > 0) {
+        _voiceAudioChunks.push(e.data);
+      }
+    };
+
+    _voiceMediaRecorder.onstop = async () => {
+      _isVoiceRecording = false;
+      if (micBtn) {
+        micBtn.style.background = '';
+        micBtn.style.animation = '';
+        micBtn.innerHTML = '<span>🎤</span>';
+      }
+      stream.getTracks().forEach(track => track.stop());
+
+      if (_voiceAudioChunks.length === 0) {
+        showToast("⚠️ 録音データが空でした");
+        return;
+      }
+
+      const audioBlob = new Blob(_voiceAudioChunks, { type: _voiceMediaRecorder.mimeType || 'audio/webm' });
+      await _sendVoiceToWhisper(audioBlob);
+    };
+
+    _voiceMediaRecorder.start();
+    _isVoiceRecording = true;
+
+    // UI演出: ボタン点滅と吹き出し更新
+    if (micBtn) {
+      micBtn.style.background = 'var(--accent-red)';
+      micBtn.style.animation = 'pulse 1s infinite alternate';
+      micBtn.innerHTML = '<span>⏹️</span>';
+    }
+    const bubble = document.getElementById('speech-bubble');
+    if (bubble) bubble.innerText = "🎤 音声TODOを録音中…（話しかけてください）";
+    showToast("🎙️ 録音開始（最大15秒・タップで終了）");
+    if (navigator.vibrate) navigator.vibrate(50);
+
+    // 最大15秒で自動停止
+    if (_voiceRecordTimeout) clearTimeout(_voiceRecordTimeout);
+    _voiceRecordTimeout = setTimeout(() => {
+      if (_isVoiceRecording) {
+        stopVoiceRecording();
+      }
+    }, 15000);
+
+  } catch (err) {
+    console.error("マイクアクセスエラー:", err);
+    showToast(`⚠️ マイク起動失敗: ${err.message}`);
+    _isVoiceRecording = false;
+  }
+}
+
+/** 録音を手動停止 */
+function stopVoiceRecording() {
+  if (_voiceRecordTimeout) {
+    clearTimeout(_voiceRecordTimeout);
+    _voiceRecordTimeout = null;
+  }
+  if (_voiceMediaRecorder && _voiceMediaRecorder.state !== 'inactive') {
+    _voiceMediaRecorder.stop();
+  }
+}
+
+/** 録音BlobをBase64化してPCの Whisper API へ送信 */
+async function _sendVoiceToWhisper(audioBlob) {
+  showToast("🧠 PCのWhisperで文字起こし中…");
+  const bubble = document.getElementById('speech-bubble');
+  if (bubble) bubble.innerText = "🧠 PCで音声解析中…少々お待ちください…";
+
+  try {
+    // Blob ➔ Base64 変換
+    const reader = new FileReader();
+    const base64Promise = new Promise((resolve, reject) => {
+      reader.onloadend = () => {
+        const base64data = reader.result.split(',')[1];
+        resolve(base64data);
+      };
+      reader.onerror = reject;
+    });
+    reader.readAsDataURL(audioBlob);
+    const audioBase64 = await base64Promise;
+
+    const res = await authFetch('/api/action', {
+      method: 'POST',
+      body: JSON.stringify({
+        action: 'transcribe_voice',
+        audio_base64: audioBase64,
+        filename: 'voice.webm',
+        auto_add_task: true
+      })
+    });
+
+    const data = await res.json();
+    if (data.status === 'ok') {
+      const transcript = data.transcript || '';
+      if (data.task_created) {
+        showToast(`✅ TODO追加: ${data.title || transcript}`, 4000);
+        if (bubble) bubble.innerText = `📝 『${data.title || transcript}』をTODOに追加しました！✨`;
+        if (navigator.vibrate) navigator.vibrate([60, 80, 60]);
+      } else {
+        showToast(`🗣️ 認識結果: ${transcript}`, 4000);
+        if (bubble) bubble.innerText = `🗣️ 「${transcript}」`;
+      }
+      fetchStatus();
+    } else if (data.status === 'empty_transcript') {
+      showToast("⚠️ 音声を認識できませんでした");
+      if (bubble) bubble.innerText = "うーん…うまく聞き取れませんでした💦 もう少しはっきり話しかけてください！";
+    } else {
+      showToast(`⚠️ ${data.message || '文字起こし失敗'}`);
+      if (bubble) bubble.innerText = `⚠️ ${data.message || '文字起こしエラー'}`;
+    }
+  } catch (err) {
+    console.error("音声送信エラー:", err);
+    showToast(`⚠️ 送信失敗: ${err.message}`);
+    if (bubble) bubble.innerText = "⚠️ PCとの通信に失敗しました。接続を確認してください。";
+  }
 }

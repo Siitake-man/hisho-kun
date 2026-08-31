@@ -14,6 +14,7 @@ import json
 import time
 import uuid
 import hmac
+import base64
 import secrets
 import logging
 import threading
@@ -1336,6 +1337,96 @@ class DeskPetSyncHandler(SimpleHTTPRequestHandler):
                         self.wfile.write(json.dumps({
                             "status": "error", "message": "タスク名を抽出できませんでした"
                         }).encode("utf-8"))
+                        return
+                elif action == "transcribe_voice":
+                    # 🎙️ スマホ音声 ➔ PC Whisper 文字起こし ➔ quick_add_task パイプライン (B20)
+                    audio_b64 = data.get("audio_base64", "")
+                    filename = data.get("filename", "voice.webm")
+                    auto_add_task = data.get("auto_add_task", True)
+
+                    if not audio_b64:
+                        logger.warning("音声データが空の transcribe_voice リクエストを受信しました")
+                        self.wfile.write(json.dumps({
+                            "status": "error", "message": "音声データ (audio_base64) が指定されていません"
+                        }, ensure_ascii=False).encode("utf-8"))
+                        return
+
+                    try:
+                        audio_bytes = base64.b64decode(audio_b64)
+                    except Exception as b64_err:
+                        logger.error("音声Base64のデコードに失敗: %s", b64_err)
+                        self.wfile.write(json.dumps({
+                            "status": "error", "message": f"Base64デコードエラー: {b64_err}"
+                        }, ensure_ascii=False).encode("utf-8"))
+                        return
+
+                    try:
+                        from whisper_transcriber import WhisperTranscriber
+                        transcriber = WhisperTranscriber()
+                        if not transcriber.is_available():
+                            logger.warning("WhisperTranscriber が未インストールのため音声認識を実行できません")
+                            self.wfile.write(json.dumps({
+                                "status": "error",
+                                "message": "PC側の音声文字起こしライブラリ (faster-whisper) が未導入です。requirements_whisper.txt をインストールしてください。"
+                            }, ensure_ascii=False).encode("utf-8"))
+                            return
+
+                        transcript = transcriber.transcribe(audio_bytes, filename=filename)
+                        if not transcript:
+                            logger.info("📱 音声文字起こし結果が空でした (無音または認識不能)")
+                            self.wfile.write(json.dumps({
+                                "status": "empty_transcript",
+                                "transcript": "",
+                                "task_created": False,
+                                "message": "音声を認識できませんでした。もう少しはっきりと話してみてください。"
+                            }, ensure_ascii=False).encode("utf-8"))
+                            return
+
+                        # 自動タスク作成 (auto_add_task) の内部呼び出し
+                        task_created = False
+                        task_id = None
+                        extracted_title = ""
+                        if auto_add_task:
+                            from task_parser import parse_input, tags_to_db_string
+                            parsed = parse_input(transcript)
+                            if parsed.title:
+                                task_id = database.create_task(database.Task(
+                                    title=parsed.title,
+                                    description="🎤 スマホ音声入力より自動登録",
+                                    due_date=parsed.due_date,
+                                    priority=parsed.priority,
+                                    status="todo",
+                                    tags=tags_to_db_string(parsed.tags),
+                                    importance_flag=parsed.importance,
+                                    urgency_flag=parsed.urgency,
+                                    recurrence=parsed.recurrence,
+                                ))
+                                task_created = True
+                                extracted_title = parsed.title
+                                logger.info("📱 🎤 音声文字起こしからタスク自動作成: ID=%s, Title='%s' (元音声='%s')", task_id, parsed.title, transcript)
+
+                                # PC側ペットのセリフ更新
+                                gui = get_gui_instance()
+                                if gui:
+                                    gui.post_action(gui.update_message, f"🎤 音声からTODOを作成しました:\n「{parsed.title}」")
+                                    if hasattr(gui, 'animator'):
+                                        gui.post_action(gui.animator.trigger_reaction, "task_complete")
+
+                        self.wfile.write(json.dumps({
+                            "status": "ok",
+                            "transcript": transcript,
+                            "task_created": task_created,
+                            "task_id": task_id,
+                            "title": extracted_title
+                        }, ensure_ascii=False).encode("utf-8"))
+                        return
+
+                    except Exception as tr_err:
+                        logger.error("音声文字起こしパイプライン処理中にエラー: %s", tr_err, exc_info=True)
+                        self.wfile.write(json.dumps({
+                            "status": "error",
+                            "message": f"音声文字起こしエラー: {tr_err}"
+                        }, ensure_ascii=False).encode("utf-8"))
                         return
                 elif action == "update_task":
                     # ✏️ タスク詳細編集 (スマホ編集シート用): ホワイトリスト項目のみDB反映
