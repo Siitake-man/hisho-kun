@@ -828,6 +828,77 @@
     .quick-add-bar button:disabled {
       opacity: 0.5;
     }
+    /* 🗂️ TODOフィルタチップ (Plan C: リスト/タグ/期間絞り込み) */
+    .todo-filter-bar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-bottom: 8px;
+    }
+    .todo-chip {
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 999px;
+      color: var(--text-main, #eee);
+      font-size: 12px;
+      padding: 6px 12px;
+      cursor: pointer;
+      transition: background 0.15s, border-color 0.15s;
+    }
+    .todo-chip.active {
+      background: rgba(255, 184, 0, 0.85);
+      border-color: #ffb800;
+      color: #1a1a2e;
+      font-weight: bold;
+    }
+    .todo-tag {
+      display: inline-block;
+      font-size: 10px;
+      padding: 1px 6px;
+      border-radius: 6px;
+      background: rgba(79, 140, 255, 0.2);
+      color: #9cc0ff;
+      margin-left: 6px;
+      vertical-align: middle;
+    }
+    /* 🎯 4象限ビュー (Plan D: アイゼンハワーマトリクス) */
+    .quad-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+    }
+    .quad-cell {
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 8px;
+      padding: 6px;
+      min-height: 72px;
+    }
+    .quad-cell.q1 { background: rgba(255, 90, 90, 0.12); border-color: rgba(255, 90, 90, 0.4); }
+    .quad-cell.q2 { background: rgba(255, 184, 0, 0.10); border-color: rgba(255, 184, 0, 0.35); }
+    .quad-cell.q3 { background: rgba(79, 140, 255, 0.10); border-color: rgba(79, 140, 255, 0.35); }
+    .quad-cell.q4 { background: rgba(255, 255, 255, 0.04); }
+    .quad-head {
+      font-size: 11px;
+      font-weight: bold;
+      color: var(--text-main, #eee);
+      margin-bottom: 4px;
+    }
+    .quad-count {
+      display: inline-block;
+      font-size: 9px;
+      padding: 0 6px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.14);
+      margin-left: 4px;
+    }
+    .quad-cell .note-item { padding: 5px 2px; }
+    .quad-cell .note-title { font-size: 11px; }
+    .quad-cell .note-desc { font-size: 10px; }
+    .quad-empty {
+      font-size: 10px;
+      color: var(--text-muted);
+      padding: 6px 2px;
+    }
 
     /* =========================================================================
        朝会/終礼ブリーフィング UI (Phase L3)
@@ -1312,13 +1383,13 @@
   <!-- 常時画面ON (NoSleep): Canvas無限生配信を流す不可視video（HTTP環境で唯一確実に動作する方式） -->
   <video id="nosleep-video" muted playsinline autoplay style="position:fixed; left:0; bottom:0; width:2px; height:2px; opacity:0.01; pointer-events:none; z-index:-1;"></video>
 
-  <script src="easter_eggs.js?v=5.14"></script>
-  <script src="pixel_defense.js?v=5.14"></script>
-  <script src="minigame_arcade.js?v=5.14"></script>
-  <script src="minigame_itotooshi.js?v=5.14"></script>
-  <script src="minigame_cyber_wire.js?v=5.14"></script>
-  <script src="minigame_setsuna.js?v=5.14"></script>
-  <script src="minigame_retro_breakout.js?v=5.14"></script>
-  <script src="pet.js?v=5.14"></script>
+  <script src="easter_eggs.js?v=5.16"></script>
+  <script src="pixel_defense.js?v=5.16"></script>
+  <script src="minigame_arcade.js?v=5.16"></script>
+  <script src="minigame_itotooshi.js?v=5.16"></script>
+  <script src="minigame_cyber_wire.js?v=5.16"></script>
+  <script src="minigame_setsuna.js?v=5.16"></script>
+  <script src="minigame_retro_breakout.js?v=5.16"></script>
+  <script src="pet.js?v=5.16"></script>
 </body>
 </html>

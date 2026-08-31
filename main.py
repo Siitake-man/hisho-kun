@@ -211,6 +211,11 @@ class NeoSecretaryApp:
         from update_checker import start_update_checker
         start_update_checker(gui=self.gui)
 
+        # 7.7. 時刻ベースのリマインダーエンジン (roadmap 3.1: 「10分前」通知)
+        # タスク期限・予定開始の接近を30秒周期で監視し、PC吹き出し＋スマホPWAへ通知する
+        from reminder_engine import get_reminder_engine
+        get_reminder_engine(on_reminder=self._on_reminder).start()
+
         # 初期メッセージ ＆ 日次ブリーフィング（起動時に今日の予定・タスクを自動報告）
         self._generate_daily_briefing()
         
@@ -341,6 +346,19 @@ class NeoSecretaryApp:
         logger.info("プロアクティブ声掛けをUIに反映します")
         self.gui.post_action(self.gui.update_message, message)
         self.gui.post_action(self.gui.set_pet_state, pet_state, duration_ms=5000)
+
+    def _on_reminder(self, message: str) -> None:
+        """リマインダーエンジンからの期限接近通知ハンドラ
+
+        ※ reminder_engine のワーカースレッドから呼ばれるため、
+        GUI操作は必ず post_action 経由でメインスレッドへディスパッチする。
+
+        Args:
+            message: 通知メッセージ
+        """
+        logger.info(f"⏰ リマインダーをPCペットへ通知: {message}")
+        self.gui.post_action(self.gui.update_message, message)
+        self.gui.post_action(self.gui.set_pet_state, "alarm_ask", duration_ms=8000)
 
     def post_human_message(self, text: str) -> None:
         """スマホPWAからの音声入力テキストをエージェントへ投入する。

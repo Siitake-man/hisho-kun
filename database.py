@@ -382,6 +382,17 @@ def init_db(db_path: str = "neo_secretary.db") -> None:
             )
         """)
 
+        # reminders_sentテーブル (リマインダー重複防止・冪等記録: roadmap 3.1)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS reminders_sent (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                item_type TEXT NOT NULL,
+                item_id INTEGER NOT NULL,
+                sent_at INTEGER NOT NULL,
+                UNIQUE(item_type, item_id)
+            )
+        """)
+
         # tasks.list_id / tasks.tags マイグレーション（既存DBへのカラム追加）
         cursor.execute("PRAGMA table_info(tasks)")
         task_columns = {row[1] for row in cursor.fetchall()}
@@ -1260,6 +1271,52 @@ def delete_task(task_id: int, db_path: str = "neo_secretary.db") -> bool:
         if success:
             logger.info(f"タスクを削除しました: ID={task_id}")
         return success
+
+
+# =============================================================================
+# リマインダー送信履歴 (reminder_engine から利用・重複通知防止)
+# =============================================================================
+
+def is_reminder_sent(item_type: str, item_id: int, db_path: str = "neo_secretary.db") -> bool:
+    """
+    指定した対象のリマインダーが既に送信済みかを判定します。
+
+    Args:
+        item_type: 対象種別 ('task' または 'event')
+        item_id: タスク/予定のID
+        db_path: データベースファイルのパス
+
+    Returns:
+        送信済みの場合True
+    """
+    with get_db_connection(db_path) as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT 1 FROM reminders_sent WHERE item_type = ? AND item_id = ?",
+            (item_type, item_id),
+        )
+        return cursor.fetchone() is not None
+
+
+def mark_reminder_sent(item_type: str, item_id: int, db_path: str = "neo_secretary.db") -> None:
+    """
+    リマインダーの送信済みを冪等に記録します (再通知防止)。
+
+    UNIQUE(item_type, item_id) 制約により二重記録は無視されます。
+
+    Args:
+        item_type: 対象種別 ('task' または 'event')
+        item_id: タスク/予定のID
+        db_path: データベースファイルのパス
+    """
+    with get_db_connection(db_path) as conn:
+        cursor = conn.cursor()
+        now = int(datetime.now().timestamp() * 1000)
+        cursor.execute(
+            "INSERT OR IGNORE INTO reminders_sent (item_type, item_id, sent_at) VALUES (?, ?, ?)",
+            (item_type, item_id, now),
+        )
+        logger.debug(f"リマインダー送信済みを記録: {item_type}#{item_id}")
 
 
 def get_task_lists(db_path: str = "neo_secretary.db") -> List[TaskList]:

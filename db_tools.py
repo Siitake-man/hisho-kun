@@ -205,6 +205,28 @@ def list_tasks_tool(status: str = "todo") -> str:
         return f"タスクの取得に失敗しました: {e}"
 
 @tool
+def list_task_lists_tool() -> str:
+    """タスクリスト（TickTick風のプロジェクト分類）の一覧を取得します。
+
+    受信箱を含む全リストの名前・絵文字・並び順を返します。
+    タスクをどのリストへ分類できるか確認する際に使用してください。
+
+    引数:
+    なし
+    """
+    try:
+        lists = database.get_task_lists()
+        if not lists:
+            return "タスクリストはまだ1つも作成されていません。"
+        result = "🗂️ タスクリスト一覧:\n"
+        for l in lists:
+            result += f"- {l.emoji} {l.name} (ID: {l.id}, 並び順: {l.sort_order})\n"
+        return result
+    except Exception as e:
+        return f"タスクリストの取得に失敗しました: {e}"
+
+
+@tool
 def quick_add_task_tool(quick_text: str) -> str:
     """クイック追加構文でTODOタスクを一括作成します。
 

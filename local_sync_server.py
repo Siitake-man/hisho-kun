@@ -799,6 +799,14 @@ class DeskPetSyncHandler(SimpleHTTPRequestHandler):
                         "history": [],
                     }
                 
+                # ⏰ 期限リマインダー (roadmap 3.1) — エンジン未起動 (テスト/MCP単体) 時は空配列
+                try:
+                    from reminder_engine import get_reminder_engine
+                    due_reminders = get_reminder_engine().get_pending_for_phone()
+                except Exception as rem_err:
+                    logger.debug(f"リマインダー状態取得スキップ: {rem_err}")
+                    due_reminders = []
+
                 active_event = hub.get_active_event()
                 active_notification = monitor.get_active_notification()
                 
@@ -886,6 +894,7 @@ class DeskPetSyncHandler(SimpleHTTPRequestHandler):
                     "tasks": _cached_tasks_data,
                     "events": _cached_events_data,
                     "suggestions": suggestions_data,
+                    "due_reminders": due_reminders,
                     "suggest_config": suggest_eng.config,
                     "pomodoro": {
                         "active": pomodoro_active,
@@ -1315,6 +1324,61 @@ class DeskPetSyncHandler(SimpleHTTPRequestHandler):
                             return
                         self.wfile.write(json.dumps({
                             "status": "error", "message": "タスク名を抽出できませんでした"
+                        }).encode("utf-8"))
+                        return
+                elif action == "list_task_lists":
+                    # 🗂️ タスクリスト一覧取得 (TickTick拡張・スマホTODOモーダルのリスト切替用):
+                    # DB層の database.get_task_lists() をラップする薄い読み取り専用アクション
+                    try:
+                        lists = database.get_task_lists()
+                        payload = [
+                            {
+                                "id": l.id,
+                                "name": l.name,
+                                "emoji": l.emoji,
+                                "sort_order": l.sort_order,
+                            }
+                            for l in lists
+                        ]
+                        logger.info(f"📱 スマホ側からタスクリスト一覧を取得: {len(payload)}件")
+                        self.wfile.write(json.dumps({
+                            "status": "success",
+                            "lists": payload,
+                        }).encode("utf-8"))
+                        return
+                    except Exception as e:
+                        logger.error(f"タスクリスト一覧の取得に失敗: {e}")
+                        self.wfile.write(json.dumps({
+                            "status": "error", "message": str(e)
+                        }).encode("utf-8"))
+                        return
+                elif action == "get_tasks_view":
+                    # 🗂️ TODOモーダル用の拡充タスク取得 (TickTick拡張・Plan C):
+                    # tags / due_date / list_id を含めて返し、リスト・タグ・期間の
+                    # 絞り込みはクライアント側 (pet.js) で行う
+                    try:
+                        tasks = database.get_tasks(status="todo", limit=100)
+                        payload = [
+                            {
+                                "id": t.id,
+                                "title": t.title,
+                                "priority": t.priority,
+                                "due_date": t.due_date,
+                                "tags": t.tags or "",
+                                "list_id": t.list_id,
+                            }
+                            for t in tasks
+                        ]
+                        logger.info(f"📱 スマホ側からTODOビューを取得: {len(payload)}件")
+                        self.wfile.write(json.dumps({
+                            "status": "success",
+                            "tasks": payload,
+                        }).encode("utf-8"))
+                        return
+                    except Exception as e:
+                        logger.error(f"TODOビューの取得に失敗: {e}")
+                        self.wfile.write(json.dumps({
+                            "status": "error", "message": str(e)
                         }).encode("utf-8"))
                         return
                 elif action == "start_pomodoro":

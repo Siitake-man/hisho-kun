@@ -7,7 +7,7 @@
 if ('caches' in window) {
   caches.keys().then(keys => {
     keys.forEach(key => {
-      if (key !== 'neo-pet-v5.14') caches.delete(key);
+      if (key !== 'neo-pet-v5.16') caches.delete(key);
     });
   });
 }
@@ -1957,26 +1957,187 @@ function openEventsModal() {
   openBottomSheet({ icon: '📅', tag: '手帳', title: `予定一覧 (${count}件)` }, html);
 }
 
-/** 📝 TODOリストモーダル（項目タップで完了＋クイック追加バー） */
+// 🗂️ TODOビューの絞り込み状態 (Plan C: リスト/タグ/期間フィルタ)
+let todoFilter = { listId: null, tag: null, range: 'all' };
+let todoTasks = [];   // get_tasks_view で取得した拡充タスク (tags/due_date/list_id付き)
+let todoLists = [];   // list_task_lists で取得したリスト一覧
+let todoTagCandidates = []; // 描画ごとのタグ候補 (onclickはインデックス参照・XSS安全)
+let todoViewMode = 'list';  // 🎯 ビュー切替 ('list': 通常一覧 / 'quad': 4象限)
+
+/** 🗂️ TODOビュー用データ取得 (拡充タスク + リスト一覧) */
+function fetchTodoView() {
+  const post = (action) => authFetch('/api/action', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: action })
+  }).then(res => res.json()).catch(err => {
+    console.debug(`${action} failed:`, err);
+    return null;
+  });
+  return Promise.all([post('get_tasks_view'), post('list_task_lists')]).then(([tasksRes, listsRes]) => {
+    if (tasksRes && tasksRes.status === 'success') todoTasks = tasksRes.tasks || [];
+    if (listsRes && listsRes.status === 'success') todoLists = listsRes.lists || [];
+  });
+}
+
+/** 絞り込み条件を変更してTODOモーダルを再描画する (データ再取得なし) */
+function setTodoFilter(patch) {
+  if (navigator.vibrate) navigator.vibrate(15);
+  Object.assign(todoFilter, patch);
+  renderTodoModal();
+}
+
+/** タグ絞り込みのトグル (候補配列のインデックス指定・XSS安全) */
+function toggleTodoTagIndex(idx) {
+  const tag = todoTagCandidates[idx];
+  if (tag === undefined) return;
+  setTodoFilter({ tag: todoFilter.tag === tag ? null : tag });
+}
+
+/** タスクが期間フィルタに合致するか ('all' | 'today' | 'week') */
+function todoMatchRange(t, range) {
+  if (range === 'all') return true;
+  if (!t.due_date) return false;
+  const now = new Date();
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  const dayMs = 24 * 60 * 60 * 1000;
+  if (range === 'today') return t.due_date < startOfToday + dayMs;   // 期限切れ含む今日中
+  if (range === 'week') return t.due_date < startOfToday + 7 * dayMs;
+  return true;
+}
+
+/** 現在の絞り込み状態をTODO一覧へ適用する */
+function todoApplyFilter() {
+  return todoTasks.filter(t => {
+    if (todoFilter.listId !== null && t.list_id !== todoFilter.listId) return false;
+    if (todoFilter.tag) {
+      const tags = String(t.tags || '').split(',').map(s => s.trim()).filter(Boolean);
+      if (!tags.includes(todoFilter.tag)) return false;
+    }
+    return todoMatchRange(t, todoFilter.range);
+  });
+}
+
+/** 🎯 TODOビュー切替 (📋 リスト ⇔ 🎯 4象限) */
+function setTodoView(mode) {
+  if (navigator.vibrate) navigator.vibrate(15);
+  todoViewMode = mode === 'quad' ? 'quad' : 'list';
+  renderTodoModal();
+}
+
+/** 🎯 緊急判定: 期限が3日以内 (期限切れ含む)。期限未設定は非緊急 */
+function todoIsUrgent(t) {
+  if (!t.due_date) return false;
+  return t.due_date < Date.now() + 3 * 24 * 60 * 60 * 1000;
+}
+
+/** 🎯 重要判定: 優先度 高(!3) を重要とみなす (ルールベース自動分類・AI推定は後続) */
+function todoIsImportant(t) {
+  return t.priority >= 3;
+}
+
+/** 4象限セル内の1タスク行 (タップで完了) */
+function todoQuadItem(t) {
+  const pad = n => String(n).padStart(2, '0');
+  let due = '';
+  if (t.due_date) {
+    const d = new Date(t.due_date);
+    due = `📅 ${pad(d.getMonth() + 1)}/${pad(d.getDate())}`;
+  }
+  return `<div class="note-item" onclick="completeTask(${t.id}, this)"><div class="note-title">${escapeHtml(t.title)}</div><div class="note-desc">${due}</div></div>`;
+}
+
+/** 🎯 アイゼンハワー4象限グリッド描画 (Plan D) */
+function renderQuadrant(tasks) {
+  const q1 = tasks.filter(t => todoIsImportant(t) && todoIsUrgent(t));
+  const q2 = tasks.filter(t => todoIsImportant(t) && !todoIsUrgent(t));
+  const q3 = tasks.filter(t => !todoIsImportant(t) && todoIsUrgent(t));
+  const q4 = tasks.filter(t => !todoIsImportant(t) && !todoIsUrgent(t));
+  const cell = (cls, icon, label, arr, hint) =>
+    `<div class="quad-cell ${cls}"><div class="quad-head">${icon} ${label}<span class="quad-count">${arr.length}</span></div>`
+    + (arr.length ? arr.map(todoQuadItem).join('') : `<div class="quad-empty">${hint}</div>`)
+    + `</div>`;
+  return `<div class="quad-grid">`
+    + cell('q1', '🔥', '今すぐやる', q1, '重要×緊急。最優先！')
+    + cell('q2', '🎯', '計画する', q2, '重要×非緊急。予定を立てよう')
+    + cell('q3', '⚡', '調整する', q3, '非重要×緊急。丸投げも一手')
+    + cell('q4', '☕', '後回し', q4, '非重要×非緊急。余裕があれば')
+    + `</div>`;
+}
+
+/** 📝 TODOリストモーダル (フィルタチップ付き) — キャッシュ即描画→取得後再描画 */
 function openTodoModal() {
-  const count = tasksData ? tasksData.length : 0;
+  renderTodoModal();
+  fetchTodoView().then(renderTodoModal);
+}
+
+/** TODOモーダルの本体描画 (openTodoModal / setTodoFilter から呼ばれる) */
+function renderTodoModal() {
+  const filtered = todoApplyFilter();
   // 🚀 クイック追加バー (TickTick拡張): 「明日18時に〜 #仕事 !3」構文対応
   const quickBar = `
     <div class="quick-add-bar">
       <input type="text" id="quick-task-input" placeholder="例: 明日18時に資料 #仕事 !3" enterkeyhint="done">
       <button id="quick-task-btn" onclick="quickAddTask()">＋</button>
     </div>`;
-  let html = quickBar;
-  if (count === 0) {
-    html += '<div class="note-empty">📝 未完了のTODOはありません。<br>お見事です、ボス！✨</div>';
+  // リスト切替チップ (📥 すべて + 登録済みリスト)
+  const listChips = ['<button class="todo-chip' + (todoFilter.listId === null ? ' active' : '') + '" onclick="setTodoFilter({listId: null})">📥 すべて</button>']
+    .concat(todoLists.map(l =>
+      `<button class="todo-chip${todoFilter.listId === l.id ? ' active' : ''}" onclick="setTodoFilter({listId: ${l.id}})">${escapeHtml(l.emoji || '📋')} ${escapeHtml(l.name)}</button>`
+    )).join('');
+  // 期間フィルタチップ (スマートリストの最小実装)
+  const rangeChips = [['all', '🗂 すべて'], ['today', '⏰ 今日'], ['week', '📅 今週']]
+    .map(([k, label]) => `<button class="todo-chip${todoFilter.range === k ? ' active' : ''}" onclick="setTodoFilter({range: '${k}'})">${label}</button>`).join('');
+  // アクティブなタグ絞り込みチップ (✕で解除)
+  const tagChip = todoFilter.tag ? `<button class="todo-chip active" onclick="setTodoFilter({tag: null})">#${escapeHtml(todoFilter.tag)} ✕</button>` : '';
+  // ビュー切替チップ (📋 リスト / 🎯 4象限)
+  const viewChips = `<div class="todo-filter-bar">`
+    + `<button class="todo-chip${todoViewMode === 'list' ? ' active' : ''}" onclick="setTodoView('list')">📋 リスト</button>`
+    + `<button class="todo-chip${todoViewMode === 'quad' ? ' active' : ''}" onclick="setTodoView('quad')">🎯 4象限</button>`
+    + `</div>`;
+  let html = quickBar + viewChips
+    + `<div class="todo-filter-bar">${listChips}</div>`
+    + `<div class="todo-filter-bar">${rangeChips}${tagChip}</div>`;
+  // 🎯 4象限ビュー (Plan D): バケツ分けして2x2グリッド描画して終了
+  if (todoViewMode === 'quad') {
+    todoTagCandidates = [];
+    html += renderQuadrant(filtered);
+    openBottomSheet({ icon: '📝', tag: '手帳', title: `TODO 4象限 (${filtered.length}件)` }, html);
+    const qinput = document.getElementById('quick-task-input');
+    if (qinput) {
+      qinput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          quickAddTask();
+        }
+      });
+    }
+    return;
+  }
+  const tagCandidates = [];
+  if (filtered.length === 0) {
+    html += '<div class="note-empty">📝 該当するTODOはありません。<br>フィルタを変更するか、上のバーから追加してください✨</div>';
   } else {
-    const prioIcon = { high: '🔥', medium: '⭐', low: '🌱' };
-    html += tasksData.map(t => {
-      const icon = prioIcon[t.priority] || '⭐';
-      return `<div class="note-item" onclick="completeTask(${t.id}, this)"><div class="note-title">${icon} ${escapeHtml(t.title)}</div><div class="note-desc">👆 タップで完了にする</div></div>`;
+    const prioIcon = { 3: '🔥', 2: '⭐', 1: '🌱' };
+    const pad = n => String(n).padStart(2, '0');
+    html += filtered.map(t => {
+      const icon = prioIcon[t.priority] || '📌';
+      const tags = String(t.tags || '').split(',').map(s => s.trim()).filter(Boolean);
+      const tagHtml = tags.map(tag => {
+        let idx = tagCandidates.indexOf(tag);
+        if (idx === -1) { tagCandidates.push(tag); idx = tagCandidates.length - 1; }
+        return `<span class="todo-tag" onclick="event.stopPropagation();toggleTodoTagIndex(${idx})">#${escapeHtml(tag)}</span>`;
+      }).join('');
+      let dueHtml = '';
+      if (t.due_date) {
+        const d = new Date(t.due_date);
+        dueHtml = ` 📅 ${pad(d.getMonth() + 1)}/${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+      }
+      return `<div class="note-item" onclick="completeTask(${t.id}, this)"><div class="note-title">${icon} ${escapeHtml(t.title)}${tagHtml}</div><div class="note-desc">${dueHtml || '👆 タップで完了にする'}</div></div>`;
     }).join('');
   }
-  openBottomSheet({ icon: '📝', tag: '手帳', title: `TODOリスト (${count}件)` }, html);
+  todoTagCandidates = tagCandidates;
+  openBottomSheet({ icon: '📝', tag: '手帳', title: `TODOリスト (${filtered.length}件)` }, html);
   // Enterキーでも追加できるようにバインド
   const input = document.getElementById('quick-task-input');
   if (input) {
@@ -2031,7 +2192,7 @@ function completeTask(taskId, el) {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ action: 'complete_task', task_id: taskId })
-  }).then(() => fetchStatus()).catch(err => console.debug('Task action failed:', err));
+  }).then(() => { fetchStatus(); fetchTodoView(); }).catch(err => console.debug('Task action failed:', err));
 }
 
 /** 🌱 習慣トラッカーモーダル（項目タップで達成トグル） */
