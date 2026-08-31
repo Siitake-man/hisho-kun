@@ -216,6 +216,11 @@ class NeoSecretaryApp:
         from reminder_engine import get_reminder_engine
         get_reminder_engine(on_reminder=self._on_reminder).start()
 
+        # 9.14+. AI生活コーチエンジン (生活変化エンジン Phase L1: 日次分析→マイクロ提案)
+        # 夜間23時に当日分を分析し、取りこぼした日は朝6時以降に補完実行する
+        from life_coach_engine import get_life_coach_engine
+        get_life_coach_engine(on_analysis=self._on_reminder).start()
+
         # 初期メッセージ ＆ 日次ブリーフィング（起動時に今日の予定・タスクを自動報告）
         self._generate_daily_briefing()
         

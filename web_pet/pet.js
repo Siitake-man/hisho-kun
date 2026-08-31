@@ -7,10 +7,17 @@
 if ('caches' in window) {
   caches.keys().then(keys => {
     keys.forEach(key => {
-      if (key !== 'neo-pet-v5.20') caches.delete(key);
+      if (key !== 'neo-pet-v5.21') caches.delete(key);
     });
   });
 }
+
+// 🎙️ 音声入力フィーチャーフラグ (B20 内部課題)
+// 実機マイクでの文字起こし品質が実用基準を満たすまで表には出さない。
+// 解放条件 (仕様確定済み):
+//   1. 実機での文字起こし品質検証に合格すること (合成音声E2Eは合格済み・実機ノイズ下で未合格)
+//   2. 解放時は上部バーの小さな 🎤 ボタンを廃止し、キャラエリア直下の大型マイクボタンへ移設すること
+const VOICE_INPUT_ENABLED = false;
 
 let fetchFailCount = 0;
 const FETCH_BACKOFF_THRESHOLD = 3;  // 連続3回失敗でバックオフ
@@ -31,7 +38,7 @@ let petStateNow = 'idle';
 // 歩行フレーム(walk_1/2)を持つキャラ（未保有キャラは歩行中も idle フレームで代用）
 const WALK_CAPABLE_CHARS = ['kyle'];
 let wakeLock = null;
-let currentCharacterId = 'seal';
+let currentCharacterId = 'hisho';
 
 // 🌈 自律生活ドリーマー状態（/api/status の life_state から更新）
 const WEATHER_LABELS_JS = {
@@ -2922,6 +2929,11 @@ let _isVoiceRecording = false;
 
 /** スマホマイク録音の開始/停止トグル */
 async function startVoiceInput() {
+  // 🔒 フィーチャーフラグ: 品質検証合格まで機能を表に出さない (内部課題 B20)
+  if (!VOICE_INPUT_ENABLED) {
+    console.info("🎙️ 音声入力は内部品質検証中のため無効化されています (VOICE_INPUT_ENABLED=false)");
+    return;
+  }
   const micBtn = document.getElementById('mic-btn');
 
   // 既に録音中の場合はタップで停止して即時文字起こしへ
@@ -2957,7 +2969,9 @@ async function startVoiceInput() {
       else mimeType = '';
     }
 
-    _voiceMediaRecorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
+    // 🎧 音質最適化: audioBitsPerSecond を明示指定（既定約32kbpsだと子音が欠落するため128kbpsへ）
+    const recorderOptions = mimeType ? { mimeType, audioBitsPerSecond: 128000 } : {};
+    _voiceMediaRecorder = new MediaRecorder(stream, recorderOptions);
 
     _voiceMediaRecorder.ondataavailable = (e) => {
       if (e.data && e.data.size > 0) {
@@ -2979,8 +2993,11 @@ async function startVoiceInput() {
         return;
       }
 
+      // 🎧 拡張子を実際の mimeType と一致させる（iPhoneは audio/mp4 で録音されるため、
+      //    誤った拡張子だとサーバ側デコーダのフォーマット判定が崩れる）
+      const isMp4 = (_voiceMediaRecorder.mimeType || '').indexOf('mp4') !== -1;
       const audioBlob = new Blob(_voiceAudioChunks, { type: _voiceMediaRecorder.mimeType || 'audio/webm' });
-      await _sendVoiceToWhisper(audioBlob);
+      await _sendVoiceToWhisper(audioBlob, isMp4 ? 'voice.mp4' : 'voice.webm');
     };
 
     _voiceMediaRecorder.start();
@@ -3024,7 +3041,7 @@ function stopVoiceRecording() {
 }
 
 /** 録音BlobをBase64化してPCの Whisper API へ送信 */
-async function _sendVoiceToWhisper(audioBlob) {
+async function _sendVoiceToWhisper(audioBlob, filename) {
   showToast("🧠 PCのWhisperで文字起こし中…");
   const bubble = document.getElementById('speech-bubble');
   if (bubble) bubble.innerText = "🧠 PCで音声解析中…少々お待ちください…";
@@ -3047,7 +3064,7 @@ async function _sendVoiceToWhisper(audioBlob) {
       body: JSON.stringify({
         action: 'transcribe_voice',
         audio_base64: audioBase64,
-        filename: 'voice.webm',
+        filename: filename || 'voice.webm',
         auto_add_task: true
       })
     });

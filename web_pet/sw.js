@@ -2,7 +2,7 @@
  * ネオ秘書くん Service Worker (sw.js)
  * PWAスタンドアロンインストール ＆ オフラインキャッシュ
  */
-const CACHE_NAME = 'neo-pet-v5.20';
+const CACHE_NAME = 'neo-pet-v5.21';
 const ASSETS_TO_CACHE = [
   './index.html',
   './pet.js',

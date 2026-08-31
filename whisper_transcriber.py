@@ -37,7 +37,9 @@ class WhisperTranscriber:
 
     Attributes:
         model_size (Optional[str]): Whisperモデルサイズ (base, small, medium, large-v3等)。
-            None の場合は環境変数 ``HISHO_WHISPER_MODEL`` を参照し、未設定なら 'small'。
+            None の場合は環境変数 ``HISHO_WHISPER_MODEL`` を参照し、未設定なら 'medium'。
+            ※日本語認識精度はモデルサイズにほぼ比例するため、既定は精度優先の 'medium'。
+            CPU速度を優先したい場合は HISHO_WHISPER_MODEL=small を設定すること。
         language (str): 文字起こし対象言語コード。既定は 'ja'。
         device (str): 実行デバイス ('cpu' または 'cuda')。既定は 'cpu'。
         compute_type (str): 量子化計算タイプ ('int8', 'float16', 'float32'等)。既定は 'int8'。
@@ -70,7 +72,7 @@ class WhisperTranscriber:
         Args:
             model_size (Optional[str]): モデルサイズ ('base', 'small', 'medium')。
                 None の場合は環境変数 ``HISHO_WHISPER_MODEL`` を優先し、
-                未設定時は 'small' を使用する。
+                未設定時は 'medium' を使用する。
             language (str): 言語コード ('ja')。
             device (str): 実行デバイス ('cpu' または 'cuda')。
             compute_type (str): 計算精度 ('int8' 等)。
@@ -78,7 +80,7 @@ class WhisperTranscriber:
                 None の場合は環境変数 ``HISHO_WHISPER_PROMPT`` を優先し、
                 未設定時は ``DEFAULT_INITIAL_PROMPT`` を使用する。
         """
-        self.model_size = model_size or os.environ.get("HISHO_WHISPER_MODEL", "small")
+        self.model_size = model_size or os.environ.get("HISHO_WHISPER_MODEL", "medium")
         self.language = language
         self.device = device
         self.compute_type = compute_type
@@ -168,7 +170,9 @@ class WhisperTranscriber:
                 tmp_file_path,
                 language=self.language,
                 beam_size=5,
+                best_of=5,  # temperature フォールバック時の候補数を拡大し最良解を選ぶ
                 vad_filter=True,  # 無音区間の自動除去
+                vad_parameters={"min_silence_duration_ms": 300},  # 短いポーズで過剰分割しない
                 initial_prompt=self.initial_prompt,
                 condition_on_previous_text=False,
             )

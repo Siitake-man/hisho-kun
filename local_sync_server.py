@@ -881,6 +881,13 @@ class DeskPetSyncHandler(SimpleHTTPRequestHandler):
                 #  /api/status が常に {"status": "error"} を返し、スマホ同期が
                 #  全滅していた障害を解消)
                 token_mgr = get_sync_token_manager()
+                # AI生活コーチの最新分析レポート (Phase L1: life_coach フィールド)
+                try:
+                    from life_coach_engine import get_life_coach_engine
+                    coach_report = get_life_coach_engine().get_latest_report()
+                except Exception as coach_err:
+                    logger.debug(f"生活コーチ状態取得スキップ: {coach_err}")
+                    coach_report = None
                 payload = {
                     "status": "ok",
                     "pet_state": pet_state,
@@ -913,6 +920,7 @@ class DeskPetSyncHandler(SimpleHTTPRequestHandler):
                     },
                     "buzz": should_buzz,
                     "life_state": life_state,
+                    "life_coach": coach_report,
                     "weather_location": (lambda: (__import__('weather_tools').get_current_location_setting()))(),
                     "update": self._update_notice_payload(),
                     "sync_token": token_mgr.token,

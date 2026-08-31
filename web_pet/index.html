@@ -1275,7 +1275,9 @@
         <button class="btn-header" onclick="toggleFullscreen()" title="⛶ 全画面表示">
           <span>⛶</span>
         </button>
-        <button class="btn-header" id="mic-btn" onclick="startVoiceInput()" title="🎤 音声で質問する">
+        <!-- 🎙️ 音声入力ボタンは内部品質検証中のため非表示 (VOICE_INPUT_ENABLED / pet.js)。
+             解放時はキャラエリア直下の大型マイクボタンとして復活させる仕様 -->
+        <button class="btn-header" id="mic-btn" onclick="startVoiceInput()" title="🎤 音声で質問する" hidden>
           <span>🎤</span>
         </button>
       </div>
@@ -1422,13 +1424,13 @@
   <!-- 常時画面ON (NoSleep): Canvas無限生配信を流す不可視video（HTTP環境で唯一確実に動作する方式） -->
   <video id="nosleep-video" muted playsinline autoplay style="position:fixed; left:0; bottom:0; width:2px; height:2px; opacity:0.01; pointer-events:none; z-index:-1;"></video>
 
-  <script src="easter_eggs.js?v=5.20"></script>
-  <script src="pixel_defense.js?v=5.20"></script>
-  <script src="minigame_arcade.js?v=5.20"></script>
-  <script src="minigame_itotooshi.js?v=5.20"></script>
-  <script src="minigame_cyber_wire.js?v=5.20"></script>
-  <script src="minigame_setsuna.js?v=5.20"></script>
-  <script src="minigame_retro_breakout.js?v=5.20"></script>
-  <script src="pet.js?v=5.20"></script>
+  <script src="easter_eggs.js?v=5.21"></script>
+  <script src="pixel_defense.js?v=5.21"></script>
+  <script src="minigame_arcade.js?v=5.21"></script>
+  <script src="minigame_itotooshi.js?v=5.21"></script>
+  <script src="minigame_cyber_wire.js?v=5.21"></script>
+  <script src="minigame_setsuna.js?v=5.21"></script>
+  <script src="minigame_retro_breakout.js?v=5.21"></script>
+  <script src="pet.js?v=5.21"></script>
 </body>
 </html>
