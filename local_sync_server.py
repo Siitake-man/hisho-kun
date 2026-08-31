@@ -1314,6 +1314,9 @@ class DeskPetSyncHandler(SimpleHTTPRequestHandler):
                                 priority=parsed.priority,
                                 status="todo",
                                 tags=tags_to_db_string(parsed.tags),
+                                importance_flag=parsed.importance,
+                                urgency_flag=parsed.urgency,
+                                recurrence=parsed.recurrence,
                             ))
                             logger.info(f"📱 スマホ側からクイック追加を受信: ID={task_id}, Title={parsed.title}")
                             self.wfile.write(json.dumps({
@@ -1366,6 +1369,9 @@ class DeskPetSyncHandler(SimpleHTTPRequestHandler):
                                 "due_date": t.due_date,
                                 "tags": t.tags or "",
                                 "list_id": t.list_id,
+                                "importance_flag": t.importance_flag,
+                                "urgency_flag": t.urgency_flag,
+                                "recurrence": t.recurrence,
                             }
                             for t in tasks
                         ]

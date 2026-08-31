@@ -9,8 +9,9 @@ contextlib.contextmanager による接続管理を一元化し、例外時の自
 import logging
 import sqlite3
 import json
+import calendar
 from contextlib import contextmanager
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Optional, List, Dict, Any, Generator
 from pathlib import Path
 
@@ -210,6 +211,9 @@ class Task(BaseModel):
     parent_id: Optional[int] = None
     list_id: Optional[int] = None
     tags: str = Field(default="", max_length=500)  # カンマ区切りタグ (例: "仕事,急ぎ")
+    importance_flag: Optional[bool] = None  # 明示的重要度 (True=重要 / None=未指定→推定ルールへフォールバック)
+    urgency_flag: Optional[bool] = None  # 明示的緊急度 (True=緊急 / None=未指定→推定ルールへフォールバック)
+    recurrence: Optional[str] = Field(default=None, pattern=r'^(daily|weekly|monthly)$')  # 繰り返し種別 (None=単発)
     created_at: int = Field(default_factory=lambda: int(datetime.now().timestamp() * 1000))
     updated_at: int = Field(default_factory=lambda: int(datetime.now().timestamp() * 1000))
 
@@ -365,6 +369,9 @@ def init_db(db_path: str = "neo_secretary.db") -> None:
                 parent_id INTEGER,
                 list_id INTEGER,
                 tags TEXT NOT NULL DEFAULT '',
+                importance_flag INTEGER,
+                urgency_flag INTEGER,
+                recurrence TEXT,
                 created_at INTEGER NOT NULL,
                 updated_at INTEGER NOT NULL,
                 FOREIGN KEY (parent_id) REFERENCES tasks (id)
@@ -402,6 +409,17 @@ def init_db(db_path: str = "neo_secretary.db") -> None:
         if "tags" not in task_columns:
             cursor.execute("ALTER TABLE tasks ADD COLUMN tags TEXT NOT NULL DEFAULT ''")
             logger.info("tasks.tags カラムを追加しました (TickTick拡張)")
+        # tasks.importance_flag / tasks.urgency_flag マイグレーション（4象限属性・roadmap 1.14）
+        if "importance_flag" not in task_columns:
+            cursor.execute("ALTER TABLE tasks ADD COLUMN importance_flag INTEGER")
+            logger.info("tasks.importance_flag カラムを追加しました (4象限属性)")
+        if "urgency_flag" not in task_columns:
+            cursor.execute("ALTER TABLE tasks ADD COLUMN urgency_flag INTEGER")
+            logger.info("tasks.urgency_flag カラムを追加しました (4象限属性)")
+        # tasks.recurrence マイグレーション（繰り返しタスク・roadmap 1.12）
+        if "recurrence" not in task_columns:
+            cursor.execute("ALTER TABLE tasks ADD COLUMN recurrence TEXT")
+            logger.info("tasks.recurrence カラムを追加しました (繰り返しタスク)")
 
         # habitsテーブル (習慣トラッカー)
         cursor.execute("""
@@ -1099,8 +1117,8 @@ def create_task(task: Task, db_path: str = "neo_secretary.db") -> int:
     with get_db_connection(db_path) as conn:
         cursor = conn.cursor()
         cursor.execute("""
-            INSERT INTO tasks (title, description, due_date, priority, status, parent_id, list_id, tags, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO tasks (title, description, due_date, priority, status, parent_id, list_id, tags, importance_flag, urgency_flag, recurrence, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             task.title,
             task.description or "",
@@ -1110,6 +1128,9 @@ def create_task(task: Task, db_path: str = "neo_secretary.db") -> int:
             task.parent_id,
             task.list_id,
             task.tags or "",
+            None if task.importance_flag is None else int(task.importance_flag),
+            None if task.urgency_flag is None else int(task.urgency_flag),
+            task.recurrence,
             task.created_at,
             task.updated_at
         ))
@@ -1155,13 +1176,13 @@ def get_tasks(
             params.append(list_id)
         params.append(limit)
         cursor.execute(f"""
-            SELECT id, title, description, due_date, priority, status, parent_id, list_id, tags, created_at, updated_at
+            SELECT id, title, description, due_date, priority, status, parent_id, list_id, tags, importance_flag, urgency_flag, recurrence, created_at, updated_at
             FROM tasks
             WHERE {' AND '.join(where_parts)}
             ORDER BY priority DESC, (due_date IS NULL) ASC, due_date ASC, id ASC
             LIMIT ?
         """, tuple(params))
-        
+
         rows = cursor.fetchall()
         tasks = []
         for r in rows:
@@ -1175,8 +1196,11 @@ def get_tasks(
                 parent_id=r[6],
                 list_id=r[7],
                 tags=r[8],
-                created_at=r[9],
-                updated_at=r[10]
+                importance_flag=None if r[9] is None else bool(r[9]),
+                urgency_flag=None if r[10] is None else bool(r[10]),
+                recurrence=r[11],
+                created_at=r[12],
+                updated_at=r[13]
             ))
         return tasks
 
@@ -1195,7 +1219,7 @@ def get_subtasks(parent_id: int, db_path: str = "neo_secretary.db") -> List[Task
     with get_db_connection(db_path) as conn:
         cursor = conn.cursor()
         cursor.execute("""
-            SELECT id, title, description, due_date, priority, status, parent_id, list_id, tags, created_at, updated_at
+            SELECT id, title, description, due_date, priority, status, parent_id, list_id, tags, importance_flag, urgency_flag, recurrence, created_at, updated_at
             FROM tasks
             WHERE parent_id = ?
             ORDER BY status = 'completed' ASC, id ASC
@@ -1213,8 +1237,11 @@ def get_subtasks(parent_id: int, db_path: str = "neo_secretary.db") -> List[Task
                 parent_id=r[6],
                 list_id=r[7],
                 tags=r[8],
-                created_at=r[9],
-                updated_at=r[10]
+                importance_flag=None if r[9] is None else bool(r[9]),
+                urgency_flag=None if r[10] is None else bool(r[10]),
+                recurrence=r[11],
+                created_at=r[12],
+                updated_at=r[13]
             ))
         return subtasks
 
@@ -1239,24 +1266,117 @@ def add_subtask(parent_id: int, title: str, db_path: str = "neo_secretary.db") -
     return create_task(new_sub, db_path=db_path)
 
 
+def _next_recurrence_due(
+    recurrence: str,
+    due_date_ms: Optional[int],
+    now_ms: int,
+) -> Optional[int]:
+    """
+    繰り返しタスクの次回期限を計算する (完了時の自動次回生成用)。
+
+    Args:
+        recurrence: 繰り返し種別 ('daily' / 'weekly' / 'monthly')
+        due_date_ms: 直前の期限 (epochミリ秒)。Noneの場合は現在時刻を基準にする
+        now_ms: 現在時刻 (epochミリ秒)
+
+    Returns:
+        次回期限のepochミリ秒 (計算不能な場合はNone)
+    """
+    base_ms = due_date_ms if due_date_ms is not None else now_ms
+    base = datetime.fromtimestamp(base_ms / 1000)
+    now = datetime.fromtimestamp(now_ms / 1000)
+    if recurrence == "daily":
+        # 前回期限の翌日。既に現在時刻を過ぎていれば過ぎるまで進める
+        # (しばらく完了せず放置していたケースで未来日までスキップする)
+        next_due = base + timedelta(days=1)
+        while next_due <= now:
+            next_due += timedelta(days=1)
+        return int(next_due.timestamp() * 1000)
+    if recurrence == "weekly":
+        next_due = base + timedelta(weeks=1)
+        while next_due <= now:
+            next_due += timedelta(weeks=1)
+        return int(next_due.timestamp() * 1000)
+    if recurrence == "monthly":
+        # 月加算は月末クランプ付き (1月31日 → 2月28日 → 3月28日)
+        year, month = base.year, base.month
+        next_due = base
+        for _ in range(48):  # 無限ループ防止 (48ヶ月先まで)
+            month += 1
+            if month > 12:
+                month = 1
+                year += 1
+            last_day = calendar.monthrange(year, month)[1]
+            day = min(base.day, last_day)
+            next_due = base.replace(year=year, month=month, day=day)
+            if next_due > now:
+                break
+        return int(next_due.timestamp() * 1000)
+    return None
+
+
 def complete_task(task_id: int, db_path: str = "neo_secretary.db") -> bool:
     """
     タスクを完了状態 ('completed') に更新します。
-    
+
+    繰り返しタスク (recurrence 設定あり) を完了した場合は、
+    次回期限を持つ同一内容の新タスクを自動生成します (roadmap 1.12)。
+
     Args:
         task_id: 完了にするタスクID
         db_path: データベースファイルのパス
-        
+
     Returns:
         更新成功時はTrue
     """
     with get_db_connection(db_path) as conn:
         cursor = conn.cursor()
         now = int(datetime.now().timestamp() * 1000)
+        # 繰り返し属性を完了更新前に取得 (同一コネクション内で完結させる)
+        cursor.execute(
+            "SELECT recurrence, due_date, title, description, priority, tags, list_id, importance_flag, urgency_flag FROM tasks WHERE id = ?",
+            (task_id,)
+        )
+        row = cursor.fetchone()
         cursor.execute("UPDATE tasks SET status = 'completed', updated_at = ? WHERE id = ?", (now, task_id))
         success = cursor.rowcount > 0
         if success:
             logger.info(f"タスクを完了にしました: ID={task_id}")
+            # 繰り返しタスクなら次回分を自動生成する
+            # 注意: このトランザクション内 (同一接続) で完結させる。
+            # 別接続の create_task を呼ぶと SQLite の書き込みロック競合で
+            # "database is locked" になるため、ここでは直接 INSERT する。
+            if row and row[0]:
+                recurrence = row[0]
+                next_due = _next_recurrence_due(recurrence, row[1], now)
+                if next_due is not None:
+                    try:
+                        cursor.execute("""
+                            INSERT INTO tasks (title, description, due_date, priority, status, parent_id, list_id, tags, importance_flag, urgency_flag, recurrence, created_at, updated_at)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        """, (
+                            row[2],
+                            row[3] or "",
+                            next_due,
+                            row[4],
+                            "todo",
+                            None,
+                            row[5] if row[5] else None,
+                            row[6] or "",
+                            None if row[7] is None else int(row[7]),
+                            None if row[8] is None else int(row[8]),
+                            recurrence,
+                            now,
+                            now,
+                        ))
+                        next_id = cursor.lastrowid
+                        logger.info(
+                            f"🔁 繰り返しタスクの次回分を生成しました: ID={next_id} "
+                            f"(recurrence={recurrence}, 次回期限={datetime.fromtimestamp(next_due / 1000):%Y-%m-%d %H:%M})"
+                        )
+                    except sqlite3.Error as e:
+                        # 次回生成に失敗しても完了更新自体は成功扱いとする (ログで追跡)
+                        logger.error(f"繰り返しタスクの次回生成に失敗: {e}")
         return success
 
 

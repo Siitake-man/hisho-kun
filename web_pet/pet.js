@@ -7,7 +7,7 @@
 if ('caches' in window) {
   caches.keys().then(keys => {
     keys.forEach(key => {
-      if (key !== 'neo-pet-v5.16') caches.delete(key);
+      if (key !== 'neo-pet-v5.17') caches.delete(key);
     });
   });
 }
@@ -2025,14 +2025,20 @@ function setTodoView(mode) {
   renderTodoModal();
 }
 
-/** 🎯 緊急判定: 期限が3日以内 (期限切れ含む)。期限未設定は非緊急 */
+/** 🎯 緊急判定: 明示属性 (※緊急/※非緊急) を最優先 → 未指定は期限3日以内で推定 */
 function todoIsUrgent(t) {
+  if (t.urgency_flag !== null && t.urgency_flag !== undefined) {
+    return !!t.urgency_flag;
+  }
   if (!t.due_date) return false;
   return t.due_date < Date.now() + 3 * 24 * 60 * 60 * 1000;
 }
 
-/** 🎯 重要判定: 優先度 高(!3) を重要とみなす (ルールベース自動分類・AI推定は後続) */
+/** 🎯 重要判定: 明示属性 (※重要/※非重要) を最優先 → 未指定は優先度高で推定 */
 function todoIsImportant(t) {
+  if (t.importance_flag !== null && t.importance_flag !== undefined) {
+    return !!t.importance_flag;
+  }
   return t.priority >= 3;
 }
 
@@ -2080,24 +2086,26 @@ function renderTodoModal() {
       <input type="text" id="quick-task-input" placeholder="例: 明日18時に資料 #仕事 !3" enterkeyhint="done">
       <button id="quick-task-btn" onclick="quickAddTask()">＋</button>
     </div>`;
-  // リスト切替チップ (📥 すべて + 登録済みリスト)
-  const listChips = ['<button class="todo-chip' + (todoFilter.listId === null ? ' active' : '') + '" onclick="setTodoFilter({listId: null})">📥 すべて</button>']
-    .concat(todoLists.map(l =>
-      `<button class="todo-chip${todoFilter.listId === l.id ? ' active' : ''}" onclick="setTodoFilter({listId: ${l.id}})">${escapeHtml(l.emoji || '📋')} ${escapeHtml(l.name)}</button>`
-    )).join('');
-  // 期間フィルタチップ (スマートリストの最小実装)
-  const rangeChips = [['all', '🗂 すべて'], ['today', '⏰ 今日'], ['week', '📅 今週']]
-    .map(([k, label]) => `<button class="todo-chip${todoFilter.range === k ? ' active' : ''}" onclick="setTodoFilter({range: '${k}'})">${label}</button>`).join('');
-  // アクティブなタグ絞り込みチップ (✕で解除)
-  const tagChip = todoFilter.tag ? `<button class="todo-chip active" onclick="setTodoFilter({tag: null})">#${escapeHtml(todoFilter.tag)} ✕</button>` : '';
-  // ビュー切替チップ (📋 リスト / 🎯 4象限)
-  const viewChips = `<div class="todo-filter-bar">`
-    + `<button class="todo-chip${todoViewMode === 'list' ? ' active' : ''}" onclick="setTodoView('list')">📋 リスト</button>`
-    + `<button class="todo-chip${todoViewMode === 'quad' ? ' active' : ''}" onclick="setTodoView('quad')">🎯 4象限</button>`
-    + `</div>`;
-  let html = quickBar + viewChips
-    + `<div class="todo-filter-bar">${listChips}</div>`
-    + `<div class="todo-filter-bar">${rangeChips}${tagChip}</div>`;
+  // 📋 リスト切替行 (ラベル付き) — リスト未登録なら非表示でノイズ削減
+  const listRow = todoLists.length > 0
+    ? `<div class="todo-filter-bar"><span class="todo-filter-label">📋 リスト</span><div class="todo-filter-chips">`
+      + ['<button class="todo-chip' + (todoFilter.listId === null ? ' active' : '') + '" onclick="setTodoFilter({listId: null})">📥 すべて</button>']
+        .concat(todoLists.map(l =>
+          `<button class="todo-chip${todoFilter.listId === l.id ? ' active' : ''}" onclick="setTodoFilter({listId: ${l.id}})">${escapeHtml(l.emoji || '📋')} ${escapeHtml(l.name)}</button>`
+        )).join('')
+      + `</div></div>`
+    : '';
+  // 🗓 期間フィルタ行 (セグメントコントロール化) ＋ 🎯 4象限ビュー切替を同列に集約
+  const rangeRow = `<div class="todo-filter-bar"><span class="todo-filter-label">🗓 期間</span><div class="todo-filter-chips">`
+    + [['all', '🗂 すべて'], ['today', '⏰ 今日'], ['week', '📅 今週']]
+      .map(([k, label]) => `<button class="todo-chip${todoFilter.range === k ? ' active' : ''}" onclick="setTodoFilter({range: '${k}'})">${label}</button>`).join('')
+    + `<button class="todo-chip todo-view-toggle${todoViewMode === 'quad' ? ' active' : ''}" onclick="setTodoView('${todoViewMode === 'quad' ? 'list' : 'quad'}')">${todoViewMode === 'quad' ? '📋 一覧に戻る' : '🎯 4象限'}</button>`
+    + `</div></div>`;
+  // 🏷 タグ行 (絞り込み中のみ表示・✕で解除)
+  const tagRow = todoFilter.tag
+    ? `<div class="todo-filter-bar"><span class="todo-filter-label">🏷 タグ</span><div class="todo-filter-chips"><button class="todo-chip active" onclick="setTodoFilter({tag: null})">#${escapeHtml(todoFilter.tag)} ✕ 解除</button></div></div>`
+    : '';
+  let html = quickBar + listRow + rangeRow + tagRow;
   // 🎯 4象限ビュー (Plan D): バケツ分けして2x2グリッド描画して終了
   if (todoViewMode === 'quad') {
     todoTagCandidates = [];
@@ -2122,6 +2130,7 @@ function renderTodoModal() {
     const pad = n => String(n).padStart(2, '0');
     html += filtered.map(t => {
       const icon = prioIcon[t.priority] || '📌';
+      const recBadge = t.recurrence ? '<span class="todo-tag">🔄 繰り返し</span>' : '';
       const tags = String(t.tags || '').split(',').map(s => s.trim()).filter(Boolean);
       const tagHtml = tags.map(tag => {
         let idx = tagCandidates.indexOf(tag);
@@ -2133,7 +2142,7 @@ function renderTodoModal() {
         const d = new Date(t.due_date);
         dueHtml = ` 📅 ${pad(d.getMonth() + 1)}/${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
       }
-      return `<div class="note-item" onclick="completeTask(${t.id}, this)"><div class="note-title">${icon} ${escapeHtml(t.title)}${tagHtml}</div><div class="note-desc">${dueHtml || '👆 タップで完了にする'}</div></div>`;
+      return `<div class="note-item" onclick="completeTask(${t.id}, this)"><div class="note-title">${icon} ${escapeHtml(t.title)}${recBadge}${tagHtml}</div><div class="note-desc">${dueHtml || '👆 タップで完了にする'}</div></div>`;
     }).join('');
   }
   todoTagCandidates = tagCandidates;

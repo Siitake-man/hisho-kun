@@ -573,7 +573,7 @@ class CalendarWindow(ctk.CTkToplevel):
         self.task_entry = ctk.CTkEntry(
             add_bar,
             textvariable=self.task_entry_var,
-            placeholder_text="新しいタスクを入力してEnter...",
+            placeholder_text="新しいタスクを入力してEnter...（例: 明日18時に資料 #仕事 !3 ※重要）",
             font=self.font_body,
             fg_color="#FFFFFF",
             border_color="#A67B5B",
@@ -581,7 +581,32 @@ class CalendarWindow(ctk.CTkToplevel):
         )
         self.task_entry.pack(side="left", fill="x", expand=True, padx=(0, 6))
         self.task_entry.bind("<Return>", self._on_add_quick_task)
-        
+
+        # 重要度・緊急度セレクト (4象限属性・roadmap 1.14): 構文入力が苦手でも
+        # プルダウンで明示指定できる併用UI。値は「未指定」で推定ルールに委ねる
+        self.importance_var = tk.StringVar(value="未指定")
+        ctk.CTkOptionMenu(
+            add_bar,
+            values=["未指定", "重要", "非重要"],
+            variable=self.importance_var,
+            width=78,
+            height=32,
+            font=self.font_body,
+            fg_color="#A67B5B",
+            button_color="#8B634A"
+        ).pack(side="left", padx=(0, 4))
+        self.urgency_var = tk.StringVar(value="未指定")
+        ctk.CTkOptionMenu(
+            add_bar,
+            values=["未指定", "緊急", "非緊急"],
+            variable=self.urgency_var,
+            width=78,
+            height=32,
+            font=self.font_body,
+            fg_color="#A67B5B",
+            button_color="#8B634A"
+        ).pack(side="left", padx=(0, 6))
+
         btn_add = ctk.CTkButton(
             add_bar,
             text="追加",
@@ -602,9 +627,28 @@ class CalendarWindow(ctk.CTkToplevel):
         if not text:
             return
         self.task_entry_var.set("")
-        
+
         import database
-        task = database.Task(title=text, priority=0)
+        from task_parser import parse_input, tags_to_db_string
+
+        # クイック構文解析 (日時/タグ/優先度/※重要※緊急) ＋ プルダウン値をマージ
+        # (プルダウンが「未指定」のときだけ構文側の値を尊重する)
+        parsed = parse_input(text)
+        importance: "bool | None" = parsed.importance
+        urgency: "bool | None" = parsed.urgency
+        if self.importance_var.get() != "未指定":
+            importance = (self.importance_var.get() == "重要")
+        if self.urgency_var.get() != "未指定":
+            urgency = (self.urgency_var.get() == "緊急")
+
+        task = database.Task(
+            title=parsed.title or text,
+            due_date=parsed.due_date,
+            priority=parsed.priority,
+            tags=tags_to_db_string(parsed.tags),
+            importance_flag=importance,
+            urgency_flag=urgency,
+        )
         database.create_task(task)
         self.refresh_tasks()
 
