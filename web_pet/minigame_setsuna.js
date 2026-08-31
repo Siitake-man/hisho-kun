@@ -1,8 +1,9 @@
 /**
  * ネオ秘書くん ミニゲーム「刹那の見斬り」 (minigame_setsuna.js)
  *
- * SFC風 反射神経勝負: 秘書くんと敵が対峙し、「！！」が出た瞬間に
- * 最速タップ (Space) する。5ラウンドの合計反応速度をスコア化する。
+ * SFC風 反射神経対戦: 秘書くんと敵忍者が対峙し、「！！」が出た瞬間に
+ * 最速タップ (Space) する。敵も同じ合図に反応して斬りかかってくるので、
+ * 敵より速く抜かなければラウンド敗北 (0点)。5ラウンドの勝敗と合計スコアを競う。
  * フライング (合図前のタップ) はそのラウンド0点。
  */
 (function () {
@@ -20,6 +21,10 @@
   let state = 'ready'; // ready | standup | signal | result | done
   let round = 0;
   let score = 0;
+  let wins = 0;            // ラウンド勝利数
+  let roundResult = '';    // 'win' | 'lose' | ''
+  let cpuMs = 0;           // 敵の反応時間 (現ラウンド)
+  let cpuTimer = 0;        // 合図後の敵経過時間 (秒)
   let signalTimer = 0;
   let signalDelay = 0;
   let reactionMs = 0;
@@ -34,6 +39,16 @@
   }
 
   /**
+   * 現ラウンドの敵反応時間を決める。
+   * ラウンドが進むほど鋭くなる (ベース420ms → 300ms、ばらつき0.55〜1.0倍)。
+   * @returns {number} 敵の反応時間 (ms)
+   */
+  function rollCpuMs() {
+    const base = 420 - round * 30;
+    return Math.round(base * (0.55 + Math.random() * 0.45));
+  }
+
+  /**
    * ラウンドを開始する。
    */
   function beginRound() {
@@ -42,6 +57,9 @@
     reactionMs = 0;
     signalTimer = 0;
     lastReactionText = '';
+    roundResult = '';
+    cpuMs = rollCpuMs();
+    cpuTimer = 0;
     // 1.2〜3.5秒のランダム遅延後に「！！」を出す (暗記防止)
     signalDelay = 1.2 + Math.random() * 2.3;
   }
@@ -55,6 +73,10 @@
     state = 'ready';
     round = 0;
     score = 0;
+    wins = 0;
+    roundResult = '';
+    cpuMs = 0;
+    cpuTimer = 0;
     signalTimer = 0;
     reactionMs = 0;
     lastReactionText = '';
@@ -86,6 +108,15 @@
       }
     } else if (state === 'signal') {
       signalTimer += dt;
+      cpuTimer += dt;
+      // 敵が先に反応したらラウンド敗北
+      if (cpuTimer * 1000 >= cpuMs) {
+        reactionMs = PENALTY_MS;
+        roundResult = 'lose';
+        lastReactionText = '敵の先手…';
+        api.beep(180, 0.25, 0.1, 'sawtooth');
+        finishRound();
+      }
     } else if (state === 'result') {
       resultTimer += dt;
       if (resultTimer >= 0.9) {
@@ -120,13 +151,23 @@
       finishRound();
     } else if (state === 'signal') {
       reactionMs = Math.round(signalTimer * 1000);
-      lastReactionText = reactionMs + 'ms';
-      api.beep(990, 0.08, 0.08);
+      if (reactionMs < cpuMs) {
+        // 敵より速く抜いた: ラウンド勝利
+        roundResult = 'win';
+        lastReactionText = reactionMs + 'ms 斬り勝ち！';
+        api.beep(990, 0.08, 0.08);
+      } else {
+        // 敵のほうが速かった: ラウンド敗北
+        roundResult = 'lose';
+        lastReactionText = '敵の先手…';
+        api.beep(180, 0.25, 0.1, 'sawtooth');
+      }
       finishRound();
     } else if (state === 'done') {
       state = 'ready';
       round = 0;
       score = 0;
+      wins = 0;
       api.setScore(0);
     }
   }
@@ -136,7 +177,10 @@
    */
   function finishRound() {
     flashAlpha = 1;
-    score += scoreFor(reactionMs);
+    if (roundResult === 'win') {
+      wins += 1;
+      score += scoreFor(reactionMs);
+    }
     api.setScore(score);
     if (round >= TOTAL_ROUNDS) {
       state = 'done';
@@ -202,18 +246,24 @@
       ctx.font = '14px sans-serif';
       ctx.fillText('今だ！', W / 2, 300);
     } else if (state === 'result') {
-      ctx.fillStyle = '#8ef2a2';
-      ctx.font = 'bold 26px sans-serif';
-      ctx.fillText(lastReactionText || '…', W / 2, 160);
+      const winColor = roundResult === 'win';
+      ctx.fillStyle = winColor ? '#8ef2a2' : '#ff8f8f';
+      ctx.font = 'bold 24px sans-serif';
+      ctx.fillText(lastReactionText || '…', W / 2, 150);
+      ctx.fillStyle = '#c8d3e8';
+      ctx.font = '13px sans-serif';
+      ctx.fillText('敵の反応: ' + cpuMs + 'ms', W / 2, 180);
     } else if (state === 'done') {
       ctx.fillStyle = 'rgba(0,0,0,0.6)';
       ctx.fillRect(0, 60, W, H - 60);
       ctx.fillStyle = '#ffd54a';
       ctx.font = 'bold 24px sans-serif';
-      ctx.fillText('合計スコア ' + score, W / 2, 150);
+      ctx.fillText(wins + '勝 ' + (TOTAL_ROUNDS - wins) + '敗', W / 2, 130);
       ctx.fillStyle = '#ffffff';
+      ctx.font = '16px sans-serif';
+      ctx.fillText('合計スコア ' + score, W / 2, 165);
       ctx.font = '14px sans-serif';
-      ctx.fillText('タップでもう一度挑戦', W / 2, 200);
+      ctx.fillText('タップでもう一度対戦', W / 2, 210);
     }
 
     if (flashAlpha > 0) {

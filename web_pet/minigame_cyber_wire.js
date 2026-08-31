@@ -1,9 +1,9 @@
 /**
  * ネオ秘書くん ミニゲーム「⚡ 電脳イライラ棒」 (minigame_cyber_wire.js)
  *
- * 集中スリル迷路: 指ドラッグ / マウス移動でプローブを操作し、
- * マザーボード配線風の狭いコースを壁に触れずにゴールへ進む。
- * 壁接触で火花エフェクト + バチッ音、進行距離 (m) がスコア。
+ * ファミコン風 無限生成コース: 蛇行する配線コースが右から左へ流れ続けるので、
+ * 指ドラッグ (デルタ追従) でプローブをコース内に留め続ける。
+ * 壁接触で火花エフェクト + バチッ音で即終了、進行距離 (m) がスコア。
  */
 (function () {
   'use strict';
@@ -12,84 +12,130 @@
   const W = 320;
   const H = 420;
   const PROBE_R = 7;
+  const SEG = 32;      // コース中心線の制御点間隔 (px)
+  const PAD = 48;      // 上下の安全マージン (壁が侵入しない領域)
+  const LEAD = 96;     // カメラ前方の生成バッファ (px)
+  const TRAIL = 128;   // カメラ後方の保持バッファ (px)
+  const BASE_HALF = 34; // コース初期半幅
 
   let api = null;
   let running = false;
   let rafId = null;
   let lastTime = 0;
 
-  let walls = []; // {x1, y1, x2, y2}
-  let goal = { x: W - 40, y: H - 50 };
-  let probe = { x: 30, y: 30 };
+  let pts = [];        // コース中心線の制御点 {x, y} (ワールド座標)
+  let halfs = [];      // 各制御点でのコース半幅
+  let cameraX = 0;
+  let scrollSpeed = 70;
+  let probe = { x: 90, y: H / 2 };
   let dragging = false;
   let lastPt = null; // ドラッグ基準点 (デルタ追従用)
   let scoreM = 0;
   let best = 0;
-  let state = 'ready'; // ready | play | over | clear
-  let sparks = []; // {x, y, life}
+  let state = 'ready'; // ready | play | over
+  let sparks = []; // {x, y, vx, vy, life}
   let shockCooldown = 0;
-  let reachedX = 30; // 進行度の基準
+  let milestoneM = 0; // 進行加算音用の区切り
 
-  // コース生成: ジグザグの通路を壁ペアで構成する
-  function buildCourse() {
-    walls = [];
-    let y = 60;
-    let dir = 1;
-    let x = 0;
-    const margin = 24;
-    while (y < H - 80) {
-      const corridor = 52 + Math.random() * 18;
-      const nextY = y + corridor;
-      if (dir > 0) {
-        // 下壁が下からせり出す
-        walls.push({ x1: x, y1: nextY + 34, x2: x + W * 0.62, y2: nextY + 34 });
-        walls.push({ x1: x + W * 0.62, y1: nextY + 34, x2: x + W * 0.62, y2: H });
-      } else {
-        // 上壁が上からせり出す
-        walls.push({ x1: x, y1: nextY - 34, x2: x + W * 0.62, y2: nextY - 34 });
-        walls.push({ x1: x + W * 0.62, y1: 0, x2: x + W * 0.62, y2: nextY - 34 });
-      }
-      x = 0;
-      y = nextY;
-      dir = -dir;
+  /**
+   * コース中心線の制御点を1つ生成する。
+   * ランダムウォーク (傾き制限つき) で蛇行させ、直線区間も混ぜる。
+   * @param {{x: number, y: number}} prev - 直前の制御点
+   * @param {number} index - 制御点の通し番号 (直線区間の配置に使用)
+   * @returns {{x: number, y: number, half: number}} 新しい制御点
+   */
+  function makePoint(prev, index) {
+    const half = Math.max(23, BASE_HALF - scoreM * 0.05);
+    let y;
+    if (index < 4 || (index % 9 === 0)) {
+      // 導入部と9ポイントごとに直線 (休憩区間)
+      y = prev.y;
+    } else {
+      const maxStep = 34 + scoreM * 0.08;
+      const step = (Math.random() * 2 - 1) * maxStep;
+      const lo = PAD + half;
+      const hi = H - PAD - half;
+      y = Math.max(lo, Math.min(hi, prev.y + step));
+      // 傾き制限: 前点から大幅に離れすぎないよう丸める
+      y = prev.y + Math.max(-52, Math.min(52, y - prev.y));
     }
-    // 外周 (上下)
-    walls.push({ x1: 0, y1: margin - 18, x2: W, y2: margin - 18 });
-    walls.push({ x1: 0, y1: H - margin + 18, x2: W, y2: H - margin + 18 });
-    // 左壁 (スタート後方)
-    walls.push({ x1: 8, y1: 0, x2: 8, y2: H });
-    goal = { x: W - 34, y: y - 20 };
+    return { x: prev.x + SEG, y: y, half: half };
   }
 
-  function distToSegment(px, py, x1, y1, x2, y2) {
-    const dx = x2 - x1;
-    const dy = y2 - y1;
-    const lenSq = dx * dx + dy * dy;
-    let t = lenSq === 0 ? 0 : ((px - x1) * dx + (py - y1) * dy) / lenSq;
-    t = Math.max(0, Math.min(1, t));
-    const cx = x1 + t * dx;
-    const cy = y1 + t * dy;
-    return Math.hypot(px - cx, py - cy);
-  }
-
-  function hitsWall(px, py) {
-    for (const w of walls) {
-      if (distToSegment(px, py, w.x1, w.y1, w.x2, w.y2) < PROBE_R + 2) {
-        return true;
-      }
+  /**
+   * コース制御点をカメラ前方まで補充する。
+   * @returns {void}
+   */
+  function ensureCourse() {
+    while (pts[pts.length - 1].x < cameraX + W + LEAD) {
+      const np = makePoint(pts[pts.length - 1], pts.length);
+      pts.push({ x: np.x, y: np.y });
+      halfs.push(np.half);
     }
-    return false;
+    while (pts.length > 2 && pts[1].x < cameraX - TRAIL) {
+      pts.shift();
+      halfs.shift();
+    }
   }
 
+  /**
+   * ワールド座標 x におけるコース中心Yを補間する。
+   * @param {number} wx - ワールドX座標
+   * @returns {number} 中心Y
+   */
+  function centerYAt(wx) {
+    let i = 0;
+    while (i < pts.length - 2 && pts[i + 1].x < wx) i++;
+    const p0 = pts[i];
+    const p1 = pts[i + 1];
+    const t = Math.max(0, Math.min(1, (wx - p0.x) / (p1.x - p0.x)));
+    const s = (1 - Math.cos(t * Math.PI)) / 2; // コサイン補間で滑らかに
+    return p0.y + (p1.y - p0.y) * s;
+  }
+
+  /**
+   * ワールド座標 x におけるコース半幅を補間する。
+   * @param {number} wx - ワールドX座標
+   * @returns {number} 半幅
+   */
+  function halfAt(wx) {
+    let i = 0;
+    while (i < halfs.length - 2 && pts[i + 1].x < wx) i++;
+    const p0 = pts[i];
+    const p1 = pts[i + 1];
+    const t = Math.max(0, Math.min(1, (wx - p0.x) / (p1.x - p0.x)));
+    return halfs[i] + (halfs[i + 1] - halfs[i]) * t;
+  }
+
+  /**
+   * プローブが壁に接触しているか判定する。
+   * @returns {boolean} 接触していれば true
+   */
+  function hitsWall() {
+    const wx = cameraX + probe.x;
+    const cy = centerYAt(wx);
+    const hw = halfAt(wx);
+    return Math.abs(probe.y - cy) > hw - PROBE_R;
+  }
+
+  /**
+   * ゲーム状態を初期化して開始する。
+   * @returns {void}
+   */
   function startGame() {
-    buildCourse();
-    probe.x = 30;
-    probe.y = 40;
-    reachedX = 30;
+    cameraX = 0;
+    scrollSpeed = 70;
     scoreM = 0;
+    milestoneM = 0;
     sparks = [];
+    pts = [{ x: -SEG, y: H / 2 }];
+    halfs = [BASE_HALF];
+    ensureCourse();
+    probe.x = 90;
+    probe.y = centerYAt(cameraX + probe.x);
     state = 'play';
     api.setScore(0);
+    api.beep(660, 0.08, 0.06);
   }
 
   function gameOver() {
@@ -103,59 +149,58 @@
 
   function update(dt) {
     shockCooldown = Math.max(0, shockCooldown - dt);
-    if (state !== 'play') return;
-
-    // 進行度スコア (右へ進むほど加算)
-    if (probe.x > reachedX) {
-      scoreM += (probe.x - reachedX) / 10;
-      reachedX = probe.x;
-      api.setScore(Math.floor(scoreM));
-    }
-
-    // ゴール判定
-    if (Math.hypot(probe.x - goal.x, probe.y - goal.y) < 18) {
-      state = 'clear';
-      scoreM += 500;
-      api.setScore(Math.floor(scoreM));
-      api.beep(880, 0.12, 0.1);
-      setTimeout(() => api.beep(1320, 0.2, 0.1), 120);
-      api.submitScore(GAME_ID, Math.floor(scoreM)).then((hi) => {
-        if (hi !== null) best = Math.max(best, hi);
-        api.setHigh(best);
-      });
-      return;
-    }
-
-    // 壁接触判定
-    if (shockCooldown <= 0 && hitsWall(probe.x, probe.y)) {
-      shockCooldown = 0.6;
-      for (let i = 0; i < 8; i++) {
-        sparks.push({
-          x: probe.x,
-          y: probe.y,
-          vx: (Math.random() - 0.5) * 160,
-          vy: (Math.random() - 0.5) * 160,
-          life: 0.4
-        });
-      }
-      api.beep(70 + Math.random() * 40, 0.1, 0.12, 'sawtooth');
-      // ペナルティ: スタート地点付近へ後退
-      probe.x = Math.max(30, probe.x - 46);
-      scoreM = Math.max(0, scoreM - 5);
-      api.setScore(Math.floor(scoreM));
-      if (probe.x <= 30.01 && hitsWall(30, probe.y)) {
-        gameOver();
-      }
-    }
-
-    // 火花エフェクト更新
+    // 火花エフェクト更新 (over中も燃え続ける)
     for (let i = sparks.length - 1; i >= 0; i--) {
       const s = sparks[i];
       s.x += s.vx * dt;
       s.y += s.vy * dt;
+      s.vy += 300 * dt;
       s.life -= dt;
       if (s.life <= 0) sparks.splice(i, 1);
     }
+    if (state !== 'play') return;
+
+    // コースが右から左へ流れ続ける (距離が伸びるほど加速)
+    scrollSpeed = Math.min(165, 70 + scoreM * 0.9);
+    cameraX += scrollSpeed * dt;
+    ensureCourse();
+
+    // 進行距離 (10px = 1m) をスコア化
+    scoreM = cameraX / 10;
+    api.setScore(Math.floor(scoreM));
+    if (scoreM >= milestoneM + 50) {
+      milestoneM = Math.floor(scoreM / 50) * 50;
+      api.beep(1200, 0.08, 0.07); // 50m到達ごとの合図音
+    }
+
+    // 壁接触判定 (ファミコン仕様: 触れた瞬間にショート → 即終了)
+    if (hitsWall()) {
+      for (let i = 0; i < 14; i++) {
+        sparks.push({
+          x: probe.x,
+          y: probe.y,
+          vx: (Math.random() - 0.5) * 220,
+          vy: (Math.random() - 0.5) * 220 - 60,
+          life: 0.35 + Math.random() * 0.25
+        });
+      }
+      gameOver();
+    }
+  }
+
+  /**
+   * 折れ線パスを現在の線設定でストロークする。
+   * @param {Array<{x: number, y: number}>} edge - 折れ線の頂点列
+   * @param {CanvasRenderingContext2D} ctx - 描画コンテキスト
+   * @returns {void}
+   */
+  function strokeEdge(edge, ctx) {
+    ctx.beginPath();
+    ctx.moveTo(edge[0].x, edge[0].y);
+    for (let i = 1; i < edge.length; i++) {
+      ctx.lineTo(edge[i].x, edge[i].y);
+    }
+    ctx.stroke();
   }
 
   function draw() {
@@ -178,53 +223,74 @@
       ctx.stroke();
     }
 
-    // 壁 (配線基板)
+    // コース上端・下端の折れ線をサンプリング
+    const topEdge = [];
+    const botEdge = [];
+    for (let sx = -6; sx <= W + 6; sx += 6) {
+      const wx = cameraX + sx;
+      const cy = centerYAt(wx);
+      const hw = halfAt(wx);
+      topEdge.push({ x: sx, y: cy - hw });
+      botEdge.push({ x: sx, y: cy + hw });
+    }
+
+    ctx.lineJoin = 'round';
+    ctx.lineCap = 'round';
+    // 壁バンド (通路の外側を暗色で塗る)
+    ctx.fillStyle = '#38101d';
+    ctx.beginPath();
+    ctx.moveTo(-6, -10);
+    for (const p of topEdge) ctx.lineTo(p.x, p.y);
+    ctx.lineTo(W + 6, -10);
+    ctx.closePath();
+    ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(-6, H + 10);
+    for (const p of botEdge) ctx.lineTo(p.x, p.y);
+    ctx.lineTo(W + 6, H + 10);
+    ctx.closePath();
+    ctx.fill();
+
+    // 配線の縁 (ネオンピンク + 発光)
+    ctx.shadowColor = 'rgba(255, 90, 110, 0.75)';
+    ctx.shadowBlur = 7;
     ctx.strokeStyle = '#e05555';
     ctx.lineWidth = 6;
-    ctx.lineCap = 'round';
-    ctx.beginPath();
-    for (const w of walls) {
-      ctx.moveTo(w.x1, w.y1);
-      ctx.lineTo(w.x2, w.y2);
-    }
-    ctx.stroke();
+    strokeEdge(topEdge, ctx);
+    strokeEdge(botEdge, ctx);
     ctx.strokeStyle = '#ff8a8a';
     ctx.lineWidth = 2;
-    ctx.stroke();
-
-    // ゴール (コネクタ)
-    ctx.fillStyle = '#ffd75e';
-    ctx.beginPath();
-    ctx.arc(goal.x, goal.y, 14, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = '#0d2b1e';
-    ctx.font = 'bold 13px sans-serif';
-    ctx.textAlign = 'center';
-    ctx.fillText('GOAL', goal.x, goal.y + 4);
+    strokeEdge(topEdge, ctx);
+    strokeEdge(botEdge, ctx);
+    ctx.shadowBlur = 0;
 
     // 火花
     for (const s of sparks) {
-      ctx.fillStyle = 'rgba(255, 220, 80, ' + Math.max(0, s.life / 0.4) + ')';
+      ctx.fillStyle = 'rgba(255, 220, 80, ' + Math.max(0, s.life / 0.5) + ')';
       ctx.fillRect(s.x - 2, s.y - 2, 4, 4);
     }
 
     // プローブ
-    ctx.fillStyle = state === 'play' && shockCooldown > 0.4 ? '#ff5f5f' : '#7ff0ff';
+    ctx.fillStyle = '#7ff0ff';
+    ctx.shadowColor = 'rgba(127, 240, 255, 0.9)';
+    ctx.shadowBlur = 8;
     ctx.beginPath();
     ctx.arc(probe.x, probe.y, PROBE_R, 0, Math.PI * 2);
     ctx.fill();
+    ctx.shadowBlur = 0;
     ctx.strokeStyle = '#ffffff';
     ctx.lineWidth = 1.5;
     ctx.stroke();
 
     // 状態表示
+    ctx.textAlign = 'center';
     if (state === 'ready') {
       ctx.fillStyle = '#fff';
       ctx.font = 'bold 18px sans-serif';
       ctx.fillText('⚡ 電脳イライラ棒', W / 2, H / 2 - 40);
       ctx.font = '13px sans-serif';
-      ctx.fillText('配線に触れずGOALへ導け', W / 2, H / 2 - 12);
-      ctx.fillText('ドラッグ / マウスで操作', W / 2, H / 2 + 8);
+      ctx.fillText('流れてくる配線コースに触れずに進め！', W / 2, H / 2 - 12);
+      ctx.fillText('タップしたままドラッグで追従', W / 2, H / 2 + 8);
       ctx.fillText('画面タップでスタート', W / 2, H / 2 + 34);
     } else if (state === 'over') {
       ctx.fillStyle = 'rgba(0,0,0,0.6)';
@@ -236,16 +302,6 @@
       ctx.font = '15px sans-serif';
       ctx.fillText(Math.floor(scoreM) + ' m 到達', W / 2, H / 2 + 10);
       ctx.fillText('タップでリトライ', W / 2, H / 2 + 36);
-    } else if (state === 'clear') {
-      ctx.fillStyle = 'rgba(0,0,0,0.55)';
-      ctx.fillRect(0, 0, W, H);
-      ctx.fillStyle = '#7ff0ff';
-      ctx.font = 'bold 22px sans-serif';
-      ctx.fillText('導通成功！✨', W / 2, H / 2 - 20);
-      ctx.fillStyle = '#fff';
-      ctx.font = '15px sans-serif';
-      ctx.fillText(Math.floor(scoreM) + ' pt', W / 2, H / 2 + 10);
-      ctx.fillText('タップでもう一周', W / 2, H / 2 + 36);
     }
   }
 
@@ -320,6 +376,17 @@
     api = a;
     running = true;
     state = 'ready';
+    // ready画面でもコースを描画できるよう初期生成しておく
+    cameraX = 0;
+    scrollSpeed = 70;
+    scoreM = 0;
+    milestoneM = 0;
+    sparks = [];
+    pts = [{ x: -SEG, y: H / 2 }];
+    halfs = [BASE_HALF];
+    ensureCourse();
+    probe.x = 90;
+    probe.y = centerYAt(cameraX + probe.x);
     api.setScore(0);
     api.fetchHigh(GAME_ID).then((h) => {
       best = h;
