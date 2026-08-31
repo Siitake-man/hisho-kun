@@ -221,10 +221,14 @@ class Task(BaseModel):
 class TaskList(BaseModel):
     """
     タスクリスト (TickTick風のリスト分類) を表すモデル。
+
+    parent_id により階層ツリー構造を表現する (フォルダ/サブリスト・Block 1.6-R)。
+    parent_id=None は最上位 (ルート) リストを意味する。
     """
     id: Optional[int] = None
     name: str = Field(..., min_length=1, max_length=50)
     emoji: str = Field(default="📋")
+    parent_id: Optional[int] = None
     sort_order: int = Field(default=0)
     created_at: int = Field(default_factory=lambda: int(datetime.now().timestamp() * 1000))
 
@@ -378,16 +382,25 @@ def init_db(db_path: str = "neo_secretary.db") -> None:
             )
         """)
 
-        # task_listsテーブル (TickTick風タスクリスト分類)
+        # task_listsテーブル (TickTick風タスクリスト分類・parent_idで階層ツリーを表現)
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS task_lists (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 name TEXT NOT NULL,
                 emoji TEXT NOT NULL DEFAULT '📋',
+                parent_id INTEGER,
                 sort_order INTEGER NOT NULL DEFAULT 0,
-                created_at INTEGER NOT NULL
+                created_at INTEGER NOT NULL,
+                FOREIGN KEY (parent_id) REFERENCES task_lists (id)
             )
         """)
+
+        # task_lists.parent_id マイグレーション（既存DBへのカラム追加・Block 1.6-R）
+        cursor.execute("PRAGMA table_info(task_lists)")
+        task_list_columns = {row[1] for row in cursor.fetchall()}
+        if "parent_id" not in task_list_columns:
+            cursor.execute("ALTER TABLE task_lists ADD COLUMN parent_id INTEGER")
+            logger.info("task_lists.parent_id カラムを追加しました (リスト階層化・Block 1.6-R)")
 
         # reminders_sentテーブル (リマインダー重複防止・冪等記録: roadmap 3.1)
         cursor.execute("""
@@ -1380,6 +1393,105 @@ def complete_task(task_id: int, db_path: str = "neo_secretary.db") -> bool:
         return success
 
 
+def reopen_task(task_id: int, db_path: str = "neo_secretary.db") -> bool:
+    """
+    完了済みタスクを未完了 ('todo') に戻します (誤タップ復活用)。
+
+    繰り返しタスクを取り消した場合は、完了時に自動生成された「次回分」タスクを
+    削除して完了前の状態に巻き戻します。次回分の特定は「同一タイトル×同一
+    recurrence×未完了×完了時刻 (updated_at) 以降に作成されたもの」とする。
+
+    Args:
+        task_id: 未完了に戻すタスクID
+        db_path: データベースファイルのパス
+
+    Returns:
+        更新成功時はTrue
+    """
+    with get_db_connection(db_path) as conn:
+        cursor = conn.cursor()
+        now = int(datetime.now().timestamp() * 1000)
+        cursor.execute(
+            "SELECT title, recurrence, due_date, updated_at FROM tasks WHERE id = ? AND status = 'completed'",
+            (task_id,)
+        )
+        row = cursor.fetchone()
+        if row is None:
+            logger.warning(f"取り消し対象の完了済みタスクが見つかりません: ID={task_id}")
+            return False
+        cursor.execute("UPDATE tasks SET status = 'todo', updated_at = ? WHERE id = ?", (now, task_id))
+        success = cursor.rowcount > 0
+        if success:
+            logger.info(f"タスクの完了を取り消しました: ID={task_id}")
+            # 繰り返しタスクなら完了時に生成された次回分を巻き戻し削除する
+            if row[1]:
+                try:
+                    cursor.execute("""
+                        DELETE FROM tasks
+                        WHERE id != ?
+                          AND title = ?
+                          AND recurrence = ?
+                          AND status = 'todo'
+                          AND created_at >= ?
+                    """, (task_id, row[0], row[1], row[3]))
+                    if cursor.rowcount > 0:
+                        logger.info(
+                            f"🔁 繰り返しタスクの完了取り消しに伴い次回分を削除: {cursor.rowcount}件"
+                        )
+                except sqlite3.Error as e:
+                    logger.error(f"繰り返しタスクの次回分巻き戻しに失敗: {e}")
+        return success
+
+
+def update_task(task_id: int, updates: dict, db_path: str = "neo_secretary.db") -> bool:
+    """
+    タスクの指定フィールドを更新します (スマホ編集シート・PC手帳共通)。
+
+    ホワイトリスト外のキーは無視するため、クライアント由来の不正な
+    カラム指定を構造的に遮断します。
+
+    Args:
+        task_id: 更新対象のタスクID
+        updates: 更新するフィールドの辞書 (title / description / due_date /
+                 priority / status / tags / importance_flag / urgency_flag /
+                 recurrence / list_id が有効)
+        db_path: データベースファイルのパス
+
+    Returns:
+        更新が1件以上適用された場合はTrue、対象なし・無効キーのみはFalse
+    """
+    allowed = {
+        "title", "description", "due_date", "priority", "status", "tags",
+        "importance_flag", "urgency_flag", "recurrence", "list_id",
+    }
+    cols = []
+    params = []
+    for key, value in updates.items():
+        if key not in allowed:
+            logger.warning(f"update_task: 許可されていないキーを無視します: {key}")
+            continue
+        # 真偽値属性はSQLiteのINTEGER (0/1/NULL) に正規化する
+        if key in ("importance_flag", "urgency_flag") and value is not None:
+            value = int(bool(value))
+        cols.append(f"{key} = ?")
+        params.append(value)
+    if not cols:
+        return False
+    now = int(datetime.now().timestamp() * 1000)
+    with get_db_connection(db_path) as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            f"UPDATE tasks SET {', '.join(cols)}, updated_at = ? WHERE id = ?",
+            (*params, now, task_id),
+        )
+        success = cursor.rowcount > 0
+        if success:
+            logger.info(f"タスクを更新しました: ID={task_id} keys={[c.split(' =')[0] for c in cols]}")
+        else:
+            logger.warning(f"update_task: 更新対象が見つかりません: ID={task_id}")
+        return success
+
+
 def delete_task(task_id: int, db_path: str = "neo_secretary.db") -> bool:
     """
     タスクを削除します。
@@ -1452,7 +1564,7 @@ def get_task_lists(db_path: str = "neo_secretary.db") -> List[TaskList]:
     with get_db_connection(db_path) as conn:
         cursor = conn.cursor()
         cursor.execute("""
-            SELECT id, name, emoji, sort_order, created_at
+            SELECT id, name, emoji, parent_id, sort_order, created_at
             FROM task_lists
             ORDER BY sort_order ASC, id ASC
         """)
@@ -1463,45 +1575,125 @@ def get_task_lists(db_path: str = "neo_secretary.db") -> List[TaskList]:
                 id=r[0],
                 name=r[1],
                 emoji=r[2],
-                sort_order=r[3],
-                created_at=r[4]
+                parent_id=r[3],
+                sort_order=r[4],
+                created_at=r[5]
             ))
         return lists
 
 
-def create_task_list(name: str, emoji: str = "📋", sort_order: int = 0, db_path: str = "neo_secretary.db") -> int:
+def _task_list_has_cycle(list_id: int, new_parent_id: Optional[int], conn, db_path: str) -> bool:
     """
-    新しいタスクリストを作成します。
+    リスト移動時に循環参照が発生するかを判定します (内部ヘルパー)。
+
+    Args:
+        list_id: 移動対象リストID
+        new_parent_id: 新しい親リストID
+        conn: 既存のDB接続 (get_db_connection コンテキスト内)
+        db_path: データベースファイルのパス (ログ用)
+
+    Returns:
+        循環 (自分自身または子孫を親に指定) する場合はTrue
+    """
+    if new_parent_id is None:
+        return False
+    if new_parent_id == list_id:
+        return True
+    cursor = conn.cursor()
+    seen = {list_id}
+    current = new_parent_id
+    while current is not None:
+        if current in seen:
+            return True
+        seen.add(current)
+        cursor.execute("SELECT parent_id FROM task_lists WHERE id = ?", (current,))
+        row = cursor.fetchone()
+        if row is None:
+            return False
+        current = row[0]
+    return False
+
+
+def create_task_list(
+    name: str,
+    emoji: str = "📋",
+    sort_order: int = 0,
+    parent_id: Optional[int] = None,
+    db_path: str = "neo_secretary.db"
+) -> int:
+    """
+    新しいタスクリストを作成します (任意の親リストの下に階層作成可能)。
 
     Args:
         name: リスト名 (空・空白のみはValueError)
         emoji: リストに表示する絵文字
         sort_order: ソート順 (小さいほど先頭)
+        parent_id: 親リストID (None=最上位 / 存在しないIDはValueError)
         db_path: データベースファイルのパス
 
     Returns:
         作成されたリストのID
 
     Raises:
-        ValueError: リスト名が空の場合
+        ValueError: リスト名が空の場合、または親リストIDが存在しない場合
     """
     clean_name = (name or "").strip()
     if not clean_name:
         raise ValueError("タスクリスト名が空です")
     with get_db_connection(db_path) as conn:
         cursor = conn.cursor()
+        if parent_id is not None:
+            cursor.execute("SELECT id FROM task_lists WHERE id = ?", (parent_id,))
+            if cursor.fetchone() is None:
+                raise ValueError(f"親リストが存在しません: ID={parent_id}")
         cursor.execute("""
-            INSERT INTO task_lists (name, emoji, sort_order, created_at)
-            VALUES (?, ?, ?, ?)
+            INSERT INTO task_lists (name, emoji, parent_id, sort_order, created_at)
+            VALUES (?, ?, ?, ?, ?)
         """, (
             clean_name,
             emoji or "📋",
+            parent_id,
             sort_order,
             int(datetime.now().timestamp() * 1000)
         ))
         list_id = cursor.lastrowid
-        logger.info(f"タスクリストを作成しました: ID={list_id}, name={clean_name}")
+        logger.info(f"タスクリストを作成しました: ID={list_id}, name={clean_name}, parent_id={parent_id}")
         return list_id
+
+
+def move_task_list(list_id: int, new_parent_id: Optional[int], db_path: str = "neo_secretary.db") -> bool:
+    """
+    タスクリストを別の親リストの下へ移動します (階層変更・Block 1.6-R)。
+
+    Args:
+        list_id: 移動対象リストID
+        new_parent_id: 新しい親リストID (None=最上位へ移動)
+        db_path: データベースファイルのパス
+
+    Returns:
+        移動成功時はTrue (対象リストが存在しない場合はFalse)
+
+    Raises:
+        ValueError: 自分自身または子孫リストを親に指定した場合 (循環参照)
+    """
+    with get_db_connection(db_path) as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT id FROM task_lists WHERE id = ?", (list_id,))
+        if cursor.fetchone() is None:
+            logger.warning("リスト移動: 対象リストが存在しません ID=%s", list_id)
+            return False
+        if new_parent_id is not None:
+            cursor.execute("SELECT id FROM task_lists WHERE id = ?", (new_parent_id,))
+            if cursor.fetchone() is None:
+                raise ValueError(f"移動先の親リストが存在しません: ID={new_parent_id}")
+        if _task_list_has_cycle(list_id, new_parent_id, conn, db_path):
+            raise ValueError("自分自身または子孫のリストを親に指定することはできません (循環参照)")
+        cursor.execute(
+            "UPDATE task_lists SET parent_id = ? WHERE id = ?",
+            (new_parent_id, list_id)
+        )
+        logger.info(f"タスクリストを移動しました: ID={list_id}, new_parent_id={new_parent_id}")
+        return True
 
 
 def delete_task_list(list_id: int, db_path: str = "neo_secretary.db") -> bool:
@@ -1519,10 +1711,53 @@ def delete_task_list(list_id: int, db_path: str = "neo_secretary.db") -> bool:
         cursor = conn.cursor()
         now = int(datetime.now().timestamp() * 1000)
         cursor.execute("UPDATE tasks SET list_id = NULL, updated_at = ? WHERE list_id = ?", (now, list_id))
+        # 子リストは親の親へ昇格させる (階層ツリー分断の防止・Block 1.6-R)
+        cursor.execute("""
+            UPDATE task_lists
+            SET parent_id = (SELECT parent_id FROM task_lists WHERE id = ?)
+            WHERE parent_id = ?
+        """, (list_id, list_id))
         cursor.execute("DELETE FROM task_lists WHERE id = ?", (list_id,))
         success = cursor.rowcount > 0
         if success:
-            logger.info(f"タスクリストを削除しました: ID={list_id} (所属タスクは未分類へ)")
+            logger.info(f"タスクリストを削除しました: ID={list_id} (所属タスクは未分類へ・子リストは昇格)")
+        return success
+
+
+def rename_task_list(list_id: int, name: str, emoji: Optional[str] = None, db_path: str = "neo_secretary.db") -> bool:
+    """
+    タスクリストの名称（および任意で絵文字）を変更します (PC手帳リスト管理・roadmap 1.6)。
+
+    Args:
+        list_id: 対象リストID
+        name: 新しいリスト名 (空・空白のみはValueError)
+        emoji: 新しい絵文字 (Noneの場合は変更しない)
+        db_path: データベースファイルのパス
+
+    Returns:
+        更新成功時はTrue (対象リストが存在しない場合はFalse)
+
+    Raises:
+        ValueError: リスト名が空の場合
+    """
+    clean_name = (name or "").strip()
+    if not clean_name:
+        raise ValueError("タスクリスト名が空です")
+    with get_db_connection(db_path) as conn:
+        cursor = conn.cursor()
+        if emoji is None:
+            cursor.execute(
+                "UPDATE task_lists SET name = ? WHERE id = ?",
+                (clean_name, list_id)
+            )
+        else:
+            cursor.execute(
+                "UPDATE task_lists SET name = ?, emoji = ? WHERE id = ?",
+                (clean_name, emoji or "📋", list_id)
+            )
+        success = cursor.rowcount > 0
+        if success:
+            logger.info(f"タスクリスト名を変更しました: ID={list_id}, name={clean_name}")
         return success
 
 

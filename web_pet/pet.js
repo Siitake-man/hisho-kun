@@ -7,7 +7,7 @@
 if ('caches' in window) {
   caches.keys().then(keys => {
     keys.forEach(key => {
-      if (key !== 'neo-pet-v5.17') caches.delete(key);
+      if (key !== 'neo-pet-v5.19') caches.delete(key);
     });
   });
 }
@@ -2086,13 +2086,27 @@ function renderTodoModal() {
       <input type="text" id="quick-task-input" placeholder="例: 明日18時に資料 #仕事 !3" enterkeyhint="done">
       <button id="quick-task-btn" onclick="quickAddTask()">＋</button>
     </div>`;
-  // 📋 リスト切替行 (ラベル付き) — リスト未登録なら非表示でノイズ削減
+  // 🌳 リスト階層順ソート (parent_id ツリー・Block 1.6-R): 親→子の深さ優先で並べ、
+  // 子リストにはインデント接頭辞を付けて階層を可視化する
+  const listChildren = {};
+  todoLists.forEach(l => {
+    const key = (l.parent_id == null) ? 0 : l.parent_id;
+    (listChildren[key] = listChildren[key] || []).push(l);
+  });
+  const orderedLists = [];
+  (function walkLists(pid, depth) {
+    (listChildren[pid === null ? 0 : pid] || []).forEach(l => {
+      orderedLists.push({ l, depth });
+      walkLists(l.id, depth + 1);
+    });
+  })(null, 0);
   const listRow = todoLists.length > 0
     ? `<div class="todo-filter-bar"><span class="todo-filter-label">📋 リスト</span><div class="todo-filter-chips">`
       + ['<button class="todo-chip' + (todoFilter.listId === null ? ' active' : '') + '" onclick="setTodoFilter({listId: null})">📥 すべて</button>']
-        .concat(todoLists.map(l =>
-          `<button class="todo-chip${todoFilter.listId === l.id ? ' active' : ''}" onclick="setTodoFilter({listId: ${l.id}})">${escapeHtml(l.emoji || '📋')} ${escapeHtml(l.name)}</button>`
-        )).join('')
+        .concat(orderedLists.map(({ l, depth }) => {
+          const indent = depth > 0 ? '　'.repeat(depth) + '└ ' : '';
+          return `<button class="todo-chip${todoFilter.listId === l.id ? ' active' : ''}" onclick="setTodoFilter({listId: ${l.id}})">${indent}${escapeHtml(l.emoji || '📋')} ${escapeHtml(l.name)}</button>`;
+        })).join('')
       + `</div></div>`
     : '';
   // 🗓 期間フィルタ行 (セグメントコントロール化) ＋ 🎯 4象限ビュー切替を同列に集約
@@ -2188,19 +2202,43 @@ function quickAddTask() {
   });
 }
 
-/** TODO完了（楽観的UI更新 → サーバー同期 → 再取得） */
+/** タスク完了（楽観的UI更新 → サーバー同期）。完了後、同一行タップで元に戻せる (誤タップ対策) */
 function completeTask(taskId, el) {
   if (navigator.vibrate) navigator.vibrate(30);
   if (el) {
     el.classList.add('done');
     const desc = el.querySelector('.note-desc');
-    if (desc) desc.innerText = '✅ 完了！お見事です！';
-    el.onclick = null;
+    if (desc) desc.innerHTML = '✅ 完了！お見事です！ <span class="task-undo-link">↩ 誤タップ？ここで元に戻す</span>';
+    // 完了表示中の行タップ = 取り消し (再取得で行が消える前に復帰できるように)
+    el.onclick = (ev) => {
+      ev.stopPropagation();
+      undoTask(taskId, el);
+    };
   }
   authFetch('/api/action', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ action: 'complete_task', task_id: taskId })
+  }).then(() => { fetchStatus(); fetchTodoView(); }).catch(err => console.debug('Task action failed:', err));
+}
+
+/** タスク完了取り消し（楽観的UI復元 → reopen_task 同期 → 再取得） */
+function undoTask(taskId, el) {
+  if (navigator.vibrate) navigator.vibrate(20);
+  if (el) {
+    el.classList.remove('done');
+    const desc = el.querySelector('.note-desc');
+    if (desc) desc.innerText = '👆 タップで完了にする';
+    // 行タップで再度完了にできるようハンドラを差し戻す
+    el.onclick = (ev) => {
+      ev.stopPropagation();
+      completeTask(taskId, el);
+    };
+  }
+  authFetch('/api/action', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'reopen_task', task_id: taskId })
   }).then(() => { fetchStatus(); fetchTodoView(); }).catch(err => console.debug('Task action failed:', err));
 }
 

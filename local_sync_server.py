@@ -1276,6 +1276,14 @@ class DeskPetSyncHandler(SimpleHTTPRequestHandler):
                         logger.info(f"📱 スマホ側からタスク完了を受信: TaskID={task_id}")
                         self.wfile.write(json.dumps({"status": "success", "task_id": task_id}).encode("utf-8"))
                         return
+                elif action == "reopen_task":
+                    # ⟲ 誤タップ復活: 完了済みタスクを未完了へ戻す (繰り返し次回分も巻き戻し)
+                    task_id = data.get("task_id")
+                    if task_id:
+                        success = database.reopen_task(int(task_id))
+                        logger.info(f"📱 スマホ側からタスク完了取り消しを受信: TaskID={task_id}, success={success}")
+                        self.wfile.write(json.dumps({"status": "success" if success else "error", "task_id": task_id}).encode("utf-8"))
+                        return
                 elif action == "toggle_habit":
                     habit_id = data.get("habit_id")
                     if habit_id:
@@ -1329,6 +1337,49 @@ class DeskPetSyncHandler(SimpleHTTPRequestHandler):
                             "status": "error", "message": "タスク名を抽出できませんでした"
                         }).encode("utf-8"))
                         return
+                elif action == "update_task":
+                    # ✏️ タスク詳細編集 (スマホ編集シート用): ホワイトリスト項目のみDB反映
+                    # due_date は epochミリ秒 (null=期日なし)、importance/urgency_flag は
+                    # true/false/null (null=未指定→4象限は推定ルールにフォールバック)
+                    task_id = data.get("task_id")
+                    if task_id:
+                        fields = {}
+                        if "title" in data:
+                            new_title = str(data["title"]).strip()
+                            if new_title:
+                                fields["title"] = new_title
+                        if "due_date" in data:
+                            due = data["due_date"]
+                            fields["due_date"] = int(due) if due else None
+                        if "priority" in data:
+                            fields["priority"] = max(0, min(3, int(data["priority"])))
+                        if "tags" in data:
+                            fields["tags"] = str(data["tags"]).strip()
+                        if "list_id" in data:
+                            lid = data["list_id"]
+                            fields["list_id"] = int(lid) if lid else None
+                        if "importance_flag" in data:
+                            iv = data["importance_flag"]
+                            fields["importance_flag"] = None if iv is None else bool(iv)
+                        if "urgency_flag" in data:
+                            uv = data["urgency_flag"]
+                            fields["urgency_flag"] = None if uv is None else bool(uv)
+                        success = database.update_task(int(task_id), fields) if fields else False
+                        logger.info(f"📱 スマホ側からタスク編集を受信: TaskID={task_id}, fields={list(fields.keys())}, success={success}")
+                        self.wfile.write(json.dumps({
+                            "status": "success" if success else "error", "task_id": task_id
+                        }).encode("utf-8"))
+                        return
+                elif action == "delete_task":
+                    # 🗑 タスク削除 (スマホ編集シートの削除ボタン用・確認ダイアログはクライアント側)
+                    task_id = data.get("task_id")
+                    if task_id:
+                        success = database.delete_task(int(task_id))
+                        logger.info(f"📱 スマホ側からタスク削除を受信: TaskID={task_id}, success={success}")
+                        self.wfile.write(json.dumps({
+                            "status": "success" if success else "error", "task_id": task_id
+                        }).encode("utf-8"))
+                        return
                 elif action == "list_task_lists":
                     # 🗂️ タスクリスト一覧取得 (TickTick拡張・スマホTODOモーダルのリスト切替用):
                     # DB層の database.get_task_lists() をラップする薄い読み取り専用アクション
@@ -1339,6 +1390,7 @@ class DeskPetSyncHandler(SimpleHTTPRequestHandler):
                                 "id": l.id,
                                 "name": l.name,
                                 "emoji": l.emoji,
+                                "parent_id": l.parent_id,
                                 "sort_order": l.sort_order,
                             }
                             for l in lists

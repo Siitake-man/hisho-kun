@@ -618,9 +618,443 @@ class CalendarWindow(ctk.CTkToplevel):
             command=self._on_add_quick_task
         )
         btn_add.pack(side="right")
-        
-        self.tasks_scroll = ctk.CTkScrollableFrame(self.tab_tasks, fg_color="transparent")
-        self.tasks_scroll.pack(fill="both", expand=True, padx=5, pady=5)
+
+        # 📂 リスト階層サイドバー (TickTick風・Block 1.6-R):
+        # 左にリストツリー (折りたたみ可能な階層構造)、右にタスク一覧の2分割レイアウト。
+        # 描画は refresh_tasks → _refresh_list_sidebar 経由。
+        self.task_filter_list_id: "int | str | None" = None  # None=すべて / "UNSORTED"=未分類 / int=リストID
+        self._list_expanded: "dict[int, bool]" = {}  # リストID -> 展開状態 (未登録キーは展開扱い)
+
+        self.task_body = ctk.CTkFrame(self.tab_tasks, fg_color="transparent")
+        self.task_body.pack(fill="both", expand=True, padx=5, pady=(0, 5))
+
+        # 左: リスト階層ツリーサイドバー
+        self.lists_sidebar = ctk.CTkScrollableFrame(
+            self.task_body,
+            width=188,
+            fg_color="#F5F1E8",
+            border_color="#E0D8C8",
+            border_width=1,
+            corner_radius=8
+        )
+        self.lists_sidebar.pack(side="left", fill="y", padx=(0, 6))
+
+        # 右: ヘッダ (選択中リスト名) ＋ タスク一覧
+        self.task_main = ctk.CTkFrame(self.task_body, fg_color="transparent")
+        self.task_main.pack(side="left", fill="both", expand=True)
+
+        self.task_header_var = tk.StringVar(value="📥 すべて")
+        ctk.CTkLabel(
+            self.task_main,
+            textvariable=self.task_header_var,
+            font=self.font_title,
+            text_color=self.text_color,
+            anchor="w"
+        ).pack(fill="x", padx=2, pady=(0, 4))
+
+        self.tasks_scroll = ctk.CTkScrollableFrame(self.task_main, fg_color="transparent")
+        self.tasks_scroll.pack(fill="both", expand=True)
+
+    def _refresh_list_bar(self, counts: "dict[int, int] | None" = None):
+        """後方互換エイリアス: 旧チップバー描画 → 新サイドバーツリー描画へ委譲する。"""
+        self._refresh_list_sidebar(counts)
+
+    def _refresh_list_sidebar(self, counts: "dict[int, int] | None" = None):
+        """リスト階層ツリーサイドバーを再描画する (TickTick風・Block 1.6-R)。
+
+        「📥 すべて」「🗂 未分類」のスマート行 ＋ parent_id で接続された
+        リストツリー (▶/▼ 折りたたみ・未完了件数バッジ・行ごとの子リスト追加) を描画する。
+
+        Args:
+            counts: リストIDごとの未完了タスク数 (None時はDBから再集計)
+        """
+        if not hasattr(self, "lists_sidebar"):
+            return
+        for w in self.lists_sidebar.winfo_children():
+            w.destroy()
+        lists = database.get_task_lists()
+        if counts is None:
+            counts = self._compute_list_task_counts()
+
+        children_map: "dict[int | None, list]" = {}
+        for lst in lists:
+            children_map.setdefault(lst.parent_id, []).append(lst)
+        for v in children_map.values():
+            v.sort(key=lambda l: (l.sort_order, l.id))
+
+        def descendant_count(lst) -> int:
+            """対象リストとその全子孫リストの未完了タスク数を合計する (再帰)。"""
+            total = counts.get(lst.id, 0)
+            for child in children_map.get(lst.id, []):
+                total += descendant_count(child)
+            return total
+
+        def smart_row(text: str, active: bool, cb):
+            """スマートリスト行 (すべて/未分類) を描画してpackする。"""
+            ctk.CTkButton(
+                self.lists_sidebar,
+                text=text,
+                height=26,
+                anchor="w",
+                font=self.font_small,
+                fg_color="#8B634A" if active else "transparent",
+                text_color="#FFFFFF" if active else "#5D4037",
+                hover_color="#A67B5B" if active else "#E8E0D0",
+                command=cb
+            ).pack(fill="x", padx=4, pady=1)
+
+        smart_row("📥 すべて", self.task_filter_list_id is None, lambda: self._on_select_task_list(None))
+        smart_row("🗂 未分類", self.task_filter_list_id == "UNSORTED", lambda: self._on_select_task_list("UNSORTED"))
+
+        # セクションヘッダ (TickTick風: 「リスト」ラベル＋ルート作成ボタン)
+        section = ctk.CTkFrame(self.lists_sidebar, fg_color="transparent")
+        section.pack(fill="x", padx=4, pady=(8, 1))
+        ctk.CTkLabel(
+            section, text="リスト", font=self.font_small, text_color="#A67B5B", anchor="w"
+        ).pack(side="left")
+        ctk.CTkButton(
+            section, text="＋", width=20, height=20, font=self.font_small,
+            fg_color="transparent", text_color="#8B634A", hover_color="#E0D8C8",
+            command=lambda: self._prompt_create_list(parent_id=None)
+        ).pack(side="right")
+
+        def render_children(parent_id: "int | None", depth: int):
+            """指定親の子リスト行を順に描画し、展開中なら子階層を再帰描画する。"""
+            for lst in children_map.get(parent_id, []):
+                self._render_list_tree_row(
+                    lst, depth, bool(children_map.get(lst.id)), descendant_count(lst)
+                )
+                if children_map.get(lst.id) and self._list_expanded.get(lst.id, True):
+                    render_children(lst.id, depth + 1)
+
+        render_children(None, 0)
+
+        # フッター: 管理ボタン
+        ctk.CTkButton(
+            self.lists_sidebar,
+            text="⚙ リスト管理",
+            height=26,
+            anchor="w",
+            font=self.font_small,
+            fg_color="transparent",
+            text_color="#8B634A",
+            hover_color="#E8E0D0",
+            command=self._open_list_manager
+        ).pack(fill="x", padx=4, pady=(8, 2))
+
+    def _compute_list_task_counts(self) -> "dict[int, int]":
+        """リストIDごとの未完了 (親) タスク数を集計する。
+
+        Returns:
+            {リストID: 未完了タスク数} の辞書
+        """
+        all_tasks = database.get_tasks(status="todo", limit=100)
+        counts: "dict[int, int]" = {}
+        for t in all_tasks:
+            if t.parent_id is None and t.list_id is not None:
+                counts[t.list_id] = counts.get(t.list_id, 0) + 1
+        return counts
+
+    def _render_list_tree_row(self, lst, depth: int, has_children: bool, total_count: int):
+        """サイドバーにリスト1行 (トグル/選択/件数/子追加) を描画する。
+
+        Args:
+            lst: TaskListモデル
+            depth: 階層の深さ (0=ルート・インデントに使用)
+            has_children: 子リストを持つか (折りたたみトグル表示の判定)
+            total_count: 子孫合計の未完了タスク数
+        """
+        active = self.task_filter_list_id == lst.id
+        indent = "　" * depth
+        row = ctk.CTkFrame(self.lists_sidebar, fg_color="transparent")
+        row.pack(fill="x", padx=2, pady=0)
+
+        # 折りたたみトグル (子リストが無い場合はスペーサーで桁を揃える)
+        if has_children:
+            is_open = self._list_expanded.get(lst.id, True)
+            ctk.CTkButton(
+                row, text="▼" if is_open else "▶", width=18, height=22,
+                font=self.font_small, fg_color="transparent",
+                text_color="#A67B5B", hover_color="#E0D8C8",
+                command=lambda lid=lst.id: self._toggle_list_expanded(lid)
+            ).pack(side="left")
+        else:
+            ctk.CTkLabel(row, text="　", font=self.font_small, width=18).pack(side="left")
+
+        # 未完了件数バッジ (0件は非表示でノイズ削減)
+        if total_count > 0:
+            ctk.CTkLabel(
+                row, text=str(total_count), font=self.font_small,
+                text_color="#A67B5B", width=22
+            ).pack(side="right", padx=(0, 2))
+
+        # 子リスト追加ボタン (行の右端・階層作成の入口)
+        ctk.CTkButton(
+            row, text="＋", width=18, height=22, font=self.font_small,
+            fg_color="transparent", text_color="#B0A496", hover_color="#E0D8C8",
+            command=lambda lid=lst.id, lname=lst.name: self._prompt_create_list(parent_id=lid, parent_name=lname)
+        ).pack(side="right")
+
+        display_name = lst.name if len(lst.name) <= 10 else lst.name[:9] + "…"
+        ctk.CTkButton(
+            row,
+            text=f"{indent}{lst.emoji} {display_name}",
+            height=24,
+            anchor="w",
+            font=self.font_small,
+            fg_color="#8B634A" if active else "transparent",
+            text_color="#FFFFFF" if active else "#5D4037",
+            hover_color="#A67B5B" if active else "#E8E0D0",
+            command=lambda lid=lst.id: self._on_select_task_list(lid)
+        ).pack(side="left", fill="x", expand=True)
+
+    def _toggle_list_expanded(self, list_id: int):
+        """リスト行の展開/折りたたみ状態を切り替えてサイドバーを再描画する。"""
+        self._list_expanded[list_id] = not self._list_expanded.get(list_id, True)
+        self._refresh_list_sidebar()
+
+    def _collect_list_subtree_ids(self, root_id: int) -> "set[int]":
+        """対象リストとその全子孫リストのID集合を取得する (BFS)。
+
+        Args:
+            root_id: 起点となるリストID
+
+        Returns:
+            {root_id, 子, 孫, ...} のID集合
+        """
+        lists = database.get_task_lists()
+        children_map: "dict[int | None, list]" = {}
+        for lst in lists:
+            children_map.setdefault(lst.parent_id, []).append(lst)
+        result = {root_id}
+        queue = [root_id]
+        while queue:
+            current = queue.pop()
+            for child in children_map.get(current, []):
+                if child.id not in result:
+                    result.add(child.id)
+                    queue.append(child.id)
+        return result
+
+    def _filter_header_base(self) -> str:
+        """現在の絞り込み状態に対応するヘッダ表示名を返す。
+
+        Returns:
+            「📥 すべて」/「🗂 未分類」/「{絵文字} {リスト名}」のいずれか
+        """
+        flt = getattr(self, "task_filter_list_id", None)
+        if flt is None:
+            return "📥 すべて"
+        if flt == "UNSORTED":
+            return "🗂 未分類"
+        for lst in database.get_task_lists():
+            if lst.id == flt:
+                return f"{lst.emoji} {lst.name}"
+        return "📥 すべて"
+
+    def _on_select_task_list(self, list_id: "int | str | None"):
+        """リストチップ押下: 絞り込み対象を切り替えてタスク一覧を再描画する。"""
+        self.task_filter_list_id = list_id
+        self.refresh_tasks()
+
+    def _prompt_create_list(self, parent_id: "int | None" = None, parent_name: "str | None" = None):
+        """新しいタスクリストを作成するダイアログ (先頭トークンを絵文字として解釈)。
+
+        Args:
+            parent_id: 親リストID (None=最上位・指定時はそのリストの子として作成)
+            parent_name: ダイアログ表示用の親リスト名
+        """
+        scope = f"\n作成先: {parent_name} の下" if parent_name else ""
+        dialog = ctk.CTkInputDialog(
+            text=f"新しいリスト名を入力（先頭に絵文字可）{scope}\n例: 🏠 プライベート",
+            title="リスト新規作成"
+        )
+        raw = dialog.get_input()
+        if not raw or not raw.strip():
+            return
+        text = raw.strip()
+        parts = text.split(None, 1)
+        emoji, name = "📋", text
+        # 「🏠 プライベート」のように先頭が区切り付き記号トークンなら絵文字と解釈する
+        if len(parts) == 2 and not parts[0].isalnum():
+            emoji, name = parts[0], parts[1].strip()
+        if not name:
+            logger.warning("リスト作成: 名前が空のため中止しました (入力=%r)", raw)
+            return
+        try:
+            database.create_task_list(name, emoji=emoji, parent_id=parent_id)
+        except ValueError as exc:
+            logger.warning("リスト作成に失敗しました: %s", exc)
+            return
+        # 作成した親を展開して新リストを見える化
+        if parent_id is not None:
+            self._list_expanded[parent_id] = True
+        self.refresh_tasks()
+
+    def _open_list_manager(self):
+        """リスト管理ダイアログ (名称変更・削除) を開く (roadmap 1.6)。"""
+        import tkinter.messagebox as mb  # noqa: F401  (削除確認は _delete_list_in_manager で使用)
+
+        win = ctk.CTkToplevel(self)
+        win.title("リスト管理")
+        win.geometry("400x360")
+        win.transient(self)
+        win.grab_set()
+
+        ctk.CTkLabel(
+            win, text="📂 リスト管理",
+            font=self.font_body, text_color=self.text_color
+        ).pack(pady=(10, 4))
+
+        body = ctk.CTkScrollableFrame(win, fg_color="transparent")
+        body.pack(fill="both", expand=True, padx=10, pady=4)
+
+        lists = database.get_task_lists()
+        if not lists:
+            ctk.CTkLabel(
+                body, text="リストがありません。\n「＋ リスト」から作成できます。",
+                font=self.font_small, text_color="#757575"
+            ).pack(pady=20)
+
+        for lst in lists:
+            row = ctk.CTkFrame(body, fg_color="#FFFFFF", corner_radius=6)
+            row.pack(fill="x", pady=3)
+            ctk.CTkLabel(
+                row, text=f"{lst.emoji} {lst.name}",
+                font=self.font_body, text_color=self.text_color, anchor="w"
+            ).pack(side="left", fill="x", expand=True, padx=(8, 4), pady=6)
+
+            def make_rename_cb(list_id=lst.id, list_name=lst.name):
+                return lambda: self._rename_list_in_manager(win, list_id, list_name)
+
+            def make_move_cb(list_id=lst.id, list_name=lst.name):
+                return lambda: self._move_list_in_manager(win, list_id, list_name)
+
+            def make_delete_cb(list_id=lst.id, list_name=lst.name):
+                return lambda: self._delete_list_in_manager(win, list_id, list_name)
+
+            ctk.CTkButton(
+                row, text="✏", width=34, height=26, font=self.font_small,
+                fg_color="#F5F5DC", text_color="#8B634A", hover_color="#E0D8C8",
+                command=make_rename_cb(lst.id, lst.name)
+            ).pack(side="right", padx=(2, 4), pady=4)
+            ctk.CTkButton(
+                row, text="⇄", width=34, height=26, font=self.font_small,
+                fg_color="#F5F5DC", text_color="#8B634A", hover_color="#E0D8C8",
+                command=make_move_cb(lst.id, lst.name)
+            ).pack(side="right", padx=(2, 0), pady=4)
+            ctk.CTkButton(
+                row, text="🗑", width=34, height=26, font=self.font_small,
+                fg_color="#F5F5DC", text_color="#D32F2F", hover_color="#FFCDD2",
+                command=make_delete_cb(lst.id, lst.name)
+            ).pack(side="right", padx=(2, 0), pady=4)
+
+        ctk.CTkButton(
+            win, text="閉じる", height=30, font=self.font_body,
+            fg_color=self.primary_color, hover_color="#8B634A",
+            command=win.destroy
+        ).pack(pady=(4, 10))
+
+    def _rename_list_in_manager(self, manager_win, list_id: int, current_name: str):
+        """管理ダイアログ内の名称変更ボタン: 新名を入力させて rename_task_list を呼ぶ。"""
+        dialog = ctk.CTkInputDialog(text="新しいリスト名を入力:", title="リスト名変更")
+        new_name = dialog.get_input()
+        if not new_name or not new_name.strip():
+            return
+        try:
+            database.rename_task_list(list_id, new_name.strip())
+        except ValueError as exc:
+            logger.warning("リスト名変更に失敗しました: %s", exc)
+            return
+        manager_win.destroy()
+        self.refresh_tasks()
+
+    def _delete_list_in_manager(self, manager_win, list_id: int, list_name: str):
+        """管理ダイアログ内の削除ボタン: 確認後 delete_task_list を呼ぶ (所属タスクは未分類へ)。"""
+        import tkinter.messagebox as mb
+        if not mb.askyesno("リスト削除", f"リスト「{list_name}」を削除しますか？\n所属タスクは「未分類」に移動されます。"):
+            return
+        database.delete_task_list(list_id)
+        # 削除対象を絞り込んでいた場合は「すべて」へ戻す
+        if self.task_filter_list_id == list_id:
+            self.task_filter_list_id = None
+        manager_win.destroy()
+        self.refresh_tasks()
+
+    def _move_list_in_manager(self, manager_win, list_id: int, list_name: str):
+        """管理ダイアログ内の移動ボタン: 新しい親リストを選択して move_task_list を呼ぶ (Block 1.6-R)。
+
+        Args:
+            manager_win: 親のリスト管理ダイアログ
+            list_id: 移動対象リストID
+            list_name: 移動対象リスト名 (表示用)
+        """
+        lists = database.get_task_lists()
+        # 移動先の候補: 最上位 ＋ 自分自身とその子孫を除いた全リスト (循環参照の構造的排除)
+        subtree = self._collect_list_subtree_ids(list_id)
+        candidates = [l for l in lists if l.id not in subtree]
+
+        dialog = ctk.CTkToplevel(manager_win)
+        dialog.title("リスト移動")
+        dialog.geometry("300x440")
+        dialog.transient(manager_win)
+        dialog.grab_set()
+
+        ctk.CTkLabel(
+            dialog, text=f"「{list_name[:15]}」の移動先",
+            font=self.font_body, text_color=self.text_color
+        ).pack(pady=(10, 6))
+
+        ctk.CTkButton(
+            dialog, text="⬆ 最上位へ移動", height=30, anchor="w", font=self.font_small,
+            fg_color="#F5F5DC", text_color="#8B634A", hover_color="#E0D8C8",
+            command=lambda: self._apply_list_move(dialog, manager_win, list_id, None)
+        ).pack(fill="x", padx=14, pady=2)
+
+        for lst in candidates:
+            ctk.CTkButton(
+                dialog, text=f"{lst.emoji} {lst.name} の下へ移動", height=30, anchor="w",
+                font=self.font_small, fg_color="#F5F5DC", text_color="#5D4037",
+                hover_color="#E0D8C8",
+                command=lambda lid=lst.id: self._apply_list_move(dialog, manager_win, list_id, lid)
+            ).pack(fill="x", padx=14, pady=2)
+
+        ctk.CTkButton(
+            dialog, text="キャンセル", height=28, font=self.font_small,
+            fg_color="transparent", text_color="#8B634A", border_width=1,
+            border_color="#A67B5B", hover_color="#E8E0D0",
+            command=dialog.destroy
+        ).pack(pady=(8, 10))
+
+    def _apply_list_move(
+        self,
+        dialog,
+        manager_win,
+        list_id: int,
+        new_parent_id: "int | None"
+    ):
+        """リスト移動の確定処理: move_task_list を呼び出し、ダイアログを閉じて再描画する。
+
+        Args:
+            dialog: 移動先選択ダイアログ
+            manager_win: 親のリスト管理ダイアログ
+            list_id: 移動対象リストID
+            new_parent_id: 新しい親リストID (None=最上位)
+        """
+        try:
+            success = database.move_task_list(list_id, new_parent_id)
+        except ValueError as exc:
+            logger.warning("リスト移動に失敗しました: %s", exc)
+            return
+        if not success:
+            logger.warning("リスト移動: 対象リストが存在しません ID=%s", list_id)
+            return
+        # 移動先の親を展開して移動結果を見える化
+        if new_parent_id is not None:
+            self._list_expanded[new_parent_id] = True
+        dialog.destroy()
+        manager_win.destroy()
+        self.refresh_tasks()
 
     def _on_add_quick_task(self, event=None):
         text = self.task_entry_var.get().strip()
@@ -641,6 +1075,8 @@ class CalendarWindow(ctk.CTkToplevel):
         if self.urgency_var.get() != "未指定":
             urgency = (self.urgency_var.get() == "緊急")
 
+        # 📂 追加先リスト: リスト絞り込み中ならそのリストへ、それ以外は未分類 (roadmap 1.6)
+        target_list_id = self.task_filter_list_id if isinstance(self.task_filter_list_id, int) else None
         task = database.Task(
             title=parsed.title or text,
             due_date=parsed.due_date,
@@ -648,6 +1084,7 @@ class CalendarWindow(ctk.CTkToplevel):
             tags=tags_to_db_string(parsed.tags),
             importance_flag=importance,
             urgency_flag=urgency,
+            list_id=target_list_id,
         )
         database.create_task(task)
         self.refresh_tasks()
@@ -661,6 +1098,25 @@ class CalendarWindow(ctk.CTkToplevel):
         all_tasks = database.get_tasks(status="todo", limit=100)
         # 親タスクのみを抽出 (parent_id is None)
         parent_tasks = [t for t in all_tasks if t.parent_id is None]
+
+        # 📂 リスト絞り込み (Block 1.6-R): 選択中リスト (+その子孫リスト) / 未分類のみ表示
+        flt = getattr(self, "task_filter_list_id", None)
+        if flt == "UNSORTED":
+            parent_tasks = [t for t in parent_tasks if t.list_id is None]
+        elif flt is not None:
+            subtree_ids = self._collect_list_subtree_ids(int(flt))
+            parent_tasks = [t for t in parent_tasks if t.list_id in subtree_ids]
+
+        # 📊 リストごとの未完了件数を全リスト分集計してサイドバーへ反映
+        counts: "dict[int, int]" = {}
+        for t in all_tasks:
+            if t.parent_id is None and t.list_id is not None:
+                counts[t.list_id] = counts.get(t.list_id, 0) + 1
+        self._refresh_list_sidebar(counts)
+
+        # ヘッダ: 選択中リスト名 ＋ 表示件数
+        header_base = self._filter_header_base()
+        self.task_header_var.set(f"{header_base} — {len(parent_tasks)}件" if parent_tasks else header_base)
         
         if not parent_tasks:
             lbl = ctk.CTkLabel(self.tasks_scroll, text="すべてのタスクが完了しています！✨", font=self.font_body, text_color="#2E7D32")
@@ -719,6 +1175,29 @@ class CalendarWindow(ctk.CTkToplevel):
                     text_color=pri_colors.get(t.priority, "#757575")
                 )
                 pri_lbl.pack(side="right", padx=(2, 4))
+
+            # 属性・期日の視認性向上 (重要度/緊急度/繰り返し/期日を常時表示)
+            # 期日切れは赤字で強調し、期日なしの場合は項目自体を省略する
+            meta_bits: "list[str]" = []
+            if t.importance_flag is True:
+                meta_bits.append("🔥重要")
+            if t.urgency_flag is True:
+                meta_bits.append("⚡緊急")
+            if t.recurrence:
+                meta_bits.append("🔁 繰り返し")
+            if t.due_date:
+                due_dt = datetime.datetime.fromtimestamp(t.due_date / 1000)
+                meta_bits.append(f"📅 {due_dt:%m/%d %H:%M}")
+            if meta_bits:
+                is_overdue = t.due_date is not None and t.due_date < int(datetime.datetime.now().timestamp() * 1000)
+                meta_lbl = ctk.CTkLabel(
+                    card,
+                    text="　".join(meta_bits),
+                    font=self.font_small,
+                    text_color="#D32F2F" if is_overdue else "#8B634A",
+                    anchor="w"
+                )
+                meta_lbl.pack(fill="x", padx=10, pady=(0, 3))
                 
             # サブタスク一覧のインデント表示
             subtasks = database.get_subtasks(t.id)
