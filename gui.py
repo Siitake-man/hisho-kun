@@ -294,7 +294,7 @@ class NeoSecretaryGUI:
         self.toggle_circle_menu()
         from character_manager import get_character_manager
         char_mgr = get_character_manager()
-        order = ["hisho", "kinoko", "seal", "kyle", "marmot"]
+        order = ["hisho", "kyle"]
         cur = char_mgr.current_character_id
         next_idx = (order.index(cur) + 1) % len(order) if cur in order else 0
         self.switch_character_skin(order[next_idx])

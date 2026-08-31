@@ -271,10 +271,17 @@ class DeviceLinkMonitor:
             self.buzz_requested = True
 
     def get_active_notification(self) -> Optional[Dict[str, Any]]:
-        """直近60秒以内の通知を返す"""
+        """直近10分以内の通知を返す。
+
+        2026-08-31 バグ修正: 従来の60秒TTLでは、スマホが画面OFF/バックグラウンド中に
+        通知を受け取った場合（音は鳴るが表示は不可視）、復帰時の再取得までに60秒を
+        超えるとサーバー側で破棄済みとなり通知が永久に表示されない不具合があった。
+        10分に延長し、復帰時の再表示を可能にする。二重表示はクライアント側の
+        sessionStorage 永続化された _lastNotifKey により防止する。
+        """
         with self._lock:
             if self.latest_notification:
-                if time.time() - self.latest_notification["timestamp"] <= 60.0:
+                if time.time() - self.latest_notification["timestamp"] <= 600.0:
                     return self.latest_notification
                 else:
                     self.latest_notification = None

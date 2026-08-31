@@ -50,6 +50,12 @@ S_OUTLINE = (95, 105, 118, 255)
 S_NOSE = (70, 80, 95, 255)
 S_SPOT = (120, 130, 145, 255)
 
+# --- アザラシ王冠 (tea_pillar 用): 金冠 ＋ 赤絨毯 ＋ 緑宝石 ---
+P_GOLD = (255, 213, 40, 255)
+P_GOLD_DK = (191, 144, 0, 255)
+P_VELVET = (198, 40, 40, 255)
+P_JEWEL = (46, 175, 124, 255)
+
 # --- キノコ (kinoko): 深紅の赤水玉カサ ＋ メガネ ＋ 羽ペン ---
 K_CAP = (183, 28, 28, 255)
 K_CAP_HI = (239, 83, 80, 255)
@@ -141,15 +147,6 @@ def _draw_zzz(draw: ImageDraw.ImageDraw, x: int, y: int) -> None:
     p(draw, x + 2, y + 1, P_BLUE)
     p_box(draw, x, y + 2, x + 2, y + 2, P_BLUE)
     p(draw, x, y + 1, P_BLUE)
-
-
-def _draw_wave(draw: ImageDraw.ImageDraw, x: int, y: int) -> None:
-    """青い波紋（〜）を描画する。"""
-    p(draw, x, y + 1, P_BLUE)
-    p_box(draw, x + 1, y, x + 2, y, P_BLUE)
-    p(draw, x + 3, y + 1, P_BLUE)
-    p(draw, x + 1, y + 2, P_BLUE)
-    p(draw, x + 2, y + 2, P_BLUE)
 
 
 def _draw_moon(draw: ImageDraw.ImageDraw, x: int, y: int) -> None:
@@ -397,49 +394,72 @@ def draw_marmot(state: str) -> Image.Image:
 # アザラシ描画（もちもち大福ボディ・黒ごまの瞳・ぷにぷにω口）
 # =============================================================================
 def _seal_eyes(draw: ImageDraw.ImageDraw, state: str, look_dx: int = 0, look_dy: int = 0) -> None:
-    """状態に応じたアザラシの黒ごまの目を描画する。"""
-    ly = 13 + look_dy
-    lx, rx_ = 11 + look_dx, 19 + look_dx
+    """状態に応じたアザラシの黒ごまの目を描画する（横向きスタイル・目は1個）。
+
+    Args:
+        draw: 描画対象の ImageDraw。
+        state: スプライト状態名。
+        look_dx: 視線の横オフセット。
+        look_dy: 視線の縦オフセット。
+    """
+    ex, ey = 23 + look_dx, 14 + look_dy
     if state == "happy" or state.startswith("night") or state.startswith("tea_pillar") or state == "cheer":
         # ニコニコ閉じ目（^形）
-        p(draw, lx - 1, ly + 1, P_DARK)
-        p(draw, lx, ly, P_DARK)
-        p(draw, lx + 1, ly + 1, P_DARK)
-        p(draw, rx_ - 1, ly + 1, P_DARK)
-        p(draw, rx_, ly, P_DARK)
-        p(draw, rx_ + 1, ly + 1, P_DARK)
+        p(draw, ex - 1, ey + 1, P_DARK)
+        p(draw, ex, ey, P_DARK)
+        p(draw, ex + 1, ey + 1, P_DARK)
     elif state == "idle_2" or state.startswith("sleepy") or state == "tea_1":
         # 瞬き／お茶飲み込み中: 1ドットの閉じ目
-        p_box(draw, lx - 1, ly + 1, lx, ly + 1, P_DARK)
-        p_box(draw, rx_, ly + 1, rx_ + 1, ly + 1, P_DARK)
+        p_box(draw, ex - 1, ey + 1, ex + 1, ey + 1, P_DARK)
     elif state == "alarm_ask":
         # ビックリ目（3x3丸目）
-        p_box(draw, lx - 1, ly - 1, lx + 1, ly + 1, P_DARK)
-        p(draw, lx - 1, ly - 1, P_WHITE)
-        p_box(draw, rx_ - 1, ly - 1, rx_ + 1, ly + 1, P_DARK)
-        p(draw, rx_ - 1, ly - 1, P_WHITE)
+        p_box(draw, ex - 1, ey - 1, ex + 1, ey + 1, P_DARK)
+        p(draw, ex - 1, ey - 1, P_WHITE)
     else:
         # つぶらな黒ごまの瞳（2x2＋ハイライト）
-        p_box(draw, lx, ly, lx + 1, ly + 1, P_DARK)
-        p(draw, lx, ly, P_WHITE)
-        p_box(draw, rx_, ly, rx_ + 1, ly + 1, P_DARK)
-        p(draw, rx_, ly, P_WHITE)
+        p_box(draw, ex, ey, ex + 1, ey + 1, P_DARK)
+        p(draw, ex, ey, P_WHITE)
 
 
-def _seal_cup_ground(draw: ImageDraw.ImageDraw, x: int = 23) -> None:
-    """地面に置いた湯呑みを描画する。"""
-    p_box(draw, x, 24, x + 2, 26, P_CREAM)
-    p_box(draw, x, 24, x + 2, 24, P_TEA)
-    p_box(draw, x - 1, 26, x + 3, 26, S_OUTLINE)
-    p(draw, x + 1, 22, P_WHITE)
+def _seal_cup_ground(draw: ImageDraw.ImageDraw, x: int = 26) -> None:
+    """地面に置いた湯呑みを描画する（体の前方・右側）。"""
+    p_box(draw, x, 25, x + 2, 27, P_CREAM)
+    p_box(draw, x, 25, x + 2, 25, P_TEA)
+    p_box(draw, x - 1, 27, x + 3, 27, S_OUTLINE)
+    p(draw, x + 1, 23, P_WHITE)
 
 
 def _seal_cup_raised(draw: ImageDraw.ImageDraw) -> None:
-    """口元へ差し出した湯呑みを描画する。"""
-    p_box(draw, 22, 17, 24, 19, P_CREAM)
-    p_box(draw, 22, 17, 24, 17, P_TEA)
-    p(draw, 23, 15, P_WHITE)
-    p(draw, 23, 14, P_WHITE)
+    """口元へ差し出した湯呑みを描画する（横向きの口の下）。"""
+    p_box(draw, 25, 19, 27, 21, P_CREAM)
+    p_box(draw, 25, 19, 27, 19, P_TEA)
+    p(draw, 28, 16, P_WHITE)
+    p(draw, 28, 15, P_WHITE)
+
+
+def _seal_crown(draw: ImageDraw.ImageDraw) -> None:
+    """茶柱スタイル用のちょこん王冠をアザラシの頭頂に描画する。
+
+    参考画像（金冠・赤絨毯・緑宝石・頂部十字）をドット絵に矮小化し、
+    横向きシルエットの頭頂（右上）に沿って少し沈み込ませて「かぶり」を表現する。
+    """
+    # 頂部の十字（参考画像オマージュ）
+    p(draw, 22, 1, P_GOLD)
+    p_box(draw, 21, 2, 23, 2, P_GOLD)
+    # 三つの尖塔（中央高・左右低）
+    p_box(draw, 18, 4, 19, 6, P_GOLD)
+    p_box(draw, 25, 4, 26, 6, P_GOLD)
+    p_box(draw, 21, 3, 23, 6, P_GOLD)
+    # 尖塔間の赤絨毯
+    p(draw, 20, 5, P_VELVET)
+    p(draw, 24, 5, P_VELVET)
+    # 土台バンド（金 ＋ 下縁は影色）
+    p_box(draw, 18, 7, 26, 7, P_GOLD)
+    p_box(draw, 18, 8, 26, 9, P_GOLD_DK)
+    # 緑宝石3粒（バンド中央列）
+    p(draw, 19, 8, P_JEWEL)
+    p(draw, 22, 8, P_JEWEL)
+    p(draw, 25, 8, P_JEWEL)
 
 
 def draw_seal(state: str) -> Image.Image:
@@ -455,63 +475,62 @@ def draw_seal(state: str) -> Image.Image:
     draw = ImageDraw.Draw(img)
     look_dx, look_dy = _look(state)
 
-    # --- 前足ヒレ（状態別ポーズ） ---
+    # --- 鰭（前ヒレ＋尾ヒレ・状態別ポーズ） ---
     if state.startswith("stretch"):
-        # 両ヒレを高く上げてぐーっと伸び
-        p_ellipse(draw, 6, 13, 2, 3, S_OUTLINE)
-        p_ellipse(draw, 6, 13, 1, 2, S_BODY)
-        p_ellipse(draw, 26, 13, 2, 3, S_OUTLINE)
-        p_ellipse(draw, 26, 13, 1, 2, S_BODY)
+        # 伸び: 前ヒレを前方へぐーっと伸ばし尾もそり上げる
+        p_ellipse(draw, 17, 15, 3, 2, S_OUTLINE)
+        p_ellipse(draw, 17, 15, 2, 1, S_BODY)
+        p_ellipse(draw, 5, 16, 2, 2, S_OUTLINE)
+        p_ellipse(draw, 5, 16, 1, 1, S_BODY)
     elif state == "walk_1":
-        p_ellipse(draw, 4, 26, 3, 3, S_OUTLINE)
-        p_ellipse(draw, 4, 26, 2, 2, S_BODY)
-        p_ellipse(draw, 27, 24, 3, 3, S_OUTLINE)
-        p_ellipse(draw, 27, 24, 2, 2, S_BODY)
+        p_ellipse(draw, 9, 26, 2, 2, S_OUTLINE)
+        p_ellipse(draw, 9, 26, 1, 1, S_BODY)
+        p_ellipse(draw, 17, 25, 2, 2, S_OUTLINE)
+        p_ellipse(draw, 17, 25, 1, 1, S_BODY)
     elif state == "walk_2":
-        p_ellipse(draw, 5, 24, 3, 3, S_OUTLINE)
-        p_ellipse(draw, 5, 24, 2, 2, S_BODY)
-        p_ellipse(draw, 26, 26, 3, 3, S_OUTLINE)
-        p_ellipse(draw, 26, 26, 2, 2, S_BODY)
+        p_ellipse(draw, 11, 25, 2, 2, S_OUTLINE)
+        p_ellipse(draw, 11, 25, 1, 1, S_BODY)
+        p_ellipse(draw, 15, 26, 2, 2, S_OUTLINE)
+        p_ellipse(draw, 15, 26, 1, 1, S_BODY)
     elif state == "cheer" or state.startswith("celebrate"):
-        # パタパタ拍手（ヒレを中段に上げる）
-        p_ellipse(draw, 6, 16, 3, 2, S_OUTLINE)
-        p_ellipse(draw, 6, 16, 2, 1, S_BODY)
-        p_ellipse(draw, 26, 16, 3, 2, S_OUTLINE)
-        p_ellipse(draw, 26, 16, 2, 1, S_BODY)
+        # パタパタ拍手（前ヒレを中段に上げる）
+        p_ellipse(draw, 13, 18, 3, 2, S_OUTLINE)
+        p_ellipse(draw, 13, 18, 2, 1, S_BODY)
     else:
-        p_ellipse(draw, 6, 25, 3, 3, S_OUTLINE)
-        p_ellipse(draw, 6, 25, 2, 2, S_BODY)
-        p_ellipse(draw, 26, 25, 3, 3, S_OUTLINE)
-        p_ellipse(draw, 26, 25, 2, 2, S_BODY)
+        p_ellipse(draw, 12, 24, 3, 2, S_OUTLINE)
+        p_ellipse(draw, 12, 24, 2, 1, S_BODY)
 
-    # --- まんまる大福ボディ（下膨れ） ---
-    p_ellipse(draw, 16, 20, 12, 9, S_BODY, outline=S_OUTLINE)
-    # --- 頭（大福の折り目を消して一体化） ---
-    p_ellipse(draw, 16, 12, 9, 8, S_BODY, outline=S_OUTLINE)
-    p_box(draw, 10, 18, 22, 19, S_BODY)
-    for x in range(8, 25):
+    # --- 尾ヒレ（体の後方・左端に2叶に分かれたファン） ---
+    p_ellipse(draw, 4, 19, 2, 2, S_OUTLINE)
+    p_ellipse(draw, 5, 19, 1, 1, S_BODY)
+    p_ellipse(draw, 4, 23, 2, 2, S_OUTLINE)
+    p_ellipse(draw, 5, 23, 1, 1, S_BODY)
+
+    # --- 水平紡錘ボディ（イルカ的シルエット: 左尾 ➔ 右頭） ---
+    p_ellipse(draw, 14, 20, 10, 6, S_BODY, outline=S_OUTLINE)
+    p_box(draw, 16, 15, 23, 21, S_BODY)
+    for x in range(8, 21):
+        p(draw, x, 25, S_BODY_SH)
         p(draw, x, 26, S_BODY_SH)
-        p(draw, x, 27, S_BODY_SH)
-    p_box(draw, 9, 9, 11, 11, S_BODY_HI)
 
-    # --- 頭の灰斑（黒ごま） ---
-    p_box(draw, 14, 6, 18, 9, S_SPOT)
-    p(draw, 13, 7, S_SPOT)
-    p(draw, 19, 8, S_SPOT)
+    # --- 頭（まんまる ＋ 鼻吻の横顔・右向き） ---
+    p_ellipse(draw, 22, 13, 7, 7, S_BODY, outline=S_OUTLINE)
+    p_box(draw, 26, 13, 29, 16, S_BODY)
+    p(draw, 29, 12, S_BODY)
+    p_box(draw, 19, 8, 21, 9, S_BODY_HI)
+    for x in range(17, 25):
+        p(draw, x, 19, S_BODY_SH)
 
-    # --- ほっぺ ---
-    p_box(draw, 8, 16, 9, 17, P_CHEEK)
-    p_box(draw, 22, 16, 23, 17, P_CHEEK)
+    # --- ほっぺ（横向きなので1個） ---
+    p_box(draw, 19, 16, 20, 17, P_CHEEK)
 
-    # --- 鼻＆ぷにぷにω口 ---
-    p_box(draw, 15, 16, 16, 17, S_NOSE)
-    p(draw, 14, 18, S_OUTLINE)
-    p(draw, 16, 18, S_OUTLINE)
-    p(draw, 18, 18, S_OUTLINE)
+    # --- 鼻＆ぷにぷにω口（鼻先は右端） ---
+    p(draw, 29, 14, S_NOSE)
+    p(draw, 28, 16, S_OUTLINE)
+    p(draw, 29, 16, S_OUTLINE)
     if state == "happy" or state == "cheer" or state.startswith("celebrate"):
-        p_box(draw, 14, 18, 18, 18, S_OUTLINE)
-        p(draw, 15, 19, S_OUTLINE)
-        p(draw, 17, 19, S_OUTLINE)
+        p_box(draw, 27, 16, 29, 16, S_OUTLINE)
+        p(draw, 28, 17, S_OUTLINE)
 
     # --- 目（状態別） ---
     _seal_eyes(draw, state, look_dx, look_dy)
@@ -522,16 +541,18 @@ def draw_seal(state: str) -> Image.Image:
     elif state == "tea_2" or state == "care_1" or state == "care_2":
         _seal_cup_ground(draw)
     elif state.startswith("tea_pillar"):
-        # 茶柱立て：中央の湯呑みから茶柱が直立
-        p_box(draw, 14, 25, 17, 27, P_CREAM)
-        p_box(draw, 14, 25, 17, 25, P_TEA)
-        p_box(draw, 13, 27, 18, 27, S_OUTLINE)
-        p_box(draw, 15, 11, 16, 24, P_TEA)
-        p(draw, 15, 13, P_WHITE)
-        p(draw, 15, 17, P_WHITE)
-        p(draw, 15, 21, P_WHITE)
-        _draw_wave(draw, 8, 10)
-        _draw_wave(draw, 20, 10)
+        # 茶柱立て：前足元の湯呑みから茶柱が直立 ＋ 頭にちょこん王冠
+        # 2フレームで茶柱が左右にゆらゆら揺れて「ぷかぷか浮遊」を表現する
+        sway = 1 if state == "tea_pillar_2" else 0
+        px = 25 + sway  # 茶柱（2px幅）の左端x。湯呑み開口(24..27)の手前で往復
+        p_box(draw, 24, 25, 27, 27, P_CREAM)
+        p_box(draw, 24, 25, 27, 25, P_TEA)
+        p_box(draw, 23, 27, 28, 27, S_OUTLINE)
+        p_box(draw, px, 11, px + 1, 24, P_TEA)
+        p(draw, px, 13, P_WHITE)
+        p(draw, px + 1, 17, P_WHITE)
+        p(draw, px, 21, P_WHITE)
+        _seal_crown(draw)
 
     # --- 状態エフェクト ---
     if state.startswith("sleepy"):
@@ -548,8 +569,8 @@ def draw_seal(state: str) -> Image.Image:
         _fx_think(draw, 3 if state == "thinking_2" else 2)
     elif state.startswith("focus"):
         _fx_focus(draw)
-        p_box(draw, 10, 11, 12, 11, P_DARK)
-        p_box(draw, 19, 11, 21, 11, P_DARK)
+        # 横向き顔ツラに合わせた真剣なまゆげ（1本）
+        p_box(draw, 21, 10, 23, 10, P_DARK)
         if state == "focus_2":
             p_box(draw, 25, 8, 26, 9, P_BLUE)
     elif state == "night_2":

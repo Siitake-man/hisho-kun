@@ -7,7 +7,7 @@
 if ('caches' in window) {
   caches.keys().then(keys => {
     keys.forEach(key => {
-      if (key !== 'neo-pet-v5.19') caches.delete(key);
+      if (key !== 'neo-pet-v5.20') caches.delete(key);
     });
   });
 }
@@ -131,6 +131,10 @@ window.addEventListener('DOMContentLoaded', () => {
   updateBriefingBannerText();
   requestAnimationFrame(particleLoop);
   preloadSprites(currentCharacterId);
+  // 🐛 バグ修正 (2026-08-31): 通知キーをsessionStorageに永続化。
+  //   サーバー側TTL延長(10分)と組み合わせ、再読み込み時に既表示の通知が
+  //   二重表示されるのを防止する（同一セッション内でのみ有効）。
+  window._lastNotifKey = sessionStorage.getItem('lastNotifKey') || null;
   fetchStatus();
   (function pollingLoop() {
     fetchStatus();
@@ -821,6 +825,18 @@ document.addEventListener('pointerdown', unlockAudio, { passive: true });
 document.addEventListener('touchstart', unlockAudio, { passive: true });
 document.addEventListener('visibilitychange', () => { if (!document.hidden) unlockAudio(); });
 
+// 🛡 通知再表示 (2026-08-31): 画面OFF/バックグラウンド中に通知トーストが描画されると
+//   音だけ鳴って表示は失われ、再読み込みするまで出ない障害の根本対策。
+//   非表示中に通知を処理していた場合はキーをリセットし、復帰後の最初のポーリングで
+//   サーバー (60秒TTL) から再取得・再表示させる。
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden && window._notifShownWhileHidden) {
+    window._notifShownWhileHidden = false;
+    window._lastNotifKey = null;
+    if (typeof fetchStatus === 'function') fetchStatus();
+  }
+});
+
 /** 2音チャイム（ピンポン）を合成する */
 function playTwoTone(ctx, freqLow, freqHigh) {
   const now = ctx.currentTime;
@@ -980,10 +996,7 @@ function onPetTap(event) {
 // 4. キャラクター切り替え
 // =============================================================================
 const CHARACTERS = [
-  { id: 'seal', name: 'もちもちアザラシ', emoji: '🦭' },
   { id: 'hisho', name: '秘書くん', emoji: '👔' },
-  { id: 'kinoko', name: 'キノコ君', emoji: '🍄' },
-  { id: 'marmot', name: 'マーモット', emoji: '🦫' },
   { id: 'kyle', name: 'カイル風精霊', emoji: '🐚' }
 ];
 
@@ -1624,6 +1637,18 @@ async function fetchStatus() {
       const notifKey = `${notif.id || ''}:${notif.timestamp || ''}`;
       if (window._lastNotifKey !== notifKey) {
         window._lastNotifKey = notifKey;
+        try {
+          sessionStorage.setItem('lastNotifKey', notifKey);
+        } catch (e) { /* プライベートモード等では永続化を諦める */ }
+        // 🛡 バグ修正 (2026-08-31): set_notification は必ず buzz 要求も発行するため、
+        //   同一ポーリング周期内で後続の §5.6 buzz トーストが本通知トーストを
+        //   上書きし「音は鳴るのに通知が表示されない」障害の原因になっていた。
+        //   表示時刻を記録し、§5.6 側で上書きを抑制する。
+        window._notifDisplayedAt = Date.now();
+        // 🛡 追加修正 (2026-08-31): 画面OFF/バックグラウンド中に本ブロックが実行されると
+        //   チャイム（音）だけ鳴り、トーストは不可視の画面に描画されて消える。
+        //   復帰（visibilitychange）時に再表示させるため、非表示中実行フラグを記録。
+        window._notifShownWhileHidden = document.hidden;
         petStateNow = notif.reaction || 'celebrate';
         const msgEl = document.getElementById('speech-bubble');
         if (msgEl) {
@@ -1659,8 +1684,13 @@ async function fetchStatus() {
 
     // 5.6. PCからの呼び出し信号 (Buzz)
     if (data.buzz) {
-      playAlertChime(2);
-      showToast('📲 ボスが呼んでいます！');
+      // 🛡 通知トースト表示直後 (1.5秒以内) の同一周期 buzz は上書き抑制。
+      //   通知自体が既にチャイム＋バイブを鳴らしているため二重再生も防止する。
+      const sinceNotif = Date.now() - (window._notifDisplayedAt || 0);
+      if (sinceNotif > 1500) {
+        playAlertChime(2);
+        showToast('📲 ボスが呼んでいます！');
+      }
     }
 
     // 5.7. ⚡ イースターエッグ演出同期
@@ -2497,69 +2527,6 @@ function toggleFullscreen() {
   if (navigator.vibrate) navigator.vibrate(25);
 }
 
-/** 🎤 音声入力開始（Web Speech API） — K2 音声ウェイクワード布石 */
-function startVoiceInput() {
-  if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
-    showToast('⚠️ このブラウザは音声認識に対応していません');
-    return;
-  }
-  // 🔒 セキュアコンテキスト判定: Chrome は HTTPS / localhost 以外のオリジンでは
-  // マイクアクセスを仕様上ブロックする（LAN直結の http://192.168.x.x がこれに該当）。
-  // ブロックされる前に分かりやすい日本語ガイダンスを出す（not-allowed の事前回避）。
-  if (!window.isSecureContext) {
-    showToast('🔒 マイクはHTTPS接続でのみ許可されます。<br>' +
-      'LAN直結(HTTP)のためブラウザがブロックしています。<br>' +
-      '<span style="font-weight:normal;font-size:11px;">テキスト入力は通常どおりご利用できます</span>', 6000);
-    return;
-  }
-  const micBtn = document.getElementById('mic-btn');
-  if (micBtn) micBtn.style.opacity = '0.5';
-  showToast('🎤 話しかけてください…');
-  
-  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-  const recognition = new SpeechRecognition();
-  recognition.lang = 'ja-JP';
-  recognition.interimResults = false;
-  recognition.maxAlternatives = 1;
-  
-  recognition.onresult = (event) => {
-    const transcript = event.results[0][0].transcript;
-    if (micBtn) micBtn.style.opacity = '1';
-    showToast(`🎤 「${transcript}」`);
-    // サーバーへ音声テキストを送信（既存のチャットパイプラインを利用）
-    authFetch('/api/action', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'voice_command', text: transcript })
-    }).catch(err => console.debug('Voice command send failed:', err));
-  };
-  
-  recognition.onerror = (event) => {
-    if (micBtn) micBtn.style.opacity = '1';
-    // ブラウザの生エラーコードを日本語ガイダンスへ変換（not-allowed 等の裸出し防止）
-    const errorGuides = {
-      'not-allowed': '🔒 マイク権限が拒否されました。アドレスバーのアイコンからマイクを許可してください',
-      'service-not-allowed': '🔒 音声認識サービスの利用が許可されていません',
-      'audio-capture': '🎙️ マイクが見つかりません。端末のマイク接続を確認してください',
-      'no-speech': '💬 声が検出できませんでした。もう一度お試しください',
-      'network': '📡 音声認識サーバーへ接続できませんでした。通信状況を確認してください',
-      'aborted': '⏹️ 音声認識を中断しました'
-    };
-    const guide = errorGuides[event.error] || ('音声認識エラー: ' + (event.error || 'unknown'));
-    showToast('⚠️ ' + guide);
-    console.debug('Speech recognition error:', event.error);
-  };
-  
-  recognition.onend = () => {
-    if (micBtn) micBtn.style.opacity = '1';
-  };
-  
-  try { recognition.start(); } catch (e) {
-    if (micBtn) micBtn.style.opacity = '1';
-    showToast('⚠️ 音声認識の開始に失敗しました');
-  }
-}
-
 let nosleepActive = false;
 
 /**
@@ -2877,6 +2844,16 @@ async function startVoiceInput() {
   // 既に録音中の場合はタップで停止して即時文字起こしへ
   if (_isVoiceRecording) {
     stopVoiceRecording();
+    return;
+  }
+
+  // 🔒 セキュアコンテキスト判定: Chrome は HTTPS / localhost 以外のオリジンでは
+  // マイクアクセスを仕様上ブロックする（LAN直結の http://192.168.x.x がこれに該当）。
+  // getUserMedia が undefined になる前に分かりやすい日本語ガイダンスを出す。
+  if (!window.isSecureContext) {
+    showToast('🔒 マイク録音はHTTPS接続でのみ許可されます。<br>' +
+      'LAN直結(HTTP)のためブラウザがブロックしています。<br>' +
+      '<span style="font-weight:normal;font-size:11px;">テキスト入力は通常どおりご利用できます</span>', 6000);
     return;
   }
 
