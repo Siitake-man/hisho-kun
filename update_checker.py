@@ -205,7 +205,8 @@ def _checker_loop(gui: Any, interval_sec: float) -> None:
                 f"🔔 【アップデートのお知らせ】\n"
                 f"新しいバージョン {latest_tag} が公開されています！\n"
                 f"現在のバージョン: v{__version__}\n"
-                f"配布ページ: {release['html_url']}"
+                f"{release['html_url']}\n"
+                f"※更新手順は同梱の docs/guides/UPDATE_GUIDE.md を参照してください。"
             )
             logger.info(f"新バージョン検知: {latest_tag} (現行 v{__version__})")
             if gui is not None:

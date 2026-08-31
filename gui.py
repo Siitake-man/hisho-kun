@@ -171,7 +171,7 @@ class NeoSecretaryGUI:
         self.current_link_url = ""
         self.link_btn = ctk.CTkButton(
             self.bubble_frame,
-            text="🌐 記事をブラウザで開く",
+            text="🌐 リンクをブラウザで開く",
             font=("Meiryo UI", 9.5, "bold"),
             fg_color="#1565C0",
             hover_color="#0D47A1",

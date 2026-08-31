@@ -38,6 +38,7 @@ a = Analysis(
         'app_paths',
         'agent',
         'agent_bridge_client',
+        'agent_identity',
         'agent_watcher',
         'briefing_engine',
         'character_manager',
@@ -47,7 +48,9 @@ a = Analysis(
         'google_workspace_tools',
         'gui',
         'hisho_mcp_server',
+        'i18n',
         'ics_tools',
+        'life_coach_engine',
         'life_dreamer',
         'llm_factory',
         'local_sync_server',
@@ -55,6 +58,7 @@ a = Analysis(
         'mcp_manager',
         'pet_animator',
         'proactive_engine',
+        'reminder_engine',
         'suggest_engine',
         'task_narrator',
         'tour_engine',
@@ -64,6 +68,7 @@ a = Analysis(
         'weather_tools',
         'webhook_tools',
         'web_tools',
+        'whisper_transcriber',
         'ui.settings_window',
         'ui.calendar_window',
         'ui.db_viewer',
@@ -77,7 +82,16 @@ a = Analysis(
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
-    excludes=[],
+    # 音声文字起こし (faster-whisper) は内部課題化中 (VOICE_INPUT_ENABLED=false) の
+    # ため配布から除外する。whisper_transcriber は未導入環境を is_available()=False
+    # で優雅に処理するため除外しても安全 (zip を数百MB〜数GB圧縮できる)。
+    excludes=[
+        'faster_whisper',
+        'ctranslate2',
+        'av',
+        'onnxruntime',
+        'tokenizers',
+    ],
     noarchive=False,
 )
 pyz = PYZ(a.pure)
