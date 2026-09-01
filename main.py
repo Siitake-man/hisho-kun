@@ -153,6 +153,22 @@ class NeoSecretaryApp:
         from proactive_engine import get_care_engine
         self.care_engine = get_care_engine(notify_callback=self._on_proactive_care)
 
+        # 3.5. 自律通知スケジューラー (P2 スケジューラー共通化):
+        # care / event_reminders の周期チェックを asyncio ループ内 tick から
+        # 専用デーモンスレッドへ移管し、UIループの負荷と責務を分離する。
+        # GUI通知は notify_callback 内の post_action でスレッド安全にディスパッチされる。
+        from proactive_scheduler import get_proactive_scheduler
+        scheduler = get_proactive_scheduler()
+        scheduler.register(
+            lambda now: self.care_engine.check_and_trigger_care(),
+            name="proactive_care",
+        )
+        scheduler.register(
+            lambda now: self.care_engine.check_event_reminders(),
+            name="event_reminders",
+        )
+        scheduler.start()
+
         # 4. スマホ専用ペット端末 (Desk Pet) ローカル同期サーバーの起動
         from local_sync_server import get_sync_server
         self.sync_server = get_sync_server(gui=self.gui)
@@ -480,7 +496,6 @@ async def async_mainloop(app: NeoSecretaryApp):
     自前で更新ループを回します。
     """
     logger.info("非同期メインループを開始します")
-    loop_tick = 0
     
     while True:
         try:
@@ -493,14 +508,9 @@ async def async_mainloop(app: NeoSecretaryApp):
             app.gui.process_action_queue()
             app.gui.root.update()
             
-            # 2. 定期的なプロアクティブ見守りチェック（約10秒 = 1000 tick ごと）
-            loop_tick += 1
-            if loop_tick >= 1000:
-                loop_tick = 0
-                app.care_engine.check_and_trigger_care()
-                app.care_engine.check_event_reminders()
-            
-            # 3. ほんの僅かな時間（0.01秒）だけ処理を手放し、LLM推論等のAsyncioタスク群を動かす
+            # 2. ほんの僅かな時間（0.01秒）だけ処理を手放し、LLM推論等のAsyncioタスク群を動かす
+            #    ※ プロアクティブ見守り・予定リマインダーの周期チェックは
+            #       ProactiveScheduler (proactive_scheduler.py) の専用スレッドへ移管済み (P2対応)
             await asyncio.sleep(0.01)
             
         except tk.TclError as te:
