@@ -172,6 +172,26 @@ class SyncTokenManager:
             return False
         return hmac.compare_digest(presented.strip(), self._token)
 
+    def regenerate(self) -> str:
+        """既存トークンを無効化し、新しいトークンを生成・保存する。
+
+        設定画面の「スマホ連携 全解除（トークン再生成）」ボタンから呼び出される
+        ワンクリック操作。トークンを差し替えることで、スマホ側に保存された旧
+        トークンによる全セッションを即座に無効化する（セッション全破棄 /
+        紛失・売却・リセット時のセキュリティ対処 / 2026-09-01 3周レビュー P1対応）。
+
+        Returns:
+            str: 新しく生成された同期トークン (64文字hex)。
+        """
+        with self._lock:
+            self._token = secrets.token_hex(32)
+            self._save_token()
+        logger.warning(
+            "🔐 [SyncAuth] 同期トークンを再生成しました。"
+            "既存のスマホ接続セッションはすべて無効になります"
+        )
+        return self._token
+
 
 _global_token_manager: Optional[SyncTokenManager] = None
 
