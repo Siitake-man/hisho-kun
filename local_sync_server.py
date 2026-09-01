@@ -14,7 +14,6 @@ import json
 import time
 import uuid
 import hmac
-import base64
 import secrets
 import logging
 import threading
@@ -78,6 +77,10 @@ def _fmt_event_dt(ms_val: Any) -> str:
 import database
 from update_checker import get_update_status
 from sync_dtos import validate_status_payload, validate_tasks_view_response
+from api_context import ApiContext
+import api_tasks
+import api_agent_bridge
+import api_calendar
 
 logger = logging.getLogger(__name__)
 
@@ -560,6 +563,57 @@ def get_bridge_hub() -> AgentBridgeHub:
 # HTTP & API ハンドラ
 # =============================================================================
 
+# =============================================================================
+# 🗂️ /api/action アクションディスパッチテーブル (P2③ 分割リファクタ)
+# =============================================================================
+# 各ハンドラは handler(ctx: ApiContext) -> bool 署名を持つモジュール関数。
+# True: レスポンス書き込み済み / False: ガード未成立 (旧仕様どおり無応答)。
+
+ACTION_HANDLERS_TASKS = {
+    "complete_task": api_tasks.action_complete_task,
+    "reopen_task": api_tasks.action_reopen_task,
+    "toggle_habit": api_tasks.action_toggle_habit,
+    "add_habit": api_tasks.action_add_habit,
+    "quick_add_task": api_tasks.action_quick_add_task,
+    "transcribe_voice": api_tasks.action_transcribe_voice,
+    "update_task": api_tasks.action_update_task,
+    "delete_task": api_tasks.action_delete_task,
+    "list_task_lists": api_tasks.action_list_task_lists,
+    "get_tasks_view": api_tasks.action_get_tasks_view,
+}
+
+ACTION_HANDLERS_DEVICE = {
+    "start_pomodoro": api_agent_bridge.action_start_pomodoro,
+    "stop_pomodoro": api_agent_bridge.action_stop_pomodoro,
+    "show_pc_pet": api_agent_bridge.action_show_pc_pet,
+    "switch_character": api_agent_bridge.action_switch_character,
+    "toggle_suggest_source": api_agent_bridge.action_toggle_suggest_source,
+    "set_news_keywords": api_agent_bridge.action_set_news_keywords,
+    "pet_reaction": api_agent_bridge.action_pet_reaction,
+    "ping_test": api_agent_bridge.action_ping_test,
+    "voice_command": api_agent_bridge.action_voice_command,
+    "easter_egg_trigger": api_agent_bridge.action_easter_egg_trigger,
+    "trigger_briefing": api_agent_bridge.action_trigger_briefing,
+    "set_weather_location": api_agent_bridge.action_set_weather_location,
+    "record_minigame_score": api_agent_bridge.action_record_minigame_score,
+}
+
+# 全アクションの統合ディスパッチテーブル
+ACTION_HANDLERS = {**ACTION_HANDLERS_TASKS, **ACTION_HANDLERS_DEVICE}
+
+# POST パス系APIのディスパッチテーブル (P2③ 分割リファクタ)
+POST_PATH_HANDLERS = {
+    "/api/agent/ask": api_agent_bridge.handle_agent_ask,
+    "/api/agent/ask_input": api_agent_bridge.handle_agent_ask_input,
+    "/api/agent/respond": api_agent_bridge.handle_agent_respond,
+    "/api/agent/dismiss_completed": api_agent_bridge.handle_agent_dismiss_completed,
+    "/api/agent/notify": api_agent_bridge.handle_agent_notify,
+    "/api/test_buzz": api_agent_bridge.handle_test_buzz,
+    "/api/webhook/calendar": api_calendar.handle_webhook_calendar,
+    "/api/webhook/task": api_calendar.handle_webhook_task,
+}
+
+
 class DeskPetSyncHandler(SimpleHTTPRequestHandler):
     """Desk Pet PWA用の静的ファイル配信 ＆ JSON APIハンドラ"""
     
@@ -1038,7 +1092,11 @@ class DeskPetSyncHandler(SimpleHTTPRequestHandler):
             super().do_GET()
 
     def do_POST(self):
-        """スマホ側からのアクションおよび外部エージェントからの要請受信"""
+        """スマホ側からのアクションおよび外部エージェントからの要請受信
+
+        P2③ 分割リファクタ: 本メソッドは認証・ループバック制限・ディスパッチのみを
+        担当し、個別処理は api_tasks / api_agent_bridge モジュールのハンドラ関数へ委譲する。
+        """
         content_length = int(self.headers.get('Content-Length', 0))
         body = self.rfile.read(content_length)
         client_ip = self.client_address[0] if self.client_address else "unknown"
@@ -1065,226 +1123,10 @@ class DeskPetSyncHandler(SimpleHTTPRequestHandler):
             ).encode("utf-8"))
             return
 
-        # 1. 外部エージェントからの承認要請 (POST /api/agent/ask)
-        if self.path == "/api/agent/ask":
-            self.send_response(200)
-            self.send_header("Content-Type", "application/json; charset=utf-8")
-            self._set_cors_headers()
-            self.end_headers()
-            
-            try:
-                data = json.loads(body.decode("utf-8"))
-                agent_name = data.get("agent_name", "AI Agent")
-                command = data.get("command", "")
-                summary = data.get("summary", "コマンドの実行許可を求めています")
-                details = data.get("details", "")
-                timeout = int(data.get("timeout", 180))
-                
-                hub = get_bridge_hub()
-                req = hub.create_approval_request(agent_name, command, summary, details, timeout_sec=timeout, requester_ip=client_ip)
-                get_link_monitor().trigger_buzz()
-                
-                if data.get("wait_decision", True):
-                    decision = req.wait(timeout=timeout)
-                    self.wfile.write(json.dumps({
-                        "status": "success",
-                        "request_id": req.request_id,
-                        "decision": decision,
-                        "message": req.decision_message
-                    }, ensure_ascii=False).encode("utf-8"))
-                else:
-                    self.wfile.write(json.dumps({
-                        "status": "queued",
-                        "request_id": req.request_id
-                    }, ensure_ascii=False).encode("utf-8"))
-            except Exception as e:
-                logger.error(f"Agent Ask API エラー: {e}")
-                self.wfile.write(json.dumps({"status": "error", "message": str(e)}).encode("utf-8"))
-
-        # 1.5. 外部エージェントからの質問・選択肢回答要請 (POST /api/agent/ask_input)
-        elif self.path == "/api/agent/ask_input":
-            self.send_response(200)
-            self.send_header("Content-Type", "application/json; charset=utf-8")
-            self._set_cors_headers()
-            self.end_headers()
-            
-            try:
-                data = json.loads(body.decode("utf-8"))
-                agent_name = data.get("agent_name", "AI Agent")
-                question = data.get("question", "確認事項があります")
-                choices = data.get("choices", [])
-                details = data.get("details", "")
-                timeout = int(data.get("timeout", 180))
-                
-                hub = get_bridge_hub()
-                req = hub.create_question_request(agent_name, question, choices, details, timeout_sec=timeout, requester_ip=client_ip)
-                get_link_monitor().trigger_buzz()
-                
-                # PCペットのメッセージとリアクション（非表示状態は維持）
-                gui = get_gui_instance()
-                if gui:
-                    gui.post_action(gui.update_message, f"【{agent_name}】{question}")
-                    gui.post_action(gui.set_pet_state, "alarm_ask", 6000)
-                
-                if data.get("wait_decision", True):
-                    decision = req.wait(timeout=timeout)
-                    self.wfile.write(json.dumps({
-                        "status": "success",
-                        "request_id": req.request_id,
-                        "decision": decision,
-                        "answer": req.decision_message
-                    }, ensure_ascii=False).encode("utf-8"))
-                else:
-                    self.wfile.write(json.dumps({
-                        "status": "queued",
-                        "request_id": req.request_id
-                    }, ensure_ascii=False).encode("utf-8"))
-            except Exception as e:
-                logger.error(f"Agent Ask Input API エラー: {e}")
-                self.wfile.write(json.dumps({"status": "error", "message": str(e)}).encode("utf-8"))
-
-        # 2. スマホからの意思決定・回答送信 (POST /api/agent/respond)
-        elif self.path == "/api/agent/respond":
-            get_link_monitor().record_heartbeat(client_ip, user_agent)
-            self.send_response(200)
-            self.send_header("Content-Type", "application/json; charset=utf-8")
-            self._set_cors_headers()
-            self.end_headers()
-            
-            try:
-                data = json.loads(body.decode("utf-8"))
-                request_id = data.get("request_id")
-                decision = data.get("decision", "approve")
-                message = data.get("message", "")
-                
-                hub = get_bridge_hub()
-                success, reason = hub.respond_checked(request_id, decision, message, responder_ip=client_ip)
-                if success:
-                    status_payload: Dict[str, Any] = {"status": "success"}
-                elif reason == "self_approve_denied":
-                    status_payload = {
-                        "status": "error",
-                        "message": "自己承認は禁止されています（要求元と同じ端末からの承認は無効）"
-                    }
-                elif reason == "expired":
-                    status_payload = {
-                        "status": "expired",
-                        "message": "この承認要請・質問は期限切れです（タイムアウトしました）。エージェントに再問い合わせしてください。"
-                    }
-                else:
-                    status_payload = {"status": "not_found", "message": "対象のリクエストが見つかりません"}
-                self.wfile.write(json.dumps(status_payload, ensure_ascii=False).encode("utf-8"))
-            except Exception as e:
-                logger.error(f"Agent Respond API エラー: {e}")
-                self.wfile.write(json.dumps({"status": "error", "message": str(e)}).encode("utf-8"))
-
-        # 2.3. スマホからの作業完了カード閉じる (POST /api/agent/dismiss_completed)
-        elif self.path == "/api/agent/dismiss_completed":
-            self.send_response(200)
-            self.send_header("Content-Type", "application/json; charset=utf-8")
-            self._set_cors_headers()
-            self.end_headers()
-            get_bridge_hub().dismiss_completed()
-            self.wfile.write(json.dumps({"status": "success"}).encode("utf-8"))
-
-        # 2.5. 外部エージェント(Codex/Claude Code)からの作業完了・イベント通知 (POST /api/agent/notify)
-        elif self.path == "/api/agent/notify":
-            self.send_response(200)
-            self.send_header("Content-Type", "application/json; charset=utf-8")
-            self._set_cors_headers()
-            self.end_headers()
-            
-            try:
-                data = json.loads(body.decode("utf-8"))
-                agent_name = data.get("agent_name", "外部AI")
-                title = data.get("title", "作業完了通知")
-                message = data.get("message", "")
-                details = data.get("details", "")
-                pet_reaction = data.get("reaction", "celebrate")
-                
-                logger.info(f"🤖 [Agent Bridge Notify] {agent_name}から通知受信: {title} - {message}")
-                
-                # BridgeHubへ完了イベントを登録（リッチカード表示用）
-                hub = get_bridge_hub()
-                hub.set_completed_event(agent_name, title, message, details)
-                
-                # PCペットのリアクションとメッセージ更新（非表示状態は維持）
-                gui = get_gui_instance()
-                if gui:
-                    full_text = f"【{agent_name}】{title}\n{message}" if message else f"【{agent_name}】{title}"
-                    gui.post_action(gui.update_message, full_text)
-                    gui.post_action(gui.set_pet_state, pet_reaction, 6000)
-                
-                # スマホDesk Petへ最新通知をセット（自動でbuzz要求も発行）
-                get_link_monitor().set_notification(agent_name, title, message, pet_reaction)
-                
-                self.wfile.write(json.dumps({
-                    "status": "success",
-                    "agent_name": agent_name,
-                    "reaction": pet_reaction
-                }, ensure_ascii=False).encode("utf-8"))
-            except Exception as e:
-                logger.error(f"Agent Notify API エラー: {e}")
-                self.wfile.write(json.dumps({"status": "error", "message": str(e)}).encode("utf-8"))
-
-        # 3. PCからのスマホ呼び出しテスト (POST /api/test_buzz)
-        elif self.path == "/api/test_buzz":
-            self.send_response(200)
-            self.send_header("Content-Type", "application/json; charset=utf-8")
-            self._set_cors_headers()
-            self.end_headers()
-            
-            get_link_monitor().trigger_buzz()
-            logger.info("📲 [Link Monitor] PCからスマホへ呼び出し信号(Buzz)を送信しました")
-            self.wfile.write(json.dumps({"status": "buzz_triggered"}, ensure_ascii=False).encode("utf-8"))
-
-        # 3.8. 外部SaaS・マルチ中継 Webhook (POST /api/webhook/calendar, POST /api/webhook/task)
-        elif self.path == "/api/webhook/calendar":
-            if not self._check_webhook_auth():
-                return
-            self.send_response(200)
-            self.send_header("Content-Type", "application/json; charset=utf-8")
-            self._set_cors_headers()
-            self.end_headers()
-            try:
-                data = json.loads(body.decode("utf-8")) if body else {}
-                import webhook_tools
-                result = webhook_tools.process_incoming_calendar_webhook(data)
-                
-                # 手帳が開いていれば再描画
-                gui = get_gui_instance()
-                if gui:
-                    if hasattr(gui, 'refresh_calendar_if_open'):
-                        gui.post_action(gui.refresh_calendar_if_open)
-                    title = result.get("title", "新しい予定")
-                    gui.post_action(gui.update_message, f"📅 外部SaaSから予定を受信しました:\n{title}")
-                
-                self.wfile.write(json.dumps(result, ensure_ascii=False).encode("utf-8"))
-            except Exception as e:
-                logger.error(f"Webhook カレンダー登録エラー: {e}")
-                self.wfile.write(json.dumps({"status": "error", "message": str(e)}).encode("utf-8"))
-
-        elif self.path == "/api/webhook/task":
-            if not self._check_webhook_auth():
-                return
-            self.send_response(200)
-            self.send_header("Content-Type", "application/json; charset=utf-8")
-            self._set_cors_headers()
-            self.end_headers()
-            try:
-                data = json.loads(body.decode("utf-8")) if body else {}
-                import webhook_tools
-                result = webhook_tools.process_incoming_task_webhook(data)
-                
-                gui = get_gui_instance()
-                if gui:
-                    title = result.get("title", "新しいタスク")
-                    gui.post_action(gui.update_message, f"📝 外部SaaSからTODOを受信しました:\n{title}")
-                
-                self.wfile.write(json.dumps(result, ensure_ascii=False).encode("utf-8"))
-            except Exception as e:
-                logger.error(f"Webhook タスク登録エラー: {e}")
-                self.wfile.write(json.dumps({"status": "error", "message": str(e)}).encode("utf-8"))
+        # パス系APIのディスパッチ (P2③: api_agent_bridge モジュールへ委譲)
+        path_handler = POST_PATH_HANDLERS.get(self.path)
+        if path_handler:
+            path_handler(ApiContext(self, body, client_ip, user_agent))
 
         # 4. 通常のDesk Petアクション (POST /api/action)
         #
@@ -1303,427 +1145,18 @@ class DeskPetSyncHandler(SimpleHTTPRequestHandler):
             self.send_header("Content-Type", "application/json; charset=utf-8")
             self._set_cors_headers()
             self.end_headers()
-            
+
             try:
                 data = json.loads(body.decode("utf-8"))
                 action = data.get("action")
                 logger.debug(f"📱 /api/action 呼び出し: action={action}, client_ip={client_ip}")
-                
-                if action == "complete_task":
-                    task_id = data.get("task_id")
-                    if task_id:
-                        database.complete_task(int(task_id))
-                        logger.info(f"📱 スマホ側からタスク完了を受信: TaskID={task_id}")
-                        self.wfile.write(json.dumps({"status": "success", "task_id": task_id}).encode("utf-8"))
-                        return
-                elif action == "reopen_task":
-                    # ⟲ 誤タップ復活: 完了済みタスクを未完了へ戻す (繰り返し次回分も巻き戻し)
-                    task_id = data.get("task_id")
-                    if task_id:
-                        success = database.reopen_task(int(task_id))
-                        logger.info(f"📱 スマホ側からタスク完了取り消しを受信: TaskID={task_id}, success={success}")
-                        self.wfile.write(json.dumps({"status": "success" if success else "error", "task_id": task_id}).encode("utf-8"))
-                        return
-                elif action == "toggle_habit":
-                    habit_id = data.get("habit_id")
-                    if habit_id:
-                        is_done = database.toggle_habit_log(int(habit_id))
-                        # 親愛度XP加算 (+10 XP)
-                        if is_done:
-                            from character_manager import get_character_manager
-                            get_character_manager().add_bond_xp(10)
-                            gui = get_gui_instance()
-                            if gui and hasattr(gui, 'animator'):
-                                gui.post_action(gui.animator.trigger_reaction, "task_complete")
-                        logger.info(f"📱 スマホ側から習慣トグルを受信: HabitID={habit_id}, IsDone={is_done}")
-                        self.wfile.write(json.dumps({"status": "success", "habit_id": habit_id, "is_done": is_done}).encode("utf-8"))
-                        return
-                elif action == "add_habit":
-                    title = data.get("title", "").strip()
-                    emoji = data.get("emoji", "🌱")
-                    if title:
-                        from database import Habit
-                        h_id = database.create_habit(Habit(title=title, emoji=emoji))
-                        logger.info(f"📱 スマホ側から習慣作成を受信: ID={h_id}, Title={title}")
-                        self.wfile.write(json.dumps({"status": "success", "habit_id": h_id}).encode("utf-8"))
-                        return
-                elif action == "quick_add_task":
-                    # 🚀 クイック追加バー用 (TickTick拡張):
-                    # 自然言語1行から task_parser が期限/タグ/優先度を解析する
-                    quick_text = data.get("text", "").strip()
-                    if quick_text:
-                        from task_parser import parse_input, tags_to_db_string
-                        parsed = parse_input(quick_text)
-                        if parsed.title:
-                            task_id = database.create_task(database.Task(
-                                title=parsed.title,
-                                description="",
-                                due_date=parsed.due_date,
-                                priority=parsed.priority,
-                                status="todo",
-                                tags=tags_to_db_string(parsed.tags),
-                                importance_flag=parsed.importance,
-                                urgency_flag=parsed.urgency,
-                                recurrence=parsed.recurrence,
-                            ))
-                            logger.info(f"📱 スマホ側からクイック追加を受信: ID={task_id}, Title={parsed.title}")
-                            self.wfile.write(json.dumps({
-                                "status": "success",
-                                "task_id": task_id,
-                                "title": parsed.title,
-                            }).encode("utf-8"))
-                            return
-                        self.wfile.write(json.dumps({
-                            "status": "error", "message": "タスク名を抽出できませんでした"
-                        }).encode("utf-8"))
-                        return
-                elif action == "transcribe_voice":
-                    # 🎙️ スマホ音声 ➔ PC Whisper 文字起こし ➔ quick_add_task パイプライン (B20)
-                    audio_b64 = data.get("audio_base64", "")
-                    filename = data.get("filename", "voice.webm")
-                    auto_add_task = data.get("auto_add_task", True)
 
-                    if not audio_b64:
-                        logger.warning("音声データが空の transcribe_voice リクエストを受信しました")
-                        self.wfile.write(json.dumps({
-                            "status": "error", "message": "音声データ (audio_base64) が指定されていません"
-                        }, ensure_ascii=False).encode("utf-8"))
+                action_handler = ACTION_HANDLERS.get(action)
+                if action_handler is not None:
+                    # アクション処理は機能別モジュール (api_tasks / api_agent_bridge) へ委譲。
+                    # False (ガード未成立) の場合は旧仕様どおり無応答 200 で返る。
+                    if action_handler(ApiContext(self, body, client_ip, user_agent)):
                         return
-
-                    try:
-                        audio_bytes = base64.b64decode(audio_b64)
-                    except Exception as b64_err:
-                        logger.error("音声Base64のデコードに失敗: %s", b64_err)
-                        self.wfile.write(json.dumps({
-                            "status": "error", "message": f"Base64デコードエラー: {b64_err}"
-                        }, ensure_ascii=False).encode("utf-8"))
-                        return
-
-                    try:
-                        from whisper_transcriber import WhisperTranscriber
-                        transcriber = WhisperTranscriber()
-                        if not transcriber.is_available():
-                            logger.warning("WhisperTranscriber が未インストールのため音声認識を実行できません")
-                            self.wfile.write(json.dumps({
-                                "status": "error",
-                                "message": "PC側の音声文字起こしライブラリ (faster-whisper) が未導入です。requirements_whisper.txt をインストールしてください。"
-                            }, ensure_ascii=False).encode("utf-8"))
-                            return
-
-                        transcript = transcriber.transcribe(audio_bytes, filename=filename)
-                        if not transcript:
-                            logger.info("📱 音声文字起こし結果が空でした (無音または認識不能)")
-                            self.wfile.write(json.dumps({
-                                "status": "empty_transcript",
-                                "transcript": "",
-                                "task_created": False,
-                                "message": "音声を認識できませんでした。もう少しはっきりと話してみてください。"
-                            }, ensure_ascii=False).encode("utf-8"))
-                            return
-
-                        # 自動タスク作成 (auto_add_task) の内部呼び出し
-                        task_created = False
-                        task_id = None
-                        extracted_title = ""
-                        if auto_add_task:
-                            from task_parser import parse_input, tags_to_db_string
-                            parsed = parse_input(transcript)
-                            if parsed.title:
-                                task_id = database.create_task(database.Task(
-                                    title=parsed.title,
-                                    description="🎤 スマホ音声入力より自動登録",
-                                    due_date=parsed.due_date,
-                                    priority=parsed.priority,
-                                    status="todo",
-                                    tags=tags_to_db_string(parsed.tags),
-                                    importance_flag=parsed.importance,
-                                    urgency_flag=parsed.urgency,
-                                    recurrence=parsed.recurrence,
-                                ))
-                                task_created = True
-                                extracted_title = parsed.title
-                                logger.info("📱 🎤 音声文字起こしからタスク自動作成: ID=%s, Title='%s' (元音声='%s')", task_id, parsed.title, transcript)
-
-                                # PC側ペットのセリフ更新
-                                gui = get_gui_instance()
-                                if gui:
-                                    gui.post_action(gui.update_message, f"🎤 音声からTODOを作成しました:\n「{parsed.title}」")
-                                    if hasattr(gui, 'animator'):
-                                        gui.post_action(gui.animator.trigger_reaction, "task_complete")
-
-                        self.wfile.write(json.dumps({
-                            "status": "ok",
-                            "transcript": transcript,
-                            "task_created": task_created,
-                            "task_id": task_id,
-                            "title": extracted_title
-                        }, ensure_ascii=False).encode("utf-8"))
-                        return
-
-                    except Exception as tr_err:
-                        logger.error("音声文字起こしパイプライン処理中にエラー: %s", tr_err, exc_info=True)
-                        self.wfile.write(json.dumps({
-                            "status": "error",
-                            "message": f"音声文字起こしエラー: {tr_err}"
-                        }, ensure_ascii=False).encode("utf-8"))
-                        return
-                elif action == "update_task":
-                    # ✏️ タスク詳細編集 (スマホ編集シート用): ホワイトリスト項目のみDB反映
-                    # due_date は epochミリ秒 (null=期日なし)、importance/urgency_flag は
-                    # true/false/null (null=未指定→4象限は推定ルールにフォールバック)
-                    task_id = data.get("task_id")
-                    if task_id:
-                        fields = {}
-                        if "title" in data:
-                            new_title = str(data["title"]).strip()
-                            if new_title:
-                                fields["title"] = new_title
-                        if "due_date" in data:
-                            due = data["due_date"]
-                            fields["due_date"] = int(due) if due else None
-                        if "priority" in data:
-                            fields["priority"] = max(0, min(3, int(data["priority"])))
-                        if "tags" in data:
-                            fields["tags"] = str(data["tags"]).strip()
-                        if "list_id" in data:
-                            lid = data["list_id"]
-                            fields["list_id"] = int(lid) if lid else None
-                        if "importance_flag" in data:
-                            iv = data["importance_flag"]
-                            fields["importance_flag"] = None if iv is None else bool(iv)
-                        if "urgency_flag" in data:
-                            uv = data["urgency_flag"]
-                            fields["urgency_flag"] = None if uv is None else bool(uv)
-                        success = database.update_task(int(task_id), fields) if fields else False
-                        logger.info(f"📱 スマホ側からタスク編集を受信: TaskID={task_id}, fields={list(fields.keys())}, success={success}")
-                        self.wfile.write(json.dumps({
-                            "status": "success" if success else "error", "task_id": task_id
-                        }).encode("utf-8"))
-                        return
-                elif action == "delete_task":
-                    # 🗑 タスク削除 (スマホ編集シートの削除ボタン用・確認ダイアログはクライアント側)
-                    task_id = data.get("task_id")
-                    if task_id:
-                        success = database.delete_task(int(task_id))
-                        logger.info(f"📱 スマホ側からタスク削除を受信: TaskID={task_id}, success={success}")
-                        self.wfile.write(json.dumps({
-                            "status": "success" if success else "error", "task_id": task_id
-                        }).encode("utf-8"))
-                        return
-                elif action == "list_task_lists":
-                    # 🗂️ タスクリスト一覧取得 (TickTick拡張・スマホTODOモーダルのリスト切替用):
-                    # DB層の database.get_task_lists() をラップする薄い読み取り専用アクション
-                    try:
-                        lists = database.get_task_lists()
-                        payload = [
-                            {
-                                "id": l.id,
-                                "name": l.name,
-                                "emoji": l.emoji,
-                                "parent_id": l.parent_id,
-                                "sort_order": l.sort_order,
-                            }
-                            for l in lists
-                        ]
-                        logger.info(f"📱 スマホ側からタスクリスト一覧を取得: {len(payload)}件")
-                        self.wfile.write(json.dumps({
-                            "status": "success",
-                            "lists": payload,
-                        }).encode("utf-8"))
-                        return
-                    except Exception as e:
-                        logger.error(f"タスクリスト一覧の取得に失敗: {e}")
-                        self.wfile.write(json.dumps({
-                            "status": "error", "message": str(e)
-                        }).encode("utf-8"))
-                        return
-                elif action == "get_tasks_view":
-                    # 🗂️ TODOモーダル用の拡充タスク取得 (TickTick拡張・Plan C):
-                    # tags / due_date / list_id を含めて返し、リスト・タグ・期間の
-                    # 絞り込みはクライアント側 (pet.js) で行う
-                    try:
-                        tasks = database.get_tasks(status="todo", limit=100)
-                        payload = [
-                            {
-                                "id": t.id,
-                                "title": t.title,
-                                "priority": t.priority,
-                                "due_date": t.due_date,
-                                "tags": t.tags or "",
-                                "list_id": t.list_id,
-                                "importance_flag": t.importance_flag,
-                                "urgency_flag": t.urgency_flag,
-                                "recurrence": t.recurrence,
-                            }
-                            for t in tasks
-                        ]
-                        logger.info(f"📱 スマホ側からTODOビューを取得: {len(payload)}件")
-                        response_payload = validate_tasks_view_response({
-                            "status": "success",
-                            "tasks": payload,
-                        })
-                        self.wfile.write(json.dumps(response_payload).encode("utf-8"))
-                        return
-                    except Exception as e:
-                        logger.error(f"TODOビューの取得に失敗: {e}")
-                        self.wfile.write(json.dumps({
-                            "status": "error", "message": str(e)
-                        }).encode("utf-8"))
-                        return
-                elif action == "start_pomodoro":
-                    gui = get_gui_instance()
-                    if gui:
-                        mins = int(data.get("minutes", 25))
-                        gui.post_action(gui.start_pomodoro, mins)
-                        logger.info(f"📱 スマホ側からポモドーロ開始を受信: {mins}分")
-                        self.wfile.write(json.dumps({"status": "success", "action": "start_pomodoro"}).encode("utf-8"))
-                        return
-                elif action == "stop_pomodoro":
-                    gui = get_gui_instance()
-                    if gui:
-                        gui.post_action(gui.stop_pomodoro)
-                        logger.info("📱 スマホ側からポモドーロ停止を受信")
-                        self.wfile.write(json.dumps({"status": "success", "action": "stop_pomodoro"}).encode("utf-8"))
-                        return
-                elif action == "show_pc_pet":
-                    gui = get_gui_instance()
-                    if gui:
-                        gui.post_action(gui.show_pc_pet)
-                        logger.info("📱 スマホ側からPCペット再表示要求を受信")
-                        self.wfile.write(json.dumps({"status": "success", "action": "show_pc_pet"}).encode("utf-8"))
-                        return
-                elif action == "switch_character":
-                    char_id = data.get("character_id", "hisho")
-                    # 未知のキャラIDはサーバー側で拒否する（スマホ側だけ切り替わる状態分裂を防止）
-                    from character_manager import get_character_manager
-                    valid_ids = {c.get("id") for c in get_character_manager().get_all_characters()}
-                    if char_id not in valid_ids:
-                        logger.warning(f"📱 未知のキャラクターIDの変更要求を拒否: {char_id}")
-                        self.wfile.write(json.dumps(
-                            {"status": "error", "message": f"unknown character_id: {char_id}"},
-                            ensure_ascii=False
-                        ).encode("utf-8"))
-                        return
-                    gui = get_gui_instance()
-                    if gui:
-                        gui.post_action(gui.switch_character_skin, char_id)
-                    else:
-                        get_character_manager().set_character(char_id)
-                    logger.info(f"📱 スマホ側からキャラクタースキン変更を受信: {char_id}")
-                    self.wfile.write(json.dumps({"status": "success", "character_id": char_id}).encode("utf-8"))
-                    return
-                elif action == "toggle_suggest_source":
-                    source_key = data.get("source_key")
-                    enabled = data.get("enabled", True)
-                    from suggest_engine import get_suggestion_engine
-                    get_suggestion_engine().toggle_source(source_key, enabled)
-                    logger.info(f"📱 スマホ側からサジェスト設定変更を受信: {source_key}={enabled}")
-                    self.wfile.write(json.dumps({"status": "success", "source_key": source_key, "enabled": enabled}).encode("utf-8"))
-                    return
-                elif action == "set_news_keywords":
-                    keywords = data.get("keywords", "")
-                    from suggest_engine import get_suggestion_engine
-                    eng = get_suggestion_engine()
-                    eng.set_news_keywords(keywords)
-                    updated_kw = eng.get_news_keywords()
-                    logger.info(f"📱 スマホ側からニュースキーワード更新を受信: {updated_kw}")
-                    self.wfile.write(json.dumps({"status": "success", "keywords": updated_kw}).encode("utf-8"))
-                    return
-                elif action == "pet_reaction":
-                    state = data.get("state", "celebrate")
-                    duration_ms = int(data.get("duration_ms", 5000))
-                    gui = get_gui_instance()
-                    if gui:
-                        gui.post_action(gui.set_pet_state, state, duration_ms)
-                        logger.info(f"🎉 スマホ側からペット演出リクエスト: {state} ({duration_ms}ms)")
-                    self.wfile.write(json.dumps({"status": "success", "state": state}).encode("utf-8"))
-                    return
-                elif action == "ping_test":
-                    logger.debug(f"📶 スマホからPingテスト受信 ({client_ip})")
-                    self.wfile.write(json.dumps({"status": "pong", "server_time": int(time.time() * 1000)}).encode("utf-8"))
-                    return
-                elif action == "voice_command":
-                    voice_text = data.get("text", "")
-                    logger.info(f"🎤 スマホから音声入力受信: {voice_text}")
-                    # PCペットの吹き出しへ表示
-                    gui = get_gui_instance()
-                    if gui:
-                        gui.post_action(gui.update_message, f"🎤 {voice_text}")
-                    # エージェントへ投げる（既存チャットパイプライン）
-                    from main import NeoSecretaryApp
-                    app = NeoSecretaryApp.get_instance()
-                    if app and voice_text:
-                        app.post_human_message(voice_text)
-                    self.wfile.write(json.dumps({"status": "success", "text": voice_text}).encode("utf-8"))
-                    return
-                elif action == "easter_egg_trigger":
-                    phrase = data.get("phrase", "お前を消す方法")
-                    import easter_egg_engine
-                    ee_event = easter_egg_engine.observe_message(phrase)
-                    if ee_event:
-                        get_link_monitor().set_easter_egg_event(
-                            stage=ee_event["stage"],
-                            daily_count=ee_event["daily_count"],
-                            attempt_count=ee_event["attempt_count"],
-                            message=ee_event["fallback_reply"]
-                        )
-                        gui = get_gui_instance()
-                        if gui:
-                            gui.post_action(gui.update_message, ee_event["fallback_reply"])
-                            if ee_event["stage"] >= 3:
-                                gui.post_action(gui.set_pet_state, "thinking", 3000)
-                        logger.info(f"📱 スマホ側からイースターエッグ発火: stage={ee_event['stage']}")
-                        self.wfile.write(json.dumps({
-                            "status": "success",
-                            "stage": ee_event["stage"],
-                            "reply": ee_event["fallback_reply"],
-                            "daily_count": ee_event["daily_count"],
-                            "attempt_count": ee_event["attempt_count"]
-                        }, ensure_ascii=False).encode("utf-8"))
-                    else:
-                        self.wfile.write(json.dumps({"status": "no_trigger"}).encode("utf-8"))
-                    return
-                elif action == "trigger_briefing":
-                    force_mode = data.get("mode")
-                    import briefing_engine
-                    report = briefing_engine.generate_briefing(force_mode=force_mode)
-                    gui = get_gui_instance()
-                    if gui:
-                        # PCペットの吹き出しにも短縮要約を表示
-                        short_text = f"【{report.mode_label}】\n{report.greeting}\n\n🌡️ 天気: {report.weather_summary['desc']} ({report.weather_summary['temperature']:.1f}°C)\n📅 予定: {len(report.events_today)}件 | 📝 残TODO: {len(report.active_tasks)}件\n\n{report.encouragement}"
-                        gui.post_action(gui.update_message, short_text)
-                        gui.post_action(gui.set_pet_state, "happy", 4000)
-                    logger.info(f"📱 スマホからブリーフィング要求受信: mode={report.mode}")
-                    self.wfile.write(json.dumps({"status": "success", "briefing": report.to_dict()}, ensure_ascii=False).encode("utf-8"))
-                    return
-                elif action == "set_weather_location":
-                    loc = data.get("location", "").strip()
-                    import weather_tools
-                    weather_tools.save_location(loc)
-                    # 即座に天気キャッシュを更新
-                    w_new = weather_tools.get_weather()
-                    gui = get_gui_instance()
-                    if gui:
-                        gui.post_action(gui.update_message, f"📍 お住まいの地域を【{loc or 'IP自動検出'}】に設定しました！\n現在の天気: {w_new.get('city')} {w_new.get('weather')}")
-                    logger.info(f"📍 天気地域を手動設定: {loc}")
-                    self.wfile.write(json.dumps({"status": "success", "location": loc, "weather": w_new}, ensure_ascii=False).encode("utf-8"))
-                    return
-                elif action == "record_minigame_score":
-                    # Phase L5: シークレットミニゲーム「Pixel Defense」のスコア永続化
-                    # 改竄・誤送信対策: 数値変換不能な入力は 0 として扱い、負値は 0 にクランプする。
-                    game_id = str(data.get("game_id", "pixel_defense")).strip() or "pixel_defense"
-                    try:
-                        score = int(data.get("score", 0))
-                    except (TypeError, ValueError):
-                        logger.warning(f"👾 不正なミニゲームスコアを受信 (game_id={game_id}): {data.get('score')!r} → 0 にクランプ")
-                        score = 0
-                    score = max(0, score)
-                    previous_high = database.get_high_score(game_id)
-                    record_id = database.record_minigame_score(game_id, score)
-                    new_high = max(previous_high, score)
-                    logger.info(f"👾 スマホ側からミニゲームスコアを受信: game_id={game_id}, score={score}, high_score={new_high}")
-                    self.wfile.write(json.dumps({"status": "success", "record_id": record_id, "high_score": new_high, "score": score}).encode("utf-8"))
-                    return
                 else:
                     # 未知のアクションは明示的にエラーを返す（旧仕様は無応答 200 で、
                     # クライアントが成功と誤認する障害を生んでいた）
@@ -1737,6 +1170,7 @@ class DeskPetSyncHandler(SimpleHTTPRequestHandler):
             except Exception as e:
                 logger.error(f"Action API エラー: {e}")
                 self.wfile.write(json.dumps({"status": "error", "message": str(e)}).encode("utf-8"))
+
         else:
             self.send_error(404)
 

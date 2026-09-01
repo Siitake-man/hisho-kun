@@ -63,17 +63,23 @@ class TestTourEngineContract(unittest.TestCase):
         self.assertEqual(completed, [True])
 
     def test_step_ids_mapped_in_gui_target_rect(self) -> None:
-        """全ステップIDが gui._get_tour_target_rect のハイライト分岐に対応する。
+        """全ステップIDが _get_tour_target_rect のハイライト分岐に対応する。
 
-        tour_engine と gui のID契約を検証し、未知IDが
+        tour_engine と GUI のID契約を検証し、未知IDが
         ペット中央フォールバックに沈む退化を防ぐ (推測コード禁止)。
+
+        ※ P2③ 分割リファクタ (2026-09-02) により _get_tour_target_rect は
+          gui.py から ui/tour_overlay.py (TourOverlayMixin) へ移管されたため、
+          両ソースを連結してスキャンする (将来の再移管にも耐える構造)。
         """
         gui_src = (PROJECT_ROOT / "gui.py").read_text(encoding="utf-8")
+        tour_overlay_src = (PROJECT_ROOT / "ui" / "tour_overlay.py").read_text(encoding="utf-8")
+        combined_src = gui_src + "\n" + tour_overlay_src
         for step in DEFAULT_TOUR_STEPS:
             self.assertIn(
                 f'step_id == "{step.id}"',
-                gui_src,
-                f"gui.py _get_tour_target_rect に {step.id} の分岐が未定義です",
+                combined_src,
+                f"_get_tour_target_rect に {step.id} の分岐が未定義です",
             )
 
     def test_no_dead_highlight_callbacks(self) -> None:
