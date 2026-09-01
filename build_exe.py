@@ -131,6 +131,48 @@ def scan_secrets() -> Tuple[List[Path], List[Path]]:
     return found_secrets, large_files
 
 
+def copy_manual_to_dist() -> None:
+    """利用マニュアルHTMLおよびシステム俯瞰図Showcase・アーキテクチャ図一式を配布フォルダ直下へコピーする。"""
+    manual_src = PROJECT_ROOT / "docs" / "guides" / "NEO_HISHO_CHEAT_SHEETS.html"
+    if manual_src.exists():
+        manual_dst = APP_DIR / "📖_マニュアル_ネオ秘書くん.html"
+        shutil.copy2(manual_src, manual_dst)
+        logger.info(f"マニュアルHTMLを配布ルートへ配置: {manual_dst}")
+
+    # Showcase と Archify アーキテクチャ図一式
+    for fname in [
+        "neo-secretary-showcase.html",
+        "neo-secretary-architecture.html",
+        "neo-secretary.architecture.json",
+        "neo-secretary-showcase-spec.json",
+    ]:
+        src = PROJECT_ROOT / "docs" / fname
+        if src.exists():
+            if fname == "neo-secretary-showcase.html":
+                dst = APP_DIR / "🌟_システム俯瞰図_Showcase.html"
+            else:
+                dst = APP_DIR / fname
+            shutil.copy2(src, dst)
+            logger.info(f"Showcaseリソースを配置: {dst.name}")
+
+    # docs/guides フォルダ一式（Markdown・画像・HTML）を dist 配下にも同期
+    guides_src = PROJECT_ROOT / "docs" / "guides"
+    if guides_src.exists():
+        # dist/NeoHisho/guides/ へのコピー
+        dst_guides = APP_DIR / "guides"
+        if dst_guides.exists():
+            shutil.rmtree(dst_guides)
+        shutil.copytree(guides_src, dst_guides)
+        
+        # dist/NeoHisho/docs/guides/ へのコピー
+        dst_docs_guides = APP_DIR / "docs" / "guides"
+        dst_docs_guides.parent.mkdir(parents=True, exist_ok=True)
+        if dst_docs_guides.exists():
+            shutil.rmtree(dst_docs_guides)
+        shutil.copytree(guides_src, dst_docs_guides)
+        logger.info("guides/ フォルダ一式を dist 配下へ完全同期配置しました")
+
+
 def make_zip() -> Path:
     """dist/NeoHisho を社内配布用 zip にアーカイブする。
 
@@ -140,6 +182,7 @@ def make_zip() -> Path:
     Raises:
         RuntimeError: zip 作成に失敗した場合。
     """
+    copy_manual_to_dist()
     sys.path.insert(0, str(PROJECT_ROOT))
     from version import __version__  # Single Source of Truth から取得
 

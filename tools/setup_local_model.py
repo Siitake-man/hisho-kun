@@ -23,7 +23,7 @@ import argparse
 import logging
 import sys
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Dict, Optional, Callable
 
 import requests
 from dotenv import set_key
@@ -94,7 +94,11 @@ def fetch_remote_size(url: str, timeout: float = 30.0) -> Optional[int]:
         return None
 
 
-def download_model(model_key: str, models_dir: Path = MODELS_DIR) -> Path:
+def download_model(
+    model_key: str, 
+    models_dir: Path = MODELS_DIR,
+    progress_callback: Optional[Callable[[int, Optional[int], int], None]] = None
+) -> Path:
     """カタログ指定のモデルを Hugging Face からダウンロードする。
 
     進捗はログに出力し、ダウンロード後はサイズ妥当性を検証する。
@@ -103,6 +107,7 @@ def download_model(model_key: str, models_dir: Path = MODELS_DIR) -> Path:
     Args:
         model_key: カタログキー ('350m' または '1.2b')
         models_dir: 保存先ディレクトリ
+        progress_callback: 進捗コールバック (downloaded_bytes, total_bytes, percentage)
 
     Returns:
         保存されたGGUFファイルのパス
@@ -122,6 +127,8 @@ def download_model(model_key: str, models_dir: Path = MODELS_DIR) -> Path:
     remote_size = fetch_remote_size(url)
     if dest.exists() and remote_size and dest.stat().st_size == remote_size:
         logger.info(f"✅ 既にダウンロード済み（サイズ一致）: {dest.name}")
+        if progress_callback:
+            progress_callback(remote_size, remote_size, 100)
         return dest
 
     logger.info(f"⬇ ダウンロード開始: {entry['display_name']}")
@@ -141,11 +148,17 @@ def download_model(model_key: str, models_dir: Path = MODELS_DIR) -> Path:
                         downloaded += len(chunk)
                         if total:
                             pct = int(downloaded * 100 / total)
-                            # 5%刻みでログ出力（コンソールノイズ防止）
                             if pct >= last_logged_pct + 5:
                                 logger.info(f"   {pct}% ({downloaded / (1024 * 1024):.0f}MB / {total / (1024 * 1024):.0f}MB)")
                                 last_logged_pct = pct
+                            if progress_callback:
+                                progress_callback(downloaded, total, pct)
+                        else:
+                            if progress_callback:
+                                progress_callback(downloaded, None, 0)
         logger.info(f"   100% ({downloaded / (1024 * 1024):.0f}MB) ダウンロード完了")
+        if progress_callback and total:
+            progress_callback(downloaded, total, 100)
     except requests.RequestException as e:
         if tmp_path.exists():
             tmp_path.unlink()

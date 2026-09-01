@@ -397,19 +397,68 @@ class SettingsWindow(ctk.CTkToplevel):
         self.entry_openrouter_key.pack(fill="x", pady=(0, 8))
 
         # 6. 内包ローカルLLM (GGUF / Sidecar) ＆ Ollama
-        sec_local = ctk.CTkLabel(content_llm, text="📦 内包ローカルLLM (LFM 2.5 / MiniCPM-5 / Gemma 4)", font=self.font_title, text_color=self.primary_color, anchor="w")
+        sec_local = ctk.CTkLabel(content_llm, text="📦 内包ローカルLLM (LFM 2.5 / 完全オフライン)", font=self.font_title, text_color=self.primary_color, anchor="w")
         sec_local.pack(fill="x", pady=(5, 2))
         
-        local_models = [m["id"] for m in factory.get_models_for_provider(LLMProvider.LOCAL_GGUF)]
-        btn_box_local = ctk.CTkFrame(content_llm, fg_color="transparent")
-        btn_box_local.pack(fill="x", pady=(2, 2))
-        ctk.CTkLabel(btn_box_local, text="内包GGUFモデル (models/):", font=self.font_body, text_color=self.text_color).pack(side="left")
-        self.btn_fetch_local = ctk.CTkButton(btn_box_local, text="🔄 models/再スキャン", width=120, height=24, font=self.font_small, fg_color="#8B634A", command=lambda: self._fetch_models("local_gguf"))
+        local_card = ctk.CTkFrame(content_llm, fg_color="#F5EFEB", border_color="#D7CCC8", border_width=1, corner_radius=6)
+        local_card.pack(fill="x", pady=(2, 6))
+
+        # モデルダウンロードカード内UI
+        card_inner = ctk.CTkFrame(local_card, fg_color="transparent")
+        card_inner.pack(fill="x", padx=8, pady=6)
+
+        ctk.CTkLabel(
+            card_inner, 
+            text="APIキー不要！完全オフラインで動く超軽量モデル (Liquid AI LFM2.5・230MB)", 
+            font=("Meiryo UI", 9, "bold"), 
+            text_color="#5D4037", 
+            anchor="w"
+        ).pack(fill="x", pady=(0, 4))
+
+        # DLボタン行
+        dl_btn_row = ctk.CTkFrame(card_inner, fg_color="transparent")
+        dl_btn_row.pack(fill="x", pady=(0, 4))
+
+        self.btn_dl_local_350m = ctk.CTkButton(
+            dl_btn_row,
+            text="⚡ 超軽量モデル (350M / 約230MB) を今すぐダウンロード",
+            font=("Meiryo UI", 9.5, "bold"),
+            fg_color="#2E7D32",
+            hover_color="#1B5E20",
+            height=28,
+            command=lambda: self._download_local_model_gui("350m")
+        )
+        self.btn_dl_local_350m.pack(side="left", fill="x", expand=True, padx=(0, 4))
+
+        self.btn_fetch_local = ctk.CTkButton(
+            dl_btn_row,
+            text="🔄 models/再スキャン",
+            width=110,
+            height=28,
+            font=self.font_small,
+            fg_color="#8B634A",
+            hover_color="#6D4C41",
+            command=lambda: self._fetch_models("local_gguf")
+        )
         self.btn_fetch_local.pack(side="right")
+
+        # 進捗バー（初期非表示）
+        self.progress_bar_local = ctk.CTkProgressBar(card_inner, fg_color="#D7CCC8", progress_color="#2E7D32")
+        self.progress_bar_local.set(0)
         
-        self.combo_local_model = ctk.CTkComboBox(content_llm, values=local_models)
-        self.combo_local_model.set(os.getenv("LOCAL_GGUF_MODEL", "lfm2.5-2.6b"))
-        self.combo_local_model.pack(fill="x", pady=(0, 3))
+        # ステータスラベル
+        import app_paths
+        has_350m = (app_paths.get_app_root() / "models" / "LFM2.5-350M-QAD-Q4_0.gguf").exists()
+        status_init_text = "✅ 超軽量モデル (350M) は導入済みです" if has_350m else "※ ワンクリックで Hugging Face から自動ダウンロード・設定されます"
+        status_init_color = "#2E7D32" if has_350m else "#757575"
+        self.lbl_dl_status = ctk.CTkLabel(card_inner, text=status_init_text, font=self.font_small, text_color=status_init_color, anchor="w")
+        self.lbl_dl_status.pack(fill="x", pady=(2, 4))
+
+        local_models = [m["id"] for m in factory.get_models_for_provider(LLMProvider.LOCAL_GGUF)]
+        ctk.CTkLabel(card_inner, text="選択中GGUFモデル (models/):", font=self.font_body, text_color=self.text_color, anchor="w").pack(fill="x", pady=(2, 0))
+        self.combo_local_model = ctk.CTkComboBox(card_inner, values=local_models)
+        self.combo_local_model.set(os.getenv("LOCAL_GGUF_MODEL", "LFM2.5-350M-QAD-Q4_0.gguf" if has_350m else "lfm2.5-2.6b"))
+        self.combo_local_model.pack(fill="x", pady=(2, 2))
         
         # 7. 任意カスタムOpenAI互換 (Custom API / vLLM / 自前サーバー / 独自エンドポイント)
         sec_custom = ctk.CTkLabel(content_llm, text="⚡ 任意カスタムOpenAI互換 (Custom API / vLLM / 独自モデル)", font=self.font_title, text_color=self.primary_color, anchor="w")
@@ -713,6 +762,35 @@ class SettingsWindow(ctk.CTkToplevel):
             command=self._save_tailscale_host
         ).pack(anchor="w", padx=8, pady=(0, 6))
 
+        # 1.8. スマホ連携 全解除 (トークン再生成) [2026-09-01 3周レビュー P1対応]
+        card_token = ctk.CTkFrame(content_tools, fg_color="#FFFFFF", border_width=1, border_color="#E0D8C8", corner_radius=6)
+        card_token.pack(fill="x", pady=4, padx=2)
+        ctk.CTkLabel(card_token, text="📱 スマホ連携の全解除 (トークン再生成)", font=("Meiryo UI", 11, "bold"), text_color="#C62828", anchor="w").pack(fill="x", padx=8, pady=(6, 2))
+        ctk.CTkLabel(
+            card_token,
+            text=(
+                "スマホ側に保存された接続トークンをワンクリックで無効化します。\n"
+                "端末の紛失・売却・譲渡前に実行してください。解除後はスマホと\n"
+                "再ペアリング（QR接続）するまでスマホ側から接続できなくなります。"
+            ),
+            font=self.font_small,
+            text_color="#757575",
+            anchor="w",
+            wraplength=420,
+            justify="left"
+        ).pack(fill="x", padx=8, pady=(0, 4))
+
+        self.btn_revoke_sync_token = ctk.CTkButton(
+            card_token,
+            text="🚫 スマホ連携をすべて解除（トークン再生成）",
+            font=self.font_small,
+            fg_color="#C62828",
+            hover_color="#8E0000",
+            height=26,
+            command=self._revoke_sync_token
+        )
+        self.btn_revoke_sync_token.pack(fill="x", padx=8, pady=(0, 6))
+
         # 2. GitHub サービス統合
         card_github = ctk.CTkFrame(content_tools, fg_color="#FFFFFF", border_width=1, border_color="#E0D8C8", corner_radius=6)
         card_github.pack(fill="x", pady=4, padx=2)
@@ -925,7 +1003,7 @@ class SettingsWindow(ctk.CTkToplevel):
         elif provider == "custom_openai":
             lbl, combo = self.lbl_custom_status, self.combo_custom_model
         else:
-            lbl, combo = None, self.combo_local_model
+            lbl, combo = getattr(self, "lbl_dl_status", None), self.combo_local_model
         
         if lbl:
             lbl.configure(text="⏳ モデル一覧を取得中...", text_color="#A67B5B")
@@ -1192,6 +1270,31 @@ class SettingsWindow(ctk.CTkToplevel):
             "（PC側で `tailscale serve 8765` の実行が必要です）"
         )
 
+    def _revoke_sync_token(self):
+        """スマホ連携トークンを再生成し、既存の全接続セッションを無効化する。
+
+        「スマホ連携 全解除（トークン再生成）」ボタンのハンドラ。
+        誤操作防止のため確認ダイアログを挟み、成功・失敗をユーザーへ通知する。
+        """
+        if not messagebox.askyesno(
+            "スマホ連携 全解除",
+            "スマホ側に保存された接続トークンを無効化しますか？\n"
+            "解除後はスマホで再ペアリング（QR接続）するまで接続できません。"
+        ):
+            return
+        try:
+            # 循環インポート防止のためローカルインポート (gui.py と同一パターン)
+            from local_sync_server import get_sync_token_manager
+            get_sync_token_manager().regenerate()
+            messagebox.showinfo(
+                "解除完了",
+                "スマホ連携をすべて解除しました。\n"
+                "再接続するには「📱 スマホDesk Pet接続」からQRペアリングを行ってください。"
+            )
+        except Exception as e:
+            logger.error(f"スマホ連携トークンの再生成に失敗しました: {e}", exc_info=True)
+            messagebox.showerror("解除失敗", f"トークン再生成に失敗しました:\n{e}")
+
     def _test_google_connection(self):
         """GoogleカレンダーとGmailの同期テスト"""
         import google_workspace_tools
@@ -1343,6 +1446,71 @@ class SettingsWindow(ctk.CTkToplevel):
 
         self.parent_gui.update_message("⚙ AI設定 ＆ 外部連携（Google/GitHub/Slack/Webhook/MCP）を保存・適用しました！")
         self.destroy()
+
+    def _download_local_model_gui(self, model_key: str = "350m"):
+        """Hugging Faceから超軽量ローカルLLMをバックグラウンドでダウンロードして設定"""
+        import threading
+        from tkinter import messagebox
+        import tools.setup_local_model as setup_tool
+        
+        self.btn_dl_local_350m.configure(state="disabled", text="⏳ ダウンロード中...")
+        self.progress_bar_local.pack(fill="x", pady=(2, 4))
+        self.progress_bar_local.set(0)
+        self.lbl_dl_status.configure(text="⏳ Hugging Face に接続中...", text_color="#A67B5B")
+        self.update_idletasks()
+
+        def _progress_cb(downloaded: int, total: Optional[int], pct: int):
+            def _update_ui():
+                if total:
+                    self.progress_bar_local.set(pct / 100.0)
+                    dl_mb = downloaded / (1024 * 1024)
+                    tot_mb = total / (1024 * 1024)
+                    self.lbl_dl_status.configure(
+                        text=f"⏳ ダウンロード中: {pct}% ({dl_mb:.1f}MB / {tot_mb:.1f}MB)",
+                        text_color="#A67B5B"
+                    )
+                else:
+                    self.lbl_dl_status.configure(
+                        text=f"⏳ ダウンロード中: {downloaded / (1024 * 1024):.1f}MB",
+                        text_color="#A67B5B"
+                    )
+            self.after(0, _update_ui)
+
+        def _do_download():
+            try:
+                dest = setup_tool.download_model(model_key, progress_callback=_progress_cb)
+                setup_tool.apply_env_config(dest.name)
+                
+                def _on_success():
+                    self.btn_dl_local_350m.configure(state="normal", text="⚡ モデル再ダウンロード")
+                    self.lbl_dl_status.configure(
+                        text=f"✅ ダウンロード完了！ models/{dest.name} を設定しました",
+                        text_color="#2E7D32"
+                    )
+                    self.progress_bar_local.set(1.0)
+                    # モデル選択ドロップダウンを更新
+                    self._fetch_models("local_gguf")
+                    self.combo_local_model.set(dest.name)
+                    messagebox.showinfo(
+                        "ダウンロード完了",
+                        f"🎉 超軽量ローカルLLM ({dest.name}) の導入が完了しました！\n"
+                        "APIキー不要・完全オフラインでネオ秘書くんを利用できます。"
+                    )
+                self.after(0, _on_success)
+            except Exception as e:
+                def _on_error(err_msg=str(e)):
+                    self.btn_dl_local_350m.configure(state="normal", text="⚡ 超軽量モデル (350M) をダウンロード")
+                    self.lbl_dl_status.configure(
+                        text=f"❌ エラー: {err_msg[:60]}",
+                        text_color="#C62828"
+                    )
+                    messagebox.showerror(
+                        "ダウンロード失敗",
+                        f"モデルのダウンロードに失敗しました:\n{err_msg}\n\nネットワーク環境（VPN等）を確認してください。"
+                    )
+                self.after(0, _on_error)
+
+        threading.Thread(target=_do_download, daemon=True).start()
 
     def _restart_tour(self) -> None:
         """設定画面の「使い方ガイド」タブからツアーを再開する。"""
