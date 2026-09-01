@@ -226,8 +226,8 @@ class LifeCoachEngine:
                 completed_today += 1
 
         habits = database.get_habits_with_status(db_path=self._db_path)
-        habits_done = sum(1 for h in habits if h.get("completed_today"))
-        streaks = [h.get("streak", 0) for h in habits]
+        habits_done = sum(1 for h in habits if h.completed_today)
+        streaks = [h.streak for h in habits]
         avg_streak = (sum(streaks) / len(streaks)) if streaks else 0.0
 
         return {

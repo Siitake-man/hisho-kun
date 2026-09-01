@@ -252,6 +252,37 @@ class HabitLog(BaseModel):
     habit_id: int
     completed_date: str = Field(..., pattern=r'^\d{4}-\d{2}-\d{2}$') # YYYY-MM-DD
     created_at: int = Field(default_factory=lambda: int(datetime.now().timestamp() * 1000))
+class HabitWithStatus(BaseModel):
+    """
+    習慣1件と当日の達成状態を表すモデル (get_habits_with_status 戻り値)。
+
+    2026-09-01 P2①第二段: dict 生辞書からの移行。キー名ミスによる
+    実行時エラー / サイレントバグ (briefing_engine の is_done 誤参照) を
+    型で構造的に防止する。
+    """
+    id: Optional[int] = None
+    title: str = ""
+    emoji: Optional[str] = None
+    target_days_per_week: int = 7
+    completed_today: bool = False
+    streak: int = 0
+    total_completed: int = 0
+    created_at: Optional[int] = None
+
+
+class HabitHeatmapPoint(BaseModel):
+    """
+    習慣ヒートマップ1日分の集計を表すモデル (get_habit_heatmap_data 戻り値)。
+
+    level: 0=なし, 1=薄緑, 2=緑, 3=濃緑, 4=金 (達成数に応じる)。
+    day_of_week: 0=月 ... 6=日。
+    """
+    date: str = Field(..., pattern=r"^\d{4}-\d{2}-\d{2}$")
+    count: int = 0
+    level: int = 0
+    day_of_week: int = 0
+
+
 class MinigameScore(BaseModel):
     """
     ミニゲームのスコア記録を表すモデル。
@@ -1911,7 +1942,7 @@ def toggle_habit_log(habit_id: int, target_date: Optional[str] = None, db_path: 
             return True
 
 
-def get_habits_with_status(db_path: str = "neo_secretary.db") -> List[Dict[str, Any]]:
+def get_habits_with_status(db_path: str = "neo_secretary.db") -> List[HabitWithStatus]:
     """
     全習慣リストを取得し、今日の達成状態（completed_today）、現在の連続日数（streak）、
     および過去7日間の達成履歴を付与して返却。
@@ -1949,21 +1980,21 @@ def get_habits_with_status(db_path: str = "neo_secretary.db") -> List[Dict[str, 
                 streak += 1
                 check_date = check_date - timedelta(days=1)
                 
-            results.append({
-                "id": h_id,
-                "title": title,
-                "emoji": emoji,
-                "target_days_per_week": target_days,
-                "completed_today": completed_today,
-                "streak": streak,
-                "total_completed": len(dates),
-                "created_at": created_at
-            })
+            results.append(HabitWithStatus(
+                id=h_id,
+                title=title,
+                emoji=emoji,
+                target_days_per_week=target_days,
+                completed_today=completed_today,
+                streak=streak,
+                total_completed=len(dates),
+                created_at=created_at,
+            ))
             
         return results
 
 
-def get_habit_heatmap_data(days: int = 90, db_path: str = "neo_secretary.db") -> List[Dict[str, Any]]:
+def get_habit_heatmap_data(days: int = 90, db_path: str = "neo_secretary.db") -> List[HabitHeatmapPoint]:
     """
     過去N日間のGitHub草風ヒートマップ集計データを返却。
     
@@ -2003,12 +2034,12 @@ def get_habit_heatmap_data(days: int = 90, db_path: str = "neo_secretary.db") ->
         else:
             lvl = 4
             
-        heatmap.append({
-            "date": d_str,
-            "count": cnt,
-            "level": lvl,
-            "day_of_week": d.weekday()  # 0=月, 6=日
-        })
+        heatmap.append(HabitHeatmapPoint(
+            date=d_str,
+            count=cnt,
+            level=lvl,
+            day_of_week=d.weekday(),  # 0=月, 6=日
+        ))
         
     return heatmap
 

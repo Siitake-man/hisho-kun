@@ -856,8 +856,9 @@ class DeskPetSyncHandler(SimpleHTTPRequestHandler):
                 # ※ database はモジュール先頭で import 済み。関数内 import を置くと
                 #    Python が database をローカル変数扱いし、上記の get_tasks 等の参照が
                 #    UnboundLocalError となるため、ここでの再 import は禁止。
-                habits_data = database.get_habits_with_status()
-                heatmap_data = database.get_habit_heatmap_data(days=70)
+                # P2①: DB戻り値が Pydantic モデルのため、JSON送信用に dict 化する
+                habits_data = [h.model_dump() for h in database.get_habits_with_status()]
+                heatmap_data = [d.model_dump() for d in database.get_habit_heatmap_data(days=70)]
                 bond_info = char_mgr.get_bond_info()
 
                 # キャラ別挨拶 × 時間帯 × 90秒ローテーション（固定文言の解消）

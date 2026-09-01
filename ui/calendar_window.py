@@ -1366,13 +1366,13 @@ class CalendarWindow(ctk.CTkToplevel):
         # 70日分の正方形を描画
         for idx, item in enumerate(heatmap_data):
             col = idx // 7
-            row = item.get("day_of_week", idx % 7)
+            row = item.day_of_week
             x0 = start_x + col * (cell_size + pad)
             y0 = start_y + row * (cell_size + pad)
             x1 = x0 + cell_size
             y1 = y0 + cell_size
             
-            fill_col = level_colors.get(item.get("level", 0), "#EFEBE2")
+            fill_col = level_colors.get(item.level, "#EFEBE2")
             self.heatmap_canvas.create_rectangle(
                 x0, y0, x1, y1,
                 fill=fill_col,
@@ -1396,7 +1396,7 @@ class CalendarWindow(ctk.CTkToplevel):
             self.streak_badge_lbl.configure(text="🔥 ストリーク: 0日")
             return
 
-        max_streak = max([h["streak"] for h in habits]) if habits else 0
+        max_streak = max([h.streak for h in habits])
         self.streak_badge_lbl.configure(text=f"🔥 最高ストリーク: {max_streak}日連続")
 
         for h in habits:
@@ -1410,31 +1410,31 @@ class CalendarWindow(ctk.CTkToplevel):
             title_row = ctk.CTkFrame(left_box, fg_color="transparent")
             title_row.pack(fill="x")
 
-            emoji_lbl = ctk.CTkLabel(title_row, text=h["emoji"], font=("Meiryo UI", 16))
+            emoji_lbl = ctk.CTkLabel(title_row, text=h.emoji, font=("Meiryo UI", 16))
             emoji_lbl.pack(side="left", padx=(0, 6))
 
-            title_text = h["title"]
+            title_text = h.title
             title_lbl = ctk.CTkLabel(title_row, text=title_text, font=self.font_body, text_color=self.text_color)
             title_lbl.pack(side="left")
 
-            if h["streak"] > 0:
-                streak_tag = ctk.CTkLabel(title_row, text=f"🔥 {h['streak']}日連続", font=self.font_small, text_color="#E65100")
+            if h.streak > 0:
+                streak_tag = ctk.CTkLabel(title_row, text=f"🔥 {h.streak}日連続", font=self.font_small, text_color="#E65100")
                 streak_tag.pack(side="left", padx=8)
 
-            total_tag = ctk.CTkLabel(title_row, text=f"（累計 {h['total_completed']}回）", font=self.font_small, text_color="#9E9E9E")
+            total_tag = ctk.CTkLabel(title_row, text=f"（累計 {h.total_completed}回）", font=self.font_small, text_color="#9E9E9E")
             total_tag.pack(side="left")
 
             # 右側アクションボタン（達成トグル ＆ 削除）
             right_box = ctk.CTkFrame(card, fg_color="transparent")
             right_box.pack(side="right", padx=8, pady=6)
 
-            def make_toggle_cb(h_id=h["id"]):
+            def make_toggle_cb(h_id=h.id):
                 return lambda: self._on_toggle_habit(h_id)
 
-            def make_del_cb(h_id=h["id"]):
+            def make_del_cb(h_id=h.id):
                 return lambda: self._on_delete_habit(h_id)
 
-            is_done = h["completed_today"]
+            is_done = h.completed_today
             btn_check = ctk.CTkButton(
                 right_box,
                 text="✔ 達成！" if is_done else "未完了",
@@ -1444,7 +1444,7 @@ class CalendarWindow(ctk.CTkToplevel):
                 fg_color="#4CAF50" if is_done else "#E0D8C8",
                 text_color="#FFFFFF" if is_done else self.text_color,
                 hover_color="#388E3C" if is_done else "#D5CBB8",
-                command=make_toggle_cb(h["id"])
+                command=make_toggle_cb(h.id)
             )
             btn_check.pack(side="left", padx=4)
 
@@ -1457,7 +1457,7 @@ class CalendarWindow(ctk.CTkToplevel):
                 fg_color="transparent",
                 text_color="#BDBDBD",
                 hover_color="#FFEBEE",
-                command=make_del_cb(h["id"])
+                command=make_del_cb(h.id)
             )
             btn_del.pack(side="left")
 

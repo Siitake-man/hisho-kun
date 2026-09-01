@@ -121,6 +121,30 @@ def _get_character_lines(char_id: str, mode: str, count_events: int, count_tasks
     return {"greeting": greeting, "encouragement": encouragement, "name": name, "emoji": emoji}
 
 
+def _build_habit_summary(habits_raw: List[Any]) -> Dict[str, Any]:
+    """習慣リスト (HabitWithStatus モデル) から朝会/終礼用の達成サマリーを組み立てる。
+
+    2026-09-01 P2①第二段で新設。旧実装は存在しない is_done キーを
+    h.get() で参照していたため達成数が常に 0 になる潜在バグがあった
+    (Pydantic モデル化により属性アクセスへ統一し、型チェック対象にする)。
+
+    Args:
+        habits_raw: database.get_habits_with_status() の戻り値。
+
+    Returns:
+        total / done / rate_percent / list (JSON送信用に dict 化) を含むサマリー。
+    """
+    total = len(habits_raw)
+    done = sum(1 for h in habits_raw if h.completed_today)
+    rate = int((done / total) * 100) if total > 0 else 0
+    return {
+        "total": total,
+        "done": done,
+        "rate_percent": rate,
+        "list": [h.model_dump() for h in habits_raw],
+    }
+
+
 def generate_briefing(force_mode: Optional[str] = None) -> BriefingReport:
     """
     現在の時間帯と実データから日次ブリーフィングレポートを生成する（Deep Module）。
@@ -220,15 +244,7 @@ def generate_briefing(force_mode: Optional[str] = None) -> BriefingReport:
     # 1.4 習慣達成状況
     try:
         habits_raw = database.get_habits_with_status()
-        habits_total = len(habits_raw)
-        habits_done = sum(1 for h in habits_raw if h.get("is_done", False))
-        habits_rate = int((habits_done / habits_total) * 100) if habits_total > 0 else 0
-        habits_summary = {
-            "total": habits_total,
-            "done": habits_done,
-            "rate_percent": habits_rate,
-            "list": habits_raw
-        }
+        habits_summary = _build_habit_summary(habits_raw)
     except Exception as e:
         logger.debug(f"習慣データ取得スキップ: {e}")
         habits_summary = {"total": 0, "done": 0, "rate_percent": 0, "list": []}
