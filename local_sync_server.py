@@ -77,6 +77,7 @@ def _fmt_event_dt(ms_val: Any) -> str:
 
 import database
 from update_checker import get_update_status
+from sync_dtos import validate_status_payload, validate_tasks_view_response
 
 logger = logging.getLogger(__name__)
 
@@ -946,6 +947,8 @@ class DeskPetSyncHandler(SimpleHTTPRequestHandler):
                     "sync_token": token_mgr.token,
                     "server_time": int(now * 1000)
                 }
+                # P2①: Pydantic DTO 境界検証 (契約違反時は生辞書フォールバックで可用性維持)
+                payload = validate_status_payload(payload)
                 self.wfile.write(json.dumps(payload, ensure_ascii=False).encode("utf-8"))
             except Exception as e:
                 logger.error(f"Status API エラー: {e}")
@@ -1554,10 +1557,11 @@ class DeskPetSyncHandler(SimpleHTTPRequestHandler):
                             for t in tasks
                         ]
                         logger.info(f"📱 スマホ側からTODOビューを取得: {len(payload)}件")
-                        self.wfile.write(json.dumps({
+                        response_payload = validate_tasks_view_response({
                             "status": "success",
                             "tasks": payload,
-                        }).encode("utf-8"))
+                        })
+                        self.wfile.write(json.dumps(response_payload).encode("utf-8"))
                         return
                     except Exception as e:
                         logger.error(f"TODOビューの取得に失敗: {e}")

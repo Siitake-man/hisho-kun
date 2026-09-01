@@ -28,6 +28,7 @@ from typing import Any, Callable, Dict, List, Optional
 
 import database
 from i18n import get_language, t
+from proactive_scheduler import PeriodicThrottle, get_proactive_scheduler
 
 logger = logging.getLogger(__name__)
 
@@ -89,7 +90,7 @@ class LifeCoachEngine:
         self._interval_sec = interval_sec
         self._check_interval_sec = check_interval_sec
         self._stop = threading.Event()
-        self._thread: Optional[threading.Thread] = None
+        self._throttle: Optional[PeriodicThrottle] = None
         self._lock = threading.Lock()
         self._latest_report: Optional[CoachReport] = None
         # 前回実行時刻 (Unixミリ秒)。永続化から復元し、再起動後も間隔判定を正しく行う
@@ -101,27 +102,39 @@ class LifeCoachEngine:
     # 公開API
     # ---------------------------------------------------------------------
     def start(self) -> None:
-        """スケジューラデーモンスレッドを起動する (二重起動は無視)。"""
-        if self._thread is not None and self._thread.is_alive():
+        """共有スケジューラへ定周期スケジュール監視を登録する (二重起動は無視)。
+
+        専用スレッドは廃止し、ProactiveScheduler の単一デーモンスレッド上で
+        check_interval_sec 周期 (PeriodicThrottle 間引き) で間隔判定を実行する。
+        """
+        if self.is_running():
             logger.debug("LifeCoachEngine は既に起動済みのため起動をスキップしました")
             return
         self._stop.clear()
-        self._thread = threading.Thread(
-            target=self._loop, daemon=True, name="LifeCoachEngine"
+        scheduler = get_proactive_scheduler()
+        self._throttle = scheduler.register_periodic(
+            self._scheduled_tick,
+            interval_sec=self._check_interval_sec,
+            name="LifeCoachEngine",
         )
-        self._thread.start()
+        scheduler.start()
         logger.info(
             "🧭 [LifeCoach] 生活コーチエンジンを起動しました (実行間隔: %.1f時間)",
             self._interval_sec / 3600.0,
         )
 
     def stop(self) -> None:
-        """スケジュールループを停止する (スレッドは次の周期で終了)。"""
+        """スケジュール監視を停止し、共有スケジューラから登録を解除する (冪等)。"""
         self._stop.set()
+        throttle = self._throttle
+        if throttle is not None:
+            get_proactive_scheduler().unregister(throttle)
+            self._throttle = None
+            logger.info("🧭 [LifeCoach] 生活コーチエンジンを停止しました")
 
     def is_running(self) -> bool:
-        """スケジューラスレッドが稼働中かを返す。"""
-        return self._thread is not None and self._thread.is_alive()
+        """スケジュール監視が共有スケジューラへ登録済みかを返す。"""
+        return self._throttle is not None
 
     def get_latest_report(self) -> Optional[CoachReport]:
         """最新の分析レポートのコピーを返す (/api/status 用・スレッドセーフ)。
@@ -409,14 +422,17 @@ class LifeCoachEngine:
     # ---------------------------------------------------------------------
     # 内部実装: スケジューラ
     # ---------------------------------------------------------------------
-    def _loop(self) -> None:
-        """定周期で間隔判定し、前回実行から interval_sec 経過していれば分析するループ。"""
-        while not self._stop.wait(self._check_interval_sec):
-            try:
-                if self._should_run_now():
-                    self.run_analysis_once()
-            except Exception as e:
-                logger.warning("🧭 [LifeCoach] スケジュール実行中にエラー (次周期で継続): %s", e)
+    def _scheduled_tick(self, now: float) -> None:
+        """スケジューラの tick から呼ばれる1回分の間隔判定・分析実行。
+
+        Args:
+            now: 現在時刻 (Unix 秒・プラグイン契約で必須だが本処理では未使用)。
+        """
+        try:
+            if self._should_run_now():
+                self.run_analysis_once()
+        except Exception as e:
+            logger.warning("🧭 [LifeCoach] スケジュール実行中にエラー (次周期で継続): %s", e)
 
     def _should_run_now(self, now_ms: Optional[float] = None) -> bool:
         """前回実行からの経過時間が実行間隔に達したか判定する。

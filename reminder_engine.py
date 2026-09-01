@@ -7,9 +7,10 @@ roadmap 3.1「時刻ベースのリマインダー」の実装モジュール。
 スマホ PWA (/api/status の due_reminders フィールド) へ通知します。
 
 設計意図:
-    - DB クエリは 30 秒周期の専用デーモンスレッドでのみ実行し、
-      GUI / HTTP ハンドラからは完全に分離する (短期改善 Step 2 確立の
-      GIL 分離原則を踏襲。ポーリング側はキャッシュ参照のみ)。
+    - DB クエリは ProactiveScheduler 共有デーモンスレッド上で定周期
+      (既定30秒・PeriodicThrottle 間引き) でのみ実行し、GUI / HTTP ハンドラ
+      からは完全に分離する (短期改善 Step 2 確立の GIL 分離原則を踏襲。
+      ポーリング側はキャッシュ参照のみ)。
     - 通知済みは database.reminders_sent テーブルへ冪等記録するため、
       アプリ再起動後も同じ対象を二重通知しない。
     - GUI 未起動 (MCP単体起動・テスト環境) でもコールバック無しで動作する。
@@ -21,6 +22,7 @@ import time
 from typing import Any, Callable, Dict, List, Optional
 
 import database
+from proactive_scheduler import PeriodicThrottle, get_proactive_scheduler
 
 logger = logging.getLogger(__name__)
 
@@ -73,35 +75,53 @@ class ReminderEngine:
         self._lead_minutes = lead_minutes
         self._interval_sec = interval_sec
         self._stop = threading.Event()
-        self._thread: Optional[threading.Thread] = None
+        self._throttle: Optional[PeriodicThrottle] = None
         self._lock = threading.Lock()
         self._pending_for_phone: List[ReminderItem] = []
 
     def start(self) -> None:
-        """監視デーモンスレッドを起動する (二重起動は無視)。"""
-        if self._thread is not None and self._thread.is_alive():
+        """共有スケジューラへ定周期監視を登録する (二重起動は無視)。
+
+        専用スレッドは廃止し、ProactiveScheduler の単一デーモンスレッド上で
+        PeriodicThrottle により interval_sec 間隔で check_once() を実行する。
+        GUI / HTTP ハンドラスレッドからの分離 (GIL 分離原則) は維持される。
+        """
+        if self.is_running():
             logger.debug("ReminderEngine は既に起動済みのため起動をスキップしました")
             return
         self._stop.clear()
-        self._thread = threading.Thread(target=self._loop, daemon=True, name="ReminderEngine")
-        self._thread.start()
+        scheduler = get_proactive_scheduler()
+        self._throttle = scheduler.register_periodic(
+            self._scheduled_check,
+            interval_sec=self._interval_sec,
+            name="ReminderEngine",
+        )
+        scheduler.start()
         logger.info(f"⏰ リマインダーエンジンを起動しました (周期: {self._interval_sec}秒 / 通知: {self._lead_minutes}分前)")
 
     def stop(self) -> None:
-        """監視ループを停止する (スレッドは次の周期で終了)。"""
+        """監視を停止し、共有スケジューラから登録を解除する (冪等)。"""
         self._stop.set()
+        throttle = self._throttle
+        if throttle is not None:
+            get_proactive_scheduler().unregister(throttle)
+            self._throttle = None
+            logger.info("⏰ リマインダーエンジンを停止しました")
 
     def is_running(self) -> bool:
-        """監視スレッドが稼働中かを返す。"""
-        return self._thread is not None and self._thread.is_alive()
+        """監視が共有スケジューラへ登録済みかを返す。"""
+        return self._throttle is not None
 
-    def _loop(self) -> None:
-        """定周期で check_once() を呼ぶデーモンループ。"""
-        while not self._stop.wait(self._interval_sec):
-            try:
-                self.check_once()
-            except Exception as e:
-                logger.warning(f"リマインダー監視中にエラー (次周期で継続): {e}")
+    def _scheduled_check(self, now: float) -> None:
+        """スケジューラの tick から呼ばれる1回分の監視処理。
+
+        Args:
+            now: 現在時刻 (Unix 秒・プラグイン契約で必須だが本処理では未使用)。
+        """
+        try:
+            self.check_once()
+        except Exception as e:
+            logger.warning(f"リマインダー監視中にエラー (次周期で継続): {e}")
 
     def check_once(self, now_ms: Optional[int] = None) -> List[ReminderItem]:
         """現在時刻を基準に期限接近の対象を1回分検査し、新規分を通知する。

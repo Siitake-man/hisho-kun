@@ -13,9 +13,11 @@ proactive_engine / reminder_engine / suggest_engine / life_coach_engine 等に
 - stop() で確実にスレッドを停止する (アプリ終了時のスレッドリーク防止)。
 
 移行方針 (段階移行):
-- 第一段 (本対応): main.py の asyncio ループ内 tick (care / event_reminders) を移管。
-- 第二段以降: suggest_engine SuggestBgWorker / life_coach_engine / reminder_engine
-  の個別スレッドを順次 register() へ置換する。
+- 第一段 (完了): main.py の asyncio ループ内 tick (care / event_reminders) を移管。
+- 第二段 (2026-09-01 着手): reminder_engine / life_coach_engine の専用スレッドを
+  register_periodic() (PeriodicThrottle 間引き) へ置換。
+- 第二段残: suggest_engine SuggestBgWorker (初回即生成 + force_refresh 割込みの
+  特殊セマンティクスがあるため、次回マイクロタスクで慎重に移行する)。
 """
 
 import logging
@@ -27,6 +29,44 @@ logger = logging.getLogger(__name__)
 
 # 既定の呼び出し周期 (秒)。各プラグインは内部スロットルで実間隔を制御する。
 DEFAULT_TICK_INTERVAL_SEC: float = 1.0
+
+
+class PeriodicThrottle:
+    """on_tick 呼び出しを interval_sec 以上の間隔に間引くプラグインラッパー。
+
+    ProactiveScheduler の tick (既定1秒) をそのままプラグインへ渡すと、
+    「本来は30秒周期」のようなエンジンが過剰頻度で実行されてしまう。
+    本クラスは register_periodic() 経由でラップし、初回 tick で即実行した後、
+    interval_sec 経過ごとにコールバックを発火する (起動直後の即監視を保証。
+    冪等なエンジン処理と組み合わせて使用する)。
+
+    注意: 例外の隔離は ProactiveScheduler._loop() が担うため、本クラスは
+    透過的に再送出する (単一責任)。
+    """
+
+    def __init__(self, callback: Callable[[float], None], interval_sec: float) -> None:
+        """間引きラッパーを生成する。
+
+        Args:
+            callback: 間引き対象のコールバック (now: float epoch秒)。
+            interval_sec: 最小呼び出し間隔 (秒)。負値は 0 として扱う。
+        """
+        self._callback = callback
+        self.interval_sec = max(0.0, float(interval_sec))
+        self._last_run: Optional[float] = None
+        self._lock = threading.Lock()
+
+    def __call__(self, now: float) -> None:
+        """tick を受けて間引き判定し、必要時のみコールバックを実行する。
+
+        Args:
+            now: 現在時刻 (Unix 秒)。
+        """
+        with self._lock:
+            if self._last_run is not None and (now - self._last_run) < self.interval_sec:
+                return
+            self._last_run = now
+        self._callback(now)
 
 
 class ProactiveScheduler:
@@ -82,6 +122,27 @@ class ProactiveScheduler:
         logger.info(f"⏱️ [Scheduler] プラグイン解除 (登録数: {len(self._plugins)})")
         return True
 
+    def register_periodic(
+        self, on_tick: Callable[[float], None], interval_sec: float, name: str = ""
+    ) -> PeriodicThrottle:
+        """定周期プラグインを間引きラッパー付きで登録する。
+
+        第二段 (2026-09-01) で新設。エンジン側の専用スレッドを廃止し、
+        共有スレッド上で interval_sec 間隔の呼び出しを実現する。
+
+        Args:
+            on_tick: 実行したいコールバック (now: float epoch秒)。
+            interval_sec: 最小呼び出し間隔 (秒)。
+            name: ログ用のプラグイン名 (省略時は関数名)。
+
+        Returns:
+            PeriodicThrottle: 登録したラッパー。unregister() に渡すと解除できる。
+        """
+        plugin_name = name or getattr(on_tick, "__name__", "periodic")
+        throttle = PeriodicThrottle(on_tick, interval_sec)
+        self.register(throttle, name=plugin_name)
+        return throttle
+
     @property
     def plugin_count(self) -> int:
         """登録中のプラグイン数。"""
@@ -119,6 +180,13 @@ class ProactiveScheduler:
         if thread is not None and thread.is_alive():
             thread.join(timeout=timeout_sec)
         self._thread = None
+        # stop() はライフサイクルの終端とみなし、登録済みプラグインもクリアする。
+        # (各エンジンは自身の stop() で unregister するが、テスト孤立性と
+        #  「停止済みスケジューラに幽霊プラグインが残留し再 start() 時に
+        #   意図せず発火する」状態を構造的に防ぐ)
+        with self._lock:
+            self._plugins.clear()
+            self._plugin_names.clear()
         logger.info("⏱️ [Scheduler] 停止しました")
 
     def _loop(self) -> None:
