@@ -40,73 +40,36 @@ class TourStep:
     target_region: Optional[str] = None
     highlight_callback: Optional[str] = None
     auto_next_ms: int = 0
-# 秘書くん初回ツアーの7ステップ
+# 秘書くん初回ツアーの3ステップ (2026-09-01 3周レビュー P3対応:
+# 初回起動時の認知摩擦低減のため 7ステップ → 3ステップへ凝縮。
+# 詳細機能は設定画面「📖 使い方ガイド」タブと右クリックメニューに委譲する)
 DEFAULT_TOUR_STEPS: List[TourStep] = [
     TourStep(
-        id="greeting",
-        title="🎉 ようこそ！",
-        text="こんにちは、ボス！私はネオ秘書くん、あなたのデスクトップAI秘書です。\n"
-             "これから一緒に、私の使い方をご案内しますね！\n\n"
-             "まずは私をクリックしてみてください。撫でると喜びますよ🥰",
-        target_region="pet",
-    ),
-    TourStep(
-        id="menu",
-        title="📋 メニューの開き方",
-        text="私を**右クリック**、またはウィンドウ上部の**⚙️メニューボタン**を押すと\n"
-             "いろんな機能が使えるメニューが開きます。\n\n"
-             "手帳・スマホ連携・ポモドーロ・AIモデルの切り替えが一発です！",
+        id="settings_menu",
+        title="🎉 ようこそ！まずは右クリック",
+        text="こんにちは、ボス！私はネオ秘書くんです。\n"
+             "私を**右クリック**すると、メニューが開きます。\n\n"
+             "AIモデルの切替・キャラ変更・ポモドーロ・手帳…\n"
+             "設定はすべてここから！まずは覗いてみてください。",
         target_region="menu",
-        highlight_callback="flash_menu_btn",
     ),
     TourStep(
-        id="notebook",
-        title="📔 統合手帳",
-        text="**📔 統合手帳**では、今日の予定・TODOリスト・習慣トラッカーが"
-             "一目で確認できます。\n"
-             "Googleカレンダーと連携すると、スマホからも予定を見られますよ！",
+        id="mobile_qr",
+        title="📱 スマホとつなげよう",
+        text="**📱 スマホDesk Pet連携** が本アプリの目玉！\n"
+             "右クリック →「スマホDesk Pet接続」でQRコードを表示し、\n"
+             "スマホのカメラで読むだけ。\n\n"
+             "コーディングAIの承認をスマホでワンタップできるようになります！",
+        target_region="pet",
+    ),
+    TourStep(
+        id="chat_notebook",
+        title="💬 話しかける ＆ 📔 手帳",
+        text="下の入力欄に話しかけると、予定登録やTODO作成をします。\n"
+             "**「明日9時に資料作成 #仕事 !3」** のように自然に入力OK！\n\n"
+             "**📔 手帳**で予定・TODO・習慣を一元管理できます。\n"
+             "詳しくは設定画面の「📖 使い方ガイド」へ。それではよろしくお願いします！",
         target_region="calendar",
-        highlight_callback="flash_calendar_btn",
-    ),
-    TourStep(
-        id="mobile",
-        title="📱 スマホ連携",
-        text="**📱 スマホDesk Pet** と接続すると、\n"
-             "・コーディングエージェントの承認要請をスマホでワンタップ承認\n"
-             "・スマホからタスクや手帳を確認\n"
-             "・PCとスマホでペットの状態が同期\n"
-             "が使えるようになります！QRコードを読むだけです。",
-        target_region="pet",
-        highlight_callback="flash_qr_btn",
-    ),
-    TourStep(
-        id="pomodoro",
-        title="🍅 ポモドーロ集中",
-        text="**🍅 ポモドーロタイマー** で作業に集中！\n"
-             "25分集中 → 5分休憩のサイクルで、私も集中モードの表情に変わります。\n"
-             "作業が捗っているときは、私も嬉しくなりますよ！",
-        target_region="pet",
-    ),
-    TourStep(
-        id="settings",
-        title="⚙️ 設定画面",
-        text="**⚙️ 設定画面**では、\n"
-             "・使用するAIモデルの切り替え（Gemini / OpenCode / Claude 等）\n"
-             "・Googleカレンダー連携\n"
-             "・キャラクタースキン変更\n"
-             "・MCPエージェント連携の設定\n\n"
-             "がすべてここから行えます。",
-        target_region="settings",
-        highlight_callback="flash_settings_btn",
-    ),
-    TourStep(
-        id="complete",
-        title="🎊 ツアー完了！",
-        text="以上でツアーは終了です！お疲れ様でした！🎉\n\n"
-             "何か質問や困ったことがあれば、いつでも私に話しかけてください。\n"
-             "入力欄に「使い方を教えて」と打ち込むと、いつでもツアーを再開できますよ！\n\n"
-             "ボスとの毎日を、楽しくサポートしますね✨",
-        target_region=None,
     ),
 ]
 

@@ -7,7 +7,7 @@
 if ('caches' in window) {
   caches.keys().then(keys => {
     keys.forEach(key => {
-      if (key !== 'neo-pet-v5.21') caches.delete(key);
+      if (key !== 'neo-pet-v5.22') caches.delete(key);
     });
   });
 }
@@ -945,6 +945,16 @@ function playCharacterSE(charId) {
       gain.gain.exponentialRampToValueAtTime(0.01, now + 0.18);
       osc.start(now);
       osc.stop(now + 0.18);
+    } else if (charId === 'kyle') {
+      // 🐚 カイル風精霊: カタッ！ピピッ！貝型PCを叩く8bit風2連音
+      osc.type = 'square';
+      osc.frequency.setValueAtTime(520, now);
+      osc.frequency.setValueAtTime(780, now + 0.07);
+      gain.gain.setValueAtTime(0.12, now);
+      gain.gain.setValueAtTime(0.12, now + 0.07);
+      gain.gain.exponentialRampToValueAtTime(0.01, now + 0.16);
+      osc.start(now);
+      osc.stop(now + 0.16);
     }
   } catch (e) {
     console.debug('Audio playback error:', e);

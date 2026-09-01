@@ -1243,30 +1243,22 @@ class NeoSecretaryGUI:
             return self._get_pet_center_rect()
 
     def _get_tour_target_rect(self, step: 'TourStep') -> tuple:
-        """ツアーステップに応じたピンポイントなスクリーン座標矩形を返す。"""
+        """ツアーステップに応じたピンポイントなスクリーン座標矩形を返す。
+
+        step.id は tour_engine.DEFAULT_TOUR_STEPS の3ステップIDと1対1で対応する
+        (tests/test_tour_engine.py が整合性を検証)。未知IDはペット本体にフォールバック。
+        """
         step_id = getattr(step, 'id', '')
 
-        if step_id == "greeting":
-            # 1. ようこそ: ペット本体をジャストサイズで囲む
-            return self._get_pet_center_rect()
-        elif step_id == "menu":
-            # 2. メニュー: ヘッダーの ⚙ メニューボタンを囲む
+        if step_id == "settings_menu":
+            # 1. ようこそ・右クリック案内: ヘッダーの ⚙ メニューボタンを囲む
             return self._get_widget_rect(self.menu_btn, pad=6)
-        elif step_id == "notebook":
-            # 3. 手帳: サークルメニューの 📔 手帳ボタン (index 0)
-            return self._get_circle_btn_rect(0)
-        elif step_id == "mobile":
-            # 4. スマホ: サークルメニューの 📱 スマホボタン (index 3)
+        elif step_id == "mobile_qr":
+            # 2. スマホQR連携: サークルメニューの 📱 スマホボタン (index 3)
             return self._get_circle_btn_rect(3)
-        elif step_id == "pomodoro":
-            # 5. ポモドーロ: サークルメニューの 🍅 ポモドーロボタン (index 1)
-            return self._get_circle_btn_rect(1)
-        elif step_id == "settings":
-            # 6. 設定: サークルメニューの ⚙ 設定ボタン (index 5)
-            return self._get_circle_btn_rect(5)
-        elif step_id == "complete":
-            # 7. 完了: ペット本体
-            return self._get_pet_center_rect()
+        elif step_id == "chat_notebook":
+            # 3. 会話・手帳: サークルメニューの 📔 手帳ボタン (index 0)
+            return self._get_circle_btn_rect(0)
         else:
             return self._get_pet_center_rect()
 
