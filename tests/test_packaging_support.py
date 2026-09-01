@@ -7,6 +7,7 @@ neo_hisho.spec が参照する資産の実在を検証する。
 バージョン非依存の構造テストのため、バージョン更新で壊れない。
 """
 
+import os
 import sys
 import tempfile
 import unittest
@@ -67,6 +68,60 @@ class TestEnsureEnvFile(unittest.TestCase):
                 self.assertIn(
                     "USER_SECRET_KEY", env_path.read_text(encoding="utf-8")
                 )
+
+
+class TestAppRootWritableFallback(unittest.TestCase):
+    """書き込み不可フォルダ配置時の %APPDATA% 自動フォールバックの検証 (P0対応)。
+
+    `C:\\Program Files` 等の管理者権限フォルダに解凍された場合でも、
+    get_app_root() が PermissionError でクラッシュせず
+    %APPDATA%\\NeoHisho へ安全にフォールバックすることを保証する。
+    """
+
+    def setUp(self) -> None:
+        """各テスト前に get_app_root の判定結果キャッシュをリセットする。"""
+        app_paths._APP_ROOT_CACHE = None
+
+    def tearDown(self) -> None:
+        """テスト後にキャッシュをリセットし、他テストへの状態漏えいを防ぐ。"""
+        app_paths._APP_ROOT_CACHE = None
+
+    def test_falls_back_to_appdata_when_not_writable(self) -> None:
+        """書き込み不可フォルダ配置時は %APPDATA%\\NeoHisho へフォールバックする。"""
+        with tempfile.TemporaryDirectory() as tmp_ro, \
+                tempfile.TemporaryDirectory() as tmp_appdata:
+            with patch.object(app_paths, "_is_writable", return_value=False), \
+                    patch.dict(os.environ, {"APPDATA": tmp_appdata}), \
+                    patch.object(sys, "frozen", True, create=True), \
+                    patch.object(sys, "executable", str(Path(tmp_ro) / "NeoHisho.exe")):
+                root = app_paths.get_app_root()
+                self.assertEqual(root, Path(tmp_appdata) / app_paths.FALLBACK_DIR_NAME)
+                self.assertTrue(root.is_dir(), "フォールバック先ディレクトリが自動作成されること")
+
+    def test_returns_original_root_when_writable(self) -> None:
+        """書き込み可能な配置フォルダでは現行どおりその場所を返す (後方互換)。"""
+        with tempfile.TemporaryDirectory() as tmp_ok:
+            with patch.object(app_paths, "_is_writable", return_value=True), \
+                    patch.object(sys, "frozen", True, create=True), \
+                    patch.object(sys, "executable", str(Path(tmp_ok) / "NeoHisho.exe")):
+                root = app_paths.get_app_root()
+                self.assertEqual(root, Path(sys.executable).resolve().parent)
+
+    def test_writability_probe_evaluated_only_once(self) -> None:
+        """書き込み判定はプロセス内で1度のみ実行され、結果がキャッシュされる。"""
+        with tempfile.TemporaryDirectory() as tmp_base:
+            # APPDATA には存在しないサブパスを指定 (mkdir は成功またはログのみで握りつぶし)
+            fake_appdata = str(Path(tmp_base) / "fake_appdata")
+            with patch.object(
+                    app_paths, "_is_writable", return_value=False
+            ) as mock_writable, \
+                    patch.dict(os.environ, {"APPDATA": fake_appdata}), \
+                    patch.object(sys, "frozen", True, create=True), \
+                    patch.object(sys, "executable", str(Path(tmp_base) / "NeoHisho.exe")):
+                first = app_paths.get_app_root()
+                second = app_paths.get_app_root()
+                self.assertEqual(first, second)
+                self.assertEqual(mock_writable.call_count, 1)
 
 
 class TestMcpInstallerConfig(unittest.TestCase):

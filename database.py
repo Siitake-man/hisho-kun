@@ -51,11 +51,11 @@ def get_db_connection(db_path: str = "neo_secretary.db") -> Generator[sqlite3.Co
         conn.execute("PRAGMA journal_mode=WAL;")
         conn.execute("PRAGMA synchronous=NORMAL;")
         conn.execute("PRAGMA busy_timeout=30000;")
-        # WALチェックポイントを実行してWALファイル肥大化を防止（K3-1 / Blind2 対応）
-        try:
-            conn.execute("PRAGMA wal_checkpoint(TRUNCATE);")
-        except Exception:
-            pass
+        # WALファイル肥大化の防止は SQLite エンジンの自動チェックポイントに委譲する。
+        # 接続ごとの手動 TRUNCATE チェックポイントは高頻度ポーリング（スマホPWA等）時に
+        # I/O競合・ロック遅延を招くため廃止し、wal_autocheckpoint（既定1000ページ）による
+        # バックグラウンド自動チェックポイントへ一本化した（2026-09-01 3周レビュー P0対応）。
+        conn.execute("PRAGMA wal_autocheckpoint=1000;")
         yield conn
         conn.commit()
     except Exception as e:
