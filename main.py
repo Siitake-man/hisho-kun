@@ -83,6 +83,7 @@ from langchain_core.messages import HumanMessage, AIMessage
 
 from gui import NeoSecretaryGUI
 from agent import build_agent_graph
+from llm_factory import is_llm_network_failure, LLM_NETWORK_FALLBACK_TEXT
 from easter_egg_engine import observe_message
 
 # ログ設定
@@ -463,7 +464,12 @@ class NeoSecretaryApp:
                 
         except Exception as e:
             logger.error(f"推論中にエラーが発生: {e}", exc_info=True)
-            self.gui.update_message(egg_fallback or "申し訳ありません、脳内でエラーが発生しました...")
+            if is_llm_network_failure(e):
+                # タイムアウト・429等の一時的障害は統一メッセージで縮退通知する
+                fallback_text = LLM_NETWORK_FALLBACK_TEXT
+            else:
+                fallback_text = "申し訳ありません、脳内でエラーが発生しました..."
+            self.gui.update_message(egg_fallback or fallback_text)
             self.gui.set_pet_state("idle")
 
 

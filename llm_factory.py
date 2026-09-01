@@ -31,6 +31,45 @@ load_dotenv(dotenv_path=ENV_PATH)
 
 logger = logging.getLogger(__name__)
 
+# 外部LLM API呼び出しの統一タイムアウト秒数 (2026-09-01 3周レビュー P1対応)。
+# 429レートリミット・応答停止・ネットワーク断絶時にUIが沈黙（無限スピナー）しないよう、
+# クラウドプロバイダの推論リクエストはこの秒数で必ず例外を返す。
+# 内包ローカルLLM (LOCAL_GGUF) はプロセス内推論のため対象外。
+LLM_REQUEST_TIMEOUT_SEC: float = 15.0
+
+# LLM通信障害（タイムアウト・レートリミット等）時の統一フォールバック通知文。
+# PC吹き出し・スマホPWAの双方で文言を統一し、縮退運転をユーザーに即座に知らせる。
+LLM_NETWORK_FALLBACK_TEXT: str = "🌐 通信が途切れました。後ほど再試行します。"
+
+# ネットワーク系障害とみなす例外名・メッセージの指標 (小文字比較)。
+_NETWORK_FAILURE_MARKERS: tuple = (
+    "timeout",
+    "timed out",
+    "readtimeout",
+    "connecttimeout",
+    "apitimeouterror",
+    "connectionerror",
+    "connection reset",
+    "connection refused",
+    "ratelimit",
+    "rate limit",
+    "service unavailable",
+    "overloaded",
+)
+
+
+def is_llm_network_failure(exc: BaseException) -> bool:
+    """例外がLLM通信系の一時的障害（タイムアウト・レートリミット等）かを判定する。
+
+    Args:
+        exc: 判定対象の例外オブジェクト。
+
+    Returns:
+        bool: 例外名またはメッセージがネットワーク系障害の指標を含む場合 True。
+    """
+    text = f"{type(exc).__name__} {exc}".lower()
+    return any(marker in text for marker in _NETWORK_FAILURE_MARKERS)
+
 
 class LLMProvider(str, Enum):
     """サポートするLLMプロバイダ一覧"""
@@ -502,7 +541,8 @@ class LLMFactory:
             return ChatGoogleGenerativeAI(
                 model=model_name,
                 temperature=temperature,
-                google_api_key=api_key
+                google_api_key=api_key,
+                request_timeout=LLM_REQUEST_TIMEOUT_SEC
             )
 
         # 2. Anthropic Claude
@@ -517,7 +557,9 @@ class LLMFactory:
                     model_name=model_name,
                     temperature=temperature,
                     anthropic_api_key=api_key,
-                    streaming=True
+                    streaming=True,
+                    timeout=LLM_REQUEST_TIMEOUT_SEC,
+                    max_retries=1
                 )
             except ImportError:
                 # langchain-anthropic 未導入時は OpenAI 互換またはフォールバック
@@ -527,11 +569,14 @@ class LLMFactory:
                     temperature=temperature,
                     base_url="https://api.anthropic.com/v1",
                     api_key=api_key,
-                    streaming=True
+                    streaming=True,
+                    timeout=LLM_REQUEST_TIMEOUT_SEC,
+                    max_retries=1
                 )
 
         # 3. 内包ローカルLLM (llama-cpp-python でプロセス内直接推論)
         elif provider == LLMProvider.LOCAL_GGUF:
+            # プロセス内推論のため外部ネットワークタイムアウトは適用しない
             # models/ ディレクトリからGGUFファイルを検索
             self.MODELS_DIR.mkdir(parents=True, exist_ok=True)
             gguf_path = self.MODELS_DIR / model_name
@@ -710,7 +755,9 @@ class LLMFactory:
                 temperature=temperature,
                 base_url=base_url,
                 api_key=api_key,
-                streaming=True
+                streaming=True,
+                timeout=LLM_REQUEST_TIMEOUT_SEC,
+                max_retries=1
             )
 
     def supports_tool_calling(self) -> bool:

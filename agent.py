@@ -18,7 +18,7 @@ from langgraph.prebuilt import ToolNode
 from langgraph.checkpoint.memory import MemorySaver
 
 from dotenv import load_dotenv
-from llm_factory import get_llm_factory
+from llm_factory import get_llm_factory, is_llm_network_failure, LLM_NETWORK_FALLBACK_TEXT
 from command_router import try_route_command
 from mcp_manager import get_mcp_manager
 from character_manager import get_character_manager
@@ -203,11 +203,15 @@ def planner_node(state: AgentState):
         return {"messages": [response], "current_plan": "AI応答生成完了"}
     except Exception as e:
         logger.error(f"LLM API 呼び出しエラー: {e}", exc_info=True)
-        # 例外メッセージをそのままユーザーに表示しない（APIキー等の機密情報漏洩防止）
-        error_msg = AIMessage(
-            content="【システムエラー】AIとの通信に失敗しました。"
-                    ".envファイルのAPIキー設定またはローカルサーバーの稼働状況を確認してください。"
-        )
+        if is_llm_network_failure(e):
+            # タイムアウト・429等の一時的障害は統一メッセージで縮退通知する
+            error_msg = AIMessage(content=LLM_NETWORK_FALLBACK_TEXT)
+        else:
+            # 例外メッセージをそのままユーザーに表示しない（APIキー等の機密情報漏洩防止）
+            error_msg = AIMessage(
+                content="【システムエラー】AIとの通信に失敗しました。"
+                        ".envファイルのAPIキー設定またはローカルサーバーの稼働状況を確認してください。"
+            )
         return {"messages": [error_msg], "current_plan": "エラー発生"}
 
 # =============================================================================
