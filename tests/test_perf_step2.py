@@ -57,23 +57,61 @@ class SuggestBackgroundWorkerTest(unittest.TestCase):
             engine._refresh_cache_once()  # 例外が外へ漏れない
         self.assertEqual(engine.get_cached_suggestions(), seed)
 
-    def test_worker_loop_runs_and_stops(self) -> None:
-        """ワーカーループが起動直後に1回生成し、停止指示で終了すること。"""
+    def test_start_registers_plugin_without_own_thread(self) -> None:
+        """_start_background_worker() は専用スレッドを生成せずスケジューラへ登録する。"""
+        import suggest_engine
+        from proactive_scheduler import get_proactive_scheduler
+
+        get_proactive_scheduler().stop()
+        scheduler = get_proactive_scheduler()
+        baseline = scheduler.plugin_count
+        with patch.object(suggest_engine.SuggestionEngine, "generate_suggestions", return_value=[]):
+            engine = suggest_engine.SuggestionEngine()
+            try:
+                self.assertIsNotNone(engine._refresh_plugin)
+                self.assertEqual(scheduler.plugin_count, baseline + 1)
+                thread_names = [t.name for t in threading.enumerate()]
+                self.assertNotIn("SuggestBgWorker", thread_names)
+            finally:
+                engine.shutdown_worker()
+        self.assertIsNone(engine._refresh_plugin)
+        self.assertEqual(scheduler.plugin_count, baseline)
+
+    def test_force_refresh_triggers_immediate_tick_refresh(self) -> None:
+        """request_refresh() 後の tick は interval 未満でも即座に再生成する。"""
         engine = self._make_engine()
         calls: List[int] = []
-        orig_event_wait = threading.Event.wait
-
-        def _fast_wait(self: threading.Event, timeout: float = None) -> bool:  # type: ignore[no-untyped-def]
-            # wait() を即時True化してループを1回だけ回して終了させる
-            return True
-
         with patch.object(engine, "generate_suggestions", side_effect=lambda: calls.append(1) or []):
-            threading.Event.wait = _fast_wait  # type: ignore[method-assign]
-            try:
-                engine._background_worker_loop()
-            finally:
-                threading.Event.wait = orig_event_wait  # type: ignore[method-assign]
+            engine._last_refresh_at = 1000.0
+            engine.request_refresh()
+            engine._on_scheduler_tick(1005.0)
         self.assertEqual(len(calls), 1)
+        self.assertFalse(engine._force_refresh.is_set())
+
+    def test_tick_refreshes_only_after_interval(self) -> None:
+        """強制更新が無い場合、tick は interval (30秒) 経過後にのみ再生成する。"""
+        engine = self._make_engine()
+        calls: List[int] = []
+        with patch.object(engine, "generate_suggestions", side_effect=lambda: calls.append(1) or []):
+            engine._last_refresh_at = 1000.0
+            engine._on_scheduler_tick(1010.0)
+            self.assertEqual(len(calls), 0)
+            engine._on_scheduler_tick(1031.0)
+        self.assertEqual(len(calls), 1)
+
+    def test_shutdown_worker_unregisters_plugin(self) -> None:
+        """shutdown_worker() はスケジューラから登録解除する (冪等)。"""
+        import suggest_engine
+        from proactive_scheduler import get_proactive_scheduler
+
+        get_proactive_scheduler().stop()
+        scheduler = get_proactive_scheduler()
+        with patch.object(suggest_engine.SuggestionEngine, "generate_suggestions", return_value=[]):
+            engine = suggest_engine.SuggestionEngine()
+            self.assertIsNotNone(engine._refresh_plugin)
+            engine.shutdown_worker()
+            engine.shutdown_worker()  # 二重呼び出しでも例外にしない
+        self.assertIsNone(engine._refresh_plugin)
 
     def test_request_refresh_is_non_blocking(self) -> None:
         """request_refresh() がブロックせずフラグを立てること。"""

@@ -15,10 +15,11 @@ import datetime
 import logging
 import re
 import threading
-from typing import Dict, List, Any, Optional
+from typing import Callable, Dict, List, Any, Optional
 from pathlib import Path
 
 import web_tools
+from proactive_scheduler import get_proactive_scheduler
 
 logger = logging.getLogger(__name__)
 
@@ -130,15 +131,16 @@ class SuggestionEngine:
         self._last_news_fetch: float = 0.0
         self._summary_cache: Dict[str, str] = {}  # 記事URL/ID -> 3行サマリのキャッシュ
 
-        # ── バックグラウンドワーカー（GIL分離の要） ──────────────────────
+        # ── バックグラウンド再生成 (GIL分離の要・P2②でスケジューラ移管) ──
         # generate_suggestions() の重い実体（DBクエリ/LLM推論/RSS取得）は
-        # このワーカースレッド内でのみ実行され、HTTPハンドラはキャッシュを
-        # 参照するだけになる。これにより /api/status ポーリングが GUI の
-        # 描画スレッドへ与える GIL 競合を解消する。
+        # ProactiveScheduler 共有デーモンスレッド上でのみ実行され、HTTPハンドラは
+        # キャッシュを参照するだけになる。これにより /api/status ポーリングが
+        # GUI の描画スレッドへ与える GIL 競合を解消する。
+        # _last_refresh_at: 前回再生成時刻 (epoch秒) — interval 経過判定に使用。
         self._cache_lock = threading.Lock()
         self._force_refresh = threading.Event()
-        self._worker_stop = threading.Event()
-        self._worker_thread: Optional[threading.Thread] = None
+        self._refresh_plugin: Optional[Callable[[float], None]] = None
+        self._last_refresh_at: float = 0.0
         self._start_background_worker()
 
     def _load_config(self) -> Dict[str, Any]:
@@ -224,30 +226,39 @@ class SuggestionEngine:
     # 🔄 バックグラウンドキャッシュワーカー (2026-08-30 短期改善 Step 2)
     # =========================================================================
     def _start_background_worker(self) -> None:
-        """サジェスト再生成ワーカースレッドを起動する（デーモン・単一インスタンス）。"""
-        self._worker_thread = threading.Thread(
-            target=self._background_worker_loop,
-            name="SuggestBgWorker",
-            daemon=True,
-        )
-        self._worker_thread.start()
-        logger.info("サジェスト バックグラウンドワーカーを起動しました (周期 %s秒)", SUGGEST_REFRESH_INTERVAL_SEC)
+        """サジェスト再生成プラグインを共有スケジューラへ登録する（二重登録は無視）。
 
-    def _background_worker_loop(self) -> None:
-        """重いサジェスト生成を周期実行する専用ループ（HTTP/GUIスレッドから分離）。
-
-        起動直後に1回生成して初期キャッシュを作り、以降は
-        ``SUGGEST_REFRESH_INTERVAL_SEC`` 周期（または強制更新フラグ）で再生成する。
+        専用ワーカースレッド (SuggestBgWorker) は廃止し、ProactiveScheduler の
+        単一デーモンスレッド上で周期再生成を行う。重い生成処理 (DB/LLM/RSS) は
+        従来どおり GUI / HTTP ハンドラスレッドから分離される (GIL 分離原則)。
         """
-        # 起動直後の初回生成（イベント待ちを挟まず即実行）
-        self._refresh_cache_once()
-        while not self._worker_stop.wait(timeout=SUGGEST_REFRESH_INTERVAL_SEC):
-            forced = self._force_refresh.is_set()
+        if self._refresh_plugin is not None:
+            logger.debug("サジェスト再生成プラグインは既に登録済みのため登録をスキップしました")
+            return
+        scheduler = get_proactive_scheduler()
+        self._refresh_plugin = self._on_scheduler_tick
+        scheduler.register(self._refresh_plugin, name="SuggestRefresh")
+        scheduler.start()
+        logger.info("サジェスト再生成プラグインをスケジューラへ登録しました (周期 %s秒)", SUGGEST_REFRESH_INTERVAL_SEC)
+
+    def _on_scheduler_tick(self, now: float) -> None:
+        """スケジューラの tick から呼ばれる再生成判定。
+
+        request_refresh() による強制更新フラグが立っていれば即座に、
+        なければ前回再生成から SUGGEST_REFRESH_INTERVAL_SEC 経過した場合に
+        1回だけ再生成する (起動直後は _last_refresh_at=0.0 のため初回 tick で
+        初期キャッシュを生成する)。
+
+        Args:
+            now: 現在時刻 (Unix 秒)。
+        """
+        forced = self._force_refresh.is_set()
+        if forced:
             self._force_refresh.clear()
-            if forced:
-                self._refresh_cache_once()
-                continue
-            self._refresh_cache_once()
+        if not forced and (now - self._last_refresh_at) < SUGGEST_REFRESH_INTERVAL_SEC:
+            return
+        self._refresh_cache_once()
+        self._last_refresh_at = now
 
     def _refresh_cache_once(self) -> None:
         """サジェストを1回生成してキャッシュへ格納する（ワーカースレッド専用）。
@@ -284,11 +295,12 @@ class SuggestionEngine:
         self._force_refresh.set()
 
     def shutdown_worker(self) -> None:
-        """バックグラウンドワーカーを停止する（アプリ終了時用・冪等）。"""
-        self._worker_stop.set()
-        if self._worker_thread is not None and self._worker_thread.is_alive():
-            self._worker_thread.join(timeout=2.0)
-        logger.info("サジェスト バックグラウンドワーカーを停止しました")
+        """サジェスト再生成プラグインをスケジューラから解除する（アプリ終了時用・冪等）。"""
+        plugin = self._refresh_plugin
+        if plugin is not None:
+            get_proactive_scheduler().unregister(plugin)
+            self._refresh_plugin = None
+        logger.info("サジェスト再生成プラグインを解除しました (解除実施: %s)", plugin is not None)
 
     def generate_suggestions(self) -> List[Dict[str, Any]]:
         """現在の各データソースからサジェストカード一覧を動的生成する。
