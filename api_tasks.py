@@ -15,6 +15,11 @@ POST /api/action のうち、タスク・習慣・タスクリストなど「手
   旧仕様どおり無応答となる場合は False を返す (呼び出し元のディスパッチ処理で
   unknown action エラー応答に変換されるのは「未知のアクション名」のみ)。
 - GUI 操作は必ず gui.post_action 経由 (メインスレッドへディスパッチ)。
+
+2026-09-03 (P2① 第三段): 受信ボディのパースを sync_dtos.parse_request による
+リクエストDTO型付けへ移行 (Primitive Obsession 解消)。壊れたJSON・契約違反は
+"invalid request body" / パラメータ欠落は "missing parameter: <param>" の
+明示エラーJSONで応答する。
 """
 
 import base64
@@ -24,7 +29,15 @@ from typing import Any, Dict
 
 import database
 from api_context import ApiContext
-from sync_dtos import validate_tasks_view_response
+from sync_dtos import (
+    AddHabitRequestDTO,
+    HabitActionRequestDTO,
+    QuickAddRequestDTO,
+    TaskActionRequestDTO,
+    UpdateTaskRequestDTO,
+    parse_request,
+    validate_tasks_view_response,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -36,16 +49,21 @@ def action_complete_task(ctx: ApiContext) -> bool:
         ctx: リクエストコンテキスト。
 
     Returns:
-        bool: レスポンスを書き込んだ場合は True (task_id 欠落時は False)。
+        bool: 常にレスポンスを書き込むため True (task_id 欠落時は明示エラー)。
     """
-    data: Dict[str, Any] = json.loads(ctx.body.decode("utf-8"))
-    task_id = data.get("task_id")
-    if task_id:
-        database.complete_task(int(task_id))
-        logger.info(f"📱 スマホ側からタスク完了を受信: TaskID={task_id}")
-        ctx.write_json({"status": "success", "task_id": task_id})
+    req = parse_request(ctx.body, TaskActionRequestDTO)
+    if req is None:
+        logger.warning("📱 complete_task: JSONとして解釈できないリクエストを受信しました")
+        ctx.write_json({"status": "error", "message": "invalid request body"})
         return True
-    return False
+    if not req.task_id:
+        logger.warning("📱 complete_task: task_id が欠落したリクエストを受信しました")
+        ctx.write_json({"status": "error", "message": "missing parameter: task_id"})
+        return True
+    database.complete_task(req.task_id)
+    logger.info(f"📱 スマホ側からタスク完了を受信: TaskID={req.task_id}")
+    ctx.write_json({"status": "success", "task_id": req.task_id})
+    return True
 
 
 def action_reopen_task(ctx: ApiContext) -> bool:
@@ -55,16 +73,21 @@ def action_reopen_task(ctx: ApiContext) -> bool:
         ctx: リクエストコンテキスト。
 
     Returns:
-        bool: レスポンスを書き込んだ場合は True (task_id 欠落時は False)。
+        bool: 常にレスポンスを書き込むため True (task_id 欠落時は明示エラー)。
     """
-    data = json.loads(ctx.body.decode("utf-8"))
-    task_id = data.get("task_id")
-    if task_id:
-        success = database.reopen_task(int(task_id))
-        logger.info(f"📱 スマホ側からタスク完了取り消しを受信: TaskID={task_id}, success={success}")
-        ctx.write_json({"status": "success" if success else "error", "task_id": task_id})
+    req = parse_request(ctx.body, TaskActionRequestDTO)
+    if req is None:
+        logger.warning("📱 reopen_task: JSONとして解釈できないリクエストを受信しました")
+        ctx.write_json({"status": "error", "message": "invalid request body"})
         return True
-    return False
+    if not req.task_id:
+        logger.warning("📱 reopen_task: task_id が欠落したリクエストを受信しました")
+        ctx.write_json({"status": "error", "message": "missing parameter: task_id"})
+        return True
+    success = database.reopen_task(req.task_id)
+    logger.info(f"📱 スマホ側からタスク完了取り消しを受信: TaskID={req.task_id}, success={success}")
+    ctx.write_json({"status": "success" if success else "error", "task_id": req.task_id})
+    return True
 
 
 def action_toggle_habit(ctx: ApiContext) -> bool:
@@ -74,24 +97,29 @@ def action_toggle_habit(ctx: ApiContext) -> bool:
         ctx: リクエストコンテキスト。
 
     Returns:
-        bool: レスポンスを書き込んだ場合は True (habit_id 欠落時は False)。
+        bool: 常にレスポンスを書き込むため True (habit_id 欠落時は明示エラー)。
     """
-    data = json.loads(ctx.body.decode("utf-8"))
-    habit_id = data.get("habit_id")
-    if habit_id:
-        is_done = database.toggle_habit_log(int(habit_id))
-        # 親愛度XP加算 (+10 XP)
-        if is_done:
-            from character_manager import get_character_manager
-            get_character_manager().add_bond_xp(10)
-            from local_sync_server import get_gui_instance
-            gui = get_gui_instance()
-            if gui and hasattr(gui, 'animator'):
-                gui.post_action(gui.animator.trigger_reaction, "task_complete")
-        logger.info(f"📱 スマホ側から習慣トグルを受信: HabitID={habit_id}, IsDone={is_done}")
-        ctx.write_json({"status": "success", "habit_id": habit_id, "is_done": is_done})
+    req = parse_request(ctx.body, HabitActionRequestDTO)
+    if req is None:
+        logger.warning("📱 toggle_habit: JSONとして解釈できないリクエストを受信しました")
+        ctx.write_json({"status": "error", "message": "invalid request body"})
         return True
-    return False
+    if not req.habit_id:
+        logger.warning("📱 toggle_habit: habit_id が欠落したリクエストを受信しました")
+        ctx.write_json({"status": "error", "message": "missing parameter: habit_id"})
+        return True
+    is_done = database.toggle_habit_log(req.habit_id)
+    # 親愛度XP加算 (+10 XP)
+    if is_done:
+        from character_manager import get_character_manager
+        get_character_manager().add_bond_xp(10)
+        from local_sync_server import get_gui_instance
+        gui = get_gui_instance()
+        if gui and hasattr(gui, 'animator'):
+            gui.post_action(gui.animator.trigger_reaction, "task_complete")
+    logger.info(f"📱 スマホ側から習慣トグルを受信: HabitID={req.habit_id}, IsDone={is_done}")
+    ctx.write_json({"status": "success", "habit_id": req.habit_id, "is_done": is_done})
+    return True
 
 
 def action_add_habit(ctx: ApiContext) -> bool:
@@ -101,18 +129,24 @@ def action_add_habit(ctx: ApiContext) -> bool:
         ctx: リクエストコンテキスト。
 
     Returns:
-        bool: レスポンスを書き込んだ場合は True (title 空欄時は False)。
+        bool: 常にレスポンスを書き込むため True (title 空欄時は明示エラー)。
     """
-    data = json.loads(ctx.body.decode("utf-8"))
-    title = data.get("title", "").strip()
-    emoji = data.get("emoji", "🌱")
-    if title:
-        from database import Habit
-        h_id = database.create_habit(Habit(title=title, emoji=emoji))
-        logger.info(f"📱 スマホ側から習慣作成を受信: ID={h_id}, Title={title}")
-        ctx.write_json({"status": "success", "habit_id": h_id})
+    req = parse_request(ctx.body, AddHabitRequestDTO)
+    if req is None:
+        logger.warning("📱 add_habit: JSONとして解釈できないリクエストを受信しました")
+        ctx.write_json({"status": "error", "message": "invalid request body"})
         return True
-    return False
+    title = (req.title or "").strip()
+    emoji = req.emoji or "🌱"
+    if not title:
+        logger.warning("📱 add_habit: title が空欄のリクエストを受信しました")
+        ctx.write_json({"status": "error", "message": "missing parameter: title"})
+        return True
+    from database import Habit
+    h_id = database.create_habit(Habit(title=title, emoji=emoji))
+    logger.info(f"📱 スマホ側から習慣作成を受信: ID={h_id}, Title={title}")
+    ctx.write_json({"status": "success", "habit_id": h_id})
+    return True
 
 
 def action_quick_add_task(ctx: ApiContext) -> bool:
@@ -122,37 +156,43 @@ def action_quick_add_task(ctx: ApiContext) -> bool:
         ctx: リクエストコンテキスト。
 
     Returns:
-        bool: レスポンスを書き込んだ場合は True (text 欠落時は False)。
+        bool: 常にレスポンスを書き込むため True (text 欠落時は明示エラー)。
     """
-    data = json.loads(ctx.body.decode("utf-8"))
-    quick_text = data.get("text", "").strip()
-    if quick_text:
-        from task_parser import parse_input, tags_to_db_string
-        parsed = parse_input(quick_text)
-        if parsed.title:
-            task_id = database.create_task(database.Task(
-                title=parsed.title,
-                description="",
-                due_date=parsed.due_date,
-                priority=parsed.priority,
-                status="todo",
-                tags=tags_to_db_string(parsed.tags),
-                importance_flag=parsed.importance,
-                urgency_flag=parsed.urgency,
-                recurrence=parsed.recurrence,
-            ))
-            logger.info(f"📱 スマホ側からクイック追加を受信: ID={task_id}, Title={parsed.title}")
-            ctx.write_json({
-                "status": "success",
-                "task_id": task_id,
-                "title": parsed.title,
-            })
-            return True
+    req = parse_request(ctx.body, QuickAddRequestDTO)
+    if req is None:
+        logger.warning("📱 quick_add_task: JSONとして解釈できないリクエストを受信しました")
+        ctx.write_json({"status": "error", "message": "invalid request body"})
+        return True
+    quick_text = (req.text or "").strip()
+    if not quick_text:
+        logger.warning("📱 quick_add_task: text が空欄のリクエストを受信しました")
+        ctx.write_json({"status": "error", "message": "missing parameter: text"})
+        return True
+    from task_parser import parse_input, tags_to_db_string
+    parsed = parse_input(quick_text)
+    if parsed.title:
+        task_id = database.create_task(database.Task(
+            title=parsed.title,
+            description="",
+            due_date=parsed.due_date,
+            priority=parsed.priority,
+            status="todo",
+            tags=tags_to_db_string(parsed.tags),
+            importance_flag=parsed.importance,
+            urgency_flag=parsed.urgency,
+            recurrence=parsed.recurrence,
+        ))
+        logger.info(f"📱 スマホ側からクイック追加を受信: ID={task_id}, Title={parsed.title}")
         ctx.write_json({
-            "status": "error", "message": "タスク名を抽出できませんでした"
+            "status": "success",
+            "task_id": task_id,
+            "title": parsed.title,
         })
         return True
-    return False
+    ctx.write_json({
+        "status": "error", "message": "タスク名を抽出できませんでした"
+    })
+    return True
 
 
 def action_transcribe_voice(ctx: ApiContext) -> bool:
@@ -266,39 +306,42 @@ def action_update_task(ctx: ApiContext) -> bool:
         ctx: リクエストコンテキスト。
 
     Returns:
-        bool: レスポンスを書き込んだ場合は True (task_id 欠落時は False)。
+        bool: 常にレスポンスを書き込むため True (task_id 欠落時は明示エラー)。
     """
-    data = json.loads(ctx.body.decode("utf-8"))
-    task_id = data.get("task_id")
-    if task_id:
-        fields = {}
-        if "title" in data:
-            new_title = str(data["title"]).strip()
-            if new_title:
-                fields["title"] = new_title
-        if "due_date" in data:
-            due = data["due_date"]
-            fields["due_date"] = int(due) if due else None
-        if "priority" in data:
-            fields["priority"] = max(0, min(3, int(data["priority"])))
-        if "tags" in data:
-            fields["tags"] = str(data["tags"]).strip()
-        if "list_id" in data:
-            lid = data["list_id"]
-            fields["list_id"] = int(lid) if lid else None
-        if "importance_flag" in data:
-            iv = data["importance_flag"]
-            fields["importance_flag"] = None if iv is None else bool(iv)
-        if "urgency_flag" in data:
-            uv = data["urgency_flag"]
-            fields["urgency_flag"] = None if uv is None else bool(uv)
-        success = database.update_task(int(task_id), fields) if fields else False
-        logger.info(f"📱 スマホ側からタスク編集を受信: TaskID={task_id}, fields={list(fields.keys())}, success={success}")
-        ctx.write_json({
-            "status": "success" if success else "error", "task_id": task_id
-        })
+    req = parse_request(ctx.body, UpdateTaskRequestDTO)
+    if req is None:
+        logger.warning("📱 update_task: JSONとして解釈できないリクエストを受信しました")
+        ctx.write_json({"status": "error", "message": "invalid request body"})
         return True
-    return False
+    if not req.task_id:
+        logger.warning("📱 update_task: task_id が欠落したリクエストを受信しました")
+        ctx.write_json({"status": "error", "message": "missing parameter: task_id"})
+        return True
+    # model_fields_set で「クライアントが明示送信したキー」のみを反映 (null=未指定維持)
+    sent_keys = req.model_fields_set
+    fields: Dict[str, Any] = {}
+    if "title" in sent_keys:
+        new_title = (req.title or "").strip()
+        if new_title:
+            fields["title"] = new_title
+    if "due_date" in sent_keys:
+        fields["due_date"] = req.due_date if req.due_date else None
+    if "priority" in sent_keys and req.priority is not None:
+        fields["priority"] = max(0, min(3, req.priority))
+    if "tags" in sent_keys:
+        fields["tags"] = (req.tags or "").strip()
+    if "list_id" in sent_keys:
+        fields["list_id"] = req.list_id if req.list_id else None
+    if "importance_flag" in sent_keys:
+        fields["importance_flag"] = req.importance_flag
+    if "urgency_flag" in sent_keys:
+        fields["urgency_flag"] = req.urgency_flag
+    success = database.update_task(req.task_id, fields) if fields else False
+    logger.info(f"📱 スマホ側からタスク編集を受信: TaskID={req.task_id}, fields={list(fields.keys())}, success={success}")
+    ctx.write_json({
+        "status": "success" if success else "error", "task_id": req.task_id
+    })
+    return True
 
 
 def action_delete_task(ctx: ApiContext) -> bool:
@@ -308,18 +351,23 @@ def action_delete_task(ctx: ApiContext) -> bool:
         ctx: リクエストコンテキスト。
 
     Returns:
-        bool: レスポンスを書き込んだ場合は True (task_id 欠落時は False)。
+        bool: 常にレスポンスを書き込むため True (task_id 欠落時は明示エラー)。
     """
-    data = json.loads(ctx.body.decode("utf-8"))
-    task_id = data.get("task_id")
-    if task_id:
-        success = database.delete_task(int(task_id))
-        logger.info(f"📱 スマホ側からタスク削除を受信: TaskID={task_id}, success={success}")
-        ctx.write_json({
-            "status": "success" if success else "error", "task_id": task_id
-        })
+    req = parse_request(ctx.body, TaskActionRequestDTO)
+    if req is None:
+        logger.warning("📱 delete_task: JSONとして解釈できないリクエストを受信しました")
+        ctx.write_json({"status": "error", "message": "invalid request body"})
         return True
-    return False
+    if not req.task_id:
+        logger.warning("📱 delete_task: task_id が欠落したリクエストを受信しました")
+        ctx.write_json({"status": "error", "message": "missing parameter: task_id"})
+        return True
+    success = database.delete_task(req.task_id)
+    logger.info(f"📱 スマホ側からタスク削除を受信: TaskID={req.task_id}, success={success}")
+    ctx.write_json({
+        "status": "success" if success else "error", "task_id": req.task_id
+    })
+    return True
 
 
 def action_list_task_lists(ctx: ApiContext) -> bool:

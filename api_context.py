@@ -11,9 +11,9 @@ api_agent_bridge / api_calendar) へ抽出する際の Seam (接合点) を定�
 - 各ハンドラは ``handler(ctx: ApiContext) -> bool`` 署名を持つモジュール関数とし、
   HTTP ハンドラインスタンスには ApiContext 経由でのみアクセスする。
 - アクション系ハンドラは「レスポンスを書き込んだら True / 書き込めなかったら
-  False」を返す。False の場合は呼び出し元が旧仕様どおり unknown action エラー
-  を応答する (既知の技術的負債: パラメータ欠落時は無応答200になる現行の
-  振る舞いを characterization テストで固定済み)。
+  False」を返す。パラメータ欠落等のガード未成立時も明示エラー ({"status": "error"})
+  を書き込んで True を返すのが規約 (2026-09-03 改修: 旧仕様の無応答200空ボディは
+  廃止済み。unknown action エラー応答に変換されるのは「未知のアクション名」のみ)。
 - 共通のレスポンス前導処理 (send_response + Content-Type + CORS + end_headers)
   を begin_json_response に集約し、God Function 内での重複を排除する。
 """

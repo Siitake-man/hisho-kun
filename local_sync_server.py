@@ -14,9 +14,11 @@ import json
 import time
 import uuid
 import hmac
+import socket
 import secrets
 import logging
 import threading
+from typing import Any, Dict, Optional
 from datetime import datetime
 from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
 
@@ -567,7 +569,8 @@ def get_bridge_hub() -> AgentBridgeHub:
 # 🗂️ /api/action アクションディスパッチテーブル (P2③ 分割リファクタ)
 # =============================================================================
 # 各ハンドラは handler(ctx: ApiContext) -> bool 署名を持つモジュール関数。
-# True: レスポンス書き込み済み / False: ガード未成立 (旧仕様どおり無応答)。
+# True: レスポンス書き込み済み (パラメータ欠落時は明示エラーJSONを書き込む)。
+# False: 例外等で応答を書き込めなかった場合のみ (呼び出し元は無応答のまま返る)。
 
 ACTION_HANDLERS_TASKS = {
     "complete_task": api_tasks.action_complete_task,
@@ -621,9 +624,22 @@ class DeskPetSyncHandler(SimpleHTTPRequestHandler):
         super().__init__(*args, directory=str(WEB_PET_DIR), **kwargs)
 
     def _set_cors_headers(self):
-        self.send_header("Access-Control-Allow-Origin", "*")
-        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-        self.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization")
+        """CORS 許可ヘッダーを一切発行しない (ゼロトラスト強化・2026-09-02確定)。
+
+        PWA は本サーバーと同一オリジンで配信されるため CORS 許可は本来不要。
+        かつての ``Access-Control-Allow-Origin: *`` は、スマホのブラウザで開いた
+        任意の Web サイトから GET /api/status 等をクロスオリジン読み取りできる
+        情報漏洩経路になるため廃止した。
+
+        さらに「Origin authority == Host ヘッダー」のエコー方式も廃止した:
+        DNS リバインディング (evil.com → PCのIP解決) ではブラウザが
+        Origin と Host の両方に evil.com を乗せるためエコー方式は迂回可能。
+        同一オリジンは許可ヘッダーなしで動作するため、発行ゼロが最も安全。
+        本メソッドは呼び出し互換のため残置する no-op であり、将来クロス
+        オリジン連携が必要になった場合は明示的なオリジン許可リスト方式で
+        実装すること (ワイルドカード・単純エコーの再導入は禁止)。
+        """
+        return
 
     def end_headers(self):
         """ブラウザ・PWAの強力キャッシュを回避し、常に最新ファイルを配信する"""
@@ -1154,7 +1170,8 @@ class DeskPetSyncHandler(SimpleHTTPRequestHandler):
                 action_handler = ACTION_HANDLERS.get(action)
                 if action_handler is not None:
                     # アクション処理は機能別モジュール (api_tasks / api_agent_bridge) へ委譲。
-                    # False (ガード未成立) の場合は旧仕様どおり無応答 200 で返る。
+                    # パラメータ欠落等のガード未成立時も明示エラーJSONが書き込まれる
+                    # (2026-09-03 改修: 旧仕様の無応答200空ボディは廃止)。
                     if action_handler(ApiContext(self, body, client_ip, user_agent)):
                         return
                 else:
@@ -1191,12 +1208,90 @@ def get_gui_instance():
 
 
 class LocalSyncServer:
-    """バックグラウンドで稼働するローカル同期サーバー"""
-    
+    """バックグラウンドで稼働するローカル同期サーバー
+
+    2026-09-03 (Block 2): スリープ復帰等で serve_forever スレッドが死亡した場合に
+    周期ヘルスプローブで検出し、解決済みポートへ再バインドする自己治癒watchdogを備える
+    (2026-09-02 ディープ監査の残存リスク対策)。
+    """
+
     def __init__(self, port: int = SERVER_PORT):
         self.port = port
         self.httpd = None
         self.thread = None
+        # watchdog 用状態
+        self._bound_port: Optional[int] = None  # port=0 (エフェメラル) 時の解決済みポート
+        self._stop_event = threading.Event()
+        self._watchdog_thread: Optional[threading.Thread] = None
+        self.watchdog_interval: float = 5.0
+
+    def _start_httpd(self) -> bool:
+        """HTTPサーバーを生成してバックグラウンドスレッドで起動する。
+
+        再起動時は _bound_port (解決済みポート) へ再バインドし、
+        エフェメラルポートの再抽選によるポート変更を防止する。
+
+        Returns:
+            bool: 起動に成功した場合は True (ポート競合等は False)。
+        """
+        bind_port = self._bound_port if self._bound_port is not None else self.port
+        try:
+            self.httpd = QuietThreadingHTTPServer(("0.0.0.0", bind_port), DeskPetSyncHandler)
+        except OSError as e:
+            logger.error(f"📱 [Watchdog] 同期サーバーのバインドに失敗しました (ポート={bind_port}): {e}")
+            return False
+        self._bound_port = self.httpd.server_address[1]
+        self.thread = threading.Thread(target=self.httpd.serve_forever, daemon=True)
+        self.thread.start()
+        logger.info(
+            f"📱 [Agent Bridge Hub] Desk Pet 同期サーバーが起動しました: "
+            f"http://localhost:{self._bound_port} (LAN/Bluetooth対応)"
+        )
+        return True
+
+    def is_healthy(self) -> bool:
+        """サーバースレッドの生存とループバック疎通を確認する。
+
+        Returns:
+            bool: スレッドが生存し、ループバック接続に成功する場合は True。
+        """
+        if self.thread is None or not self.thread.is_alive():
+            return False
+        if self._bound_port is None:
+            return False
+        try:
+            with socket.create_connection(("127.0.0.1", self._bound_port), timeout=0.5):
+                return True
+        except OSError:
+            return False
+
+    def _restart_httpd(self) -> None:
+        """旧サーバーを片付けて自己治癒再起動を行う。"""
+        old_httpd = self.httpd
+        if self.thread is not None and self.thread.is_alive() and old_httpd is not None:
+            # スレッドは生存だが疎通しない (ハング等) → shutdown を要求して出口を待つ
+            old_httpd.shutdown()
+        if old_httpd is not None:
+            try:
+                old_httpd.server_close()
+            except OSError as e:
+                logger.debug(f"📱 [Watchdog] 旧サーバーソケットの解放に失敗: {e}")
+        if self._start_httpd():
+            logger.warning("📱 [Watchdog] 同期サーバーを自己治癒再起動しました")
+        else:
+            logger.warning("📱 [Watchdog] 同期サーバーの自己治癒再起動に失敗 (次周期で再試行)")
+
+    def _watchdog_loop(self) -> None:
+        """周期ヘルスプローブでサーバー死亡を検出し自己治癒する監視ループ。
+
+        stop() の _stop_event がセットされるまで watchdog_interval 秒ごとに
+        is_healthy() を確認し、死亡検出時は _restart_httpd() を実行する。
+        """
+        while not self._stop_event.wait(self.watchdog_interval):
+            if self.is_healthy():
+                continue
+            logger.warning("📱 [Watchdog] 同期サーバーの停止を検出しました → 自己治癒を開始します")
+            self._restart_httpd()
 
     def start(self, gui=None):
         """バックグラウンドスレッドでサーバーを起動"""
@@ -1211,13 +1306,14 @@ class LocalSyncServer:
             dreamer.start()
         except Exception as e:
             logger.warning(f"🌈 [LifeDreamer] 起動をスキップしました: {e}")
-        try:
-            self.httpd = QuietThreadingHTTPServer(("0.0.0.0", self.port), DeskPetSyncHandler)
-            self.thread = threading.Thread(target=self.httpd.serve_forever, daemon=True)
-            self.thread.start()
-            logger.info(f"📱 [Agent Bridge Hub] Desk Pet 同期サーバーが起動しました: http://localhost:{self.port} (LAN/Bluetooth対応)")
-        except Exception as e:
-            logger.warning(f"Desk Pet 同期サーバーの起動をスキップしました（ポート競合など）: {e}")
+        self._stop_event.clear()
+        if not self._start_httpd():
+            logger.warning("Desk Pet 同期サーバーの起動をスキップしました（ポート競合など）")
+            return
+        self._watchdog_thread = threading.Thread(
+            target=self._watchdog_loop, daemon=True, name="sync-server-watchdog"
+        )
+        self._watchdog_thread.start()
 
     @staticmethod
     def _mirror_to_pc_pet(gui, state: Dict[str, Any]) -> None:
@@ -1238,11 +1334,16 @@ class LocalSyncServer:
             logger.debug(f"LifeDreamer PCペットミラーエラー: {e}")
 
     def stop(self):
-        """サーバーを停止"""
+        """サーバーとwatchdogを停止する (ゾンビ再起動を防止する終端契約)。"""
+        self._stop_event.set()
         if self.httpd:
             self.httpd.shutdown()
             self.httpd.server_close()
-            logger.info("Desk Pet 同期サーバーを停止しました")
+        if self.thread:
+            self.thread.join(timeout=5)
+        if self._watchdog_thread:
+            self._watchdog_thread.join(timeout=5)
+        logger.info("Desk Pet 同期サーバーを停止しました")
 
 
 # シングルトン

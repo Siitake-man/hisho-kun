@@ -12,6 +12,7 @@ DB 生辞書 (Primitive Obsession) 由来のキー名ミス・型不一致によ
   「まず繋がる体験」を最優先する縮退設計 (スマホ同期の可用性 > 契約の完全性)。
 """
 
+import json
 import logging
 from typing import Any, Dict, List, Optional
 
@@ -143,3 +144,98 @@ def validate_tasks_view_response(payload: Dict[str, Any]) -> Dict[str, Any]:
     except ValidationError as e:
         logger.error("⚠️ [DTO] get_tasks_view レスポンスが契約違反のため生辞書で応答します: %s", e)
         return payload
+
+
+# =============================================================================
+# アクションリクエストDTO (P2① 第三段: 2026-09-03)
+# =============================================================================
+
+
+class TaskActionRequestDTO(BaseModel):
+    """task_id を受信するアクション (complete/reopen/update/delete) のリクエスト契約。"""
+
+    model_config = ConfigDict(extra="allow")
+
+    action: str = ""
+    task_id: Optional[int] = None
+    title: Optional[str] = None
+    due_date: Optional[int] = None
+    priority: Optional[int] = None
+    tags: Optional[str] = None
+    list_id: Optional[int] = None
+    importance_flag: Optional[bool] = None
+    urgency_flag: Optional[bool] = None
+
+
+class HabitActionRequestDTO(BaseModel):
+    """habit_id を受信するアクション (toggle_habit) のリクエスト契約。"""
+
+    model_config = ConfigDict(extra="allow")
+
+    action: str = ""
+    habit_id: Optional[int] = None
+
+
+class AddHabitRequestDTO(BaseModel):
+    """add_habit アクションのリクエスト契約。"""
+
+    model_config = ConfigDict(extra="allow")
+
+    action: str = ""
+    title: Optional[str] = None
+    emoji: str = "🌱"
+
+
+class QuickAddRequestDTO(BaseModel):
+    """quick_add_task アクションのリクエスト契約 (text は生値・strip はハンドラ側)。"""
+
+    model_config = ConfigDict(extra="allow")
+
+    action: str = ""
+    text: Optional[str] = None
+
+
+class UpdateTaskRequestDTO(BaseModel):
+    """update_task アクション (スマホ編集シート) のリクエスト契約。
+
+    importance_flag / urgency_flag は true/false/null (null=未指定)。
+    """
+
+    model_config = ConfigDict(extra="allow")
+
+    action: str = ""
+    task_id: Optional[int] = None
+    title: Optional[str] = None
+    due_date: Optional[int] = None
+    priority: Optional[int] = None
+    tags: Optional[str] = None
+    list_id: Optional[int] = None
+    importance_flag: Optional[bool] = None
+    urgency_flag: Optional[bool] = None
+
+
+def parse_request(body: bytes, dto_cls: type[BaseModel]) -> Optional[BaseModel]:
+    """POST ボディを指定のリクエストDTOで検証して取得する。
+
+    Args:
+        body: リクエストボディの生バイト列。
+        dto_cls: 検証に用いるリクエストDTOクラス。
+
+    Returns:
+        検証通過時はDTOインスタンス (未知フィールドは extra=allow で保持)。
+        壊れたJSON・空ボディ・オブジェクト以外・契約違反時は None
+        (呼び出し側ハンドラが明示エラー応答に変換する)。
+    """
+    try:
+        data = json.loads(body.decode("utf-8"))
+    except (json.JSONDecodeError, UnicodeDecodeError, ValueError) as e:
+        logger.warning("⚠️ [DTO] リクエストボディのJSONパースに失敗: %s", e)
+        return None
+    if not isinstance(data, dict):
+        logger.warning("⚠️ [DTO] リクエストボディがJSONオブジェクトではありません: %s", type(data).__name__)
+        return None
+    try:
+        return dto_cls.model_validate(data)
+    except ValidationError as e:
+        logger.warning("⚠️ [DTO] リクエストが %s 契約違反のため拒否します: %s", dto_cls.__name__, e)
+        return None

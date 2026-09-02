@@ -13,7 +13,7 @@ P2③ 分割リファクタ (local_sync_server.do_POST の God Function →
 検証観点:
   1. 既知アクションの正常系 (complete_task / reopen_task / toggle_habit / add_habit /
      update_task / delete_task / list_task_lists / get_tasks_view / ping_test / quick_add_task)
-  2. パラメータ欠落時の fall-through 振る舞い (旧仕様の unknown action エラー応答)
+  2. パラメータ欠落時の明示エラー応答 (2026-09-03 改修: 無応答200空ボディを廃止)
   3. 未知アクションの明示エラー応答
   4. POST パス系 (agent/ask, agent/respond, agent/dismiss_completed, agent/notify,
      test_buzz, webhook/task) のディスパッチ
@@ -290,34 +290,92 @@ class TestActionDispatchCharacterization(unittest.TestCase):
         self.assertEqual(data.get("title"), "牛乳を買う")
 
     # ==========================================================================
-    # 2. fall-through ＆ 未知アクション (旧仕様の意味論を固定)
+    # 2. パラメータ欠落時の明示エラー応答 ＆ 未知アクション
+    #    (2026-09-03 改修: 無応答200 (空ボディ) を廃止し error JSON を返す)
     # ==========================================================================
-    def test_missing_param_returns_silent_empty_response(self):
-        """task_id 欠落の complete_task は現行仕様では無応答200 (空ボディ) になる
+    def test_missing_param_returns_error_response(self):
+        """task_id 欠落の complete_task は明示エラー (200 + status=error) を返す
 
-        ※ 既知の技術的負債: elif連鎖の意味論上、既知アクションのパラメータ欠落は
-          else節 (unknown action エラー) に到達せず、ヘッダーのみでボディ空の
-          200 が返る。クライアント互換維持のため本テストで現行の振る舞いを固定する。
+        ※ 旧仕様 (ヘッダーのみでボディ空の200) は 2026-09-03 の改修で廃止。
+          /api/action はディスパッチ前置きでヘッダー送出済みのため HTTP ステータスは
+          200 のまま、ボディで {"status": "error"} を明示する (unknown action と同型)。
         """
         token = self._get_token()
         st, data = self._post_action({"action": "complete_task"}, token)
         self.assertEqual(st, 200)
-        self.assertEqual(data, {"raw": ""}, "パラメータ欠落時は空ボディの200であること")
+        self.assertEqual(data.get("status"), "error")
+        self.assertEqual(data.get("message"), "missing parameter: task_id")
         self.mock_complete_task.assert_not_called()
 
-    def test_quick_add_task_empty_text_returns_silent_empty_response(self):
-        """text 欠落の quick_add_task は現行仕様では無応答200 (空ボディ) になる"""
+    def test_quick_add_task_empty_text_returns_error_response(self):
+        """text 欠落の quick_add_task は明示エラー (200 + status=error) を返す"""
         token = self._get_token()
         st, data = self._post_action({"action": "quick_add_task", "text": "  "}, token)
         self.assertEqual(st, 200)
-        self.assertEqual(data, {"raw": ""})
+        self.assertEqual(data.get("status"), "error")
+        self.assertEqual(data.get("message"), "missing parameter: text")
 
-    def test_pomodoro_without_gui_returns_silent_empty_response(self):
-        """GUI 未起動時の start_pomodoro は現行仕様では無応答200 (空ボディ) になる"""
+    def test_pomodoro_without_gui_returns_error_response(self):
+        """GUI 未起動時の start_pomodoro は明示エラー (200 + status=error) を返す"""
         token = self._get_token()
         st, data = self._post_action({"action": "start_pomodoro", "minutes": 25}, token)
         self.assertEqual(st, 200)
-        self.assertEqual(data, {"raw": ""})
+        self.assertEqual(data.get("status"), "error")
+        self.assertEqual(data.get("message"), "PC GUI is not running for action: start_pomodoro")
+
+    def test_reopen_task_missing_param_returns_error_response(self):
+        """task_id 欠落の reopen_task は明示エラーを返し DB へ委譲しない"""
+        token = self._get_token()
+        st, data = self._post_action({"action": "reopen_task"}, token)
+        self.assertEqual(data.get("status"), "error")
+        self.assertEqual(data.get("message"), "missing parameter: task_id")
+        self.mock_reopen_task.assert_not_called()
+
+    def test_toggle_habit_missing_param_returns_error_response(self):
+        """habit_id 欠落の toggle_habit は明示エラーを返し DB へ委譲しない"""
+        token = self._get_token()
+        st, data = self._post_action({"action": "toggle_habit"}, token)
+        self.assertEqual(data.get("status"), "error")
+        self.assertEqual(data.get("message"), "missing parameter: habit_id")
+        self.mock_toggle_habit_log.assert_not_called()
+
+    def test_add_habit_empty_title_returns_error_response(self):
+        """title 空欄の add_habit は明示エラーを返し DB へ委譲しない"""
+        token = self._get_token()
+        st, data = self._post_action({"action": "add_habit", "title": "   "}, token)
+        self.assertEqual(data.get("status"), "error")
+        self.assertEqual(data.get("message"), "missing parameter: title")
+        self.mock_create_habit.assert_not_called()
+
+    def test_update_task_missing_param_returns_error_response(self):
+        """task_id 欠落の update_task は明示エラーを返し DB へ委譲しない"""
+        token = self._get_token()
+        st, data = self._post_action({"action": "update_task", "title": "編集後"}, token)
+        self.assertEqual(data.get("status"), "error")
+        self.assertEqual(data.get("message"), "missing parameter: task_id")
+        self.mock_update_task.assert_not_called()
+
+    def test_delete_task_missing_param_returns_error_response(self):
+        """task_id 欠落の delete_task は明示エラーを返し DB へ委譲しない"""
+        token = self._get_token()
+        st, data = self._post_action({"action": "delete_task"}, token)
+        self.assertEqual(data.get("status"), "error")
+        self.assertEqual(data.get("message"), "missing parameter: task_id")
+        self.mock_delete_task.assert_not_called()
+
+    def test_stop_pomodoro_without_gui_returns_error_response(self):
+        """GUI 未起動時の stop_pomodoro は明示エラーを返す"""
+        token = self._get_token()
+        st, data = self._post_action({"action": "stop_pomodoro"}, token)
+        self.assertEqual(data.get("status"), "error")
+        self.assertEqual(data.get("message"), "PC GUI is not running for action: stop_pomodoro")
+
+    def test_show_pc_pet_without_gui_returns_error_response(self):
+        """GUI 未起動時の show_pc_pet は明示エラーを返す"""
+        token = self._get_token()
+        st, data = self._post_action({"action": "show_pc_pet"}, token)
+        self.assertEqual(data.get("status"), "error")
+        self.assertEqual(data.get("message"), "PC GUI is not running for action: show_pc_pet")
 
     def test_unknown_action_returns_error(self):
         """未知のアクションは明示的に error を返す"""

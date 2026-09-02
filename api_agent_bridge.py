@@ -11,7 +11,9 @@ local_sync_server.py から P2③ 分割リファクタで抽出した。
 - パス系ハンドラ (handle_*) は ``handler(ctx: ApiContext) -> None`` 署名を持ち、
   常にレスポンスを書き込む。
 - アクション系ハンドラ (action_*) は ``handler(ctx: ApiContext) -> bool`` 署名を持ち、
-  レスポンスを書き込んだら True / ガード未成立で無応答となる場合は False を返す。
+  レスポンスを書き込んだら True を返す。パラメータ欠落・GUI 未起動等のガード
+  未成立時も明示エラー ({"status": "error"}) を書き込んで True を返す
+  (2026-09-03 改修: 旧仕様の無応答200空ボディは廃止。False は将来の例外経路用)。
 - AGENT_ONLY_PATHS のループバック制限 (RCE チェーン遮断) は呼び出し元
   (local_sync_server.do_POST) で適用されるため、本モジュールでは再検査しない。
 - GUI 操作は必ず gui.post_action 経由 (メインスレッドへディスパッチ)。
@@ -233,7 +235,7 @@ def action_start_pomodoro(ctx: ApiContext) -> bool:
         ctx: リクエストコンテキスト。
 
     Returns:
-        bool: レスポンスを書き込んだ場合は True (GUI 未起動時は False)。
+        bool: 常にレスポンスを書き込むため True (GUI 未起動時は明示エラー)。
     """
     data = json.loads(ctx.body.decode("utf-8"))
     from local_sync_server import get_gui_instance
@@ -244,7 +246,12 @@ def action_start_pomodoro(ctx: ApiContext) -> bool:
         logger.info(f"📱 スマホ側からポモドーロ開始を受信: {mins}分")
         ctx.write_json({"status": "success", "action": "start_pomodoro"})
         return True
-    return False
+    logger.warning("📱 start_pomodoro: PC GUI 未起動のため要求を拒否しました")
+    ctx.write_json({
+        "status": "error",
+        "message": "PC GUI is not running for action: start_pomodoro",
+    })
+    return True
 
 
 def action_stop_pomodoro(ctx: ApiContext) -> bool:
@@ -254,7 +261,7 @@ def action_stop_pomodoro(ctx: ApiContext) -> bool:
         ctx: リクエストコンテキスト。
 
     Returns:
-        bool: レスポンスを書き込んだ場合は True (GUI 未起動時は False)。
+        bool: 常にレスポンスを書き込むため True (GUI 未起動時は明示エラー)。
     """
     from local_sync_server import get_gui_instance
     gui = get_gui_instance()
@@ -263,7 +270,12 @@ def action_stop_pomodoro(ctx: ApiContext) -> bool:
         logger.info("📱 スマホ側からポモドーロ停止を受信")
         ctx.write_json({"status": "success", "action": "stop_pomodoro"})
         return True
-    return False
+    logger.warning("📱 stop_pomodoro: PC GUI 未起動のため要求を拒否しました")
+    ctx.write_json({
+        "status": "error",
+        "message": "PC GUI is not running for action: stop_pomodoro",
+    })
+    return True
 
 
 def action_show_pc_pet(ctx: ApiContext) -> bool:
@@ -273,7 +285,7 @@ def action_show_pc_pet(ctx: ApiContext) -> bool:
         ctx: リクエストコンテキスト。
 
     Returns:
-        bool: レスポンスを書き込んだ場合は True (GUI 未起動時は False)。
+        bool: 常にレスポンスを書き込むため True (GUI 未起動時は明示エラー)。
     """
     from local_sync_server import get_gui_instance
     gui = get_gui_instance()
@@ -282,7 +294,12 @@ def action_show_pc_pet(ctx: ApiContext) -> bool:
         logger.info("📱 スマホ側からPCペット再表示要求を受信")
         ctx.write_json({"status": "success", "action": "show_pc_pet"})
         return True
-    return False
+    logger.warning("📱 show_pc_pet: PC GUI 未起動のため要求を拒否しました")
+    ctx.write_json({
+        "status": "error",
+        "message": "PC GUI is not running for action: show_pc_pet",
+    })
+    return True
 
 
 def action_switch_character(ctx: ApiContext) -> bool:
