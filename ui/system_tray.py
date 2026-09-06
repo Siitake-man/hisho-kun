@@ -81,6 +81,13 @@ class SystemTrayManager:
         def on_open_qr(icon, item):
             self.gui.post_action(self.gui._open_qr_connection)
 
+        def on_toggle_sticky(icon, item):
+            def _toggle():
+                from ui.sticky_note import DesktopStickyNote
+                sticky = DesktopStickyNote.get_instance(self.gui.root)
+                sticky.toggle_visibility()
+            self.gui.post_action(_toggle)
+
         def on_quit(icon, item):
             self.stop()
             self.gui.post_action(self.gui.root.quit)
@@ -88,6 +95,7 @@ class SystemTrayManager:
         menu = pystray.Menu(
             pystray.MenuItem("🖥️ ペットを画面に呼び出す", on_show_pet, default=True),
             pystray.MenuItem("🙈 ペットを隠す (最小化)", on_hide_pet),
+            pystray.MenuItem("📌 デスクトップ付箋 (表示/非表示)", on_toggle_sticky),
             pystray.Menu.SEPARATOR,
             pystray.MenuItem("⚙️ 設定を開く", on_open_settings),
             pystray.MenuItem("📅 手帳 / カレンダー", on_open_calendar),

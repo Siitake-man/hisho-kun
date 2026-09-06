@@ -86,6 +86,7 @@ import api_tasks
 import api_agent_bridge
 import api_calendar
 from server_watchdog import ServerWatchdog
+from agent_fsm import agent_fsm
 
 logger = logging.getLogger(__name__)
 
@@ -1046,12 +1047,25 @@ class DeskPetSyncHandler(SimpleHTTPRequestHandler):
                 active_notification = monitor.get_active_notification()
                 
                 # ペット状態の決定
+                agent_activity = agent_fsm.get_current_activity()
                 if active_event:
                     if active_event.get("type") == "approval":
                         pet_state = "alarm_ask"
                     elif active_event.get("type") == "question":
                         pet_state = "alarm_ask"
                     elif active_event.get("type") == "completed":
+                        pet_state = "celebrate"
+                    else:
+                        pet_state = "idle"
+                elif agent_activity.get("is_active"):
+                    act_st = agent_activity.get("state")
+                    if act_st == "coding":
+                        pet_state = "focus"
+                    elif act_st == "thinking":
+                        pet_state = "think"
+                    elif act_st == "waiting_approval":
+                        pet_state = "alarm_ask"
+                    elif act_st == "success":
                         pet_state = "celebrate"
                     else:
                         pet_state = "idle"
@@ -1135,6 +1149,7 @@ class DeskPetSyncHandler(SimpleHTTPRequestHandler):
                     "pending_approval": pending_req,
                     "active_event": active_event,
                     "latest_notification": active_notification,
+                    "agent_activity": agent_activity,
                     "easter_egg": ee_payload,
                     "tasks": _cached_tasks_data,
                     "events": _cached_events_data,
@@ -1310,6 +1325,40 @@ class DeskPetSyncHandler(SimpleHTTPRequestHandler):
                 self.wfile.write(json.dumps({"status": "ok" if ok else "not_found", "revoked": ok}, ensure_ascii=False).encode("utf-8"))
             except Exception as e:
                 logger.error(f"デバイス失効エラー: {e}")
+                self.send_response(500)
+                self.send_header("Content-Type", "application/json; charset=utf-8")
+                self._set_cors_headers()
+                self.end_headers()
+                self.wfile.write(json.dumps({"status": "error", "message": str(e)}, ensure_ascii=False).encode("utf-8"))
+            return
+
+        # 3.6 AIエージェント稼働状態更新 (POST /api/agent/activity) — Phase H
+        elif self.path == "/api/agent/activity":
+            if not self._is_loopback(client_ip):
+                logger.warning(f"🚫 [Security] 非ループバック({client_ip})からのエージェント状態更新を拒否")
+                self.send_response(403)
+                self.send_header("Content-Type", "application/json; charset=utf-8")
+                self._set_cors_headers()
+                self.end_headers()
+                self.wfile.write(json.dumps({"status": "error", "message": "Agent activity API is restricted to localhost."}, ensure_ascii=False).encode("utf-8"))
+                return
+            try:
+                data = json.loads(body.decode("utf-8")) if body else {}
+                state = data.get("state", "idle")
+                agent_name = data.get("agent_name", "AI Agent")
+                detail = data.get("detail", "")
+                ttl_seconds = data.get("ttl_seconds")
+                if ttl_seconds is not None:
+                    ttl_seconds = float(ttl_seconds)
+
+                updated = agent_fsm.set_state(state, agent_name=agent_name, detail=detail, ttl_seconds=ttl_seconds)
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json; charset=utf-8")
+                self._set_cors_headers()
+                self.end_headers()
+                self.wfile.write(json.dumps({"status": "ok", "activity": updated}, ensure_ascii=False).encode("utf-8"))
+            except Exception as e:
+                logger.error(f"エージェント状態更新エラー: {e}")
                 self.send_response(500)
                 self.send_header("Content-Type", "application/json; charset=utf-8")
                 self._set_cors_headers()

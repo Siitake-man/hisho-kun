@@ -275,6 +275,13 @@ class NeoSecretaryGUI(PomodoroMixin, RadialMenuMixin, TourOverlayMixin):
         # ⚠️ LLM APIキー有無チェック (C-4 / K0-3)
         self.root.after(2500, self._check_api_key_warning)
 
+        # 🤖 Phase H: AIエージェント稼働可視化FSMのリスナー登録
+        try:
+            from agent_fsm import agent_fsm
+            agent_fsm.register_listener(self._on_agent_activity_change)
+        except Exception as e:
+            logger.warning(f"AgentFSM リスナー登録スキップ: {e}")
+
     def _load_mascot_assets(self):
         """ドット絵スプライト画像をロード（キャラクタースキン対応）"""
         from character_manager import get_character_manager
@@ -883,6 +890,15 @@ class NeoSecretaryGUI(PomodoroMixin, RadialMenuMixin, TourOverlayMixin):
         except Exception as e:
             logger.error(f"付箋読み込みエラー: {e}")
 
+    def _on_create_quick_sticky(self) -> None:
+        """デスクトップ半透明スマート付箋を表示・トグルする。"""
+        try:
+            from ui.sticky_note import DesktopStickyNote
+            sticky = DesktopStickyNote.get_instance(self.root)
+            sticky.toggle_visibility()
+        except Exception as e:
+            logger.error(f"付箋トグルエラー: {e}")
+
     def _open_calendar(self):
         """統合手帳ウィンドウを開く"""
         if self.calendar_window is None or not self.calendar_window.winfo_exists():
@@ -975,6 +991,56 @@ class NeoSecretaryGUI(PomodoroMixin, RadialMenuMixin, TourOverlayMixin):
                 logger.warning("⚠️ LLM APIキーが未設定です。GUIに警告を表示しました。")
         except Exception as e:
             logger.debug(f"APIキーチェックスキップ: {e}")
+
+    def post_action(self, callback: Any) -> None:
+        """Tkinterのメインスレッドで安全にコールバックを実行するスレッドセーフディスパッチャ。"""
+        try:
+            if hasattr(self, "root") and self.root.winfo_exists():
+                self.root.after(0, callback)
+        except Exception as e:
+            logger.debug(f"post_action 実行エラー: {e}")
+
+    def _on_agent_activity_change(self, payload: Dict[str, Any]) -> None:
+        """AgentFSMからの状態変更イベントをメインスレッドへディスパッチする。"""
+        self.post_action(lambda: self._apply_agent_activity(payload))
+
+    def _apply_agent_activity(self, payload: Dict[str, Any]) -> None:
+        """エージェント稼働状態に応じてマスコットのアニメーションと吹き出しを更新する。"""
+        state = payload.get("state", "idle")
+        agent_name = payload.get("agent_name", "AI Agent")
+        detail = payload.get("detail", "")
+
+        if state == "coding":
+            if hasattr(self, "animator"):
+                self.animator.set_state("focus")
+            msg = f"🤖 [{agent_name}] 猛烈にコード書き込み中！🔥"
+            if detail:
+                msg += f"\n{detail}"
+            self.update_message(msg)
+        elif state == "thinking":
+            if hasattr(self, "animator"):
+                self.animator.set_state("think")
+            msg = f"🤔 [{agent_name}] 作戦を考えています…"
+            if detail:
+                msg += f"\n{detail}"
+            self.update_message(msg)
+        elif state == "waiting_approval":
+            if hasattr(self, "animator"):
+                self.animator.set_state("alarm_ask")
+            msg = f"🚨 [{agent_name}] ご主人様の承認をお待ちしています！"
+            if detail:
+                msg += f"\n{detail}"
+            self.update_message(msg)
+        elif state == "success":
+            if hasattr(self, "animator"):
+                self.animator.set_state("celebrate")
+            msg = f"✨ [{agent_name}] タスク完了！お疲れ様でした！🎉"
+            if detail:
+                msg += f"\n{detail}"
+            self.update_message(msg)
+        elif state == "idle":
+            if hasattr(self, "animator"):
+                self.animator.set_state("idle")
 
 # 後方互換エイリアス
 ModernSecretaryGUI = NeoSecretaryGUI
