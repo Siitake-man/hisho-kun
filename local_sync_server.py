@@ -16,7 +16,6 @@ import uuid
 import hmac
 import socket
 import secrets
-import hashlib
 import logging
 import threading
 from typing import Any, Dict, Optional
@@ -740,38 +739,36 @@ class DeskPetSyncHandler(SimpleHTTPRequestHandler):
         token_mgr = get_sync_token_manager()
         bearer = self._get_bearer_token()
 
-        # 2. 有効なBearerトークンがあれば認証OK（デバイス台帳で失効状態を検査）
+        # 2. 有効なBearerトークンがあれば認証OK（デバイス台帳で失効状態を検査）。
+        #    SHA-256 ハッシュ化・last_seen 更新・未登録端末の自動登録は
+        #    データベース層 (sync_device_session) に隠蔽した Deep Module 契約。
         if bearer and token_mgr.verify(bearer):
-            token_hash = hashlib.sha256(bearer.encode("utf-8")).hexdigest()
-            dev = database.get_device_by_token_hash(token_hash)
-            if dev:
-                if dev.is_revoked == 1:
-                    logger.warning(
-                        f"🚫 [SyncAuth] 失効済みデバイスからのアクセス拒否: ID={dev.id}, name={dev.device_name} (IP: {client_ip})"
-                    )
-                    try:
-                        self.send_response(403)
-                        self.send_header("Content-Type", "application/json; charset=utf-8")
-                        self._set_cors_headers()
-                        self.end_headers()
-                        self.wfile.write(json.dumps(
-                            {"status": "forbidden", "message": "この端末の連携は失効しています。"},
-                            ensure_ascii=False
-                        ).encode("utf-8"))
-                    except Exception:
-                        pass
-                    return False
+            try:
+                dev = database.sync_device_session(
+                    device_name=self._infer_device_name(user_agent),
+                    bearer=bearer,
+                    ip_address=client_ip,
+                    user_agent=user_agent,
+                )
+            except Exception as e:
+                logger.debug(f"デバイス台帳同期エラー (Fail-Safe で認証継続): {e}")
+                dev = None
+            if dev is not None and dev.is_revoked == 1:
+                logger.warning(
+                    f"🚫 [SyncAuth] 失効済みデバイスからのアクセス拒否: ID={dev.id}, name={dev.device_name} (IP: {client_ip})"
+                )
                 try:
-                    database.touch_device_last_seen(token_hash, ip_address=client_ip, user_agent=user_agent)
-                except Exception as e:
-                    logger.debug(f"last_seen 更新エラー (無視): {e}")
-            else:
-                # 台帳未登録なら自動登録
-                try:
-                    dev_name = self._infer_device_name(user_agent)
-                    database.register_device(dev_name, token_hash, ip_address=client_ip, user_agent=user_agent)
-                except Exception as e:
-                    logger.debug(f"デバイス台帳自動登録エラー (無視): {e}")
+                    self.send_response(403)
+                    self.send_header("Content-Type", "application/json; charset=utf-8")
+                    self._set_cors_headers()
+                    self.end_headers()
+                    self.wfile.write(json.dumps(
+                        {"status": "forbidden", "message": "この端末の連携は失効しています。"},
+                        ensure_ascii=False
+                    ).encode("utf-8"))
+                except Exception:
+                    pass
+                return False
             return True
 
         # 3. 同一LAN・Tailscale内からのGETリクエスト（/api/status等）は閲覧を許可
@@ -873,10 +870,9 @@ class DeskPetSyncHandler(SimpleHTTPRequestHandler):
             self.end_headers()
             token = tm.token
             try:
-                # トークン配布時にデバイス台帳へ自動登録
-                token_hash = hashlib.sha256(token.encode("utf-8")).hexdigest()
+                # トークン配布時にデバイス台帳へ自動登録 (SHA-256 ハッシュ化は DB 層内部に隠蔽)
                 dev_name = self._infer_device_name(user_agent)
-                database.register_device(dev_name, token_hash, ip_address=client_ip, user_agent=user_agent)
+                database.register_device_from_bearer(dev_name, token, ip_address=client_ip, user_agent=user_agent)
             except Exception as e:
                 logger.warning(f"デバイス台帳登録エラー (無視してトークン返却継続): {e}")
             self.wfile.write(json.dumps({"status": "ok", "token": token}, ensure_ascii=False).encode("utf-8"))

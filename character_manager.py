@@ -128,6 +128,10 @@ class CharacterManager:
         self.bond_xp: int = 0
         self.last_pet_time: float = 0.0
         self.wandering_enabled: bool = False
+
+        # 他モジュール (ui/sticky_note.py 等) が設定ファイルへ書き込む未知キーを
+        # 保護するための生設定キャッシュ (Read-Modify-Write 用)
+        self._raw_config: Dict[str, Any] = {}
         self._load_config()
 
     def _load_config(self):
@@ -135,6 +139,10 @@ class CharacterManager:
             try:
                 with open(CONFIG_PATH, "r", encoding="utf-8") as f:
                     data = json.load(f)
+                    if not isinstance(data, dict):
+                        data = {}
+                    # 未知キー (sticky_note_pos 等) を保護するため生設定を保持する
+                    self._raw_config = dict(data)
                     c_id = data.get("current_character", "hisho")
                     if c_id in CHARACTERS_DATA:
                         self.current_character_id = c_id
@@ -145,12 +153,15 @@ class CharacterManager:
 
     def save_config(self):
         try:
+            # 他モジュールが追加した未知キー (sticky_note_pos 等) を保持した上で
+            # マネージャー管理キーのみを上書きする (Read-Modify-Write)
+            payload = dict(getattr(self, "_raw_config", {}))
+            payload["current_character"] = self.current_character_id
+            payload["bond_xp"] = self.bond_xp
+            payload["wandering_enabled"] = self.wandering_enabled
             with open(CONFIG_PATH, "w", encoding="utf-8") as f:
-                json.dump({
-                    "current_character": self.current_character_id,
-                    "bond_xp": self.bond_xp,
-                    "wandering_enabled": self.wandering_enabled
-                }, f, indent=2, ensure_ascii=False)
+                json.dump(payload, f, indent=2, ensure_ascii=False)
+            self._raw_config = payload
         except Exception as e:
             logger.error(f"キャラクター設定保存エラー: {e}")
 

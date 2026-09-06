@@ -7,7 +7,7 @@
 if ('caches' in window) {
   caches.keys().then(keys => {
     keys.forEach(key => {
-      if (key !== 'neo-pet-v5.24') caches.delete(key);
+      if (key !== 'neo-pet-v5.25') caches.delete(key);
     });
   });
 }
@@ -48,6 +48,10 @@ const WEATHER_LABELS_JS = {
 let currentWeather = 'sunny';
 let currentActivity = 'resting';
 let lastLifeMessage = '';
+
+// 🤖 AIエージェント稼働ライブバッジ (Phase H) — 表示中キーのキャッシュ。
+// ⚠️ 本変数は本ファイル内でこの1箇所でのみ宣言すること (重複宣言はTDZ SyntaxErrorで全停止)。
+let currentAgentBadgeState = '';
 
 // =============================================================================
 // 🔐 同期サーバー認証トークン管理 (Zero-Trust Bearer Auth)
@@ -1498,6 +1502,42 @@ function togglePomodoro() {
 // =============================================================================
 // 8. サーバー状態フェッチ ＆ イベント監視
 // =============================================================================
+// 🤖 エージェント状態 ➔ ライブバッジ演出マッピング (Phase H)
+const AGENT_BADGE_STYLES = {
+  coding:           { cls: 'a-coding',   icon: '🟢', suffix: 'Coding... 🔥' },
+  thinking:         { cls: 'a-thinking', icon: '🟡', suffix: 'Thinking... 🤔' },
+  waiting_approval: { cls: 'a-waiting',  icon: '🟣', suffix: 'Waiting Approval 🚨' },
+  success:          { cls: 'a-success',  icon: '✅', suffix: 'Done ✨' }
+};
+
+/**
+ * /api/status の agent_activity を受けて、時計直下のライブバッジを更新する。
+ * エージェントが非アクティブ (idle / TTL切れ) の場合はバッジを隠す。
+ * @param {Object|null} activity - payload.agent_activity
+ */
+function updateAgentActivityBadge(activity) {
+  const badge = document.getElementById('agent-live-badge');
+  if (!badge) return;
+  const isActive = !!(activity && activity.is_active);
+  const state = isActive ? String(activity.state || '') : '';
+  const conf = AGENT_BADGE_STYLES[state];
+  if (!isActive || !conf) {
+    if (badge.style.display !== 'none') {
+      badge.style.display = 'none';
+      currentAgentBadgeState = '';
+    }
+    return;
+  }
+  const agentName = String(activity.agent_name || 'AI Agent').trim() || 'AI Agent';
+  const stateKey = state + ':' + agentName;
+  if (currentAgentBadgeState === stateKey) return; // 同一状態の再描画は抑制
+  currentAgentBadgeState = stateKey;
+  const textEl = document.getElementById('agent-live-badge-text');
+  if (textEl) textEl.innerText = conf.icon + ' [' + agentName + '] ' + conf.suffix;
+  badge.className = 'agent-live-badge ' + conf.cls;
+  badge.style.display = 'flex';
+}
+
 async function fetchStatus() {
   try {
     const res = await authFetch('/api/status');
@@ -1518,6 +1558,9 @@ async function fetchStatus() {
 
     // 0. ペット状態（歩行コントローラーのガード用）
     petStateNow = data.pet_state || 'idle';
+
+    // 0.5 🤖 AIエージェント稼働ライブバッジ (Phase H: agent_activity 連動)
+    updateAgentActivityBadge(data.agent_activity);
 
     // 1. メッセージ
     if (data.message) {

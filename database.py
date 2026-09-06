@@ -10,12 +10,13 @@ import logging
 import sqlite3
 import json
 import calendar
+import hashlib
 from contextlib import contextmanager
 from datetime import datetime, timedelta
 from typing import Optional, List, Dict, Any, Generator
 from pathlib import Path
 
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, ValidationInfo, field_validator
 
 # ログ設定
 logging.basicConfig(
@@ -117,10 +118,12 @@ class Event(BaseModel):
     google_event_id: Optional[str] = None
     source_id: Optional[int] = None
     
-    @validator('end_time')
-    def end_after_start(cls, v, values):
-        """終了時刻が開始時刻より後であることを検証します。"""
-        if 'start_time' in values and v <= values['start_time']:
+    @field_validator('end_time')
+    @classmethod
+    def end_after_start(cls, v: int, info: ValidationInfo) -> int:
+        """終了時刻が開始時刻より後であることを検証します (Pydantic V2 形式へ移行済み)。"""
+        start_time = info.data.get('start_time')
+        if start_time is not None and v <= start_time:
             raise ValueError('end_timeはstart_timeより後である必要があります')
         return v
 
@@ -2268,6 +2271,77 @@ def get_device_by_token_hash(token_hash: str, db_path: str = "neo_secretary.db")
             last_seen=row[6],
             is_revoked=row[7],
         )
+
+
+def sync_device_session(
+    device_name: str,
+    bearer: str,
+    ip_address: Optional[str] = None,
+    user_agent: Optional[str] = None,
+    db_path: str = "neo_secretary.db"
+) -> Optional[Device]:
+    """認証済み Bearer トークンに対応する端末セッションをデバイス台帳へ同期する。
+
+    SHA-256 ハッシュ化をデータベース層の内部手順として隠蔽し、呼び出し側
+    (HTTPサーバー) からハッシュアルゴリズムの詳細を取り除く (Deep Module 原則)。
+    登録済みかつ失効していない端末は last_seen 更新のみを行い、
+    未登録端末は device_name で自動登録する。last_seen 更新と自動登録は
+    通信を阻害しないよう失敗時に debug ログのみで継続する Fail-Safe とする。
+    なお台帳照会の失敗は握りつぶさず上位へ伝播させる (呼び出し側で Fail-Safe)。
+
+    Args:
+        device_name: 未登録時の登録名 (User-Agent 等から呼び出し側が推定して渡す)。
+        bearer: 平文の Bearer トークン文字列。
+        ip_address: 接続元 IP。
+        user_agent: 接続元 User-Agent。
+        db_path: データベースファイルのパス。
+
+    Returns:
+        該当 Device モデル (未登録時は None。失効済み端末はそのまま返却)。
+    """
+    token_hash = hashlib.sha256(bearer.encode("utf-8")).hexdigest()
+    device = get_device_by_token_hash(token_hash, db_path=db_path)
+    if device is None:
+        try:
+            register_device(device_name, token_hash, ip_address=ip_address, user_agent=user_agent, db_path=db_path)
+        except Exception as e:
+            logger.debug(f"デバイス台帳自動登録エラー (無視): {e}")
+    else:
+        # 失効済み端末の last_seen は更新しない (失効セッションの生存期間を演出しないため)
+        if device.is_revoked != 1:
+            try:
+                touch_device_last_seen(token_hash, ip_address=ip_address, user_agent=user_agent, db_path=db_path)
+                # 返却する Device は touch 後の最新状態 (ip_address / user_agent / last_seen) を反映させる
+                device = get_device_by_token_hash(token_hash, db_path=db_path)
+            except Exception as e:
+                logger.debug(f"last_seen 更新エラー (無視): {e}")
+    return device
+
+
+def register_device_from_bearer(
+    device_name: str,
+    bearer: str,
+    ip_address: Optional[str] = None,
+    user_agent: Optional[str] = None,
+    db_path: str = "neo_secretary.db"
+) -> int:
+    """トークン配布 (QRペアリング等) 時に、平文 Bearer を内部でハッシュ化して台帳へ登録する。
+
+    SHA-256 ハッシュ化をデータベース層の内部手順として隠蔽する (Deep Module 原則)。
+    同一トークンの再配布時は既存レコードの情報が更新される (register_device 準拠)。
+
+    Args:
+        device_name: 端末表示名。
+        bearer: 平文の Bearer トークン文字列。
+        ip_address: 接続元 IP。
+        user_agent: 接続元 User-Agent。
+        db_path: データベースファイルのパス。
+
+    Returns:
+        登録または更新されたデバイス ID。
+    """
+    token_hash = hashlib.sha256(bearer.encode("utf-8")).hexdigest()
+    return register_device(device_name, token_hash, ip_address=ip_address, user_agent=user_agent, db_path=db_path)
 
 
 def get_all_devices(db_path: str = "neo_secretary.db") -> List[Device]:

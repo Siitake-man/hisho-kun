@@ -8,15 +8,25 @@
 第1象限: 重要×緊急）を常に視界の端に置きながらワンクリックで完了できる。
 """
 
+import json
 import logging
+import os
+import threading
 import tkinter as tk
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional, Tuple
 import customtkinter as ctk
 
+import app_paths
 import database
 from database import Task
 
 logger = logging.getLogger(__name__)
+
+# 付箋表示位置の永続化先 (アプリ共通設定ファイル)。キー: "sticky_note_pos" = {"x": int, "y": int}
+STICKY_CONFIG_PATH = app_paths.get_app_root() / "character_config.json"
+
+# 設定ファイル書き込みの直列化ロック (GUIスレッド・HTTPスレッド間の同時書込による JSON 破損の保険)
+_POSITION_SAVE_LOCK = threading.Lock()
 
 
 class DesktopStickyNote:
@@ -60,6 +70,12 @@ class DesktopStickyNote:
         self._width = 280
         self._height = 360
 
+        # 前回保存された表示位置があれば復元する (モニタ構成変更時は画面内へ補正)
+        saved_pos = self._load_saved_position()
+        if saved_pos is not None:
+            self._pos_x, self._pos_y = self._clamp_to_screen(saved_pos[0], saved_pos[1])
+            logger.debug("付箋の前回位置を復元しました: x=%d, y=%d", self._pos_x, self._pos_y)
+
     def toggle_visibility(self) -> None:
         """付箋の表示 / 非表示を切り替える。"""
         if self._is_visible and self.window and self.window.winfo_exists():
@@ -78,9 +94,24 @@ class DesktopStickyNote:
         self._is_visible = True
         self.refresh_tasks()
 
+        # overrideredirect(True) ウィンドウは OS によってフォーカスを得られないことがあるため、
+        # 表示時に明示的にフォーカスを要求する (クイック追加入力の UX 保険)。
+        try:
+            if self.window and self.window.winfo_exists():
+                self.window.focus_force()
+                entry = getattr(self, "add_entry", None)
+                if entry is not None:
+                    entry.focus_set()
+        except Exception as e:
+            logger.debug("付箋フォーカス設定をスキップ: %s", e)
+
     def hide(self) -> None:
         """付箋ウィンドウを非表示にする。"""
         if self.window and self.window.winfo_exists():
+            # 非表示前に実ウィンドウ座標を取得して永続化する (次回起動時に復元)
+            self._pos_x = self.window.winfo_x()
+            self._pos_y = self.window.winfo_y()
+            self._save_position()
             self.window.withdraw()
         self._is_visible = False
 
@@ -105,6 +136,7 @@ class DesktopStickyNote:
         header_frame.pack(fill=tk.X, pady=(0, 6))
         header_frame.bind("<Button-1>", self._on_drag_start)
         header_frame.bind("<B1-Motion>", self._on_drag_motion)
+        header_frame.bind("<ButtonRelease-1>", self._on_drag_end)
 
         title_lbl = tk.Label(
             header_frame,
@@ -116,6 +148,7 @@ class DesktopStickyNote:
         title_lbl.pack(side=tk.LEFT, padx=6, pady=2)
         title_lbl.bind("<Button-1>", self._on_drag_start)
         title_lbl.bind("<B1-Motion>", self._on_drag_motion)
+        title_lbl.bind("<ButtonRelease-1>", self._on_drag_end)
 
         # 閉じる（非表示）ボタン
         close_btn = tk.Label(
@@ -170,14 +203,17 @@ class DesktopStickyNote:
             child.destroy()
 
         try:
-            active_tasks = database.get_active_tasks()
+            # ※ 実在する database.get_tasks を使用する (status=None で todo + in_progress 取得)。
+            # 旧 get_active_tasks() は存在しない関数で、毎回 AttributeError になっていた。
+            active_tasks = database.get_tasks(limit=50)
             # 第1象限（重要×緊急）または優先度高を上位にソート
             priority_tasks: List[Task] = []
             normal_tasks: List[Task] = []
 
             for t in active_tasks:
-                is_urgent = getattr(t, "is_urgent", 0) == 1
-                is_important = getattr(t, "is_important", 0) == 1
+                # Task モデルの実フィールドは importance_flag / urgency_flag (Optional[bool])
+                is_urgent = bool(getattr(t, "urgency_flag", False))
+                is_important = bool(getattr(t, "importance_flag", False))
                 if is_urgent or is_important or (t.priority and t.priority >= 2):
                     priority_tasks.append(t)
                 else:
@@ -224,13 +260,15 @@ class DesktopStickyNote:
         # バッジ（緊急・重要）
         badge_text = ""
         badge_color = "#A09890"
-        if getattr(task, "is_important", 0) == 1 and getattr(task, "is_urgent", 0) == 1:
+        task_is_important = bool(getattr(task, "importance_flag", False))
+        task_is_urgent = bool(getattr(task, "urgency_flag", False))
+        if task_is_important and task_is_urgent:
             badge_text = "[最優先] "
             badge_color = "#FF8A80"
-        elif getattr(task, "is_urgent", 0) == 1:
+        elif task_is_urgent:
             badge_text = "[至急] "
             badge_color = "#FFD180"
-        elif getattr(task, "is_important", 0) == 1:
+        elif task_is_important:
             badge_text = "[重要] "
             badge_color = "#80D8FF"
 
@@ -267,19 +305,102 @@ class DesktopStickyNote:
         if not title:
             return
         try:
-            # デフォルトで重要タスクとして作成
-            database.create_task(
+            # デフォルトで「重要×緊急」タスクとして作成する。
+            # ※ database.create_task の契約は Task モデル第1引数 (キーワード引数は TypeError となる)
+            task = Task(
                 title=title,
                 priority=2,
-                is_important=1,
-                is_urgent=1,
+                importance_flag=True,
+                urgency_flag=True,
             )
+            database.create_task(task)
             self.add_entry.delete(0, tk.END)
             self.refresh_tasks()
             if self.on_task_changed:
                 self.on_task_changed()
         except Exception as e:
             logger.error("タスククイック追加エラー: %s", e)
+
+    def _load_saved_position(self) -> Optional[Tuple[int, int]]:
+        """character_config.json から前回の付箋表示位置を読み込む。
+
+        Returns:
+            Optional[Tuple[int, int]]: 保存済みの (x, y) 座標。未保存・破損時は None。
+        """
+        try:
+            if not STICKY_CONFIG_PATH.exists():
+                return None
+            with open(STICKY_CONFIG_PATH, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            if not isinstance(data, dict):
+                return None
+            pos = data.get("sticky_note_pos")
+            if isinstance(pos, dict):
+                x = int(pos.get("x", -1))
+                y = int(pos.get("y", -1))
+                if x >= 0 and y >= 0:
+                    return (x, y)
+        except Exception as e:
+            logger.error("付箋位置の読み込みエラー: %s", e)
+        return None
+
+    def _clamp_to_screen(self, x: int, y: int) -> Tuple[int, int]:
+        """保存済み座標が画面外 (モニタ構成変更等) の場合に可視範囲へ補正する。
+
+        Args:
+            x: 補正前の X 座標。
+            y: 補正前の Y 座標。
+
+        Returns:
+            Tuple[int, int]: 画面内に収まるよう補正された (x, y) 座標。
+        """
+        try:
+            screen_w = self.root.winfo_screenwidth()
+            screen_h = self.root.winfo_screenheight()
+        except Exception as e:
+            logger.debug("画面サイズ取得に失敗したため座標補正をスキップ: %s", e)
+            return (x, y)
+        # ヘッダー (ドラッグ掴み領域) が必ず画面内に残るよう余白を保証する
+        min_x = -(self._width - 60)
+        max_x = max(0, screen_w - 60)
+        max_y = max(0, screen_h - 60)
+        return (min(max(x, min_x), max_x), min(max(y, 0), max_y))
+
+    def _save_position(self) -> None:
+        """現在の付箋表示位置を character_config.json へ保存する。
+
+        既存の設定キー (current_character / bond_xp / wandering_enabled 等) を
+        読み込んだ上で保護する Read-Modify-Write 方式を採用し、他機能の設定を
+        破壊しない。書き込みは一時ファイル経由のアトミック置換 (os.replace) で
+        行い、プロセス中断等による JSON 破損を防止する。
+        """
+        with _POSITION_SAVE_LOCK:
+            try:
+                data: Dict[str, Any] = {}
+                if STICKY_CONFIG_PATH.exists():
+                    with open(STICKY_CONFIG_PATH, "r", encoding="utf-8") as f:
+                        loaded = json.load(f)
+                        if isinstance(loaded, dict):
+                            data = loaded
+                data["sticky_note_pos"] = {"x": int(self._pos_x), "y": int(self._pos_y)}
+                tmp_path = STICKY_CONFIG_PATH.with_suffix(".json.tmp")
+                with open(tmp_path, "w", encoding="utf-8") as f:
+                    json.dump(data, f, indent=2, ensure_ascii=False)
+                os.replace(tmp_path, STICKY_CONFIG_PATH)
+                logger.debug("付箋位置を保存しました: x=%d, y=%d", self._pos_x, self._pos_y)
+            except Exception as e:
+                logger.error("付箋位置の保存エラー: %s", e)
+
+    def _on_drag_end(self, event: Optional[tk.Event]) -> None:
+        """ドラッグ終了 (マウスボタン解放) 時に現在位置を永続化する。
+
+        Args:
+            event: Tkinter のマウスイベント (ボタン解放時に自動供給、未使用)。
+        """
+        if self.window and self.window.winfo_exists():
+            self._pos_x = self.window.winfo_x()
+            self._pos_y = self.window.winfo_y()
+        self._save_position()
 
     def _on_drag_start(self, event: tk.Event) -> None:
         """ドラッグ開始時の座標を記録。"""
@@ -295,3 +416,8 @@ class DesktopStickyNote:
         self._pos_x = self.window.winfo_x() + dx
         self._pos_y = self.window.winfo_y() + dy
         self.window.geometry(f"+{self._pos_x}+{self._pos_y}")
+
+
+# 後方互換エイリアス
+StickyNoteWindow = DesktopStickyNote
+DraggableStickyNote = DesktopStickyNote

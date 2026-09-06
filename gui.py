@@ -86,12 +86,11 @@ class NeoSecretaryGUI(PomodoroMixin, RadialMenuMixin, TourOverlayMixin):
                 pass
         self.root.destroy()
 
-    def post_action(self, func, *args, **kwargs):
-        """別スレッド（HTTPサーバー等）から安全にメインGUIスレッドへ処理をキューイング
-
-        キーワード引数も透過的に転送する（例: set_pet_state(state, duration_ms=6000)）。
-        """
-        self._action_queue.put((func, args, kwargs))
+    # ※ 旧 post_action (アクションキュー投入版) は同一クラス内での二重定義により、
+    #    後段の root.after 版へ黙って上書きされていた (bridge通知・LifeDreamerミラーが
+    #    TypeError となる事故の根因)。引数付きディスパッチ契約は後段の
+    #    post_action(callback, *args, **kwargs) に一元化済み。
+    #    (_action_queue 自体は main.py の process_action_queue() ドレインと整合するため温存)
 
     def process_action_queue(self):
         """メインループ内で定期的にキューを安全に消化"""
@@ -930,8 +929,10 @@ class NeoSecretaryGUI(PomodoroMixin, RadialMenuMixin, TourOverlayMixin):
             self.auto_minimize_on_link = False
             self._was_linked_minimized = False
             self.root.deiconify()
+            self.root.state('normal')
             self.root.lift()
             self.root.attributes("-topmost", True)
+            self.root.update_idletasks()
             self.update_message("🖥️ スマホからPC画面に呼び出されました！✨")
             self.set_pet_state("happy", duration_ms=3000)
             logger.info("PCペットを画面上に再表示しました")
@@ -992,11 +993,22 @@ class NeoSecretaryGUI(PomodoroMixin, RadialMenuMixin, TourOverlayMixin):
         except Exception as e:
             logger.debug(f"APIキーチェックスキップ: {e}")
 
-    def post_action(self, callback: Any) -> None:
-        """Tkinterのメインスレッドで安全にコールバックを実行するスレッドセーフディスパッチャ。"""
+    def post_action(self, callback: Any, *args: Any, **kwargs: Any) -> None:
+        """Tkinterのメインスレッドで安全にコールバックを実行するスレッドセーフディスパッチャ。
+
+        別スレッド (pystray タスクトレイ / HTTP サーバー等) からの呼び出しは、
+        スレッドセーフな _action_queue に投入し、main.py の非同期メインループ
+        (process_action_queue) から確実に消化させる。これにより、別スレッドから
+        Tkinter の root.after() を呼ぶことによる Windows メッセージドロップを根本防止する。
+        """
         try:
-            if hasattr(self, "root") and self.root.winfo_exists():
-                self.root.after(0, callback)
+            if hasattr(self, "_action_queue") and self._action_queue is not None:
+                self._action_queue.put((callback, args, kwargs))
+            elif hasattr(self, "root") and self.root.winfo_exists():
+                if args or kwargs:
+                    self.root.after(0, lambda: callback(*args, **kwargs))
+                else:
+                    self.root.after(0, callback)
         except Exception as e:
             logger.debug(f"post_action 実行エラー: {e}")
 

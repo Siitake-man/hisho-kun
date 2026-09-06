@@ -266,6 +266,9 @@ class LLMFactory:
         self._current_model: Optional[str] = None
         # 動的にAPIから取得したモデルキャッシュ (provider -> List[Dict[str, str]])
         self._discovered_models: Dict[LLMProvider, List[Dict[str, str]]] = {}
+        # 🚀 P1-C 内包ローカル GGUF のメモリ常駐キャッシュ (key=str(gguf_path))。
+        # 会話ごとのディスク再ロード (数秒待機) を 0 秒化するシングルトン。
+        self._local_llm_cache: Dict[str, Any] = {}
         self._load_cached_discovered_models()
         # is_provider_configured のTTLキャッシュ (provider -> (失効時刻epoch秒, 判定値))
         # 短期改善 Step 3: メニュー展開時の load_dotenv 連打（.env ファイルI/O）を排除する
@@ -522,6 +525,15 @@ class LLMFactory:
             return self._discovered_models[provider]
         return FALLBACK_MODELS.get(provider, [])
 
+    def clear_local_model_cache(self) -> None:
+        """内包ローカル GGUF のメモリ常駐キャッシュを全て解放する。
+
+        モデル切替・アプリ終了時に VRAM/RAM を解放するための公開メソッド。
+        次回の create_model() 呼び出しでは最新モデルが再ロードされる。
+        """
+        self._local_llm_cache.clear()
+        logger.info("🧹 内包ローカルLLMのメモリ常駐キャッシュを解放しました")
+
     def create_model(self, temperature: float = 0.7) -> BaseChatModel:
         """現在選択されているプロバイダ・モデルに基づいて BaseChatModel インスタンスを生成"""
         load_dotenv(dotenv_path=ENV_PATH, override=True)
@@ -590,7 +602,10 @@ class LLMFactory:
                         f"models/ フォルダに .gguf ファイルを配置してください。"
                     )
 
-            logger.info(f"📦 ローカルGGUFモデルをロード中: {gguf_path.name}")
+            if self._local_llm_cache.get(str(gguf_path)) is not None:
+                logger.info(f"⚡ 内包ローカルLLMはメモリ常駐済み: 再利用します ({gguf_path.name})")
+            else:
+                logger.info(f"📦 ローカルGGUFモデルをロード中: {gguf_path.name}")
             try:
                 from llama_cpp import Llama
                 from langchain_core.language_models.chat_models import BaseChatModel
@@ -605,14 +620,24 @@ class LLMFactory:
                     エージェントのルーティングでツールを使わず直接応答する。
                     """
 
-                    def __init__(self, model_path: str, temperature: float = 0.7, n_ctx: int = 4096, n_threads: int = 4):
+                    def __init__(self, model_path: str, temperature: float = 0.7, n_ctx: int = 4096, n_threads: Optional[int] = None, llama_instance: Optional[Any] = None):
                         super().__init__()
-                        self._llm = Llama(
-                            model_path=model_path,
-                            n_ctx=n_ctx,
-                            n_threads=n_threads,
-                            verbose=False,
-                        )
+                        if llama_instance is not None:
+                            # メモリ常駐済み Llama テンソルを再利用 (ロード待機 0 秒化)
+                            self._llm = llama_instance
+                        else:
+                            # GPU 自動オフロード (HISHO_GPU_LAYERS / 既定 -1 = 全層。非対応時は llama.cpp が自動 CPU フォールバック)
+                            gpu_layers = int(os.getenv("HISHO_GPU_LAYERS", "-1"))
+                            # UI 描画・asyncio ループ用に 2 コア確保した最適 CPU スレッド数
+                            cpu_threads = max(1, min(8, (os.cpu_count() or 4) - 2))
+                            threads = n_threads if n_threads is not None else int(os.getenv("HISHO_CPU_THREADS", str(cpu_threads)))
+                            self._llm = Llama(
+                                model_path=model_path,
+                                n_ctx=n_ctx,
+                                n_threads=threads,
+                                n_gpu_layers=gpu_layers,
+                                verbose=False,
+                            )
                         self._temperature = temperature
                         # ネイティブテンプレート用のJinja2フォーマッタ（遅延初期化）
                         self._formatter = None
@@ -686,6 +711,25 @@ class LLMFactory:
                             rendered = rendered[: -len(self.THINK_OPEN)] + self.THINK_CLOSE
                         return rendered
 
+                    def _default_stop_tokens(self) -> list:
+                        """生成を止めるべき終端 (End Of Sequence) トークン一覧を動的に導出する。
+
+                        モデル内に埋め込まれた token_eos を優先し (Bonsai 等のテンプレート差異に
+                        動的に追随)、フォールバックとして <|im_end|> も列挙する。
+
+                        旧実装は <|im_end|> のみを stop に固定していたため、EOS が合致しないモデルで
+                        応答完了後も最大 512 トークンまで裏で生成し続けていた (体感低速度の二次真因)。
+                        """
+                        stops: list = []
+                        try:
+                            eos = self._llm.detokenize([self._llm.token_eos()]).decode("utf-8", errors="ignore").strip()
+                            if eos:
+                                stops.append(eos)
+                        except Exception as e:
+                            logger.debug(f"EOS トークン導出に失敗 (フォールバック使用): {e}")
+                        stops.append("<|im_end|>")
+                        return stops
+
                     def _generate(self, messages: list, stop=None, run_manager=None, **kwargs):
                         """同期推論でメッセージリストから応答を生成する。
 
@@ -696,7 +740,7 @@ class LLMFactory:
                             prompt=self._build_native_prompt(messages),
                             max_tokens=kwargs.get("max_tokens", 512),
                             temperature=self._temperature,
-                            stop=stop or ["<|im_end|>"],
+                            stop=stop or self._default_stop_tokens(),
                         )
                         text = response["choices"][0]["text"].strip()
                         ai_msg = AIMessage(content=text)
@@ -715,7 +759,7 @@ class LLMFactory:
                             prompt=self._build_native_prompt(messages),
                             max_tokens=kwargs.get("max_tokens", 512),
                             temperature=self._temperature,
-                            stop=stop or ["<|im_end|>"],
+                            stop=stop or self._default_stop_tokens(),
                             stream=True,
                         )
                         # プロンプト構築時に思考ブロックを閉じ済みのため、
@@ -728,12 +772,21 @@ class LLMFactory:
                                     message=AIMessageChunk(content=delta_text)
                                 )
 
-                return LlamaCppChatModel(
+                # 🚀 P1-C メモリ常駐キャッシュ: 同一 GGUF パスはロードを一括スキップ
+                cache_key = str(gguf_path)
+                cached_llm = self._local_llm_cache.get(cache_key)
+                if cached_llm is None:
+                    # 別モデルへの切替時は旧常駐分 (VRAM/RAM) を解放してから新モデルをロード
+                    self.clear_local_model_cache()
+                wrapper = LlamaCppChatModel(
                     model_path=str(gguf_path),
                     temperature=temperature,
                     n_ctx=4096,
-                    n_threads=4,
+                    llama_instance=cached_llm,
                 )
+                if cached_llm is None:
+                    self._local_llm_cache[cache_key] = wrapper._llm
+                return wrapper
             except ImportError:
                 logger.error("llama-cpp-python がインストールされていません。pip install llama-cpp-python を実行してください。")
                 raise ImportError("内包ローカルLLMを利用するには 'llama-cpp-python' が必要です。")
