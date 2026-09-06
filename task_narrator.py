@@ -7,6 +7,7 @@ Claude Code, Cursor, Codex, Antigravity などの外部エージェントの作�
 """
 
 import logging
+import os
 import re
 from typing import Optional, Dict, Any
 
@@ -118,6 +119,12 @@ class TaskNarrator:
         別スレッドで実行するため、メインGUIやLLM推論を一切ブロックしません。
         """
         if not text:
+            return
+
+        # 🔐 安全装置: デフォルト無効 (職場・家族環境での意図しない発話を防止)
+        # 有効化する場合は .env または環境変数で VOICE_NARRATION_ENABLED=true を指定する
+        if os.getenv("VOICE_NARRATION_ENABLED", "false").lower() not in ("true", "1", "yes"):
+            logger.debug("🔇 音声読み上げは無効化されています (VOICE_NARRATION_ENABLED=false)")
             return
 
         # 絵文字や記号を音声用にクリーニング

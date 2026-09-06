@@ -572,6 +572,30 @@ class SettingsWindow(ctk.CTkToplevel):
         self.lbl_copy_toast = ctk.CTkLabel(content_mcp, text="", font=self.font_small, text_color="#2E7D32", anchor="w")
         self.lbl_copy_toast.pack(fill="x", padx=4, pady=4)
 
+        # 4. 音声ナレーション設定 (Voice Narration on Task Completion)
+        card_voice = ctk.CTkFrame(content_mcp, fg_color="#F1F8E9", border_width=1, border_color="#7CB342", corner_radius=6)
+        card_voice.pack(fill="x", pady=4, padx=2)
+        ctk.CTkLabel(card_voice, text="🔊 PC音声読み上げ通知 (タスク完了ナレーション)", font=("Meiryo UI", 10.5, "bold"), text_color="#33691E", anchor="w").pack(fill="x", padx=8, pady=(6, 2))
+        ctk.CTkLabel(
+            card_voice,
+            text="外部AI（Antigravity, Claude Code等）のタスク完了時に、PCスピーカーから音声で報告を読み上げます。\n（※オフィスや夜間、静かな環境ではOFFを推奨します）",
+            font=self.font_small,
+            text_color="#558B2F",
+            anchor="w",
+            justify="left"
+        ).pack(fill="x", padx=8, pady=(0, 4))
+
+        voice_init = os.getenv("VOICE_NARRATION_ENABLED", "false").lower() in ("true", "1", "yes")
+        self.var_voice_narration = tk.BooleanVar(value=voice_init)
+        self.chk_voice_narration = ctk.CTkSwitch(
+            card_voice,
+            text="PC音声読み上げを有効化する",
+            variable=self.var_voice_narration,
+            font=("Meiryo UI", 9.5),
+            progress_color="#558B2F"
+        )
+        self.chk_voice_narration.pack(anchor="w", padx=8, pady=(2, 6))
+
         # =====================================================================
         # Tab 3: カレンダー・Google・GitHub・プラグイン
         # =====================================================================
@@ -1426,6 +1450,7 @@ class SettingsWindow(ctk.CTkToplevel):
             "GITHUB_PERSONAL_ACCESS_TOKEN": self.entry_github_token.get().strip(),
             "GITHUB_REPO": self.entry_github_repo.get().strip(),
             "SLACK_WEBHOOK_URL": self.entry_slack_webhook.get().strip(),
+            "VOICE_NARRATION_ENABLED": "true" if self.var_voice_narration.get() else "false",
         }
         
         saved_llm = factory.save_settings(new_settings)

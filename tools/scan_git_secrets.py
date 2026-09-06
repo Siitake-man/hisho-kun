@@ -132,6 +132,9 @@ def scan_history() -> List[Tuple[str, str, str]]:
         elif line.startswith("+++ b/"):
             current_file = line[len("+++ b/"):].strip()
         else:
+            # 🛡 テストファイルおよびスキャナ自体のパターン定義は自己検出（偽陽性）から除外
+            if current_file.endswith("test_secret_scanner.py") or current_file.endswith("scan_git_secrets.py"):
+                continue
             for label, masked in find_secrets(line):
                 findings.append((current_commit, current_file, f"[{label}] {masked}"))
     return findings

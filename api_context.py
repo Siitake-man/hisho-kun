@@ -20,7 +20,7 @@ api_agent_bridge / api_calendar) へ抽出する際の Seam (接合点) を定�
 
 import json
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Dict
 
 logger = logging.getLogger(__name__)
@@ -41,25 +41,39 @@ class ApiContext:
     body: bytes = b""
     client_ip: str = "unknown"
     user_agent: str = ""
+    _headers_sent: bool = field(default=False, init=False)
 
     def begin_json_response(self, status_code: int = 200) -> None:
         """JSONレスポンスの共通前導処理 (ステータス行・ヘッダー送出) を行う。
 
+        既にヘッダーが送出済みの場合は二重送出を防止してスキップする。
+
         Args:
             status_code: 送出するHTTPステータスコード。
         """
+        if self._headers_sent:
+            logger.debug("ヘッダーは既に送出済みのため、begin_json_response をスキップします")
+            return
         self.handler.send_response(status_code)
         self.handler.send_header("Content-Type", "application/json; charset=utf-8")
         self.handler._set_cors_headers()
         self.handler.end_headers()
+        self._headers_sent = True
 
-    def write_json(self, payload: Dict[str, Any], ensure_ascii: bool = True) -> None:
+    def write_json(self, payload: Dict[str, Any], ensure_ascii: bool = True,
+                   status_code: int = 200) -> None:
         """JSONペイロードをレスポンスボディへ書き込む。
+
+        ヘッダーがまだ送出されていない場合、指定された status_code で自動的に
+        ヘッダーを送出する (遅延ヘッダー送出 / Lazy Headers)。
 
         Args:
             payload: 書き込む辞書ペイロード。
             ensure_ascii: False の場合は非ASCII文字をそのまま出力する。
+            status_code: 初回ヘッダー送出時に使用するHTTPステータスコード。
         """
+        if not self._headers_sent:
+            self.begin_json_response(status_code=status_code)
         self.handler.wfile.write(json.dumps(payload, ensure_ascii=ensure_ascii).encode("utf-8"))
 
     def send_json(self, payload: Dict[str, Any], ensure_ascii: bool = True,
@@ -71,14 +85,19 @@ class ApiContext:
             ensure_ascii: False の場合は非ASCII文字をそのまま出力する。
             status_code: 送出するHTTPステータスコード。
         """
-        self.begin_json_response(status_code=status_code)
-        self.write_json(payload, ensure_ascii=ensure_ascii)
+        if not self._headers_sent:
+            self.begin_json_response(status_code=status_code)
+        self.write_json(payload, ensure_ascii=ensure_ascii, status_code=status_code)
 
-    def send_error_json(self, message: str, ensure_ascii: bool = True) -> None:
+    def send_error_json(self, message: str, ensure_ascii: bool = True,
+                        status_code: int = 400) -> None:
         """共通エラーレスポンス ({"status": "error", "message": ...}) を送信する。
 
         Args:
             message: クライアントへ返すエラーメッセージ。
             ensure_ascii: False の場合は非ASCII文字をそのまま出力する。
+            status_code: 送出するHTTPステータスコード (デフォルト: 400)。
         """
-        self.write_json({"status": "error", "message": message}, ensure_ascii=ensure_ascii)
+        self.write_json({"status": "error", "message": message}, ensure_ascii=ensure_ascii,
+                        status_code=status_code)
+

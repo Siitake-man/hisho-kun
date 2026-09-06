@@ -302,6 +302,34 @@ class MinigameScore(BaseModel):
     created_at: int = Field(default_factory=lambda: int(datetime.now().timestamp() * 1000))
 
 
+class Device(BaseModel):
+    """
+    登録済みクライアント端末（デバイス台帳）を表すモデル。
+    
+    ゼロトラスト原則に基づき、スマホPWAや外部連携端末の接続トークンハッシュ、
+    端末名、IP、User-Agent、失効状態を追跡します。
+    
+    Attributes:
+        id: デバイスID（自動採番）
+        device_name: 端末表示名（例: "Boss iPhone 15 Pro"）
+        token_hash: 認証トークンのSHA-256ハッシュ
+        ip_address: 最終接続元IPアドレス
+        user_agent: 最終接続元ブラウザ/クライアント識別子
+        created_at: 登録時刻（Unix Timestamp ミリ秒）
+        last_seen: 最終アクセス時刻（Unix Timestamp ミリ秒）
+        is_revoked: 失効フラグ（0: 有効, 1: 失効）
+    """
+    id: Optional[int] = None
+    device_name: str = Field(..., min_length=1, max_length=100)
+    token_hash: str = Field(..., min_length=1)
+    ip_address: Optional[str] = None
+    user_agent: Optional[str] = None
+    created_at: int = Field(default_factory=lambda: int(datetime.now().timestamp() * 1000))
+    last_seen: int = Field(default_factory=lambda: int(datetime.now().timestamp() * 1000))
+    is_revoked: int = 0
+
+
+
 
 # =============================================================================
 # データベース初期化
@@ -503,6 +531,25 @@ def init_db(db_path: str = "neo_secretary.db") -> None:
             "ON minigame_scores (game_id, score DESC)"
         )
         logger.info("minigame_scoresテーブルを確認/作成しました")
+
+        # devicesテーブル (ゼロトラスト端末台帳・個別トークン失効管理: roadmap 2.6)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS devices (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                device_name TEXT NOT NULL,
+                token_hash TEXT NOT NULL UNIQUE,
+                ip_address TEXT,
+                user_agent TEXT,
+                created_at INTEGER NOT NULL,
+                last_seen INTEGER NOT NULL,
+                is_revoked INTEGER NOT NULL DEFAULT 0
+            )
+        """)
+        cursor.execute(
+            "CREATE INDEX IF NOT EXISTS idx_devices_token_hash "
+            "ON devices (token_hash)"
+        )
+        logger.info("devicesテーブルを確認/作成しました")
 
         
     logger.info(f"データベース初期化完了: {db_path}")
@@ -2132,6 +2179,185 @@ def get_recent_minigame_scores(game_id: str, limit: int = 10, db_path: str = "ne
             MinigameScore(id=row[0], game_id=row[1], score=row[2], created_at=row[3])
             for row in rows
         ]
+
+
+# =============================================================================
+# CRUD操作: Devices (端末台帳・ゼロトラスト認証)
+# =============================================================================
+
+def register_device(
+    device_name: str,
+    token_hash: str,
+    ip_address: Optional[str] = None,
+    user_agent: Optional[str] = None,
+    db_path: str = "neo_secretary.db"
+) -> int:
+    """
+    新規端末を登録、または同一token_hashの端末情報を更新します。
+
+    Args:
+        device_name: 端末表示名
+        token_hash: 認証トークンのSHA-256ハッシュ文字列
+        ip_address: 接続元IP
+        user_agent: 接続元User-Agent
+        db_path: データベースファイルのパス
+
+    Returns:
+        登録または更新されたデバイスID
+    """
+    now = int(datetime.now().timestamp() * 1000)
+    with get_db_connection(db_path) as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT id FROM devices WHERE token_hash = ?
+        """, (token_hash,))
+        row = cursor.fetchone()
+        if row:
+            dev_id = int(row[0])
+            cursor.execute("""
+                UPDATE devices
+                SET device_name = ?,
+                    ip_address = COALESCE(?, ip_address),
+                    user_agent = COALESCE(?, user_agent),
+                    last_seen = ?
+                WHERE id = ?
+            """, (device_name, ip_address, user_agent, now, dev_id))
+            logger.info(f"デバイス台帳更新: ID={dev_id}, name={device_name}")
+            return dev_id
+        else:
+            cursor.execute("""
+                INSERT INTO devices (
+                    device_name, token_hash, ip_address, user_agent,
+                    created_at, last_seen, is_revoked
+                ) VALUES (?, ?, ?, ?, ?, ?, 0)
+            """, (device_name, token_hash, ip_address, user_agent, now, now))
+            dev_id = int(cursor.lastrowid)
+            logger.info(f"新規デバイス登録: ID={dev_id}, name={device_name}")
+            return dev_id
+
+
+def get_device_by_token_hash(token_hash: str, db_path: str = "neo_secretary.db") -> Optional[Device]:
+    """
+    token_hash に合致するデバイス情報を取得します。
+
+    Args:
+        token_hash: トークンのSHA-256ハッシュ
+        db_path: データベースファイルのパス
+
+    Returns:
+        Device モデル、見つからない場合は None
+    """
+    with get_db_connection(db_path) as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT id, device_name, token_hash, ip_address, user_agent,
+                   created_at, last_seen, is_revoked
+            FROM devices
+            WHERE token_hash = ?
+        """, (token_hash,))
+        row = cursor.fetchone()
+        if not row:
+            return None
+        return Device(
+            id=row[0],
+            device_name=row[1],
+            token_hash=row[2],
+            ip_address=row[3],
+            user_agent=row[4],
+            created_at=row[5],
+            last_seen=row[6],
+            is_revoked=row[7],
+        )
+
+
+def get_all_devices(db_path: str = "neo_secretary.db") -> List[Device]:
+    """
+    登録されているすべてのデバイス一覧を最終接続日時の新しい順に取得します。
+
+    Args:
+        db_path: データベースファイルのパス
+
+    Returns:
+        Device モデルのリスト
+    """
+    with get_db_connection(db_path) as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT id, device_name, token_hash, ip_address, user_agent,
+                   created_at, last_seen, is_revoked
+            FROM devices
+            ORDER BY last_seen DESC, id DESC
+        """)
+        rows = cursor.fetchall()
+        return [
+            Device(
+                id=row[0],
+                device_name=row[1],
+                token_hash=row[2],
+                ip_address=row[3],
+                user_agent=row[4],
+                created_at=row[5],
+                last_seen=row[6],
+                is_revoked=row[7],
+            )
+            for row in rows
+        ]
+
+
+def revoke_device(device_id: int, db_path: str = "neo_secretary.db") -> bool:
+    """
+    指定したデバイスを失効状態にします。
+
+    Args:
+        device_id: デバイスID
+        db_path: データベースファイルのパス
+
+    Returns:
+        更新成功時は True
+    """
+    with get_db_connection(db_path) as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            UPDATE devices
+            SET is_revoked = 1
+            WHERE id = ?
+        """, (device_id,))
+        success = cursor.rowcount > 0
+        if success:
+            logger.warning(f"デバイスID={device_id} を失効 (Revoked) に設定しました")
+        return success
+
+
+def touch_device_last_seen(
+    token_hash: str,
+    ip_address: Optional[str] = None,
+    user_agent: Optional[str] = None,
+    db_path: str = "neo_secretary.db"
+) -> bool:
+    """
+    通信発生時にデバイスの最終アクセス日時（およびIP/UA）を更新します。
+
+    Args:
+        token_hash: 認証トークンのSHA-256ハッシュ
+        ip_address: 接続元IP（任意）
+        user_agent: 接続元User-Agent（任意）
+        db_path: データベースファイルのパス
+
+    Returns:
+        更新対象が存在した場合は True
+    """
+    now = int(datetime.now().timestamp() * 1000)
+    with get_db_connection(db_path) as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            UPDATE devices
+            SET last_seen = ?,
+                ip_address = COALESCE(?, ip_address),
+                user_agent = COALESCE(?, user_agent)
+            WHERE token_hash = ?
+        """, (now, ip_address, user_agent, token_hash))
+        return cursor.rowcount > 0
+
 
 
 # =============================================================================

@@ -1,4 +1,4 @@
-﻿customtkinter==5.2.2
+customtkinter==5.2.2
 google-auth==2.49.0
 google-genai==1.66.0
 httpx==0.28.1
@@ -16,3 +16,4 @@ python-dotenv==1.2.2
 qrcode==8.2
 requests==2.32.5
 requests-toolbelt==1.0.0
+pystray==0.19.5

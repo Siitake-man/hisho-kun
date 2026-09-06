@@ -7,7 +7,7 @@
 if ('caches' in window) {
   caches.keys().then(keys => {
     keys.forEach(key => {
-      if (key !== 'neo-pet-v5.22') caches.delete(key);
+      if (key !== 'neo-pet-v5.24') caches.delete(key);
     });
   });
 }
@@ -817,6 +817,7 @@ function getAudioContext() {
 // =============================================================================
 let lastApprovalRequestId = null;
 let lastActiveEventKey = null;
+let lastReminderKey = null;
 let chimeTimers = [];
 
 /** 最初のユーザー操作で AudioContext を解錠する（モバイル自動再生制限の解除） */
@@ -1641,9 +1642,32 @@ async function fetchStatus() {
           petStateNow = 'celebrate';
           if (window.EasterEggEngine) EasterEggEngine.playSound('revive');
         }
+      } else if (data.due_reminders && data.due_reminders.length > 0) {
+        const rem = data.due_reminders[0];
+        const remKey = `${rem.type || 'reminder'}:${rem.title || ''}:${rem.due_at || ''}`;
+        const isNew = (lastReminderKey !== remKey);
+        lastReminderKey = remKey;
+        currentActiveEvent = rem;
+        eventBanner.style.display = 'block';
+        eventBanner.className = 'reminder';
+        document.getElementById('event-type-badge').innerText = '⏰ 予定リマインダー';
+        document.getElementById('banner-hint').innerText = '10分前のお知らせ';
+        document.getElementById('event-title').innerText = rem.title || '予定の時間です';
+        document.getElementById('event-desc').innerText = rem.message || rem.due_at || '';
+        const dismissBtn = document.getElementById('banner-dismiss-btn');
+        if (dismissBtn) dismissBtn.style.display = '';
+        if (bannerActions) bannerActions.style.display = 'none';
+        if (isNew) {
+          playAlertChime(3);
+          showToast(`⏰ 【リマインダー】${rem.title || '予定があります'}`);
+          if (navigator.vibrate) navigator.vibrate([150, 100, 150, 100, 300]);
+          petStateNow = 'alarm_ask';
+          if (window.EasterEggEngine) EasterEggEngine.playSound('alarm');
+        }
       } else {
         currentActiveEvent = null;
         lastActiveEventKey = null;
+        lastReminderKey = null;
         eventBanner.style.display = 'none';
       }
     }

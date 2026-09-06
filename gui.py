@@ -69,6 +69,23 @@ class NeoSecretaryGUI(PomodoroMixin, RadialMenuMixin, TourOverlayMixin):
         self._build_ui(transparent_color)
         self._bind_events()
 
+        # 🖥️ タスクトレイ常駐マネージャー (pystray) の初期化
+        try:
+            from ui.system_tray import init_system_tray
+            self.tray_manager = init_system_tray(self)
+        except Exception as e:
+            logger.debug(f"タスクトレイ初期化スキップ: {e}")
+            self.tray_manager = None
+
+    def quit_app(self):
+        """アプリケーションを完全に終了する（タスクトレイアイコン破棄＆ウィンドウ破棄）"""
+        if getattr(self, 'tray_manager', None) is not None:
+            try:
+                self.tray_manager.stop()
+            except Exception:
+                pass
+        self.root.destroy()
+
     def post_action(self, func, *args, **kwargs):
         """別スレッド（HTTPサーバー等）から安全にメインGUIスレッドへ処理をキューイング
 
@@ -693,7 +710,7 @@ class NeoSecretaryGUI(PomodoroMixin, RadialMenuMixin, TourOverlayMixin):
         menu.add_command(label="💡 サジェストソース設定", command=lambda: SuggestSettingsDialog(self))
         menu.add_command(label="⚙ API・MCP設定", command=self._open_settings)
         menu.add_separator()
-        menu.add_command(label="❌ 終了", command=self.root.destroy)
+        menu.add_command(label="❌ 終了", command=self.quit_app)
         return menu
 
     def _toggle_wandering(self) -> None:

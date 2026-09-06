@@ -42,6 +42,26 @@ from sync_dtos import (
 logger = logging.getLogger(__name__)
 
 
+def _respond_invalid_body(ctx: ApiContext, action: str) -> bool:
+    """リクエストボディが JSON / DTO として解釈できない場合の明示エラー応答ヘルパー。
+
+    Fowler Duplicated Code 解消 (Sprint A 第3弾)。
+    """
+    logger.warning(f"📱 {action}: JSONとして解釈できないリクエストを受信しました")
+    ctx.write_json({"status": "error", "message": "invalid request body"})
+    return True
+
+
+def _respond_missing_param(ctx: ApiContext, action: str, param_name: str) -> bool:
+    """必須パラメータが欠落または空欄の場合の明示エラー応答ヘルパー。
+
+    Fowler Duplicated Code 解消 (Sprint A 第3弾)。
+    """
+    logger.warning(f"📱 {action}: {param_name} が欠落したリクエストを受信しました")
+    ctx.write_json({"status": "error", "message": f"missing parameter: {param_name}"})
+    return True
+
+
 def action_complete_task(ctx: ApiContext) -> bool:
     """スマホ側からのタスク完了を受け付ける。
 
@@ -53,13 +73,9 @@ def action_complete_task(ctx: ApiContext) -> bool:
     """
     req = parse_request(ctx.body, TaskActionRequestDTO)
     if req is None:
-        logger.warning("📱 complete_task: JSONとして解釈できないリクエストを受信しました")
-        ctx.write_json({"status": "error", "message": "invalid request body"})
-        return True
+        return _respond_invalid_body(ctx, "complete_task")
     if not req.task_id:
-        logger.warning("📱 complete_task: task_id が欠落したリクエストを受信しました")
-        ctx.write_json({"status": "error", "message": "missing parameter: task_id"})
-        return True
+        return _respond_missing_param(ctx, "complete_task", "task_id")
     database.complete_task(req.task_id)
     logger.info(f"📱 スマホ側からタスク完了を受信: TaskID={req.task_id}")
     ctx.write_json({"status": "success", "task_id": req.task_id})
@@ -77,13 +93,9 @@ def action_reopen_task(ctx: ApiContext) -> bool:
     """
     req = parse_request(ctx.body, TaskActionRequestDTO)
     if req is None:
-        logger.warning("📱 reopen_task: JSONとして解釈できないリクエストを受信しました")
-        ctx.write_json({"status": "error", "message": "invalid request body"})
-        return True
+        return _respond_invalid_body(ctx, "reopen_task")
     if not req.task_id:
-        logger.warning("📱 reopen_task: task_id が欠落したリクエストを受信しました")
-        ctx.write_json({"status": "error", "message": "missing parameter: task_id"})
-        return True
+        return _respond_missing_param(ctx, "reopen_task", "task_id")
     success = database.reopen_task(req.task_id)
     logger.info(f"📱 スマホ側からタスク完了取り消しを受信: TaskID={req.task_id}, success={success}")
     ctx.write_json({"status": "success" if success else "error", "task_id": req.task_id})
@@ -101,13 +113,9 @@ def action_toggle_habit(ctx: ApiContext) -> bool:
     """
     req = parse_request(ctx.body, HabitActionRequestDTO)
     if req is None:
-        logger.warning("📱 toggle_habit: JSONとして解釈できないリクエストを受信しました")
-        ctx.write_json({"status": "error", "message": "invalid request body"})
-        return True
+        return _respond_invalid_body(ctx, "toggle_habit")
     if not req.habit_id:
-        logger.warning("📱 toggle_habit: habit_id が欠落したリクエストを受信しました")
-        ctx.write_json({"status": "error", "message": "missing parameter: habit_id"})
-        return True
+        return _respond_missing_param(ctx, "toggle_habit", "habit_id")
     is_done = database.toggle_habit_log(req.habit_id)
     # 親愛度XP加算 (+10 XP)
     if is_done:
@@ -133,15 +141,11 @@ def action_add_habit(ctx: ApiContext) -> bool:
     """
     req = parse_request(ctx.body, AddHabitRequestDTO)
     if req is None:
-        logger.warning("📱 add_habit: JSONとして解釈できないリクエストを受信しました")
-        ctx.write_json({"status": "error", "message": "invalid request body"})
-        return True
+        return _respond_invalid_body(ctx, "add_habit")
     title = (req.title or "").strip()
     emoji = req.emoji or "🌱"
     if not title:
-        logger.warning("📱 add_habit: title が空欄のリクエストを受信しました")
-        ctx.write_json({"status": "error", "message": "missing parameter: title"})
-        return True
+        return _respond_missing_param(ctx, "add_habit", "title")
     from database import Habit
     h_id = database.create_habit(Habit(title=title, emoji=emoji))
     logger.info(f"📱 スマホ側から習慣作成を受信: ID={h_id}, Title={title}")
@@ -160,14 +164,10 @@ def action_quick_add_task(ctx: ApiContext) -> bool:
     """
     req = parse_request(ctx.body, QuickAddRequestDTO)
     if req is None:
-        logger.warning("📱 quick_add_task: JSONとして解釈できないリクエストを受信しました")
-        ctx.write_json({"status": "error", "message": "invalid request body"})
-        return True
+        return _respond_invalid_body(ctx, "quick_add_task")
     quick_text = (req.text or "").strip()
     if not quick_text:
-        logger.warning("📱 quick_add_task: text が空欄のリクエストを受信しました")
-        ctx.write_json({"status": "error", "message": "missing parameter: text"})
-        return True
+        return _respond_missing_param(ctx, "quick_add_task", "text")
     from task_parser import parse_input, tags_to_db_string
     parsed = parse_input(quick_text)
     if parsed.title:
@@ -310,13 +310,9 @@ def action_update_task(ctx: ApiContext) -> bool:
     """
     req = parse_request(ctx.body, UpdateTaskRequestDTO)
     if req is None:
-        logger.warning("📱 update_task: JSONとして解釈できないリクエストを受信しました")
-        ctx.write_json({"status": "error", "message": "invalid request body"})
-        return True
+        return _respond_invalid_body(ctx, "update_task")
     if not req.task_id:
-        logger.warning("📱 update_task: task_id が欠落したリクエストを受信しました")
-        ctx.write_json({"status": "error", "message": "missing parameter: task_id"})
-        return True
+        return _respond_missing_param(ctx, "update_task", "task_id")
     # model_fields_set で「クライアントが明示送信したキー」のみを反映 (null=未指定維持)
     sent_keys = req.model_fields_set
     fields: Dict[str, Any] = {}
@@ -355,13 +351,9 @@ def action_delete_task(ctx: ApiContext) -> bool:
     """
     req = parse_request(ctx.body, TaskActionRequestDTO)
     if req is None:
-        logger.warning("📱 delete_task: JSONとして解釈できないリクエストを受信しました")
-        ctx.write_json({"status": "error", "message": "invalid request body"})
-        return True
+        return _respond_invalid_body(ctx, "delete_task")
     if not req.task_id:
-        logger.warning("📱 delete_task: task_id が欠落したリクエストを受信しました")
-        ctx.write_json({"status": "error", "message": "missing parameter: task_id"})
-        return True
+        return _respond_missing_param(ctx, "delete_task", "task_id")
     success = database.delete_task(req.task_id)
     logger.info(f"📱 スマホ側からタスク削除を受信: TaskID={req.task_id}, success={success}")
     ctx.write_json({

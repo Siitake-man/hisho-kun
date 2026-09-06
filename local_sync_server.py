@@ -16,6 +16,7 @@ import uuid
 import hmac
 import socket
 import secrets
+import hashlib
 import logging
 import threading
 from typing import Any, Dict, Optional
@@ -58,6 +59,7 @@ class QuietThreadingHTTPServer(ThreadingHTTPServer):
 from pathlib import Path
 from typing import Dict, Any, Optional, List, Set
 from urllib.parse import urlsplit, parse_qs
+from auth_rate_limiter import get_auth_rate_limiter
 
 
 def _fmt_event_dt(ms_val: Any) -> str:
@@ -83,6 +85,7 @@ from api_context import ApiContext
 import api_tasks
 import api_agent_bridge
 import api_calendar
+from server_watchdog import ServerWatchdog
 
 logger = logging.getLogger(__name__)
 
@@ -663,7 +666,7 @@ class DeskPetSyncHandler(SimpleHTTPRequestHandler):
 
     @staticmethod
     def _is_private_ip(client_ip: str) -> bool:
-        """接続元IPがローカルまたは同一LAN内のプライベートIPか判定する。"""
+        """接続元IPがローカルまたは同一LAN・Tailscale内のプライベートIPか判定する。"""
         if client_ip in ("127.0.0.1", "::1", "localhost", "unknown"):
             return True
         # 192.168.x.x, 10.x.x.x, 172.16.x.x - 172.31.x.x
@@ -673,20 +676,110 @@ class DeskPetSyncHandler(SimpleHTTPRequestHandler):
             parts = client_ip.split(".")
             if len(parts) >= 2 and parts[1].isdigit() and 16 <= int(parts[1]) <= 31:
                 return True
+        # Tailscale CGNAT (100.64.0.0/10: 100.64.x.x - 100.127.x.x)
+        if client_ip.startswith("100."):
+            parts = client_ip.split(".")
+            if len(parts) >= 2 and parts[1].isdigit() and 64 <= int(parts[1]) <= 127:
+                return True
         return False
 
+    @staticmethod
+    def _infer_device_name(user_agent: str) -> str:
+        """User-Agent 文字列からデバイス表示名を推定する。"""
+        ua = (user_agent or "").lower()
+        if "iphone" in ua:
+            return "iPhone"
+        elif "ipad" in ua:
+            return "iPad"
+        elif "android" in ua:
+            return "Android端末"
+        elif "macintosh" in ua:
+            return "Mac"
+        elif "windows" in ua:
+            return "Windows PC"
+        return "スマホブラウザ"
+
     def _check_auth(self) -> bool:
-        """Bearerトークンを検証する。LAN内接続時は柔軟に自己治癒を許可する。"""
-        token_mgr = get_sync_token_manager()
+        """Bearerトークンを検証する。LAN内接続時は柔軟に自己治癒を許可する。
+
+        Sprint A 第2弾: 401 認証失敗のIP別レートリミット (1分10回失敗で5分間締め出し)。
+        締め出し期間中は 429 Too Many Requests と Retry-After ヘッダーを返す。
+        さらに、デバイス台帳 (devices テーブル) と照合し、個別失効 (Revoke) 済み端末を 403 で拒絶する。
+        """
         client_ip = self.client_address[0] if self.client_address else "unknown"
+        user_agent = self.headers.get("User-Agent", "")
+        rate_limiter = get_auth_rate_limiter()
+        is_trusted = self._is_private_ip(client_ip)
 
-        # 有効なBearerトークンがあれば認証OK
-        if token_mgr.verify(self._get_bearer_token()):
+        # 1. 締め出し判定 (外部IPのみ。同一LAN・Tailscale端末は再起動時のトークン不整合による誤遮断を防止)
+        if not is_trusted:
+            blocked, retry_after = rate_limiter.is_blocked(client_ip)
+            if blocked:
+                logger.warning(
+                    f"🚨 [RateLimit] IP {client_ip} はロックアウト中のため拒否 (残り {retry_after}秒)"
+                )
+                try:
+                    self.send_response(429)
+                    self.send_header("Content-Type", "application/json; charset=utf-8")
+                    self.send_header("Retry-After", str(retry_after))
+                    self._set_cors_headers()
+                    self.end_headers()
+                    self.wfile.write(json.dumps(
+                        {
+                            "status": "error",
+                            "message": "Too many failed authentication attempts. Please try again later.",
+                            "retry_after": retry_after,
+                        },
+                        ensure_ascii=False
+                    ).encode("utf-8"))
+                except Exception:
+                    pass
+                return False
+
+        token_mgr = get_sync_token_manager()
+        bearer = self._get_bearer_token()
+
+        # 2. 有効なBearerトークンがあれば認証OK（デバイス台帳で失効状態を検査）
+        if bearer and token_mgr.verify(bearer):
+            token_hash = hashlib.sha256(bearer.encode("utf-8")).hexdigest()
+            dev = database.get_device_by_token_hash(token_hash)
+            if dev:
+                if dev.is_revoked == 1:
+                    logger.warning(
+                        f"🚫 [SyncAuth] 失効済みデバイスからのアクセス拒否: ID={dev.id}, name={dev.device_name} (IP: {client_ip})"
+                    )
+                    try:
+                        self.send_response(403)
+                        self.send_header("Content-Type", "application/json; charset=utf-8")
+                        self._set_cors_headers()
+                        self.end_headers()
+                        self.wfile.write(json.dumps(
+                            {"status": "forbidden", "message": "この端末の連携は失効しています。"},
+                            ensure_ascii=False
+                        ).encode("utf-8"))
+                    except Exception:
+                        pass
+                    return False
+                try:
+                    database.touch_device_last_seen(token_hash, ip_address=client_ip, user_agent=user_agent)
+                except Exception as e:
+                    logger.debug(f"last_seen 更新エラー (無視): {e}")
+            else:
+                # 台帳未登録なら自動登録
+                try:
+                    dev_name = self._infer_device_name(user_agent)
+                    database.register_device(dev_name, token_hash, ip_address=client_ip, user_agent=user_agent)
+                except Exception as e:
+                    logger.debug(f"デバイス台帳自動登録エラー (無視): {e}")
             return True
 
-        # 同一LAN内からのGETリクエスト（/api/status等）は閲覧を許可
-        if self.command == "GET" and self._is_private_ip(client_ip):
+        # 3. 同一LAN・Tailscale内からのGETリクエスト（/api/status等）は閲覧を許可
+        if self.command == "GET" and is_trusted:
             return True
+
+        # 4. 認証失敗: 外部IPのみ失敗カウントを記録
+        if not is_trusted:
+            rate_limiter.record_failure(client_ip)
 
         logger.warning(
             f"🚫 [SyncAuth] 認証失敗: {self.path} (IP: {client_ip})"
@@ -777,7 +870,47 @@ class DeskPetSyncHandler(SimpleHTTPRequestHandler):
             self.send_header("Content-Type", "application/json; charset=utf-8")
             self._set_cors_headers()
             self.end_headers()
-            self.wfile.write(json.dumps({"status": "ok", "token": tm.token}, ensure_ascii=False).encode("utf-8"))
+            token = tm.token
+            try:
+                # トークン配布時にデバイス台帳へ自動登録
+                token_hash = hashlib.sha256(token.encode("utf-8")).hexdigest()
+                dev_name = self._infer_device_name(user_agent)
+                database.register_device(dev_name, token_hash, ip_address=client_ip, user_agent=user_agent)
+            except Exception as e:
+                logger.warning(f"デバイス台帳登録エラー (無視してトークン返却継続): {e}")
+            self.wfile.write(json.dumps({"status": "ok", "token": token}, ensure_ascii=False).encode("utf-8"))
+            return
+
+        # 0.4 登録デバイス一覧取得 (GET /api/devices) — ゼロトラスト台帳管理
+        if self.path == "/api/devices":
+            if not self._check_auth():
+                return
+            try:
+                devices = database.get_all_devices()
+                dev_list = [
+                    {
+                        "id": d.id,
+                        "device_name": d.device_name,
+                        "ip_address": d.ip_address,
+                        "user_agent": d.user_agent,
+                        "created_at": d.created_at,
+                        "last_seen": d.last_seen,
+                        "is_revoked": d.is_revoked,
+                    }
+                    for d in devices
+                ]
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json; charset=utf-8")
+                self._set_cors_headers()
+                self.end_headers()
+                self.wfile.write(json.dumps({"status": "ok", "devices": dev_list}, ensure_ascii=False).encode("utf-8"))
+            except Exception as e:
+                logger.error(f"デバイス一覧取得エラー: {e}")
+                self.send_response(500)
+                self.send_header("Content-Type", "application/json; charset=utf-8")
+                self._set_cors_headers()
+                self.end_headers()
+                self.wfile.write(json.dumps({"status": "error", "message": str(e)}).encode("utf-8"))
             return
 
         # 0.5 ミニゲームハイスコア取得 (GET /api/minigame/high?game_id=xxx)
@@ -861,12 +994,23 @@ class DeskPetSyncHandler(SimpleHTTPRequestHandler):
                 pomodoro_sec = getattr(gui, "pomodoro_remaining_seconds", 0) if gui else 0
                 pomodoro_label = "☕ 休憩中" if pomodoro_is_break else "🍅 集中中"
                 
+                # ⏰ 期限リマインダー (roadmap 3.1) — エンジン未起動 (テスト/MCP単体) 時は空配列
+                try:
+                    from reminder_engine import get_reminder_engine
+                    due_reminders = get_reminder_engine().get_pending_for_phone()
+                except Exception as rem_err:
+                    logger.debug(f"リマインダー状態取得スキップ: {rem_err}")
+                    due_reminders = []
+
                 pet_state = "alarm_ask" if pending_req else ("focus" if (pomodoro_active and not pomodoro_is_break) else "idle")
-                # 台詞の優先順位: 承認要請 > 集中タイム > PCペット最新セリフ（ミラー） > キャラ別ローテーション挨拶
+                # 台詞の優先順位: 承認要請 > リマインダー > 集中タイム > PCペット最新セリフ（ミラー） > キャラ別ローテーション挨拶
                 pc_message = str(getattr(gui, "current_message", "") or "").strip() if gui else ""
-                use_greeting_rotation = not (pending_req or (pomodoro_active and not pomodoro_is_break) or pc_message)
+                use_greeting_rotation = not (pending_req or due_reminders or (pomodoro_active and not pomodoro_is_break) or pc_message)
                 if pending_req:
                     default_msg = "ボス！エージェントからコマンド実行の許可を求められています！"
+                elif due_reminders:
+                    rem_first = due_reminders[0]
+                    default_msg = f"⏰ 予定リマインダー: {rem_first.get('title', 'まもなく予定の時間です！')}"
                 elif pomodoro_active and not pomodoro_is_break:
                     default_msg = "集中タイムです！ボス、一緒に頑張りましょう！🔥"
                 elif pc_message:
@@ -897,14 +1041,6 @@ class DeskPetSyncHandler(SimpleHTTPRequestHandler):
                         "message": "",
                         "history": [],
                     }
-                
-                # ⏰ 期限リマインダー (roadmap 3.1) — エンジン未起動 (テスト/MCP単体) 時は空配列
-                try:
-                    from reminder_engine import get_reminder_engine
-                    due_reminders = get_reminder_engine().get_pending_for_phone()
-                except Exception as rem_err:
-                    logger.debug(f"リマインダー状態取得スキップ: {rem_err}")
-                    due_reminders = []
 
                 active_event = hub.get_active_event()
                 active_notification = monitor.get_active_notification()
@@ -919,6 +1055,8 @@ class DeskPetSyncHandler(SimpleHTTPRequestHandler):
                         pet_state = "celebrate"
                     else:
                         pet_state = "idle"
+                elif due_reminders:
+                    pet_state = "alarm_ask"
                 else:
                     pet_state = "focus" if (pomodoro_active and not pomodoro_is_break) else "idle"
                 
@@ -1144,6 +1282,41 @@ class DeskPetSyncHandler(SimpleHTTPRequestHandler):
         if path_handler:
             path_handler(ApiContext(self, body, client_ip, user_agent))
 
+        # 3.5 デバイス個別失効API (POST /api/devices/revoke) — 管理者/同一PC操作に限定
+        elif self.path == "/api/devices/revoke":
+            if not self._is_loopback(client_ip):
+                logger.warning(f"🚫 [Security] 非ループバック({client_ip})からのデバイス失効要求を拒否")
+                self.send_response(403)
+                self.send_header("Content-Type", "application/json; charset=utf-8")
+                self._set_cors_headers()
+                self.end_headers()
+                self.wfile.write(json.dumps({"status": "error", "message": "Device revoke is restricted to localhost."}, ensure_ascii=False).encode("utf-8"))
+                return
+            try:
+                data = json.loads(body.decode("utf-8")) if body else {}
+                device_id = data.get("device_id")
+                if not device_id:
+                    self.send_response(400)
+                    self.send_header("Content-Type", "application/json; charset=utf-8")
+                    self._set_cors_headers()
+                    self.end_headers()
+                    self.wfile.write(json.dumps({"status": "error", "message": "device_id is required"}, ensure_ascii=False).encode("utf-8"))
+                    return
+                ok = database.revoke_device(int(device_id))
+                self.send_response(200 if ok else 404)
+                self.send_header("Content-Type", "application/json; charset=utf-8")
+                self._set_cors_headers()
+                self.end_headers()
+                self.wfile.write(json.dumps({"status": "ok" if ok else "not_found", "revoked": ok}, ensure_ascii=False).encode("utf-8"))
+            except Exception as e:
+                logger.error(f"デバイス失効エラー: {e}")
+                self.send_response(500)
+                self.send_header("Content-Type", "application/json; charset=utf-8")
+                self._set_cors_headers()
+                self.end_headers()
+                self.wfile.write(json.dumps({"status": "error", "message": str(e)}, ensure_ascii=False).encode("utf-8"))
+            return
+
         # 4. 通常のDesk Petアクション (POST /api/action)
         #
         # 🔐 セキュリティ設計 (2026-08-26 S-1 対応):
@@ -1157,10 +1330,7 @@ class DeskPetSyncHandler(SimpleHTTPRequestHandler):
         #   - 監査: 全アクションの呼び出しを client_ip 付きでログ出力する。
         elif self.path == "/api/action":
             get_link_monitor().record_heartbeat(client_ip, user_agent)
-            self.send_response(200)
-            self.send_header("Content-Type", "application/json; charset=utf-8")
-            self._set_cors_headers()
-            self.end_headers()
+            ctx = ApiContext(self, body, client_ip, user_agent)
 
             try:
                 data = json.loads(body.decode("utf-8"))
@@ -1171,22 +1341,22 @@ class DeskPetSyncHandler(SimpleHTTPRequestHandler):
                 if action_handler is not None:
                     # アクション処理は機能別モジュール (api_tasks / api_agent_bridge) へ委譲。
                     # パラメータ欠落等のガード未成立時も明示エラーJSONが書き込まれる
-                    # (2026-09-03 改修: 旧仕様の無応答200空ボディは廃止)。
-                    if action_handler(ApiContext(self, body, client_ip, user_agent)):
+                    # (Sprint A 第1弾: ApiContext の遅延ヘッダー送出により、ハンドラ側で status_code 制御が可能)。
+                    if action_handler(ctx):
                         return
                 else:
                     # 未知のアクションは明示的にエラーを返す（旧仕様は無応答 200 で、
                     # クライアントが成功と誤認する障害を生んでいた）
                     logger.warning(f"📱 未知のアクションを受信: {action}")
-                    self.wfile.write(json.dumps(
+                    ctx.write_json(
                         {"status": "error", "message": f"unknown action: {action}"},
                         ensure_ascii=False
-                    ).encode("utf-8"))
+                    )
                     return
 
             except Exception as e:
                 logger.error(f"Action API エラー: {e}")
-                self.wfile.write(json.dumps({"status": "error", "message": str(e)}).encode("utf-8"))
+                ctx.write_json({"status": "error", "message": str(e)})
 
         else:
             self.send_error(404)
@@ -1210,9 +1380,8 @@ def get_gui_instance():
 class LocalSyncServer:
     """バックグラウンドで稼働するローカル同期サーバー
 
-    2026-09-03 (Block 2): スリープ復帰等で serve_forever スレッドが死亡した場合に
-    周期ヘルスプローブで検出し、解決済みポートへ再バインドする自己治癒watchdogを備える
-    (2026-09-02 ディープ監査の残存リスク対策)。
+    2026-09-03 (Block 2 / 2026-09-06 分離): スリープ復帰等で serve_forever スレッドが死亡した場合に
+    周期ヘルスプローブで検出し、解決済みポートへ再バインドする自己治癒watchdog (server_watchdog.py) を備える。
     """
 
     def __init__(self, port: int = SERVER_PORT):
@@ -1221,9 +1390,28 @@ class LocalSyncServer:
         self.thread = None
         # watchdog 用状態
         self._bound_port: Optional[int] = None  # port=0 (エフェメラル) 時の解決済みポート
-        self._stop_event = threading.Event()
-        self._watchdog_thread: Optional[threading.Thread] = None
-        self.watchdog_interval: float = 5.0
+        self._watchdog_interval: float = 5.0
+        self._watchdog = ServerWatchdog(
+            probe_fn=self.is_healthy,
+            restart_fn=self._restart_httpd,
+            interval=self._watchdog_interval,
+            failure_threshold=1,
+            thread_name="sync-server-watchdog",
+        )
+
+    @property
+    def watchdog_interval(self) -> float:
+        return self._watchdog.interval
+
+    @watchdog_interval.setter
+    def watchdog_interval(self, val: float) -> None:
+        self._watchdog_interval = float(val)
+        self._watchdog.interval = float(val)
+
+    @property
+    def _watchdog_thread(self) -> Optional[threading.Thread]:
+        """既存テスト後方互換用: watchdogスレッド参照"""
+        return self._watchdog._thread
 
     def _start_httpd(self) -> bool:
         """HTTPサーバーを生成してバックグラウンドスレッドで起動する。
@@ -1265,8 +1453,12 @@ class LocalSyncServer:
         except OSError:
             return False
 
-    def _restart_httpd(self) -> None:
-        """旧サーバーを片付けて自己治癒再起動を行う。"""
+    def _restart_httpd(self) -> bool:
+        """旧サーバーを片付けて自己治癒再起動を行う。
+
+        Returns:
+            bool: 再起動に成功した場合は True。
+        """
         old_httpd = self.httpd
         if self.thread is not None and self.thread.is_alive() and old_httpd is not None:
             # スレッドは生存だが疎通しない (ハング等) → shutdown を要求して出口を待つ
@@ -1276,22 +1468,12 @@ class LocalSyncServer:
                 old_httpd.server_close()
             except OSError as e:
                 logger.debug(f"📱 [Watchdog] 旧サーバーソケットの解放に失敗: {e}")
-        if self._start_httpd():
+        success = self._start_httpd()
+        if success:
             logger.warning("📱 [Watchdog] 同期サーバーを自己治癒再起動しました")
         else:
             logger.warning("📱 [Watchdog] 同期サーバーの自己治癒再起動に失敗 (次周期で再試行)")
-
-    def _watchdog_loop(self) -> None:
-        """周期ヘルスプローブでサーバー死亡を検出し自己治癒する監視ループ。
-
-        stop() の _stop_event がセットされるまで watchdog_interval 秒ごとに
-        is_healthy() を確認し、死亡検出時は _restart_httpd() を実行する。
-        """
-        while not self._stop_event.wait(self.watchdog_interval):
-            if self.is_healthy():
-                continue
-            logger.warning("📱 [Watchdog] 同期サーバーの停止を検出しました → 自己治癒を開始します")
-            self._restart_httpd()
+        return success
 
     def start(self, gui=None):
         """バックグラウンドスレッドでサーバーを起動"""
@@ -1306,14 +1488,10 @@ class LocalSyncServer:
             dreamer.start()
         except Exception as e:
             logger.warning(f"🌈 [LifeDreamer] 起動をスキップしました: {e}")
-        self._stop_event.clear()
         if not self._start_httpd():
             logger.warning("Desk Pet 同期サーバーの起動をスキップしました（ポート競合など）")
             return
-        self._watchdog_thread = threading.Thread(
-            target=self._watchdog_loop, daemon=True, name="sync-server-watchdog"
-        )
-        self._watchdog_thread.start()
+        self._watchdog.start()
 
     @staticmethod
     def _mirror_to_pc_pet(gui, state: Dict[str, Any]) -> None:
@@ -1335,14 +1513,12 @@ class LocalSyncServer:
 
     def stop(self):
         """サーバーとwatchdogを停止する (ゾンビ再起動を防止する終端契約)。"""
-        self._stop_event.set()
+        self._watchdog.stop(timeout=5.0)
         if self.httpd:
             self.httpd.shutdown()
             self.httpd.server_close()
         if self.thread:
             self.thread.join(timeout=5)
-        if self._watchdog_thread:
-            self._watchdog_thread.join(timeout=5)
         logger.info("Desk Pet 同期サーバーを停止しました")
 
 
