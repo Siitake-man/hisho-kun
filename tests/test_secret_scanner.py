@@ -17,7 +17,22 @@ TOOLS_DIR = Path(__file__).resolve().parent.parent / "tools"
 if str(TOOLS_DIR) not in sys.path:
     sys.path.insert(0, str(TOOLS_DIR))
 
-from scan_git_secrets import SECRET_PATTERNS, find_secrets, mask_secret
+from scan_git_secrets import SECRET_PATTERNS, find_secrets, is_scan_excluded, mask_secret
+
+
+class TestScannerSelfExclusion(unittest.TestCase):
+    """偽陽性除外 (スキャナ自身・ダミーキーを含むテスト) の契約検証"""
+
+    def test_dummy_key_test_files_are_excluded(self):
+        """ダミーキーを意図的に含むテストファイルは除外されること"""
+        self.assertTrue(is_scan_excluded("tests/test_error_hint.py"))
+        self.assertTrue(is_scan_excluded("tests/test_secret_scanner.py"))
+        self.assertTrue(is_scan_excluded("tools/scan_git_secrets.py"))
+
+    def test_normal_files_are_not_excluded(self):
+        """通常のソース・テストは除外されないこと (本来の検出力を落とさない)"""
+        self.assertFalse(is_scan_excluded("main.py"))
+        self.assertFalse(is_scan_excluded("tests/test_agent_stream.py"))
 
 
 class TestSecretScanner(unittest.TestCase):

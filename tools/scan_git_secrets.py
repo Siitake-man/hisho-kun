@@ -53,6 +53,27 @@ SENSITIVE_FILE_PATTERNS: List[Tuple[str, re.Pattern]] = [
 ]
 
 
+# 偽陽性除外リスト: スキャナ自身 (パターン定義そのもの) と、マスク処理テスト用に
+# ダミーキーを意図的に含むテストファイル (実キーではない)
+_SELF_EXCLUDED_SUFFIXES: Tuple[str, ...] = (
+    "test_secret_scanner.py",
+    "scan_git_secrets.py",
+    "test_error_hint.py",
+)
+
+
+def is_scan_excluded(path: str) -> bool:
+    """スキャン対象から除外すべきファイルパスか判定する (偽陽性防止)。
+
+    Args:
+        path: 判定対象のファイルパス (リポジトリ相対)。
+
+    Returns:
+        bool: 除外対象 (スキャナ自身・ダミーキーを含むテスト) の場合 True。
+    """
+    return any(path.endswith(suffix) for suffix in _SELF_EXCLUDED_SUFFIXES)
+
+
 def mask_secret(line: str) -> str:
     """行内の機密値を先頭6文字 + ***MASKED*** にマスクする。
 
@@ -132,8 +153,8 @@ def scan_history() -> List[Tuple[str, str, str]]:
         elif line.startswith("+++ b/"):
             current_file = line[len("+++ b/"):].strip()
         else:
-            # 🛡 テストファイルおよびスキャナ自体のパターン定義は自己検出（偽陽性）から除外
-            if current_file.endswith("test_secret_scanner.py") or current_file.endswith("scan_git_secrets.py"):
+            # 🛡 偽陽性除外: スキャナ自身と、ダミーキーを意図的に含むテストファイル
+            if is_scan_excluded(current_file):
                 continue
             for label, masked in find_secrets(line):
                 findings.append((current_commit, current_file, f"[{label}] {masked}"))

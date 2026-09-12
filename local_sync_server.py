@@ -779,8 +779,11 @@ class DeskPetSyncHandler(SimpleHTTPRequestHandler):
                 return False
             return True
 
-        # 3. 同一LAN・Tailscale内からのGETリクエスト（/api/status等）は閲覧を許可
-        if self.command == "GET" and is_trusted:
+        # 3. GETリクエストの閲覧許可は「同一PC内 (ループバック)」のみ (ゼロトラスト強化 2026-09-12)
+        #    従来は同一LAN (192.168.x.x 等) なら無条件で閲覧できたが、共有Wi-Fi の第三者に
+        #    /api/status (TODO・予定・生活状態) を覗き見されるため塞いだ。スマホPWA は
+        #    ペアリング後に Bearer を保持して GET にも付与するため機能影響はない。
+        if self.command == "GET" and self._is_loopback(client_ip):
             return True
 
         # 4. 認証失敗: 外部IPのみ失敗カウントを記録
@@ -858,10 +861,14 @@ class DeskPetSyncHandler(SimpleHTTPRequestHandler):
         client_ip = self.client_address[0] if self.client_address else "unknown"
         user_agent = self.headers.get("User-Agent", "")
 
-        # 0. トークン配布 (GET /api/auth/token) — 同一LANまたはペアリングモードで即時配布
+        # 0. トークン配布 (GET /api/auth/token) — ペアリング開放中 or 同一PC内 (ループバック) のみ
+        #    ゼロトラスト強化 (2026-09-12): 従来は同一LAN (192.168.x.x 等) からの要求を
+        #    無条件で通していたが、共有 Wi-Fi (カフェ・コワーキング等) では第三者が
+        #    トークンを取得できてしまうホール。スマホの再接続は原則トークン保持で
+        #    成立するため、トークン再取得は QR 再ペアリングで行う設計に変更。
         if self.path == "/api/auth/token":
             tm = get_sync_token_manager()
-            if not tm.pairing_open and not self._is_private_ip(client_ip):
+            if not (tm.pairing_open or self._is_loopback(client_ip)):
                 logger.warning(f"🚫 [SyncAuth] 外部IPからのトークン要求を拒否 (IP: {client_ip})")
                 self.send_response(403)
                 self.send_header("Content-Type", "application/json; charset=utf-8")
@@ -1247,7 +1254,20 @@ class DeskPetSyncHandler(SimpleHTTPRequestHandler):
         P2③ 分割リファクタ: 本メソッドは認証・ループバック制限・ディスパッチのみを
         担当し、個別処理は api_tasks / api_agent_bridge モジュールのハンドラ関数へ委譲する。
         """
-        content_length = int(self.headers.get('Content-Length', 0))
+        # 🛡️ ボディサイズ上限 (OOM DoS 防止・2026-09-12 レビュー対応)。
+        #    Content-Length を無制限に読むと巨大サイズ指定でメモリを食い潰されるため、
+        #    上限超過は本文を読まずに即 413 を返す。数値以外は 0 として扱う。
+        MAX_BODY_SIZE = 5 * 1024 * 1024  # 5MB
+        try:
+            content_length = int(self.headers.get('Content-Length', 0))
+        except (TypeError, ValueError):
+            content_length = 0
+        if content_length > MAX_BODY_SIZE:
+            logger.warning(
+                f"🚫 [Security] 過大な Content-Length ({content_length}) を拒否 (上限 {MAX_BODY_SIZE})"
+            )
+            self.send_error(413, "Payload Too Large")
+            return
         body = self.rfile.read(content_length)
         client_ip = self.client_address[0] if self.client_address else "unknown"
         user_agent = self.headers.get("User-Agent", "")

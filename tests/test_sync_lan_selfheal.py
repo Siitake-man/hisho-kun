@@ -205,6 +205,82 @@ class TestSyncLanSelfHeal(unittest.TestCase):
         self.assertIn("const CHARACTERS", js_body, "pet.js に CHARACTERS が存在すること")
 
     # ==========================================================================
+    # 1.5 ゼロトラスト強化: トークン発行は「ペアリング中 or ループバック」のみ
+    #     (2026-09-12: 共有Wi-Fi (192.168.x.x) での無条件発行ホールを塞ぐ)
+    # ==========================================================================
+    def _reset_pairing(self) -> None:
+        """トークンマネージャのペアリング開放状態を初期化する。"""
+        local_sync_server.get_sync_token_manager()._pairing_unlocked_until = 0.0
+
+    def test_token_denied_for_lan_when_pairing_closed(self):
+        """ペアリング未開放時、LAN (非ループバック) からの /api/auth/token は 403 で拒否されること"""
+        self._reset_pairing()
+        self.addCleanup(self._reset_pairing)
+        with patch.object(
+            local_sync_server.DeskPetSyncHandler,
+            "_is_loopback",
+            staticmethod(lambda ip: False),  # 127.0.0.1 接続を LAN クライアント扱いに偽装
+        ):
+            st, data, _ = self._request("GET", "/api/auth/token")
+        self.assertEqual(st, 403, f"LAN からの無条件トークン発行は禁止 (actual: {st} {data})")
+
+    def test_status_denied_for_lan_without_token(self):
+        """トークンなし GET /api/status は LAN (非ループバック) からは拒否されること
+
+        ゼロトラスト強化 (2026-09-12): 従来は同一LANなら無条件で閲覧できたが、
+        共有Wi-Fiの第三者による個人データ (TODO・予定・生活状態) の覗き見を塞ぐ。
+        未認証リクエストへの応答は 401 Unauthorized (トークン無し/不正の正セマンティクス)。
+        403 は失効端末・エージェント専用API用であり、ここでは 401 が正。
+        """
+        with patch.object(
+            local_sync_server.DeskPetSyncHandler,
+            "_is_loopback",
+            staticmethod(lambda ip: False),
+        ):
+            st, data, _ = self._request("GET", "/api/status")
+        self.assertEqual(st, 401, f"LAN からの未認証閲覧は拒否 (actual: {st})")
+
+    def test_oversized_body_rejected_with_413(self):
+        """Content-Length が上限 (5MB) を超える POST は 413 で即時拒否されること (OOM DoS 防止)"""
+        import socket as _socket
+
+        raw = (
+            b"POST /api/action HTTP/1.1\r\n"
+            b"Host: 127.0.0.1\r\n"
+            b"Content-Type: application/json\r\n"
+            b"Content-Length: 6000000\r\n"
+            b"Connection: close\r\n\r\n"
+        )
+        with _socket.create_connection(("127.0.0.1", self.port), timeout=10) as sock:
+            sock.sendall(raw)
+            sock.settimeout(10)
+            response = b""
+            try:
+                while True:
+                    chunk = sock.recv(4096)
+                    if not chunk:
+                        break
+                    response += chunk
+            except _socket.timeout:
+                pass
+        status_line = response.split(b"\r\n", 1)[0].decode("latin-1")
+        self.assertIn("413", status_line, f"巨大ボディは 413 で拒否 (actual: {status_line})")
+
+    def test_token_granted_for_lan_when_pairing_open(self):
+        """ペアリング開放中 (QR接続ダイアログ表示中) は LAN からでもトークンを取得できること"""
+        tm = local_sync_server.get_sync_token_manager()
+        tm.unlock_pairing(duration_sec=60)
+        self.addCleanup(self._reset_pairing)
+        with patch.object(
+            local_sync_server.DeskPetSyncHandler,
+            "_is_loopback",
+            staticmethod(lambda ip: False),
+        ):
+            st, data, _ = self._request("GET", "/api/auth/token")
+        self.assertEqual(st, 200)
+        self.assertTrue(len(str(data.get("token", ""))) >= 32, "トークンが取得できること")
+
+    # ==========================================================================
     # 2. LAN自己治癒 (GET閲覧許可 + トークン配布)
     # ==========================================================================
     def test_status_without_token_from_lan_allowed(self):

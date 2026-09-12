@@ -17,11 +17,13 @@ import re
 from dataclasses import dataclass, asdict
 from datetime import date
 from pathlib import Path
+
+import app_paths
 from typing import Dict, Any, Optional
 
 logger = logging.getLogger(__name__)
 
-STATE_PATH = Path(__file__).parent / "easter_egg_state.json"
+STATE_PATH = app_paths.get_app_root() / "easter_egg_state.json"  # exe書込対応 (2026-09-12)
 
 # 主判定: フレーズレベル一致（これらが本文に含まれたら即トリガー）
 PRIMARY_TRIGGER_PHRASES = (

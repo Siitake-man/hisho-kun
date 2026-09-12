@@ -148,7 +148,7 @@ class NeoSecretaryApp:
         
         # セッション(スレッド)IDの固定。本来はユーザーや日付で切り替えますが、MVPでは固定します。
         self.thread_id = "default_user_session"
-        self.config = {"configurable": {"thread_id": self.thread_id}}
+        self.config = {"recursion_limit": 40, "configurable": {"thread_id": self.thread_id}}
 
         # 3. 自律プロアクティブ見守りエンジンの初期化
         from proactive_engine import get_care_engine
@@ -449,9 +449,33 @@ class NeoSecretaryApp:
         initial_state = {"messages": [HumanMessage(content=user_text)]}
         
         try:
-            # ainvoke（非同期実行）で推論を実行
-            # astreamはローカルGGUFモデルでチャンク処理の互換性問題があるためainvokeに統一
-            result = await self.agent.ainvoke(initial_state, config=self.config)
+            # 応答速度スプリント B (2026-09-12): クラウド/サーバー系プロバイダは
+            # ストリーミング実行 (トークン逐次表示)。ローカルGGUFはチャンク処理の
+            # 互換性問題があるため従来どおり ainvoke を維持する。
+            from llm_factory import get_llm_factory, LLMProvider
+            from agent_stream import run_agent_streaming
+
+            factory = get_llm_factory()
+            if factory.current_provider == LLMProvider.LOCAL_GGUF:
+                result = await self.agent.ainvoke(initial_state, config=self.config)
+            else:
+                gui = self.gui
+
+                def _on_update(text: str) -> None:
+                    """トークン生成のたびに吹き出しを逐次更新する。"""
+                    gui.update_message(text)
+
+                def _on_tool_start(tool_name: str) -> None:
+                    """ツール実行開始時に進行状況を表示する。"""
+                    gui.update_message(f"🔧 {tool_name} を実行中...")
+
+                result = await run_agent_streaming(
+                    self.agent,
+                    initial_state,
+                    self.config,
+                    on_update=_on_update,
+                    on_tool_start=_on_tool_start,
+                )
             final_response = ""
             
             for msg in result.get("messages", []):

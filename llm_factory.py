@@ -36,7 +36,11 @@ logger = logging.getLogger(__name__)
 # 429レートリミット・応答停止・ネットワーク断絶時にUIが沈黙（無限スピナー）しないよう、
 # クラウドプロバイダの推論リクエストはこの秒数で必ず例外を返す。
 # 内包ローカルLLM (LOCAL_GGUF) はプロセス内推論のため対象外。
-LLM_REQUEST_TIMEOUT_SEC: float = 15.0
+# 2026-09-12 応答速度スプリント: 推論モデル (DeepSeek等) は思考トークンで 15 秒を
+# 超えやすく、max_retries=1 と合わさって「15秒で切断→再試行→30秒でエラー」を
+# 生んでいたため 60 秒へ引き上げ (ストリーミング時は openai クライアントの
+# read timeout がチャンク間隔に適用されるため安全)。
+LLM_REQUEST_TIMEOUT_SEC: float = 60.0
 
 # LLM通信障害（タイムアウト・レートリミット等）時の統一フォールバック通知文。
 # PC吹き出し・スマホPWAの双方で文言を統一し、縮退運転をユーザーに即座に知らせる。
@@ -663,16 +667,14 @@ class LLMFactory:
                     max_retries=1
                 )
             except ImportError:
-                # langchain-anthropic 未導入時は OpenAI 互換またはフォールバック
-                from langchain_openai import ChatOpenAI
-                return ChatOpenAI(
-                    model=model_name,
-                    temperature=temperature,
-                    base_url="https://api.anthropic.com/v1",
-                    api_key=api_key,
-                    streaming=True,
-                    timeout=LLM_REQUEST_TIMEOUT_SEC,
-                    max_retries=1
+                # Anthropic の API は OpenAI 互換ではない (エンドポイント/認証ヘッダーが
+                # 異なる) ため、ChatOpenAI での代用は必ず失敗する。
+                # 100% 失敗するフォールバックを返さず、対処法を明示して安全に縮退する。
+                logger.error("langchain-anthropic がインストールされていません (Claude を利用できません)")
+                raise ImportError(
+                    "Claude (Anthropic) を利用するには 'pip install langchain-anthropic' を実行してください。"
+                    "（他のプロバイダへ切り替える場合は設定画面または .env の "
+                    "DEFAULT_LLM_PROVIDER を変更してください）"
                 )
 
         # 3. 内包ローカルLLM (llama-cpp-python でプロセス内直接推論)
@@ -901,12 +903,19 @@ class LLMFactory:
             # プロセス内で安定したセッションIDを付与し (.env の OPENCODE_SESSION_ID
             # で上書き可)、他プロバイダへの影響は出さない。
             default_headers: Optional[Dict[str, str]] = None
+            extra_body: Optional[Dict[str, Any]] = None
             if provider == LLMProvider.OPENCODE:
                 default_headers = {
                     "x-opencode-session": os.getenv(
                         "OPENCODE_SESSION_ID", _OPENCODE_SESSION_ID
                     )
                 }
+                # 2026-09-12 応答速度スプリント: DeepSeek 系推論モデルの思考トークン
+                # を抑制する (実機 200 応答確認済みの OpenAI 標準パラメータ)。
+                # .env の OPENCODE_REASONING_EFFORT で上書き可・空で無効化。
+                effort = os.getenv("OPENCODE_REASONING_EFFORT", "low").strip()
+                if effort:
+                    extra_body = {"reasoning_effort": effort}
 
             return ChatOpenAI(
                 model=model_name,
@@ -917,6 +926,7 @@ class LLMFactory:
                 timeout=LLM_REQUEST_TIMEOUT_SEC,
                 max_retries=1,
                 default_headers=default_headers,
+                extra_body=extra_body,
             )
 
     def supports_tool_calling(self) -> bool:

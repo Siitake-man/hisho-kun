@@ -17,6 +17,7 @@ llama_cpp_python は Windows ビルドが重大なため CI では除外イン�
 import os
 import sys
 import tempfile
+import types
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -27,15 +28,17 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from llm_factory import LLMFactory
 
-try:
-    import llama_cpp  # noqa: F401
-    _LLAMA_CPP_AVAILABLE = True
-except Exception:  # pragma: no cover - CI (llama_cpp_python 除外インストール) 経路
-    llama_cpp = None
-    _LLAMA_CPP_AVAILABLE = False
+# キャッシュロジックの検証にはテンソル不要のため、実パッケージ (jinja2 チェーン込みで
+# import が重く、環境によってはテストランナーが固まる) を読まず、最小スタブ
+# (Llama 属性のみ) を sys.modules に注入する。mock.patch("llama_cpp.Llama") は
+# import 可能なモジュールのみを要求するため、スタブで十分かつ決定論的。
+# ※ 実テンソルのロード/解放は実機動作確認で検証する (テストの関心事ではない)。
+_llama_stub = types.ModuleType("llama_cpp")
+_llama_stub.Llama = object  # type: ignore[attr-defined]
+sys.modules.setdefault("llama_cpp", _llama_stub)  # type: ignore[assignment]
+llama_cpp = _llama_stub  # type: ignore[assignment]
 
 
-@unittest.skipIf(not _LLAMA_CPP_AVAILABLE, "llama_cpp_python 未導入環境のためスキップ (CI)")
 class TestLocalLlmCache(unittest.TestCase):
     """LLMFactory の内包ローカル GGUF 常駐キャッシュ契約検証"""
 

@@ -2,30 +2,41 @@
 
 [![CI](https://github.com/Siitake-man/hisho-kun/actions/workflows/ci.yml/badge.svg)](https://github.com/Siitake-man/hisho-kun/actions/workflows/ci.yml)
 ![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
-![Python](https://img.shields.io/badge/Python-3.11%20%7C%203.12%20%7C%203.13-blue)
+[![Python](https://img.shields.io/badge/Python-3.11%20%7C%203.12%20%7C%203.13-blue)
 
-デスクトップに常駐する**AI秘書ペット**。PC右下に住み着き、コーディングエージェント（Cline / Codex / Claude Code等）からの承認要請をスマホに中継・ワンタップ承認するブリッジ機能と、スマホから手帳・TODO・習慣・天気・カレンダーを確認できるPWA連携を提供します。
+> 🇬🇧 **For English Speakers**: 
+> **Neo-Secretary** turns your spare smartphone into an adorable retro-style **Desk Pet** and remote approval bridge for AI coding agents (Claude Code, Cline, etc.). Review and approve CLI commands from your phone with a single tap while away from your desk! Fully private & battery-friendly PWA.
+
+### 📱 引き出しで眠る古いスマホが、AI開発の「卓上スマート相棒」に化ける。
+
+**ネオ秘書くん (Neo-Secretary)** は、使わなくなったスマートフォンをQRコード1発で**「Desk Pet（卓上スマート秘書）」**へと生まれ変わらせるデスクトップ常駐AIアシスタントです。
+
+Claude Code や Cline などの自律AIコーディングを回しながら、**「離席中に『コマンド実行していい？』で停止して開発が進まない…」**という経験はありませんか？  
+ネオ秘書くんなら、PC右下のドット絵ペットがAIの思考とリアルタイムに連動し、離席中でも**手元のスマホからワンタップで遠隔承認**。コーヒーを淹れている間も、トイレに行っている間も、開発が止まりません。
 
 <p align="center">
-  <img src="assets/dot/hisho/idle_1.png" width="64" alt="ふだんのヒショ">
-  <img src="assets/dot/hisho/cheer.png" width="64" alt="応援">
-  <img src="assets/dot/hisho/focus_1.png" width="64" alt="エージェント実行中">
-  <img src="assets/dot/hisho/celebrate_1.png" width="64" alt="タスク完了">
-  <img src="assets/dot/hisho/reading_1.png" width="64" alt="読書">
-  <img src="assets/dot/hisho/sleepy_1.png" width="64" alt="おねむ">
+  <img src="assets/dot/hisho_animated.gif" width="104" alt="ネオ秘書くん（ヒショ）— まばたきするドット絵ペット">
+  &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+  <img src="assets/dot/kyle_animated.gif" width="104" alt="ネオカイル — 泳ぐドット絵ペット">
 </p>
 
-<!--
-  📸 実機スクリーンショット枠 (撮影後に下のコメントを外して有効化):
-  保存先: assets/images/screenshots/pc_pet.png と phone_pet.png
-  (assets/ は git 追跡対象のため公開ページから参照できます)
+<p align="center"><sub>▲ デスクトップやスマホで表情豊かに呼吸し、あなたの仕事を応援します 👔🐬</sub></p>
 
 <p align="center">
-  <img src="assets/images/screenshots/pc_pet.png" width="320" alt="PCペットの様子">
+  <img src="assets/screenshots/pc_pet.png" width="320" alt="PCペット: 会話とTODO操作">
   &nbsp;&nbsp;
-  <img src="assets/images/screenshots/phone_pet.png" width="180" alt="スマホ Desk Pet">
+  <img src="assets/screenshots/phone_pet.png" width="180" alt="スマホ Desk Pet (PWA): 手帳・天気・ブリーフィング">
+  &nbsp;&nbsp;
+  <img src="assets/screenshots/phone_approval.png" width="180" alt="エージェント承認要請をスマホでワンタップ承認">
 </p>
--->
+
+<p align="center"><b>🔔 エージェント（Cline / Claude Code 等）の「コマンド実行していい？」をスマホでワンタップ承認</b></p>
+
+### 💡 こんなあなたのためのツールです
+- ☕ **AIエージェント（Claude Code / Cline 等）を回しながら、気兼ねなく離席・休憩したい人**
+- 📱 **使わなくなった古いスマホ（iPhone / Android）のカッコいい再利用先を探している人**
+- 👾 **無機質なコマンドライン作業に、90年代のレトロゲームのような「愛着と生命感」が欲しい人**
+
 
 
 ---
@@ -34,7 +45,7 @@
 
 | 機能 | 説明 |
 |---|---|
-| 🤖 **AI秘書ペット** | PC右下に常駐。ドット絵アニメーション（3キャラ＋レトロ案内精霊） |
+| 🤖 **AI秘書ペット** | PC右下に常駐。ドット絵アニメーション（秘書くん＋案内精霊カイル、設定から切替可能） |
 | 📱 **スマホ連携 (PWA)** | QRコードを読むだけでペアリング。タスク・手帳・習慣をスマホから操作 |
 | 🔔 **承認ブリッジ** | Cline / Codex 等の「コマンド実行して良い？」をスマホに通知・ワンタップ承認 |
 | 📅 **カレンダー連携** | Googleカレンダーの秘密iCal URLを読み取り（OAuth不要・読み取り専用） |
@@ -134,7 +145,7 @@ python tools/setup_local_model.py --model 1.2b # 高品質モードを直接指�
 | 操作 | 方法 |
 |---|---|
 | キャラ切替 | ⚙️ 設定 → 🎭 キャラクター切り替え |
-| テーマ変更 | �️️ 書斎→カフェ→森→海→サイバー |
+| 🎨 テーマ変更 | 書斎→カフェ→森→海→サイバー |
 | 常時画面ON | ⚙️ 設定 → 💡 常時画面ON |
 | 全画面表示 | ⛶ ボタン |
 | 手帳（予定・TODO） | 📝 ボタン |
@@ -210,7 +221,7 @@ PCペット右クリック → ⚙ 設定 → 「🤖 外部AI・MCP連携」タ
 
 ---
 
-## � プロジェクト構成
+## 🗂️ プロジェクト構成
 
 ```
 ネオ秘書くん／
@@ -220,17 +231,34 @@ PCペット右クリック → ⚙ 設定 → 「🤖 外部AI・MCP連携」タ
 ├── gui.py                   # PCペットUI
 ├── agent.py                  # LangGraph エージェント
 ├── life_dreamer.py           # 自律生活生成エンジン
-├── weather_tools.py          # リアルタィム天気取得
-├── local_sync_server.py      # スマホ連同步サーバー
+├── weather_tools.py          # リアルタイム天気取得
+├── local_sync_server.py      # スマホ連携・同期サーバー
 ├── database.py               # データベース操作
 ├── ui／                      # Tkinter UI 部品
-├── web_pet／                 # スマホPWA フロンェンド
-├── assets／dot／              # ドッ絵アセット（3キャラ）
-├── tools／                    # 開ツール類
-├── tests／                    # テスツ
+├── web_pet／                 # スマホPWA フロントエンド
+├── assets／dot／              # ドット絵アセット（3キャラ）
+├── tools／                    # 開発ツール類
+├── tests／                    # テストスイート
 ├── docs／                     # ドキュメント
 └── .env.example               # 環境設定テンプレート
 ```
+
+## 🔮 今後のアップデート予定 (Roadmap & Coming Soon)
+
+ネオ秘書くんは、コミュニティと共に進化し続けます。以下の機能を近日順次リリース予定です：
+
+- 🎨 **自作キャラクター・スキン取り込み機能 (Custom Pet Skins / Modding)**:
+  - 自分の描いたオリジナルドット絵や推しキャラの画像をフォルダに置くだけで、デスクトップ＆スマホに召喚できるスキン拡張機能
+- 🌐 **フル英語・多言語対応 (Full English Support)**:
+  - 海外のAIギークに向けて、スマホPWA・PCペットのワンタップ日英切り替え
+- 🎙️ **リアルタイム音声対話 (Voice Conversation)**:
+  - スマホマイクから話しかけて、ペットが音声で答えてくれる完全ハンズフリー対話
+- 🌧️ **ポモドーロ連動・集中ホワイトノイズ (Ambient Focus Sounds)**:
+  - 集中タイマーに合わせた雨音、深夜のカフェ、サイバーパンクな環境BGM
+- 🔗 **マルチSaaS Webhook連携**:
+  - Notion / Slack / LINE への予定・タスク双方向同期
+
+フィードバックや機能リクエストは、ぜひ [GitHub Issues](https://github.com/Siitake-man/hisho-kun/issues) へお寄せください！✨
 
 ---
 
@@ -240,8 +268,8 @@ PCペット右クリック → ⚙ 設定 → 「🤖 外部AI・MCP連携」タ
 
 - `docs/specs/DESIGN_SPEC.md` — システム設計書
 - `docs/specs/機能ロードマップ.md` — 機能一覧と進捗
-- `docs/learning-memos/` — 日々学習メモ
-- `AGENTS.md` — プロジェクト開発規約
+- `docs/guides/` — 利用者向けガイド・チートシート集
+- `docs/specs/MCP_INTEGRATION.md` — MCP (Model Context Protocol) 連携仕様
 
 ---
 
