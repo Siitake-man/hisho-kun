@@ -25,6 +25,7 @@ from tour_engine import get_tour_engine
 from ui.pomodoro import PomodoroMixin
 from ui.radial_menu import RadialMenuMixin
 from ui.tour_overlay import TourOverlayMixin
+from ui.tk_teardown import install_quiet_teardown, quiet_destroy
 from llm_factory import LLMFactory
 
 logger = logging.getLogger(__name__)
@@ -69,6 +70,11 @@ class NeoSecretaryGUI(PomodoroMixin, RadialMenuMixin, TourOverlayMixin):
         self._build_ui(transparent_color)
         self._bind_events()
 
+        # 🧹 終了時ノイズ根治 (Jules タスクB): CTk 監視ループの破棄レースで
+        #    「invalid command name ...check_dpi_scaling/update」が漏出するため、
+        #    破棄後残滅の TclError を debug ログへ格下げする quiet ガードを装着。
+        install_quiet_teardown(self.root)
+
         # 🖥️ タスクトレイ常駐マネージャー (pystray) の初期化
         try:
             from ui.system_tray import init_system_tray
@@ -78,13 +84,16 @@ class NeoSecretaryGUI(PomodoroMixin, RadialMenuMixin, TourOverlayMixin):
             self.tray_manager = None
 
     def quit_app(self):
-        """アプリケーションを完全に終了する（タスクトレイアイコン破棄＆ウィンドウ破棄）"""
+        """アプリケーションを完全に終了する（タスクトレイ破棄＆監視ループ停止＆ウィンドウ破棄）"""
+        logger.info("🛑 quit_app 開始 (トレイ停止 → quiet_destroy)")
         if getattr(self, 'tray_manager', None) is not None:
             try:
                 self.tray_manager.stop()
             except Exception:
                 pass
-        self.root.destroy()
+        # 🧹 CTk 監視ループ停止 → 未消化 after の全件キャンセル → destroy (Jules タスクB)
+        quiet_destroy(self.root)
+        logger.info("🛑 quit_app 完了 (root 破棄済み・メインループは終了検知で停止します)")
 
     # ※ 旧 post_action (アクションキュー投入版) は同一クラス内での二重定義により、
     #    後段の root.after 版へ黙って上書きされていた (bridge通知・LifeDreamerミラーが

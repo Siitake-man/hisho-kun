@@ -10,6 +10,8 @@ clear_local_model_cache() でキャッシュが全解放されることを検証
 
 TDD: 現行実装 (会話ごとに再ロード) は本テストを Red で落とす。
 Llama は llama_cpp モジュール属性をパッチしてディスクモデル不要で検証する。
+llama_cpp_python は Windows ビルドが重大なため CI では除外インストールとし、
+未導入環境では本テストクラス全体を自動スキップする (ローカル実行は従来どおり実施)。
 """
 
 import os
@@ -25,7 +27,15 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from llm_factory import LLMFactory
 
+try:
+    import llama_cpp  # noqa: F401
+    _LLAMA_CPP_AVAILABLE = True
+except Exception:  # pragma: no cover - CI (llama_cpp_python 除外インストール) 経路
+    llama_cpp = None
+    _LLAMA_CPP_AVAILABLE = False
 
+
+@unittest.skipIf(not _LLAMA_CPP_AVAILABLE, "llama_cpp_python 未導入環境のためスキップ (CI)")
 class TestLocalLlmCache(unittest.TestCase):
     """LLMFactory の内包ローカル GGUF 常駐キャッシュ契約検証"""
 

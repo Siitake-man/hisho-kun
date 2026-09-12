@@ -9,6 +9,7 @@ GUI(gui.py) と エージェント(agent.py) を「asyncio」を使い共存さ�
 import asyncio
 import logging
 import os
+import socket
 import subprocess
 import sys
 import threading
@@ -83,7 +84,7 @@ from langchain_core.messages import HumanMessage, AIMessage
 
 from gui import NeoSecretaryGUI
 from agent import build_agent_graph
-from llm_factory import is_llm_network_failure, LLM_NETWORK_FALLBACK_TEXT
+from llm_factory import format_llm_error_hint, is_llm_network_failure, LLM_NETWORK_FALLBACK_TEXT
 from easter_egg_engine import observe_message
 
 # ログ設定
@@ -485,6 +486,10 @@ class NeoSecretaryApp:
                 fallback_text = LLM_NETWORK_FALLBACK_TEXT
             else:
                 fallback_text = "申し訳ありません、脳内でエラーが発生しました..."
+            # 🔍 仕様変更追随 (2026-09-09): provider 由来の具体的エラー型
+            #    (例: MissingSessionID) を吹き出しに 1 行だけ見せる。
+            #    全文はログ (logger.error + exc_info) に記録済み。
+            fallback_text = f"{fallback_text}\n（{format_llm_error_hint(e)}）"
             self.gui.update_message(egg_fallback or fallback_text)
             self.gui.set_pet_state("idle")
 
@@ -525,6 +530,35 @@ async def async_mainloop(app: NeoSecretaryApp):
             logger.debug(f"一過性のTkinter TclError（継続）: {te}")
             await asyncio.sleep(0.02)
 
+def acquire_single_instance_lock() -> socket.socket:
+    """二重起動防止用のロックソケットを取得する (bind ＋ listen)。
+
+    ポート54321を専有することで多重起動を検知する。**必ず listen() まで行う**こと:
+    bind() のみのソケットは netstat / Get-NetTCPConnection に現れず、残留プロセス
+    (タスクトレイ終了漏れ等) の発見・終了が不可能になる (2026-09-12 問題の根治)。
+
+    Returns:
+        socket.socket: bind ＋ listen 済みのロックソケット (プロセス生存中は保持)。
+
+    Raises:
+        OSError: 既に別インスタンスがポート54321を専有している場合 (多重起動)。
+    """
+    lock_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    try:
+        # ローカルの専用ポート(54321)をバインドして多重起動を検知
+        lock_socket.bind(("127.0.0.1", 54321))
+        # 監視可能化: LISTEN 状態にすることで netstat / Get-NetTCPConnection に現れ、
+        # 残留プロセスの発見・終了 (Stop-Process) が可能になる
+        lock_socket.listen(1)
+    except OSError:
+        # bind 失敗時 (多重起動) はソケットを確実に close してから再送出する。
+        # close しないと GC 時に ResourceWarning: unclosed socket が漏出する
+        # (2026-09-12 全テスト実行時に検知)。
+        lock_socket.close()
+        raise
+    return lock_socket
+
+
 def main():
     # frozen (exe) 環境のブートストラップ: CWD を exe 直下に固定し .env を保証する
     import app_paths
@@ -538,17 +572,18 @@ def main():
             sys.stderr = open(os.devnull, "w", encoding="utf-8")
 
     # 二重起動の防止 (Single Instance Lock)
-    import socket
-    lock_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     try:
-        # ローカルの専用ポート(54321)をバインドして多重起動を検知
-        lock_socket.bind(("127.0.0.1", 54321))
+        lock_socket = acquire_single_instance_lock()
     except socket.error:
         logger.warning("多重起動を検知しました。ネオ秘書くんは既に起動しています！")
         print("\n⚠️ 【多重起動の検知】ネオ秘書くんは既に起動しています！")
         print("以前のプロセスが実行中のため、新しく起動したプロセスを終了します。")
         print("以前の画面を前面に表示するか、タスクマネージャー等で一度終了させてから再起動してください。\n")
         return
+
+    # 🏷️ ビルドバナー: 起動中プロセスが「どのコード世代」かをログで一意に判別
+    #    できるようにする (修正反映漏れ・旧プロセス残存の混同を防ぐ・2026-09-12)
+    logger.info("🚀 ネオ秘書くんを起動します (build: 2026-09-12a / tray-quit→quit_app 経路 / lock 54321 LISTEN)")
 
     # アプリケーションの構築
     app = NeoSecretaryApp()
@@ -561,6 +596,14 @@ def main():
             lock_socket.close()
         except Exception:
             pass
+        # 🧹 CustomTkinter 監視ループ (ScalingTracker / AppearanceModeTracker) の停止。
+        #    破棄済み root への after 再スケジュール残滅による
+        #    「invalid command name ...check_dpi_scaling/update」を根治する (Jules タスクB)。
+        try:
+            from ui.tk_teardown import stop_ctk_background_trackers
+            stop_ctk_background_trackers()
+        except Exception as e:
+            logger.debug(f"tk_teardown の停止処理をスキップ: {e}")
 
 if __name__ == "__main__":
     main()

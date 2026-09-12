@@ -89,8 +89,7 @@ class SystemTrayManager:
             self.gui.post_action(_toggle)
 
         def on_quit(icon, item):
-            self.stop()
-            self.gui.post_action(self.gui.root.quit)
+            self.request_quit()
 
         menu = pystray.Menu(
             pystray.MenuItem("🖥️ ペットを画面に呼び出す", on_show_pet, default=True),
@@ -131,6 +130,21 @@ class SystemTrayManager:
                 pass
             self._icon = None
             logger.info("🖥️ [SystemTray] タスクトレイアイコンを停止しました")
+
+    def request_quit(self) -> None:
+        """トレイメニューからの終了要求を正式な終了経路 (gui.quit_app) へ委譲する。
+
+        Notes:
+            root.quit() は禁止。本アプリは mainloop() を使わない自前ループ
+            (main.async_mainloop) で動作するため root.quit() は事実上 no-op で、
+            トレイだけが消えてプロセスが残存する (多重起動検知の誤発火・
+            2026-09-09 発見)。quit_app (トレイ停止 ＋ quiet_destroy) が
+            唯一の正式な終了経路である。
+        """
+        logger.info("🛑 [SystemTray] 終了要求を受信 → gui.quit_app へ委譲します")
+        self.stop()
+        self.gui.post_action(self.gui.quit_app)
+        logger.info("🛑 [SystemTray] quit_app を post_action キューへ投入しました")
 
 
 _global_tray_manager: Optional[SystemTrayManager] = None

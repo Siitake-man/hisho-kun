@@ -1,0 +1,46 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    name: unittest (Python ${{ matrix.python-version }})
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: [ "3.11", "3.12", "3.13" ]
+    env:
+      # Windows ランナーの既定エンコーディング (cp1252) でテスト出力の
+      # 絵文字・日本語が UnicodeEncodeError にならないよう UTF-8 を強制
+      PYTHONIOENCODING: utf-8
+      PYTHONUTF8: "1"
+    steps:
+      - name: Checkout (全履歴取得 — git履歴機密スキャン用)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install dependencies
+        shell: bash
+        run: |
+          python -m pip install --upgrade pip
+          # llama_cpp_python は Windows のソースビルドが 10 分超になるため CI では除外。
+          # 依存するテスト (test_local_llm_cache) は skipIf で自動スキップされる。
+          grep -v -E '^llama_cpp_python' requirements.txt > requirements-ci.txt
+          pip install -r requirements-ci.txt
+
+      - name: Run unit tests (unittest discover)
+        run: python -m unittest discover -s tests -p "test_*.py" -v
+
+      - name: Secret history scan (公開ゲート — 検出時はジョブ失敗)
+        run: python tools/scan_git_secrets.py

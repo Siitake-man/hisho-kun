@@ -10,6 +10,7 @@ import os
 import json
 import re
 import time
+import uuid
 import logging
 import urllib.request
 import urllib.error
@@ -56,6 +57,94 @@ _NETWORK_FAILURE_MARKERS: tuple = (
     "service unavailable",
     "overloaded",
 )
+
+
+# OpenCode Zen (Console Go) ルーティング用のプロセス内安定セッションID。
+# チャットリクエストから x-opencode-session ヘッダーが欠落すると
+# 400 MissingSessionID となる (2026-09 仕様変更・https://opencode.ai/docs/go/)。
+# .env の OPENCODE_SESSION_ID で上書き可能。
+_OPENCODE_SESSION_ID: str = uuid.uuid4().hex
+
+_LLAMA_CPP_CLEANUP_REGISTERED: bool = False
+
+
+def _close_llama_cpp_devnull_leaks() -> None:
+    """llama_cpp._utils が import 時に開きっぱなしにする nul ファイルハンドルを解放する。
+
+    llama-cpp-python v0.3.x の ``_utils.py`` はモジュール import 時に
+    ``open(os.devnull, "w")`` (encoding 指定なし → locale エンコーディング cp932) を
+    2 本行い、インタプリタ終了時の GC で
+    ``ResourceWarning: unclosed file <_io.TextIOWrapper name='nul' ...>``
+    を漏出させる (Jules 夜間タスクA・2026-09-06)。本関数はそのハンドルを明示的に
+    close する後片付けであり、プロセス終了直前 (atexit) のみから呼ばれることを
+    想定する。実行中に close すると ``suppress_stdout_stderr`` が参照する
+    ``fileno()`` が壊れるため、終了時以外の呼び出しは禁止。
+
+    Fail-Safe: llama_cpp 未導入・既に閉じ済み・属性不在のいずれでも例外を漏らさない。
+    """
+    try:
+        import importlib
+
+        llama_utils = importlib.import_module("llama_cpp._utils")
+    except Exception as e:
+        logger.debug(f"llama_cpp._utils が無いため devnull 後片付けをスキップ: {e}")
+        return
+
+    for attr in ("outnull_file", "errnull_file"):
+        file_handle = getattr(llama_utils, attr, None)
+        if file_handle is None or getattr(file_handle, "closed", True):
+            continue
+        try:
+            file_handle.close()
+            logger.debug(f"llama_cpp の devnull ハンドルを解放しました: {attr}")
+        except Exception as e:
+            logger.debug(f"devnull ハンドルの解放に失敗 ({attr}): {e}")
+
+
+def _register_llama_cpp_devnull_cleanup() -> None:
+    """llama_cpp の devnull ハンドル解放をプロセス終了時 (atexit) に登録する。
+
+    llama_cpp パッケージが import された直後に 1 度だけ呼ばれることを想定し、
+    2 回目以降の呼び出しは冪等にスキップされる。
+
+    Notes:
+        atexit はモジュール globals の GC より先に実行されるため、ここで close
+        しておけば終了時の ResourceWarning は発生しない。
+    """
+    global _LLAMA_CPP_CLEANUP_REGISTERED
+    if _LLAMA_CPP_CLEANUP_REGISTERED:
+        return
+    import atexit
+
+    atexit.register(_close_llama_cpp_devnull_leaks)
+    _LLAMA_CPP_CLEANUP_REGISTERED = True
+    logger.debug("llama_cpp devnull ハンドルの終了時解放を atexit へ登録しました")
+
+
+def format_llm_error_hint(exc: BaseException, limit: int = 100) -> str:
+    """例外からボス向けの短い診断ヒント (1行・マスク済み) を生成する。
+
+    2026-09 の OpenCode 仕様変更 (x-opencode-session 必須化) の際、UI が汎用文言
+    「AIとの通信に失敗しました」しか出さず、真因特定にオフライン診断が必要だった。
+    provider 由来の具体的エラー型 (例: ``MissingSessionID``) を吹き出しに 1 行
+    だけ見せることで、次回以降の仕様変更への追随速度を上げる。
+
+    Args:
+        exc: 発生した例外。
+        limit: ヒントの最大文字数 (吹き出しの幅制約)。
+
+    Returns:
+        str: ``例外型名: メッセージ`` 形式の 1 行ヒント。
+             APIキー・Bearer トークン・JWT は防御的にマスクされる。
+    """
+    text = f"{type(exc).__name__}: {exc}"
+    # 吹き出し表示崩れ防止: 改行・連続空白を 1 行に潰す
+    text = re.sub(r"\s+", " ", text).strip()
+    # 二次漏洩防止: APIキー / Bearer トークン / JWT をマスク
+    text = re.sub(r"sk-[A-Za-z0-9_\-]{6,}", "***", text)
+    text = re.sub(r"(?i)bearer\s+\S+", "Bearer ***", text)
+    text = re.sub(r"eyJ[A-Za-z0-9_\-.]{10,}", "***", text)
+    return text[:limit]
 
 
 def is_llm_network_failure(exc: BaseException) -> bool:
@@ -612,6 +701,10 @@ class LLMFactory:
                 from langchain_core.messages import AIMessage, BaseMessage
                 from langchain_core.outputs import ChatGeneration, ChatResult
 
+                # llama_cpp._utils が import 時に開きっぱなしにする nul ハンドルの
+                # 終了時解放を登録 (ResourceWarning: unclosed 'nul' の根治・Jules タスクA)
+                _register_llama_cpp_devnull_cleanup()
+
                 class LlamaCppChatModel(BaseChatModel):
                     """llama-cpp-python を LangChain BaseChatModel に適合させるアダプター。
 
@@ -803,6 +896,18 @@ class LLMFactory:
             api_key = os.getenv(api_key_env, "dummy-key") if api_key_env else "local-key"
             base_url = os.getenv(f"{provider.value.upper()}_BASE_URL", config.get("base_url"))
 
+            # OpenCode Zen (Console Go) はチャットリクエストに x-opencode-session
+            # ヘッダーが必須 (欠落時は 400 MissingSessionID・2026-09 仕様変更)。
+            # プロセス内で安定したセッションIDを付与し (.env の OPENCODE_SESSION_ID
+            # で上書き可)、他プロバイダへの影響は出さない。
+            default_headers: Optional[Dict[str, str]] = None
+            if provider == LLMProvider.OPENCODE:
+                default_headers = {
+                    "x-opencode-session": os.getenv(
+                        "OPENCODE_SESSION_ID", _OPENCODE_SESSION_ID
+                    )
+                }
+
             return ChatOpenAI(
                 model=model_name,
                 temperature=temperature,
@@ -810,7 +915,8 @@ class LLMFactory:
                 api_key=api_key,
                 streaming=True,
                 timeout=LLM_REQUEST_TIMEOUT_SEC,
-                max_retries=1
+                max_retries=1,
+                default_headers=default_headers,
             )
 
     def supports_tool_calling(self) -> bool:

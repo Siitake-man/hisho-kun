@@ -84,6 +84,7 @@ from api_context import ApiContext
 import api_tasks
 import api_agent_bridge
 import api_calendar
+import api_devices
 from server_watchdog import ServerWatchdog
 from agent_fsm import agent_fsm
 
@@ -619,6 +620,13 @@ POST_PATH_HANDLERS = {
     "/api/webhook/task": api_calendar.handle_webhook_task,
 }
 
+# GET パス系APIのディスパッチテーブル (P1-B 第一歩: api_devices モジュールへ委譲)
+# 各ハンドラは handler(ctx: ApiContext) -> bool 署名 (True: レスポンス書き込み済み)。
+# Bearer 認証 (_check_auth) は do_GET 側のディスパッチ箇所で適用する。
+GET_PATH_HANDLERS = {
+    "/api/devices": api_devices.handle_get_devices,
+}
+
 
 class DeskPetSyncHandler(SimpleHTTPRequestHandler):
     """Desk Pet PWA用の静的ファイル配信 ＆ JSON APIハンドラ"""
@@ -878,36 +886,13 @@ class DeskPetSyncHandler(SimpleHTTPRequestHandler):
             self.wfile.write(json.dumps({"status": "ok", "token": token}, ensure_ascii=False).encode("utf-8"))
             return
 
-        # 0.4 登録デバイス一覧取得 (GET /api/devices) — ゼロトラスト台帳管理
-        if self.path == "/api/devices":
+        # 0.4 GET パス系APIのディスパッチ (P1-B 第一歩: api_devices モジュールへ委譲)
+        # ゼロトラスト台帳 (GET /api/devices) — Bearer 認証はディスパッチ前に適用
+        get_path_handler = GET_PATH_HANDLERS.get(self.path)
+        if get_path_handler:
             if not self._check_auth():
                 return
-            try:
-                devices = database.get_all_devices()
-                dev_list = [
-                    {
-                        "id": d.id,
-                        "device_name": d.device_name,
-                        "ip_address": d.ip_address,
-                        "user_agent": d.user_agent,
-                        "created_at": d.created_at,
-                        "last_seen": d.last_seen,
-                        "is_revoked": d.is_revoked,
-                    }
-                    for d in devices
-                ]
-                self.send_response(200)
-                self.send_header("Content-Type", "application/json; charset=utf-8")
-                self._set_cors_headers()
-                self.end_headers()
-                self.wfile.write(json.dumps({"status": "ok", "devices": dev_list}, ensure_ascii=False).encode("utf-8"))
-            except Exception as e:
-                logger.error(f"デバイス一覧取得エラー: {e}")
-                self.send_response(500)
-                self.send_header("Content-Type", "application/json; charset=utf-8")
-                self._set_cors_headers()
-                self.end_headers()
-                self.wfile.write(json.dumps({"status": "error", "message": str(e)}).encode("utf-8"))
+            get_path_handler(ApiContext(self, b"", client_ip, user_agent))
             return
 
         # 0.5 ミニゲームハイスコア取得 (GET /api/minigame/high?game_id=xxx)

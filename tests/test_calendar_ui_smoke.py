@@ -12,6 +12,7 @@ import tkinter as tk
 
 import database
 from ui.calendar_window import CalendarWindow
+from ui.tk_teardown import quiet_destroy
 
 
 class _FakeParentGui:
@@ -34,7 +35,9 @@ class TestCalendarWindowRendering(unittest.TestCase):
 
     def tearDown(self):
         self.win.destroy()
-        self.root.destroy()
+        # 🧹 CTk 監視ループ停止 ＆ 未消化 after のキャンセル込みで静かに破棄
+        #    (破棄後の「invalid command name」ノイズ根治・Jules タスクB)
+        quiet_destroy(self.root)
 
     def test_month_view_renders(self):
         """月間グリッドが描画される"""

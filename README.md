@@ -1,8 +1,32 @@
 # ネオ秘書くん (Neo-Secretary)
 
+[![CI](https://github.com/Siitake-man/hisho-kun/actions/workflows/ci.yml/badge.svg)](https://github.com/Siitake-man/hisho-kun/actions/workflows/ci.yml)
+![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
+![Python](https://img.shields.io/badge/Python-3.11%20%7C%203.12%20%7C%203.13-blue)
+
 デスクトップに常駐する**AI秘書ペット**。PC右下に住み着き、コーディングエージェント（Cline / Codex / Claude Code等）からの承認要請をスマホに中継・ワンタップ承認するブリッジ機能と、スマホから手帳・TODO・習慣・天気・カレンダーを確認できるPWA連携を提供します。
 
-![screenshot](docs/images/screenshot.png)
+<p align="center">
+  <img src="assets/dot/hisho/idle_1.png" width="64" alt="ふだんのヒショ">
+  <img src="assets/dot/hisho/cheer.png" width="64" alt="応援">
+  <img src="assets/dot/hisho/focus_1.png" width="64" alt="エージェント実行中">
+  <img src="assets/dot/hisho/celebrate_1.png" width="64" alt="タスク完了">
+  <img src="assets/dot/hisho/reading_1.png" width="64" alt="読書">
+  <img src="assets/dot/hisho/sleepy_1.png" width="64" alt="おねむ">
+</p>
+
+<!--
+  📸 実機スクリーンショット枠 (撮影後に下のコメントを外して有効化):
+  保存先: assets/images/screenshots/pc_pet.png と phone_pet.png
+  (assets/ は git 追跡対象のため公開ページから参照できます)
+
+<p align="center">
+  <img src="assets/images/screenshots/pc_pet.png" width="320" alt="PCペットの様子">
+  &nbsp;&nbsp;
+  <img src="assets/images/screenshots/phone_pet.png" width="180" alt="スマホ Desk Pet">
+</p>
+-->
+
 
 ---
 
@@ -223,7 +247,8 @@ PCペット右クリック → ⚙ 設定 → 「🤖 外部AI・MCP連携」タ
 
 ## 📄 ライセンス
 
-MIT
+MIT License — 詳細は [LICENSE](LICENSE) を参照してください。
+（同梱の LFM2.5 モデルは [LFM Open License v1.0](https://huggingface.co/LiquidAI/LFM2.5-350M-GGUF/blob/main/LICENSE) の下で提供されます）
 
 ---
 
