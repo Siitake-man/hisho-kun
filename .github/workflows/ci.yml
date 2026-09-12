@@ -54,7 +54,15 @@ jobs:
           foreach ($m in $failed) {
             Write-Output "::error::テスト失敗: $($m.Matches[0].Groups[2].Value)"
           }
+          # 例外の「型: メッセージ」行 (ImportError 等) を原因として要約表示する
+          $details = Select-String -Path unittest.log -Pattern '^(ImportError|ModuleNotFoundError|FileNotFoundError|OSError|TclError|AssertionError|ValueError|TypeError|KeyError|RuntimeError): .+$' -AllMatches
+          foreach ($d in ($details | Select-Object -First 8)) {
+            Write-Output "::error::原因: $($d.Line.Trim())"
+          }
           if ($failed.Count -gt 0) {
+            # unittest は末尾に失敗のトレースバックをまとめて出すため、
+            # その最終ブロックを Annotations へ転記する (ImportError の真因が1往復で判明)
+            Get-Content unittest.log -Tail 30 | ForEach-Object { Write-Output "::error::LOG: $_" }
             Write-Output "::error::$($failed.Count) 件のテストが失敗しました"
             exit 1
           }

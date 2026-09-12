@@ -38,6 +38,7 @@ prompt_for_codex*.md
 # --- 秘密情報（絶対にコミット禁止） ---
 .env
 .env.*
+!.env.example
 *.key
 google_token.json
 google_credentials.json
