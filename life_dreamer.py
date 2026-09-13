@@ -14,6 +14,7 @@
 import json
 import logging
 import random
+import re
 import threading
 import time
 from datetime import datetime
@@ -218,29 +219,51 @@ class LifeDreamerEngine:
             logger.debug(f"🌈 [LifeDreamer] リアル天気取得エラー（スキップ）: {e}")
 
     def _build_prompt(self, state: Dict[str, Any], now_str: str, real_weather_label: str = "") -> str:
-        """ドリーマーLLM向けのプロンプトを構築する。"""
+        """ドリーマーLLM向けのプロンプトを構築する。現在言語設定（ja/en）に厳格に追従する。"""
+        import i18n
+        current_lang = i18n.get_language()
+
         history_lines = [
             f"- {h['message']}" for h in state.get("history", [])[-5:]
         ] or ["- （まだ何もありません）"]
         weather_names = " / ".join(f"{k}({v})" for k, v in WEATHER_LABELS.items())
         activity_names = " / ".join(ACTIVITY_PET_STATE_MAP.keys())
         real_weather_line = f"現在の実際の天気: {real_weather_label}\n" if real_weather_label else ""
+
+        if current_lang == "en":
+            lang_instruction = (
+                "【STRICT LANGUAGE RULE】\n"
+                "The 'message' field MUST be written in natural, cute English only (under 40 chars).\n"
+                "Any Japanese, Chinese, or non-English characters are strictly forbidden.\n"
+            )
+            msg_format = '"message": "<cute lifestyle description in English, under 40 chars>"'
+        else:
+            lang_instruction = (
+                "【厳格な言語ルール】\n"
+                "出力の 'message' は必ず自然で可愛い「日本語（ひらがな・カタカナ・漢字）」のみで記述してください。\n"
+                "中国語（簡体字・繁体字・中国語の慣用表現）の単語・フレーズの出力は一切禁止です。\n"
+            )
+            msg_format = '"message": "<日本語の可愛い生活描写、40文字以内>"'
+
         return (
             "あなたはデスクトップ秘書ペットの「生活の夢想家」です。\n"
             "ペットが今どんな生活をしているか、次の一つのイベントを創作してください。\n\n"
+            f"{lang_instruction}\n"
             f"現在時刻: {now_str}\n"
             f"{real_weather_line}"
             "直近の行動履歴:\n" + "\n".join(history_lines) + "\n\n"
             "以下のJSONのみを出力してください（説明文は禁止、コードブロックも禁止）:\n"
-            '{"activity": "<活動種別>", "weather": "<天候キー>", '
-            '"message": "<日本語の可愛い生活描写、40文字以内>"}\n\n'
+            f'{{"activity": "<活動種別>", "weather": "<天候キー>", {msg_format}}}\n\n'
             f"activity は次のいずれか: {activity_names}\n"
             f"weather は次のいずれか: {weather_names}\n"
             "時刻・天候・履歴に自然に合うものを選んでください。"
         )
 
     def _parse_llm_json(self, raw: str) -> Optional[Dict[str, str]]:
-        """LLM出力からJSON部分を抽出してパースする（揺らぎに耐性を持たせる）。"""
+        """LLM出力からJSON部分を抽出してパースする（中国語混入ガード付き）。"""
+        import i18n
+        current_lang = i18n.get_language()
+
         text = raw.strip()
         if text.startswith("```"):
             text = text.strip("`")
@@ -263,6 +286,18 @@ class LifeDreamerEngine:
             weather = self._rule_weather(datetime.now().day)
         if not message:
             message = "…"
+
+        # 中国語混入ガード（日本語設定時に中国語特有の簡体字やピンイン等を検知して弾く）
+        if current_lang == "ja":
+            # 簡体字・中国語特有文字の代表例パターン
+            chinese_patterns = re.compile(r"[\u4e00-\u9fff]")
+            # 典型的な簡体字（日本語漢字と重複しないもの: 馋, 汤, 咕, 噜, 么, 们, 样, 欢, 见, 说, 话, 现, 经, 进, 间 等）
+            simplified_chars = set("馋汤面咕噜吃得好满足么们样欢见说话现经进间这还点时发对开头实动两机给从各与长车书电门")
+            if any(ch in simplified_chars for ch in message) and not any(ch in "面吃" for ch in message and len(message) < 5):
+                # 明らかな中国語文を検知した場合
+                logger.warning(f"🌈 [LifeDreamer] 中国語出力を検知したためルール生成にフォールバック: {message}")
+                return None
+
         return {"activity": activity, "weather": weather, "message": message}
 
     def _generate_once(self) -> None:

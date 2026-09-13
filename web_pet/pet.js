@@ -1647,17 +1647,27 @@ async function fetchStatus() {
         document.getElementById('event-desc').innerText = (req.choices && req.choices.length > 0) ? `選択肢: ${req.choices.join(' / ')}` : 'タップして回答';
         if (bannerActions) bannerActions.style.display = 'none';
       } else {
-        eventBanner.className = '';
-        document.getElementById('event-type-badge').innerText = `⚠️ 【${req.agent_name}】承認要請`;
-        document.getElementById('banner-hint').innerText = 'ボタンでワンタップ回答';
+        const isStrict = (req.risk_level === 'strict');
+        eventBanner.className = isStrict ? 'strict' : 'prompt';
+        const badgeIcon = isStrict ? '🚨' : '🛡️';
+        const badgeLabel = isStrict ? '高リスク承認要請' : '承認要請';
+        document.getElementById('event-type-badge').innerText = `${badgeIcon} 【${req.agent_name}】${badgeLabel}`;
+        document.getElementById('banner-hint').innerText = isStrict ? '破壊的変更の可能性' : 'ボタンでワンタップ回答';
         document.getElementById('event-title').innerText = req.summary || req.command || '';
         document.getElementById('event-desc').innerText = req.command ? `⌨️ ${req.command}` : '';
         if (bannerActions) bannerActions.style.display = 'flex';
       }
       if (isNew) {
         lastApprovalRequestId = req.request_id;
-        playAlertChime(4);
-        showToast(`🔔 承認要請: ${req.summary || req.command || ''}`);
+        const isStrict = (req.risk_level === 'strict');
+        if (isStrict) {
+          playAlertChime(5);
+          if (navigator.vibrate) navigator.vibrate([200, 100, 200, 100, 400]);
+        } else {
+          playAlertChime(4);
+          if (navigator.vibrate) navigator.vibrate([100, 60, 100]);
+        }
+        showToast(`${req.risk_level === 'strict' ? '🚨 高リスク承認' : '🔔 承認要請'}: ${req.summary || req.command || ''}`);
       }
     } else {
       currentApprovalRequest = null;
@@ -1947,16 +1957,22 @@ function setupBannerSwipe() {
 function openApprovalSheet() {
   const req = currentApprovalRequest;
   if (!req) return;
+  const isStrict = (req.risk_level === 'strict');
+  const warningHtml = isStrict
+    ? `<div class="note-item" style="border-left: 3px solid #FF5252; background: rgba(255, 82, 82, 0.15);"><div class="note-title" style="color:#FF5252;">🚨 破壊的変更の警告</div><div class="note-desc">git reset / rm / drop table などの重大操作が含まれる可能性があります。コマンド内容を必ず確認してください。</div></div>`
+    : '';
   const commandHtml = req.command
     ? `<div class="note-item"><div class="note-title">⌨️ 実行コマンド</div><div class="note-desc" style="white-space: pre-wrap;">${escapeHtml(req.command)}</div></div>`
     : '';
-  const html = `${commandHtml}
+  const html = `${warningHtml}${commandHtml}
     <div class="note-item"><div class="note-title">🛡️ このコマンドの実行を許可しますか？</div><div class="note-desc">イヤホンの再生ボタンでも承認できます</div></div>
     <div class="approval-sheet-actions">
       <button class="btn-approve" onclick="closeBottomSheet(); respondApproval('approve')">✅ 承認する</button>
       <button class="btn-deny" onclick="closeBottomSheet(); respondApproval('deny')">🛑 却下する</button>
     </div>`;
-  openBottomSheet({ icon: '🛡️', tag: '承認要請', title: req.summary || 'コマンド実行の承認' }, html);
+  const sheetIcon = isStrict ? '🚨' : '🛡️';
+  const sheetTag = isStrict ? '高リスク承認' : '承認要請';
+  openBottomSheet({ icon: sheetIcon, tag: sheetTag, title: req.summary || 'コマンド実行の承認' }, html);
 }
 
 /** 質問シート（選択肢を大ボタンで表示） */
@@ -2004,7 +2020,21 @@ async function respondApproval(decision, ev, answerText) {
     if (res.ok) {
       const data = await res.json().catch(() => ({}));
       if (data.status === 'expired') {
-        showToast('⏰ この質問は期限切れです');
+        showToast('⏰ この質問・要請は期限切れです');
+        currentApprovalRequest = null;
+        currentActiveEvent = null;
+        const banner = document.getElementById('active-event-banner');
+        if (banner) banner.style.display = 'none';
+        fetchStatus();
+        return;
+      }
+      if (data.status === 'error') {
+        showToast(`🛑 ${data.message || '自己承認等のエラーで拒否されました'}`);
+        fetchStatus();
+        return;
+      }
+      if (data.status === 'not_found') {
+        showToast('⚠️ 対象の要請が見つかりません（既に処理されたか取消されました）');
         currentApprovalRequest = null;
         currentActiveEvent = null;
         const banner = document.getElementById('active-event-banner');
@@ -2023,7 +2053,11 @@ async function respondApproval(decision, ev, answerText) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'pet_reaction', state: decision === 'approve' ? 'celebrate' : 'care', duration_ms: 5000 })
       }).catch(err => console.debug('Pet reaction failed:', err));
-      showToast(decision === 'approve' ? '✅ 承認を送信しました' : decision === 'answered' ? '✅ 回答を送信しました' : '🛑 却下を送信しました');
+      if (data.duplicate) {
+        showToast('ℹ️ 既に送信済みです');
+      } else {
+        showToast(decision === 'approve' ? '✅ 承認を送信しました' : decision === 'answered' ? '✅ 回答を送信しました' : '🛑 却下を送信しました');
+      }
     } else {
       showToast('⚠️ 送信に失敗しました');
     }

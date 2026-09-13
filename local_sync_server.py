@@ -553,6 +553,20 @@ class AgentBridgeHub:
         with self._lock:
             req = self.pending_requests.get(request_id)
             if not req:
+                # 冪等性チェック: 既に history に存在し、同一の判定であれば成功（already_resolved）を返す
+                for hist in reversed(self.history):
+                    if hist.get("request_id") == request_id:
+                        prev_status = hist.get("status")
+                        is_match = (
+                            prev_status == decision
+                            or (decision in ("approve", "approved") and prev_status in ("approve", "approved"))
+                            or (decision in ("reject", "deny") and prev_status in ("reject", "deny"))
+                        )
+                        if is_match:
+                            logger.info(
+                                f"🔄 [Agent Bridge] 重複リクエストの冪等処理: ID={request_id} -> {decision}"
+                            )
+                            return True, "already_resolved"
                 return False, "not_found"
             # 期限切れ検知: timeout_at を超過している場合は拒否する
             # wait_decision=False の非同期質問でもタイムアウト後にタップされるとここで検知される

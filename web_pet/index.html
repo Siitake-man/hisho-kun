@@ -370,6 +370,18 @@
       color: #B71C1C;
       box-shadow: 0 3px 10px rgba(0, 0, 0, 0.4);
     }
+    #active-event-banner.strict {
+      background: linear-gradient(135deg, #B71C1C, #D32F2F);
+      border: 2px solid #FF5252;
+      box-shadow: 0 0 24px rgba(255, 23, 68, 0.95);
+      animation: pulse-danger 0.7s infinite;
+    }
+    #active-event-banner.prompt {
+      background: linear-gradient(135deg, #E65100, #F57C00);
+      border: 2px solid #FFE082;
+      box-shadow: 0 0 18px rgba(255, 179, 0, 0.7);
+      animation: pulse-border 1.2s infinite;
+    }
     #active-event-banner.question {
       background: linear-gradient(135deg, #00838F, #00ACC1);
       border-color: #84FFFF;
@@ -384,6 +396,11 @@
       background: linear-gradient(135deg, #4A148C, #7B1FA2);
       border-color: #E1BEE7;
       box-shadow: 0 0 18px rgba(186, 104, 200, 0.75);
+    }
+    @keyframes pulse-danger {
+      0% { box-shadow: 0 0 14px rgba(255, 23, 68, 0.75); border-color: #FF5252; }
+      50% { box-shadow: 0 0 28px rgba(255, 23, 68, 1); border-color: #FF8A80; }
+      100% { box-shadow: 0 0 14px rgba(255, 23, 68, 0.75); border-color: #FF5252; }
     }
 
     /* ⬆ アップデート通知バナー */

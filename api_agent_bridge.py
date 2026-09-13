@@ -202,27 +202,45 @@ def handle_agent_respond(ctx: ApiContext) -> None:
     get_link_monitor().record_heartbeat(ctx.client_ip, ctx.user_agent)
     ctx.begin_json_response()
     try:
-        data = json.loads(ctx.body.decode("utf-8"))
+        if isinstance(ctx.body, bytes):
+            data = json.loads(ctx.body.decode("utf-8"))
+        elif isinstance(ctx.body, str):
+            data = json.loads(ctx.body)
+        else:
+            data = {}
         request_id = data.get("request_id")
         decision = data.get("decision", "approve")
         message = data.get("message", "")
 
         hub = get_bridge_hub()
         success, reason = hub.respond_checked(request_id, decision, message, responder_ip=ctx.client_ip)
-        status_payload: Dict[str, Any] = {"status": "success"}
+        status_payload: Dict[str, Any] = {"status": "success", "reason": reason}
         if not success:
             if reason == "self_approve_denied":
                 status_payload = {
                     "status": "error",
+                    "reason": "self_approve_denied",
                     "message": "自己承認は禁止されています（要求元と同じ端末からの承認は無効）"
                 }
             elif reason == "expired":
                 status_payload = {
                     "status": "expired",
+                    "reason": "expired",
                     "message": "この承認要請・質問は期限切れです（タイムアウトしました）。エージェントに再問い合わせしてください。"
                 }
             else:
-                status_payload = {"status": "not_found", "message": "対象のリクエストが見つかりません"}
+                status_payload = {
+                    "status": "not_found",
+                    "reason": "not_found",
+                    "message": "対象のリクエストが見つかりません"
+                }
+        elif reason == "already_resolved":
+            status_payload = {
+                "status": "success",
+                "reason": "already_resolved",
+                "duplicate": True,
+                "message": "既に処理済みのリクエストです"
+            }
         ctx.write_json(status_payload, ensure_ascii=False)
     except Exception as e:
         logger.error(f"Agent Respond API エラー: {e}")
