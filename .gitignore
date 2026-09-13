@@ -22,7 +22,9 @@ docs/*
 !docs/specs/
 !docs/index.html
 !docs/neo-secretary-showcase.html
+!docs/neo-secretary-showcase-en.html
 !docs/neo-secretary-architecture.html
+!docs/neo-secretary-architecture-en.html
 !docs/neo-secretary-showcase-spec.json
 !docs/neo-secretary.architecture.json
 docs/specs/USER_CONTEXT.md

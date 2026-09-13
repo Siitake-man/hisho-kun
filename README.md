@@ -16,6 +16,10 @@ Claude Code や Cline などの自律AIコーディングを回しながら、**
 ネオ秘書くんなら、PC右下のドット絵ペットがAIの思考とリアルタイムに連動し、離席中でも**手元のスマホからワンタップで遠隔承認**。コーヒーを淹れている間も、トイレに行っている間も、開発が止まりません。
 
 <p align="center">
+  <img src="docs/guides/assets/banner_main.jpg" width="100%" alt="ネオ秘書くん - あなたの専属卓上AI秘書">
+</p>
+
+<p align="center">
   <img src="assets/dot/hisho_animated.gif" width="104" alt="ネオ秘書くん（ヒショ）— まばたきするドット絵ペット">
   &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
   <img src="assets/dot/kyle_animated.gif" width="104" alt="ネオカイル — 泳ぐドット絵ペット">
@@ -53,6 +57,60 @@ Claude Code や Cline などの自律AIコーディングを回しながら、**
 </p>
 
 ---
+
+## 🏛️ システムアーキテクチャ ＆ データフロー
+
+```mermaid
+graph TD
+    classDef agent fill:#2d3748,stroke:#4a5568,stroke-width:2px,color:#fff;
+    classDef bridge fill:#40458f,stroke:#5a61c7,stroke-width:2px,color:#fff;
+    classDef server fill:#0f7c78,stroke:#14b8a6,stroke-width:2px,color:#fff;
+    classDef phone fill:#8b5e3c,stroke:#b47c50,stroke-width:2px,color:#fff;
+
+    Agents["🤖 AIコーディングエージェント<br/>(Claude Code / Cline / Cursor / Codex 等)"]:::agent
+    MCP["🔌 自作MCPサーバー<br/>(neo_hisho_bridge)"]:::bridge
+    Server["⚡ ネオ秘書くん同期サーバー<br/>(Python / asyncio)"]:::server
+    PWA["📱 卓上スマホ<br/>(Desk Pet PWA)"]:::phone
+
+    Agents -->|"stdio / JSON-RPC<br/>ask_human_approval"| MCP
+    MCP -->|"ローカル HTTP / SSE<br/>共通DTO AgentApprovalRequest"| Server
+
+    subgraph DefenseEngine ["🛡️ 3段階判定エンジン ＆ 監査ログ基盤"]
+        Auto["🟢 Auto-Allow (自動許可)<br/>git status, pytest - 即時0秒通過"]
+        Prompt["🟡 Prompt (通常確認)<br/>git commit, 通常編集 - スマホへ通知"]
+        Strict["🔴 Strict (厳格承認)<br/>rm -rf, git reset - 赤バナー警告"]
+        Audit[("📝 SQLite 監査ログ<br/>改ざん不可の承認証跡")]
+    end
+
+    Server --> Auto
+    Server --> Prompt
+    Server --> Strict
+    Server -.-> Audit
+
+    Auto -->|"即時自動解決 (0ms)"| MCP
+    Prompt -->|"自宅Wi-Fi / Tailscale (Bearer認証)"| PWA
+    Strict -->|"自己承認防止 (RCE遮断)"| PWA
+
+    PWA -->|"ワンタップ判定 (承認 / 却下)"| Server
+```
+
+### 📡 リアルタイム通信データフロー
+
+```text
+[ 各種AIエージェント ] (Claude Code / Cline / Cursor / Codex 等)
+       │
+       ▼ (stdio / JSON-RPC: Model Context Protocol)
+[ 自作 MCPサーバー ] (neo_hisho_bridge)
+       │
+       ▼ (ローカル HTTP / 共通DTO AgentApprovalRequest)
+[ ネオ秘書くん同期サーバー ] (Python / asyncio)
+       │ ├─ 🟢 Auto-Allow : 安全な閲覧・テストコマンドは即時0秒で自動通過
+       │ ├─ 🟡 Prompt     : 通常編集・コミットはスマホへ通知
+       │ ├─ 🔴 Strict     : 破壊的変更は深紅の警告パルスバナーを発火
+       │ └─ 📝 Audit Log  : 全承認履歴をSQLiteに監査証跡として完全保存
+       ▼ (自宅Wi-Fi / Tailscale: Bearer認証 ＆ 自己承認RCE遮断)
+[ 卓上スマホ (Desk Pet) ] 📱「ベッドやキッチンからワンタップでポチッ！」
+```
 
 ## ✨ 機能一覧
 

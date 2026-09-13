@@ -1,6 +1,6 @@
 # システム設計書: Neo-Secretary (ネオ秘書くん) Python Agent Edition
 
-- **最終更新日時**: 2026-09-13 15:48 (🏛️ **Section 11 Codebase Design Seam分割設計追加版**)
+- **最終更新日時**: 2026-09-13 20:40 (🌐 **Section 12 Global Showcase ＆ Cheat Sheets 英語版配備版**)
 - **Architecture**: Python Desktop App with LangGraph & PWA Mobile Approval Remote
 
 ---
@@ -471,3 +471,24 @@ web_pet/
 - `database/insight_repo.py`: MentisDB（ボスの知見・トリセツ管理）
 - `database/audit_repo.py`: 承認監査ログ永続化
 - `database.py` は各Repositoryのファサード（Deep Module）として薄いインターフェースを提供。
+
+---
+
+## 12. グローバル展開・多言語Webアーキテクチャ (2026-09-13 策定)
+
+### 12.1 目的とグローバルOSS戦略
+- **海外開発コミュニティ（Hacker News / Reddit / Product Hunt / X）への訴求**:
+  - 日本語専用ツールではなく、世界水準の「AI Agent Remote Approval Platform」として認知を獲得する。
+  - GitHub READMEにおける3秒直感理解（Mermaid / ASCIIアーキテクチャ図）と、Web Showcase / 公式チートシートによる二重の導線をグローバル展開する。
+
+### 12.2 二層式ローカライズ設計
+1. **Interactive Showcase (`docs/neo-secretary-showcase-en.html`)**:
+   - `eli5-data` および `eli5-ui` JSONの完全英訳により、JavaScriptレンダリングエンジン・アニメーション・シグナルトレースロジックを100%再利用。
+   - 日英相互リンク（`🇯🇵 日本語版` ⇄ `🇬🇧 English`）によるシームレスな言語切り替え。
+   - 専用アーキテクチャ図（`neo-secretary-architecture-en.html`）をiframe埋め込みし、設計図内部のカードまで完全英語化。
+2. **Official Cheat Sheets & User Guide (`docs/guides/NEO_HISHO_CHEAT_SHEETS_en.html`)**:
+   - 初期セットアップ、スマホQR/VPN接続、統合手帳、3段階承認ポリシー、ローカルLLM、FAQの全セクションを自然なプロフェッショナル英語で完全網羅。
+   - `docs/guides/NEO_HISHO_CHEAT_SHEETS.html`（日本語版）と相互にトグル可能なヘッダーナビゲーションを配備。
+   - 全6枚の公式インフォグラフィック（`banner_main_en.jpg`, `cs01_setup_en.jpg` 〜 `cs05_localllm_en.jpg`）を超高精細AI生成で完全英訳・配備。
+3. **5大チートシート Raw Markdown 英語版 (`docs/guides/cheatsheet_0X_..._en.md`)**:
+   - GitHubリポジトリ上で直接ドキュメントを閲覧する海外開発者のため、①〜⑤の全Markdownファイルを英訳し、インフォグラフィック画像を埋め込み配備。
