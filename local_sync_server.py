@@ -362,15 +362,19 @@ class AgentBridgeRequest:
         command: str = "",
         choices: Optional[List[str]] = None,
         timeout_sec: int = 180,
-        requester_ip: str = ""
+        requester_ip: str = "",
+        risk_level: str = "prompt",
+        agent_type: str = "generic"
     ):
         self.request_id = f"req_{uuid.uuid4().hex[:8]}"
         self.req_type = req_type
         self.agent_name = agent_name
+        self.agent_type = agent_type
         self.title = title
         self.content = content
         self.command = command
         self.choices = choices or []
+        self.risk_level = risk_level
         self.created_at = time.time()
         self.timeout_at = self.created_at + timeout_sec
         self.status = "pending"  # 'pending', 'approved', 'rejected', 'answered', 'expired'
@@ -397,10 +401,12 @@ class AgentBridgeRequest:
             "request_id": self.request_id,
             "type": self.req_type,
             "agent_name": self.agent_name,
+            "agent_type": self.agent_type,
             "title": self.title,
             "content": self.content,
             "command": self.command,
             "choices": self.choices,
+            "risk_level": self.risk_level,
             "created_at": self.created_at,
             "timeout_at": self.timeout_at,
             "status": self.status,
@@ -416,7 +422,17 @@ class AgentBridgeHub:
         self.latest_completed: Optional[Dict[str, Any]] = None
         self.history: List[Dict[str, Any]] = []
 
-    def create_approval_request(self, agent_name: str, command: str, summary: str, details: str = "", timeout_sec: int = 180, requester_ip: str = "") -> AgentBridgeRequest:
+    def create_approval_request(
+        self,
+        agent_name: str,
+        command: str,
+        summary: str,
+        details: str = "",
+        timeout_sec: int = 180,
+        requester_ip: str = "",
+        risk_level: str = "prompt",
+        agent_type: str = "generic"
+    ) -> AgentBridgeRequest:
         req = AgentBridgeRequest(
             req_type="approval",
             agent_name=agent_name,
@@ -424,7 +440,9 @@ class AgentBridgeHub:
             content=details,
             command=command,
             timeout_sec=timeout_sec,
-            requester_ip=requester_ip
+            requester_ip=requester_ip,
+            risk_level=risk_level,
+            agent_type=agent_type
         )
         with self._lock:
             self.pending_requests[req.request_id] = req

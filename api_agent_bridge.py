@@ -37,38 +37,111 @@ logger = logging.getLogger(__name__)
 def handle_agent_ask(ctx: ApiContext) -> None:
     """外部エージェントからの承認要請 (POST /api/agent/ask) を処理する。
 
-    BridgeHub に承認リクエストを作成し、wait_decision=True の場合は
-    スマホ側のワンタップ承認 (またはタイムアウト) を待ち合わせる。
+    Block 2 統合機能:
+    1. AgentAdapter: Claude Code / Cline / 汎用エージェントのペイロードを共通DTOへ正規化。
+    2. ApprovalPolicy: 3段階 (Auto-Allow / Prompt / Strict) 判定。安全なテスト等は即時自動許可。
+    3. AuditLogger: 全ての承認・却下・自動許可履歴を SQLite に非同期安全に永続化。
 
     Args:
         ctx: リクエストコンテキスト。
     """
     from local_sync_server import get_bridge_hub, get_link_monitor
+    from agent_adapter import get_default_adapter_registry, RiskLevel
+    from approval_policy import get_default_policy_engine
+    from audit_logger import get_global_audit_logger, AuditLogEntry
+
     ctx.begin_json_response()
     try:
-        data = json.loads(ctx.body.decode("utf-8"))
-        agent_name = data.get("agent_name", "AI Agent")
-        command = data.get("command", "")
-        summary = data.get("summary", "コマンドの実行許可を求めています")
-        details = data.get("details", "")
-        timeout = int(data.get("timeout", 180))
+        # bytes / str 両対応の安全なデコード
+        if isinstance(ctx.body, bytes):
+            body_str = ctx.body.decode("utf-8")
+        elif isinstance(ctx.body, str):
+            body_str = ctx.body
+        else:
+            body_str = "{}"
+        raw_data = json.loads(body_str) if body_str else {}
+
+        # 1. 共通DTOへ正規化 (Node A: Agent Adapter)
+        registry = get_default_adapter_registry()
+        req_dto = registry.normalize(raw_data, client_ip=ctx.client_ip)
+
+        # 2. 3段階コマンド危険度判定 (Node B: Approval Policy)
+        policy_engine = get_default_policy_engine()
+        decision_policy = policy_engine.evaluate(req_dto.command)
+        req_dto.risk_level = decision_policy.risk_level
 
         hub = get_bridge_hub()
-        req = hub.create_approval_request(agent_name, command, summary, details, timeout_sec=timeout, requester_ip=ctx.client_ip)
-        get_link_monitor().trigger_buzz()
+        req = hub.create_approval_request(
+            agent_name=req_dto.agent_name,
+            command=req_dto.command,
+            summary=req_dto.summary,
+            details=req_dto.details,
+            timeout_sec=req_dto.timeout_sec,
+            requester_ip=ctx.client_ip,
+            risk_level=req_dto.risk_level.value,
+            agent_type=req_dto.agent_type
+        )
 
-        if data.get("wait_decision", True):
-            decision = req.wait(timeout=timeout)
+        audit_logger = get_global_audit_logger()
+        start_time = time.time()
+
+        # 🟢 AUTO_ALLOW の場合: スマホ通知をスキップし即座に自動承認で解決
+        if decision_policy.is_auto_allowed:
+            req.resolve("approve", f"Auto-allowed by policy: {decision_policy.reason}")
+            audit_logger.log(AuditLogEntry(
+                request_id=req.request_id,
+                agent_type=req_dto.agent_type,
+                agent_name=req_dto.agent_name,
+                command=req_dto.command,
+                summary=req_dto.summary,
+                risk_level=req_dto.risk_level.value,
+                decision="approve",
+                decision_by="policy_engine",
+                decision_message=req.decision_message,
+                requester_ip=ctx.client_ip,
+                client_ip="127.0.0.1",
+                duration_sec=0.0,
+                created_at=int(req.created_at),
+            ))
+        else:
+            # 🟡 PROMPT または 🔴 STRICT: スマホ Desk Pet を振動・点滅させて人間承認を促す
+            get_link_monitor().trigger_buzz()
+
+        if raw_data.get("wait_decision", True):
+            decision = req.wait(timeout=req_dto.timeout_sec)
+            duration = time.time() - start_time
+
+            # 3. 監査ログの記録 (Node C: Audit Log, PROMPT/STRICT用)
+            if not decision_policy.is_auto_allowed:
+                decision_by = "human" if decision in ("approve", "approved", "rejected") else "timeout"
+                audit_logger.log(AuditLogEntry(
+                    request_id=req.request_id,
+                    agent_type=req_dto.agent_type,
+                    agent_name=req_dto.agent_name,
+                    command=req_dto.command,
+                    summary=req_dto.summary,
+                    risk_level=req_dto.risk_level.value,
+                    decision=decision,
+                    decision_by=decision_by,
+                    decision_message=req.decision_message,
+                    requester_ip=ctx.client_ip,
+                    client_ip=getattr(req, "responder_ip", ""),
+                    duration_sec=round(duration, 2),
+                    created_at=int(req.created_at),
+                ))
+
             ctx.write_json({
                 "status": "success",
                 "request_id": req.request_id,
                 "decision": decision,
+                "risk_level": req_dto.risk_level.value,
                 "message": req.decision_message
             }, ensure_ascii=False)
         else:
             ctx.write_json({
                 "status": "queued",
-                "request_id": req.request_id
+                "request_id": req.request_id,
+                "risk_level": req_dto.risk_level.value
             }, ensure_ascii=False)
     except Exception as e:
         logger.error(f"Agent Ask API エラー: {e}")

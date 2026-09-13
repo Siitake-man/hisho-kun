@@ -554,6 +554,34 @@ def init_db(db_path: str = "neo_secretary.db") -> None:
         )
         logger.info("devicesテーブルを確認/作成しました")
 
+        # approval_audit_logsテーブル (エージェント承認監査ログ基盤: Block 2)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS approval_audit_logs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                request_id TEXT NOT NULL,
+                agent_type TEXT NOT NULL,
+                agent_name TEXT NOT NULL,
+                command TEXT NOT NULL,
+                summary TEXT,
+                risk_level TEXT NOT NULL,
+                decision TEXT NOT NULL,
+                decision_by TEXT NOT NULL DEFAULT 'human',
+                decision_message TEXT,
+                requester_ip TEXT,
+                client_ip TEXT,
+                duration_sec REAL DEFAULT 0.0,
+                created_at INTEGER NOT NULL
+            )
+        """)
+        cursor.execute(
+            "CREATE INDEX IF NOT EXISTS idx_audit_request_id "
+            "ON approval_audit_logs (request_id)"
+        )
+        cursor.execute(
+            "CREATE INDEX IF NOT EXISTS idx_audit_created_at "
+            "ON approval_audit_logs (created_at)"
+        )
+        logger.info("approval_audit_logsテーブルを確認/作成しました")
         
     logger.info(f"データベース初期化完了: {db_path}")
 
