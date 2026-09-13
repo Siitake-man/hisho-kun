@@ -20,6 +20,11 @@ hisyokun-modern-source/
 docs/*
 !docs/guides/
 !docs/specs/
+!docs/index.html
+!docs/neo-secretary-showcase.html
+!docs/neo-secretary-architecture.html
+!docs/neo-secretary-showcase-spec.json
+!docs/neo-secretary.architecture.json
 docs/specs/USER_CONTEXT.md
 docs/specs/AI_RULES.md
 docs/specs/秘書くんマスタードキュメント.md
