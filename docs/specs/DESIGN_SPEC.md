@@ -1,6 +1,6 @@
 # システム設計書: Neo-Secretary (ネオ秘書くん) Python Agent Edition
 
-- **最終更新日時**: 2026-09-13 15:35 (🎉 **ペット大歓喜ジャンプ＆ドット絵セレブレーション本格実装完了版**)
+- **最終更新日時**: 2026-09-13 15:48 (🏛️ **Section 11 Codebase Design Seam分割設計追加版**)
 - **Architecture**: Python Desktop App with LangGraph & PWA Mobile Approval Remote
 
 ---
@@ -436,3 +436,38 @@ MiniCPM-Petの秀逸な着眼点をネオ秘書くんのクリーンアーキテ
 - **PC音声読み上げの環境変数制御**:
   - `VOICE_NARRATION_ENABLED` を `.env` で永続管理し、設定画面 Tab 2 からワンタップでトグル可能。
   - オフィスや家族環境での意図しない発話事故を完全に防止。
+
+---
+
+## 11. 将来アーキテクチャ設計: Codebase Design ＆ Seam 分割 (v1.1.0)
+
+### 11.1 背景と課題（Shallow Module化の危機）
+- **現状のホットスポット**:
+  1. `web_pet/pet.js` (3,335行): 通信、UIバナー、スプライト管理、歩行物理、歓喜アニメ、パーティクル、隠しコマンドの7つの異なるライフサイクルが単一ファイルに同居。
+  2. `database.py` (2,498行): タスク、カレンダー、習慣、MentisDB知見、監査ログの全CRUDが単一ファイルに集中。
+- **課題**: 異なる役割が同一スコープに同居することで、修正時の玉突き事故（副作用）、AI推論オーバーヘッドによるハング、5分コードレビューの困難化を招いている。
+
+### 11.2 PWAフロントエンド Seam 4分割設計 (`web_pet/`)
+ビルドツールを入れず、Vanilla JSのまま `<script type="module">` を採用して役割別にSeam（接合点）を配置：
+```text
+web_pet/
+├── js/
+│   ├── pet_network.js    # 通信・ポーリング・認証・キャッシュ制御 (約500行)
+│   ├── pet_ui.js         # バナーカード・コミック吹き出し・モーダル描画 (約600行)
+│   ├── pet_motion.js     # 歓喜ジャンプ・歩行物理・スプライト管理 (約500行)
+│   ├── pet_particles.js  # なでなで・紙吹雪パーティクルエンジン (約400行)
+│   └── pet_main.js       # 全体を統括するエントリーポイント (約300行)
+└── easter_eggs.js        # ミニゲーム・隠しコマンド (既存のまま独立維持)
+```
+- **設計契約**:
+  - `pet_network.js` はサーバーとの通信とイベント発火のみを担当し、DOMやスプライトを直接触らない。
+  - `pet_motion.js` はアニメーションと物理演算を担当し、HTTPリクエストを発行しない。
+  - これにより、「吹き出しを直す時に通信を壊す」玉突き事故が構造的に0%になる。
+
+### 11.3 データベース層 Repository パターン分割 (`database/`)
+- `database/connection.py`: コネクションプール・WAL設定・トランザクション保護
+- `database/task_repo.py`: タスクCRUD・再帰ルール・階層管理
+- `database/calendar_repo.py`: カレンダーイベント同期・終日判定
+- `database/insight_repo.py`: MentisDB（ボスの知見・トリセツ管理）
+- `database/audit_repo.py`: 承認監査ログ永続化
+- `database.py` は各Repositoryのファサード（Deep Module）として薄いインターフェースを提供。
