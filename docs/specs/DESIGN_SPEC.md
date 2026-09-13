@@ -1,17 +1,30 @@
-# システム設計書: Neo-Secretary (秘書くん3) Python Agent Edition
+# システム設計書: Neo-Secretary (ネオ秘書くん) Python Agent Edition
 
-- **最終更新日時**: 2026-09-06 16:08 (集中開発4サイクル完全反映: タスクトレイ常駐・ゼロトラスト端末台帳・自己治癒watchdog分離・予定リマインダー紫バナー・音声設定トグル)
-- **Based on**: 秘書くん Modern 設計書 (by Manus AI) v1.0.0
-- **Architecture**: Python Desktop App with LangGraph & Tiered LLM Sidecar
+- **最終更新日時**: 2026-09-13 12:48 (🎯 **公式チートシート＆全体俯瞰図Showcaseの完全開通・インフォグラフィック③重複解消版**)
+- **Architecture**: Python Desktop App with LangGraph & PWA Mobile Approval Remote
 
-## 1. プロジェクトの定義
-Manusが設計した「秘書くん Modern (Web版)」の機能とデザイン美学を、Python/TkinterおよびLangGraphを用いた「自律型デスクトップエージェント」として再実装（ポーティング）する。
+---
+
+## 1. プロジェクトの定義と基本思想
+
+### コアミッション
+「**席を外してもAIコーディングエージェントが止まらない**」。  
+Claude Code, Cline, Codex, Cursor, Antigravity などの自律型コーディングエージェントが実行許可を求めて停止する痛点を、**眠っていた古いスマホを卓上承認リモコン＆相棒ペットに転生させてワンタップで解決**する。
+
+### 🏛️ プロダクト三層構造アーキテクチャ（2026-09-13 確定）
+
+| レイヤー | 役割 | 対象モジュール / 機能 | アーキテクチャ設計方針 |
+|:---|:---|:---|:---|
+| **コア (A)** | **主役・独自の痛点解決** | `api_agent_bridge.py`, `hisho_mcp_server.py`, `agent_watcher.py`, スマホ承認PWA | 🚀 **最優先投資**。エージェント承認の中継・失敗モード（タイムアウト/オフライン/再送）の堅牢化・Agent Adapterによる規格統一。 |
+| **世界観 (B)** | **愛着装置・ブランド** | `character_manager.py`, `pet_animator.py`, `web_pet/`, 自作Mod基盤 | 🔨 **自作Mod基盤（フォルダ配置による動的登録）のみ最小実装**。キャラ量産はコミュニティへ開放。既存ミニゲーム・演出は現状凍結。 |
+| **居場所 (C)** | **常駐の理由・背景** | `api_tasks.py`, `api_calendar.py`, `ui/calendar_window.py`, `database.py` | 🧊 **現状維持**。承認リモコンを机上に常駐させるための背景（TODO・習慣・iCal）。TickTick/Notionと戦わない。 |
+| **保留 (Backlog)** | **開発リソース浪費の回避** | 音声対話 (Whisper/TTS), Google/LINE/Notion双方向同期, Life Coach L2/L3 | 💤 **完全凍結**。v1.xでは触らず、使われてから需要に応じて再評価。 |
 
 ### コア・コンセプト
-1.  **Retro Modern UI:** ドットフォント(DotGothic16)とブラウン系配色を用いた「懐かしくも新しい」デザイン。
-2.  **Local First & Agentic:** クラウド（Web）だけでなくローカルPCに常駐し、ユーザーのコンテキストを理解して自律的に動く。
-3.  **Tiered LLM & Dual-Bridge:** 内包ローカルLLM（超軽量GGUF）による0円・即答リアクションと、クラウド高知能LLM（Gemini/DeepSeek）の自動エスカレーション。さらにMCPとFile Watcherによる外部Agent監視・双方向承認。
-4.  **Educational:** AIラボでの学習用教材として、LangGraphによるステートマシン制御を実装の中心に据える。
+1. **Approval Remote First (承認リモコン最優先):** PCでエージェントがコマンド承認待ちになった瞬間、スマホ画面にレッドパルスバナーとワンタップ承認ボタン（✅承認 / 🛑却下）を即時発火。コーヒー片手にノールックで開発を進められる。
+2. **Local-Only & Least Privilege (ローカル完結・最小権限・承認必須):** 外部クラウドや第三者サーバーを経由せず、同一LAN/Tailscale内のみでBearerトークン暗号照合により直接通信。要求元と承認者のIP一致（自己承認）を禁止し、LAN攻撃によるRCEを構造遮断。
+3. **Retro Modern & Desk Pet:** ドットフォント（DotGothic16）とブラウン系配色による温かみあるレトロUI。古いスマホの画面で呼吸し生活するペットが、無機質な開発作業に愛着と癒やしをもたらす。
+4. **Zero-Configuration Entry:** QRコードをスマホのカメラで読み取るだけでペアリング完了。OAuth申請やクラウド登録を一切不要とする。
 
 ## 2. エージェント・アーキテクチャ (LangGraph & Tiered Multi-LLM Factory)
 
@@ -193,11 +206,15 @@ MiniCPM-Petの秀逸な着眼点をネオ秘書くんのクリーンアーキテ
       - 📺 **テレビ／ゲームでくつろぎ**（休憩時）
       - ☕ **コーヒー・お茶ブレイク**（声掛け時）
       - 🧹 **お部屋のお掃除・はたきがけ**
-  - **3キャラクタースキンシステム [✅ 実装済み 2026-08-25]**:
-    - 👔 **秘書くん**: 8/15レトロドット絵（`assets/dot/hisho/` 16状態）
-    - 🦭 **もちもちアザラシ**: 同テイスト再生成（`assets/dot/seal/` 16状態・大福シルエット・頭の灰斑・ω口）
-    - 🍄 **キノコ君**: 同テイスト再生成（`assets/dot/kinoko/` 16状態・赤カサ白点＆白茎）
-    - ※ スプライトは `assets/dot/{char}/` を最優先参照し、未整備モーションは既存アセットへ自動フォールバック。再生成ツール: `tools/generate_dot_seal_kinoko.py`（8/15版と同一の11色レトロパレット）
+  - **キャラクタースキン ＆ 自作Mod取り込み基盤 [v1.0.0確定 ＆ v1.1.0設計]**:
+    - 👔 **公式プリセット (2体)**:
+      - **秘書くん (`hisho`)**: 8/15レトロドット絵（`assets/dot/hisho/` 16状態）
+      - **カイル (`kyle`)**: 貝型PC風レトロキャラ（`assets/dot/kyle/` 16状態）
+      - ※ 初回リリーススコープとして「秘書くん / カイル」の2体に厳選。
+    - 🎨 **自作キャラMod基盤 (Custom Pet Skins / Modding - v1.1.0)**:
+      - 開発者が自力でドット絵を描き続ける泥沼を脱却し、ユーザーやコミュニティが「自分の推しキャラ」を自由に動かせるオープンMod機構。
+      - `assets/custom_pets/<chara_id>/` に `idle_1.png`, `happy_1.png` 等の命名規則で配置すると、`character_manager.py` が起動時に動的検知・登録。
+      - PC設定画面およびスマホPWAのキャラ変更ドロップダウンに「カスタムキャラ」として即時反映。
   - **縦置き・横置きレスポンシブ [✅ 実装済み]**:
     - 縦置き (Portrait): ヘッダー（時計・ポモドーロ・常時ON・全画面）＋状況カード＋ドット絵ペット＋サジェストカード＋操作ドック。
     - 横置き (Landscape): `@media (orientation: landscape)` でペット左＋サジェスト右の2カラム化（説明文4行表示）。
@@ -207,15 +224,38 @@ MiniCPM-Petの秀逸な着眼点をネオ秘書くんのクリーンアーキテ
     - リアルタイムPing表示（`LINKED 15ms`）、PCからの遠隔呼び出し（Buzz振動）、スマホからのPingテスト。
 - **PC側 ローカル同期サーバー (`local_sync_server.py`)**:
   - ポート `8765` で静的ファイル配信 ＆ `/api/status`, `/api/action`, `/api/link_status`, `/api/test_buzz` を提供。
-  - **Zero-Trust 認証 [✅ 実装済み 2026-08-25]**:
-    - 起動時に256bit乱数トークンを `.sync_token` へ生成保存し、全APIで Bearer認証を強制（401拒否・定数時間比較）。
-    - **ペアリングモード Fail-Closed**: トークン配布API (`/api/auth/token`) は QR接続ダイアログ表示中（10分）のみ応答。
-    - **要求元/承認者分離**: 承認要請API（ask/ask_input/notify）は localhost 接続のみ許可。さらに要求元IPと応答元IPの一致（自己承認）を403拒否し、LAN上からの RCE チェーンを遮断。
-    - 検証: `tests/test_sync_auth.py`（8シナリオ、127.0.0.2バインドによるLAN攻撃者シミュレーション含む）。
-  - **Agent Bridge Hub**:
+  - **ローカル完結・最小権限・承認必須の3層防衛アーキテクチャ [✅ 実装済み ＆ 堅牢化]**:
+    - **層1 (暗号認証・端末台帳)**: 起動時に256bit乱数トークンを生成し、`database.py` の `devices` テーブルで SHA-256 ハッシュ照合・個別失効・`last_seen` 更新。全APIで Bearer認証を強制（401拒否・定数時間比較）。同一LANであっても未認証GETは401拒否。
+    - **層2 (ペアリング Fail-Closed)**: トークン配布API (`/api/auth/token`) は QR接続ダイアログ表示中（10分）かつループバック/LANのみ応答。
+    - **層3 (要求元/承認者分離 ＆ RCE遮断)**: 承認要請API（ask/ask_input/notify）は localhost（127.0.0.1）接続のみ許可。さらに要求元IPと応答元IPの一致（自己承認）を403拒否し、LAN上からの悪意ある RCE チェーンを構造的に遮断。
+    - 検証: `tests/test_sync_auth.py`, `tests/test_device_registry.py`, `tests/test_cors_hardening.py`。
+  - **Agent Bridge Hub ＆ 遠隔承認パイプライン**:
     - Claude Code, Codex, Antigravity, Cursor, Aider 等のコーディングエージェントからのコマンド実行許可要請を受け付け、スマホへリアルタイム中継。
     - スマホ側での「承認 (Approve)」「拒否 (Reject)」「説明 (Explain)」の判定を即時レスポンス。
+    - **Agent Adapter構想 ＆ 共通承認プロトコル (P0 / v1.1.0)**:
+      - 共通DTO `AgentApprovalRequest` (agent_id, tool_name, command, cwd, risk_level, arguments) を定義。
+      - Claude Code, Cline, Cursor, Codex, OpenCode のプロトコル差異をアダプター層で吸収し、「単一ツール連携」から「AI Agent承認プラットフォーム」へ昇格。
+    - **Approval Policy（コマンド実行ポリシーエンジン - P0 / v1.1.0)**:
+      - 危険度に応じた3段階自動判定：
+        1. 🟢 **Auto-Allow**: `npm test`, `git status`, 読取専用コマンドは自動即時許可（認知負荷削減）
+        2. 🟡 **Prompt**: `npm install`, ファイル編集, `git commit` はスマホワンタップ承認
+        3. 🔴 **Strict / Block**: `rm -rf`, `git push --force`, `drop table`, 秘密鍵・トークン外部送信はスマホ大画面での警告＆二重確認
+    - **Audit Log（承認監査ログ基盤 - P0 / v1.1.0)**:
+      - すべての承認要請・判定結果・タイムスタンプ・実行エージェント名を SQLite `approval_audit_logs` に記録し、改ざん防止・後日監査を可能にする。
+    - **承認失敗モード堅牢化 (v1.1.0)**: エージェント側のタイムアウト時のスマホUI追従、Wi-Fi瞬断時の冪等リトライ、PWAスリープ復帰時の再同期。
   - **オフライン完結**: Wi-Fiなし・外出先でもBluetooth PAN / PCモバイルホットスポットで100%動作。
+
+### 6.0 デスクトップGUIアーキテクチャの戦略的判断（Grok指摘: Tkinter限界への対応パス ADR）
+- **背景 (Why)**:
+  - Grokのブラインドレビューにおいて「Tkinterは古く、モダンなUI表現やクロスプラットフォーム（Mac/Linux）での透過・アニメーション制御に限界がある」旨の指摘が提起された。
+- **アーキテクチャ判断 (What & How)**:
+  1. **短期（v1.x: 役割の引き算とスマホ逃がし）**:
+     - PCデスクトップ側のTkinter画面は「最小限の透過キャラ常駐・通知・トレイ」に徹する。
+     - スプリング物理、リッチなCSS装飾、TODO・習慣・ミニゲームなどの操作面は**Web標準技術（HTML/CSS/JSによるスマホPWA）へ全面移管**。
+     - スマホリンク確立時はPC側ペットを自動非表示（`withdraw`）とするため、Tkinterの描画限界がユーザー体験を阻害しない。
+  2. **中長期（v2.0: 重厚Electronを避けた移行パス ADR）**:
+     - 150MB超のランタイムを要求するElectronへの全面書換（リソース浪費の罠）は避け、超軽量・高速な **Tauri (Rust + Web)**、または既存Python資産をそのまま活かせる **pywebview** を移行候補とする。
+     - これにより、既にPWAとして完成しているフロントエンド資産（`web_pet/`）をそのままPC画面としてラップ再利用可能にする。
 
 ### 6.1 PC統合手帳：カレンダー3モード描画 [✅ 実装済み 2026-08-25]
 - `ui/calendar_window.py` の予定タブを Canvas 描画エンジン化:

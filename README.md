@@ -2,10 +2,11 @@
 
 [![CI](https://github.com/Siitake-man/hisho-kun/actions/workflows/ci.yml/badge.svg)](https://github.com/Siitake-man/hisho-kun/actions/workflows/ci.yml)
 ![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
-[![Python](https://img.shields.io/badge/Python-3.11%20%7C%203.12%20%7C%203.13-blue)
+[![Python](https://img.shields.io/badge/Python-3.11%20%7C%203.12%20%7C%203.13-blue.svg)](https://www.python.org/)
+[![English README](https://img.shields.io/badge/README-English-red.svg)](README_en.md)
 
-> 🇬🇧 **For English Speakers**: 
-> **Neo-Secretary** turns your spare smartphone into an adorable retro-style **Desk Pet** and remote approval bridge for AI coding agents (Claude Code, Cline, etc.). Review and approve CLI commands from your phone with a single tap while away from your desk! Fully private & battery-friendly PWA.
+> 🇬🇧 **English documentation is available!** ➔ Check out [README_en.md](README_en.md) for full English guide.  
+> **"Approve your AI coding agent from your phone while taking a coffee break."** ☕
 
 ### 📱 引き出しで眠る古いスマホが、AI開発の「卓上スマート相棒」に化ける。
 
@@ -37,7 +38,11 @@ Claude Code や Cline などの自律AIコーディングを回しながら、**
 - 📱 **使わなくなった古いスマホ（iPhone / Android）のカッコいい再利用先を探している人**
 - 👾 **無機質なコマンドライン作業に、90年代のレトロゲームのような「愛着と生命感」が欲しい人**
 
-
+<p align="center" style="margin: 24px 0;">
+  <a href="https://siitake-man.github.io/hisho-kun/docs/neo-secretary-showcase.html">
+    <img src="https://img.shields.io/badge/🌟_Interactive_Architecture_Showcase-システム全体鳥瞰図を見る-indigo?style=for-the-badge&logo=google-cloud&logoColor=white" alt="Interactive Architecture Showcase">
+  </a>
+</p>
 
 ---
 
@@ -236,7 +241,7 @@ PCペット右クリック → ⚙ 設定 → 「🤖 外部AI・MCP連携」タ
 ├── database.py               # データベース操作
 ├── ui／                      # Tkinter UI 部品
 ├── web_pet／                 # スマホPWA フロントエンド
-├── assets／dot／              # ドット絵アセット（3キャラ）
+├── assets／dot／              # ドット絵アセット（2キャラ: 秘書くん／カイル）
 ├── tools／                    # 開発ツール類
 ├── tests／                    # テストスイート
 ├── docs／                     # ドキュメント

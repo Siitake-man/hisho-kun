@@ -135,11 +135,11 @@ def copy_manual_to_dist() -> None:
     """利用マニュアルHTMLおよびシステム俯瞰図Showcase・アーキテクチャ図一式を配布フォルダ直下へコピーする。"""
     manual_src = PROJECT_ROOT / "docs" / "guides" / "NEO_HISHO_CHEAT_SHEETS.html"
     if manual_src.exists():
-        manual_dst = APP_DIR / "📖_マニュアル_ネオ秘書くん.html"
+        manual_dst = APP_DIR / "NEO_HISHO_CHEAT_SHEETS.html"
         shutil.copy2(manual_src, manual_dst)
-        logger.info(f"マニュアルHTMLを配布ルートへ配置: {manual_dst}")
+        logger.info(f"チートシートHTMLを配布ルートへ配置: {manual_dst.name}")
 
-    # Showcase と Archify アーキテクチャ図一式
+    # Showcase と Archify アーキテクチャ図一式 (正規の英数字名で統一配置)
     for fname in [
         "neo-secretary-showcase.html",
         "neo-secretary-architecture.html",
@@ -148,10 +148,7 @@ def copy_manual_to_dist() -> None:
     ]:
         src = PROJECT_ROOT / "docs" / fname
         if src.exists():
-            if fname == "neo-secretary-showcase.html":
-                dst = APP_DIR / "🌟_システム俯瞰図_Showcase.html"
-            else:
-                dst = APP_DIR / fname
+            dst = APP_DIR / fname
             shutil.copy2(src, dst)
             logger.info(f"Showcaseリソースを配置: {dst.name}")
 
@@ -223,6 +220,14 @@ def main() -> int:
     """
     _setup_logging()
     try:
+        # --zip-only が渡された場合は PyInstaller をスキップし、ドキュメント配置と zip 作成のみを高速実行
+        if "--zip-only" in sys.argv:
+            logger.info("⚡ [--zip-only] モード: ドキュメント最新化と zip アーカイブのみを高速実行します")
+            scan_secrets()
+            zip_path = make_zip()
+            print_summary(zip_path)
+            return 0
+
         ensure_pyinstaller()
         clean_previous_build()
         run_pyinstaller()
