@@ -7,7 +7,7 @@
 if ('caches' in window) {
   caches.keys().then(keys => {
     keys.forEach(key => {
-      if (key !== 'neo-pet-v5.25') caches.delete(key);
+      if (key !== 'neo-pet-v5.32') caches.delete(key);
     });
   });
 }
@@ -33,6 +33,7 @@ let suggestConfig = {};
 let suggestIndex = 0;
 let currentApprovalRequest = null;
 let currentActiveEvent = null;
+const _resolvedRequestIds = new Set();
 let currentPomodoro = { active: false, is_break: false, remaining_seconds: 0, mode_label: "" };
 let petStateNow = 'idle';
 // 歩行フレーム(walk_1/2)を持つキャラ（未保有キャラは歩行中も idle フレームで代用）
@@ -1098,6 +1099,103 @@ function updateLifeSprite(activity) {
   spriteEl.style.filter = '';
 }
 
+// =============================================================================
+// 🎉 歓喜ジャンプ＆セレブレーション・エフェクト（Phase H: Desk Pet Live Reaction）
+// =============================================================================
+let _celebrateTimer = null;
+let _celebrateFrameInterval = null;
+
+/**
+ * タスク完了や承認時にペットが大歓喜でピョンピョン跳ね、紙吹雪を舞わせる
+ */
+function triggerCelebrateReaction(durationMs = 3500) {
+  const sprite = document.getElementById('pet-sprite');
+  const shadow = document.querySelector('.pet-shadow');
+  const bubble = document.getElementById('speech-bubble');
+  if (!sprite) return;
+
+  // 既存タイマーのクリア
+  if (_celebrateTimer) clearTimeout(_celebrateTimer);
+  if (_celebrateFrameInterval) clearInterval(_celebrateFrameInterval);
+
+  petStateNow = 'celebrate';
+  window._celebratingUntil = Date.now() + durationMs;
+
+  // 1. CSSジャンプアニメーション＆足元シャドウ連動の適用
+  sprite.classList.remove('squashing');
+  void sprite.offsetWidth; // リフロー強制
+  sprite.classList.add('celebrating');
+  if (shadow) shadow.classList.add('celebrating');
+
+  // 2. スプライトのパラパラアニメ（celebrate_1 ⇄ celebrate_2 ⇄ celebrate_3 ⇄ happy）
+  const celebrateFrames = ['celebrate_1', 'celebrate_2', 'celebrate_3', 'happy'];
+  let frameIdx = 0;
+  _setPetSprite(celebrateFrames[frameIdx]);
+
+  _celebrateFrameInterval = setInterval(() => {
+    frameIdx = (frameIdx + 1) % celebrateFrames.length;
+    _setPetSprite(celebrateFrames[frameIdx]);
+  }, 220);
+
+  // 3. 紙吹雪・お祝いパーティクル大噴射（キラキラ☆彡）
+  if (typeof touchParticles !== 'undefined') {
+    const wrap = document.querySelector('.pet-img-wrap');
+    const rect = wrap ? wrap.getBoundingClientRect() : sprite.getBoundingClientRect();
+    const cx = rect.left + rect.width / 2;
+    const cy = rect.top + rect.height / 3;
+    const celebrationEmojis = ['🎉', '✨', '🌟', '💖', '🎊', '👏', '⭐', '🎈'];
+    
+    for (let i = 0; i < 18; i++) {
+      setTimeout(() => {
+        const angle = (Math.random() * Math.PI * 1.4) - (Math.PI * 0.7); // 上方向扇状
+        const speed = Math.random() * 5 + 3;
+        touchParticles.push({
+          x: cx + (Math.random() - 0.5) * 50,
+          y: cy + (Math.random() - 0.5) * 20,
+          vx: Math.sin(angle) * speed,
+          vy: -Math.cos(angle) * speed - 2.5,
+          size: 20 + Math.random() * 8,
+          scale: 1.0,
+          alpha: 1.0,
+          emoji: celebrationEmojis[Math.floor(Math.random() * celebrationEmojis.length)]
+        });
+      }, i * 60);
+    }
+  }
+
+  // 4. 歓喜のセリフ（吹き出しが承認要請等でない場合）
+  if (bubble && !bubble.innerText.includes('⚠️') && !bubble.innerText.includes('【要承認】')) {
+    const happyQuotes = [
+      "わーい！ボス、ありがとうございますっ！🎉✨",
+      "やったーー！大成功ですっ！ぴょんぴょん！😆🌟",
+      "ボス最高ーー！感激ですっ！🙌💖",
+      "タスク完了！ボスのお役に立てて嬉しいですっ！🌸"
+    ];
+    // 最新通知で上書きされていない場合のみ差し替え
+    if (!bubble.innerText.startsWith('🎉')) {
+      bubble.innerText = happyQuotes[Math.floor(Math.random() * happyQuotes.length)];
+    }
+  }
+
+  // 5. 終了後の通常状態への自動復帰
+  _celebrateTimer = setTimeout(() => {
+    if (_celebrateFrameInterval) clearInterval(_celebrateFrameInterval);
+    _celebrateFrameInterval = null;
+    _celebrateTimer = null;
+    window._celebratingUntil = 0;
+
+    sprite.classList.remove('celebrating');
+    if (shadow) shadow.classList.remove('celebrating');
+
+    petStateNow = 'idle';
+    if (typeof updateLifeSprite === 'function' && typeof currentActivity !== 'undefined') {
+      updateLifeSprite(currentActivity);
+    } else {
+      _setPetSprite('idle_1');
+    }
+  }, durationMs);
+}
+
 /**
  * 時間帯およびランダム気まぐれ行動によるペットの生活サイクル自動更新
  */
@@ -1556,8 +1654,14 @@ async function fetchStatus() {
       localStorage.setItem(SYNC_TOKEN_KEY, syncToken);
     }
 
-    // 0. ペット状態（歩行コントローラーのガード用）
-    petStateNow = data.pet_state || 'idle';
+    // 0. ペット状態（歩行コントローラーのガード用 ＆ 歓喜アニメーション連動）
+    if (!window._celebratingUntil || Date.now() > window._celebratingUntil) {
+      if (data.pet_state === 'celebrate' && petStateNow !== 'celebrate') {
+        triggerCelebrateReaction(4000);
+      } else {
+        petStateNow = data.pet_state || 'idle';
+      }
+    }
 
     // 0.5 🤖 AIエージェント稼働ライブバッジ (Phase H: agent_activity 連動)
     updateAgentActivityBadge(data.agent_activity);
@@ -1632,12 +1736,15 @@ async function fetchStatus() {
     // 5. 承認・質問イベントバナー（新規着信時はチャイム＋振動で強調）
     const eventBanner = document.getElementById('active-event-banner');
     const bannerActions = document.getElementById('banner-actions');
-    if (data.pending_approval) {
+    if (data.pending_approval && !_resolvedRequestIds.has(data.pending_approval.request_id)) {
       const req = data.pending_approval;
       const isNew = (!currentApprovalRequest || currentApprovalRequest.request_id !== req.request_id);
       currentApprovalRequest = req;
       currentActiveEvent = req;
       eventBanner.style.display = 'block';
+      eventBanner.style.opacity = '1';
+      eventBanner.style.transform = '';
+      eventBanner.style.transition = '';
       const isQuestion = (req.type === 'question');
       if (isQuestion) {
         eventBanner.className = 'question';
@@ -1659,6 +1766,7 @@ async function fetchStatus() {
       }
       if (isNew) {
         lastApprovalRequestId = req.request_id;
+        window._notifDisplayedAt = Date.now(); // 🛡 buzzによる上書きトースト防止
         const isStrict = (req.risk_level === 'strict');
         if (isStrict) {
           playAlertChime(5);
@@ -1667,7 +1775,7 @@ async function fetchStatus() {
           playAlertChime(4);
           if (navigator.vibrate) navigator.vibrate([100, 60, 100]);
         }
-        showToast(`${req.risk_level === 'strict' ? '🚨 高リスク承認' : '🔔 承認要請'}: ${req.summary || req.command || ''}`);
+        // 重複防止: 中央バナー（active-event-banner）に操作面を一本化しトーストは出さない
       }
     } else {
       currentApprovalRequest = null;
@@ -1679,6 +1787,9 @@ async function fetchStatus() {
         lastActiveEventKey = eventKey;
         currentActiveEvent = ev;
         eventBanner.style.display = 'block';
+        eventBanner.style.opacity = '1';
+        eventBanner.style.transform = '';
+        eventBanner.style.transition = '';
         eventBanner.className = ev.type || 'completed';
         const typeLabel = ev.type === 'question' ? '質問' : '完了通知';
         document.getElementById('event-type-badge').innerText = `✨ 【${ev.agent_name || 'AI'}】${typeLabel}`;
@@ -1689,10 +1800,11 @@ async function fetchStatus() {
         const dismissBtn = document.getElementById('banner-dismiss-btn');
         if (dismissBtn) dismissBtn.style.display = ev.type === 'completed' ? '' : 'none';
         if (isNew) {
+          window._notifDisplayedAt = Date.now();
           playAlertChime(2);
-          showToast(`🎉 【${ev.agent_name || 'AI'}】${ev.title || ev.summary || '作業完了！'}`);
+          // 🛡️ 重複排除: バナーが表示されるため上部HUDトーストは出さない
           if (navigator.vibrate) navigator.vibrate([120, 80, 120, 80, 240]);
-          petStateNow = 'celebrate';
+          triggerCelebrateReaction(4000);
           if (window.EasterEggEngine) EasterEggEngine.playSound('revive');
         }
       } else if (data.due_reminders && data.due_reminders.length > 0) {
@@ -1702,6 +1814,9 @@ async function fetchStatus() {
         lastReminderKey = remKey;
         currentActiveEvent = rem;
         eventBanner.style.display = 'block';
+        eventBanner.style.opacity = '1';
+        eventBanner.style.transform = '';
+        eventBanner.style.transition = '';
         eventBanner.className = 'reminder';
         document.getElementById('event-type-badge').innerText = '⏰ 予定リマインダー';
         document.getElementById('banner-hint').innerText = '10分前のお知らせ';
@@ -1711,8 +1826,9 @@ async function fetchStatus() {
         if (dismissBtn) dismissBtn.style.display = '';
         if (bannerActions) bannerActions.style.display = 'none';
         if (isNew) {
+          window._notifDisplayedAt = Date.now();
           playAlertChime(3);
-          showToast(`⏰ 【リマインダー】${rem.title || '予定があります'}`);
+          // 🛡️ 重複排除: リマインダーバナーが表示されるため上部HUDトーストは出さない
           if (navigator.vibrate) navigator.vibrate([150, 100, 150, 100, 300]);
           petStateNow = 'alarm_ask';
           if (window.EasterEggEngine) EasterEggEngine.playSound('alarm');
@@ -1734,22 +1850,14 @@ async function fetchStatus() {
         try {
           sessionStorage.setItem('lastNotifKey', notifKey);
         } catch (e) { /* プライベートモード等では永続化を諦める */ }
-        // 🛡 バグ修正 (2026-08-31): set_notification は必ず buzz 要求も発行するため、
-        //   同一ポーリング周期内で後続の §5.6 buzz トーストが本通知トーストを
-        //   上書きし「音は鳴るのに通知が表示されない」障害の原因になっていた。
-        //   表示時刻を記録し、§5.6 側で上書きを抑制する。
         window._notifDisplayedAt = Date.now();
-        // 🛡 追加修正 (2026-08-31): 画面OFF/バックグラウンド中に本ブロックが実行されると
-        //   チャイム（音）だけ鳴り、トーストは不可視の画面に描画されて消える。
-        //   復帰（visibilitychange）時に再表示させるため、非表示中実行フラグを記録。
         window._notifShownWhileHidden = document.hidden;
-        petStateNow = notif.reaction || 'celebrate';
+        triggerCelebrateReaction(4000);
         const msgEl = document.getElementById('speech-bubble');
         if (msgEl) {
           msgEl.innerText = `🎉 【${notif.agent_name}】${notif.title}\n${notif.message}`;
         }
-        const fullMsg = notif.message ? `🎉 【${notif.agent_name}】${notif.title}<br><span style="font-size:11px;opacity:0.9;font-weight:normal;">${escapeHtml(notif.message)}</span>` : `🎉 【${notif.agent_name}】${notif.title}`;
-        showToast(fullMsg, 4000, true);
+        // 🛡️ 重複排除: ペットの頭上コミック吹き出しで愛らしく伝えるため上部トーストは出さない
         if (navigator.vibrate) navigator.vibrate([120, 80, 120, 80, 240]);
         if (window.EasterEggEngine) {
           EasterEggEngine.playSound('revive');
@@ -1777,9 +1885,8 @@ async function fetchStatus() {
     }
 
     // 5.6. PCからの呼び出し信号 (Buzz)
-    if (data.buzz) {
-      // 🛡 通知トースト表示直後 (1.5秒以内) の同一周期 buzz は上書き抑制。
-      //   通知自体が既にチャイム＋バイブを鳴らしているため二重再生も防止する。
+    if (data.buzz && !data.pending_approval && !data.active_event) {
+      // 🛡️ バナー（承認・完了）表示中はバナーに集中させるためトーストを出さない
       const sinceNotif = Date.now() - (window._notifDisplayedAt || 0);
       if (sinceNotif > 1500) {
         playAlertChime(2);
@@ -1904,7 +2011,9 @@ function _hideBanner() {
   const banner = document.getElementById('active-event-banner');
   if (banner) {
     banner.style.display = 'none';
+    banner.style.opacity = '1';
     banner.style.transform = ''; // スワイプ変形をリセット
+    banner.style.transition = '';
   }
   const dismissBtn = document.getElementById('banner-dismiss-btn');
   if (dismissBtn) dismissBtn.style.display = 'none';
@@ -2011,6 +2120,13 @@ async function respondApproval(decision, ev, answerText) {
   stopAlertChime();
   if (navigator.vibrate) navigator.vibrate(60);
   const req = currentApprovalRequest;
+  if (req && req.request_id) {
+    _resolvedRequestIds.add(req.request_id);
+    if (_resolvedRequestIds.size > 100) {
+      const oldest = _resolvedRequestIds.values().next().value;
+      _resolvedRequestIds.delete(oldest);
+    }
+  }
   try {
     const res = await authFetch('/api/agent/respond', {
       method: 'POST',
@@ -2047,17 +2163,22 @@ async function respondApproval(decision, ev, answerText) {
       const banner = document.getElementById('active-event-banner');
       if (banner) banner.style.display = 'none';
       playDecisionSound(decision === 'approve');
-      // PC側ペットにも結果をリアクションさせる（承認=大喜び・却下=心配）
+      if (decision === 'approve') {
+        const bubble = document.getElementById('speech-bubble');
+        if (bubble) bubble.innerText = '承知いたしました！作業を続行します(｀・ω・´)ゞ';
+      } else if (decision === 'answered') {
+        const bubble = document.getElementById('speech-bubble');
+        if (bubble) bubble.innerText = '了解です！回答を反映して進めます✨';
+      } else {
+        const bubble = document.getElementById('speech-bubble');
+        if (bubble) bubble.innerText = '🛑 却下を確認しました。軌道修正します！';
+      }
+      // PC側ペットにも結果をリアクションさせる（承認=集中作業・却下=心配）
       authFetch('/api/action', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'pet_reaction', state: decision === 'approve' ? 'celebrate' : 'care', duration_ms: 5000 })
+        body: JSON.stringify({ action: 'pet_reaction', state: decision === 'approve' ? 'focus' : 'care', duration_ms: 3000 })
       }).catch(err => console.debug('Pet reaction failed:', err));
-      if (data.duplicate) {
-        showToast('ℹ️ 既に送信済みです');
-      } else {
-        showToast(decision === 'approve' ? '✅ 承認を送信しました' : decision === 'answered' ? '✅ 回答を送信しました' : '🛑 却下を送信しました');
-      }
     } else {
       showToast('⚠️ 送信に失敗しました');
     }
@@ -2843,6 +2964,12 @@ function petWanderTick() {
       WANDER.dir = Math.random() < 0.5 ? -1 : 1;
       WANDER.until = now + 2000 + Math.random() * 2500;
     }
+  }
+  // 🐾 吹き出しをペットの頭上にリアルタイム追従（画面端のはみ出し防止クランプ付き）
+  const bubble = document.getElementById('speech-bubble');
+  if (bubble) {
+    const bubbleX = Math.max(22, Math.min(78, WANDER.x * 100));
+    bubble.style.left = bubbleX + '%';
   }
 }
 setInterval(petWanderTick, 120);

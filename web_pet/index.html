@@ -501,24 +501,61 @@
       animation: shadow-scale 3.2s ease-in-out infinite;
     }
 
-    /* 吹き出し (Speech Glass) */
+    /* 漫画・RPG風 吹き出し (Comic Speech Balloon) - A案 */
     .speech-bubble {
-      background: var(--glass-bg);
-      backdrop-filter: blur(12px);
-      -webkit-backdrop-filter: blur(12px);
-      border: 1px solid var(--glass-border);
-      border-radius: 8px;
-      padding: 5px 8px;
+      position: absolute;
+      bottom: 126px; /* ペット画像(bottom:18px + height:100px)の頭上 */
+      left: 50%;
+      transform: translateX(-50%);
+      background: #FFFDF5;
+      border: 2px solid #3E2723;
+      border-radius: 14px;
+      padding: 7px 14px;
       font-size: 11px;
-      line-height: 1.4;
-      color: var(--text-main);
+      font-weight: bold;
+      line-height: 1.45;
+      color: #2E1C14;
       text-align: center;
-      width: 94%;
-      max-height: 42px;
-      overflow-y: auto;
-      margin-bottom: 2px;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+      width: max-content;
+      min-width: 140px;
+      max-width: 86%;
+      overflow: visible !important; /* 🛡️ しっぽ（::after/::before）の切り取りを完全防止 */
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.45), 0 2px 5px rgba(0, 0, 0, 0.25);
+      z-index: 12;
+      pointer-events: auto;
+      animation: comicPop 0.25s cubic-bezier(0.18, 0.89, 0.32, 1.28);
+    }
+    /* 下向きのしっぽ（本体） */
+    .speech-bubble::after {
+      content: '';
+      position: absolute;
+      bottom: -9px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 0;
+      height: 0;
+      border-left: 8px solid transparent;
+      border-right: 8px solid transparent;
+      border-top: 10px solid #FFFDF5;
       z-index: 2;
+    }
+    /* 下向きのしっぽ（濃茶の枠線） */
+    .speech-bubble::before {
+      content: '';
+      position: absolute;
+      bottom: -13px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 0;
+      height: 0;
+      border-left: 10px solid transparent;
+      border-right: 10px solid transparent;
+      border-top: 12px solid #3E2723;
+      z-index: 1;
+    }
+    @keyframes comicPop {
+      0% { transform: translateX(-50%) scale(0.85); opacity: 0; }
+      100% { transform: translateX(-50%) scale(1); opacity: 1; }
     }
 
     /* 情報・サジェスト領域ラッパー (Info Column) */
@@ -800,6 +837,32 @@
     }
     .pet-img.squashing {
       animation: squash-bounce 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) !important;
+    }
+
+    /* 🎉 歓喜ジャンプアニメーション（物理バウンス・多重ジャンプ） */
+    @keyframes celebrate-jump {
+      0% { transform: translateY(0) scale(1, 1); }
+      12% { transform: translateY(0) scale(1.22, 0.78); } /* グッと踏み込み（スクワッシュ） */
+      35% { transform: translateY(-34px) scale(0.9, 1.18); } /* 上空へ勢いよくジャンプ！ */
+      55% { transform: translateY(-38px) scale(1.05, 0.95); } /* 最高到達点でふわりと浮遊 */
+      78% { transform: translateY(0) scale(1.18, 0.82); } /* 地面に着地してクッション */
+      90% { transform: translateY(-8px) scale(0.98, 1.02); } /* 小さなリバウンド跳ね */
+      100% { transform: translateY(0) scale(1, 1); }
+    }
+    .pet-img.celebrating {
+      animation: celebrate-jump 0.7s cubic-bezier(0.28, 0.84, 0.42, 1) infinite !important;
+    }
+
+    /* 足元シャドウの歓喜ジャンプ連動（ジャンプ時に影が縮小・薄くなる） */
+    @keyframes shadow-celebrate {
+      0%, 100% { transform: scale(1); opacity: 0.6; }
+      12% { transform: scale(1.2); opacity: 0.8; }
+      35%, 55% { transform: scale(0.55); opacity: 0.2; }
+      78% { transform: scale(1.15); opacity: 0.7; }
+      90% { transform: scale(0.85); opacity: 0.4; }
+    }
+    .pet-shadow.celebrating {
+      animation: shadow-celebrate 0.7s cubic-bezier(0.28, 0.84, 0.42, 1) infinite !important;
     }
     @keyframes pulse-border {
       0%, 100% { border-color: rgba(255,23,68,0.8); }
@@ -1306,6 +1369,12 @@
         flex: 1 1 50%;
         min-height: 0;
         max-height: none;
+      }
+      .speech-bubble {
+        bottom: 122px;
+        font-size: 10.5px;
+        padding: 5px 10px;
+        max-width: 90%;
       }
       .info-column {
         flex: 1 1 50%;

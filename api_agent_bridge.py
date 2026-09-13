@@ -88,6 +88,9 @@ def handle_agent_ask(ctx: ApiContext) -> None:
         # 🟢 AUTO_ALLOW の場合: スマホ通知をスキップし即座に自動承認で解決
         if decision_policy.is_auto_allowed:
             req.resolve("approve", f"Auto-allowed by policy: {decision_policy.reason}")
+            with hub._lock:
+                hub.pending_requests.pop(req.request_id, None)
+                hub.history.append(req.to_dict())
             audit_logger.log(AuditLogEntry(
                 request_id=req.request_id,
                 agent_type=req_dto.agent_type,

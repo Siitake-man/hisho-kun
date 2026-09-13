@@ -483,16 +483,26 @@ class AgentBridgeHub:
     def get_latest_pending(self) -> Optional[Dict[str, Any]]:
         with self._lock:
             now = time.time()
-            # 期限切れのクリーンアップ
-            expired_ids = [rid for rid, r in self.pending_requests.items() if now > r.timeout_at]
-            for rid in expired_ids:
-                r = self.pending_requests.pop(rid)
-                r.resolve("expired")
+            # 期限切れおよび解決済み（pendingでない）リクエストのクリーンアップ
+            stale_ids = []
+            for rid, r in list(self.pending_requests.items()):
+                if now > r.timeout_at:
+                    stale_ids.append((rid, "expired"))
+                elif r.status != "pending":
+                    stale_ids.append((rid, "resolved"))
 
-            if not self.pending_requests:
+            for rid, reason in stale_ids:
+                r = self.pending_requests.pop(rid, None)
+                if r:
+                    if reason == "expired" and r.status == "pending":
+                        r.resolve("expired")
+                    self.history.append(r.to_dict())
+
+            # status == 'pending' の真の保留中リクエストのみを抽出
+            active_pendings = [r for r in self.pending_requests.values() if r.status == "pending"]
+            if not active_pendings:
                 return None
-            latest = list(self.pending_requests.values())[-1]
-            return latest.to_dict()
+            return active_pendings[-1].to_dict()
 
     def get_active_event(self) -> Optional[Dict[str, Any]]:
         """スマホ画面で表示すべき最優先イベント（承認 > 質問 > 作業完了）を返す"""
