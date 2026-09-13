@@ -39,8 +39,16 @@ Claude Code や Cline などの自律AIコーディングを回しながら、**
 - 👾 **無機質なコマンドライン作業に、90年代のレトロゲームのような「愛着と生命感」が欲しい人**
 
 <p align="center" style="margin: 24px 0;">
-  <a href="https://siitake-man.github.io/hisho-kun/docs/neo-secretary-showcase.html">
-    <img src="https://img.shields.io/badge/🌟_Interactive_Architecture_Showcase-システム全体鳥瞰図を見る-indigo?style=for-the-badge&logo=google-cloud&logoColor=white" alt="Interactive Architecture Showcase">
+  <a href="https://siitake-man.github.io/hisho-kun/neo-secretary-showcase.html">
+    <img src="https://img.shields.io/badge/🌟_Interactive_Showcase-全体俯瞰図を見る-40458f?style=for-the-badge&logo=google-cloud&logoColor=white" alt="Interactive Architecture Showcase">
+  </a>
+  &nbsp;&nbsp;
+  <a href="https://siitake-man.github.io/hisho-kun/guides/NEO_HISHO_CHEAT_SHEETS.html">
+    <img src="https://img.shields.io/badge/📘_Cheat_Sheets-公式利用ガイド完全版-8b5e3c?style=for-the-badge&logo=readthedocs&logoColor=white" alt="Official Cheat Sheets">
+  </a>
+  &nbsp;&nbsp;
+  <a href="https://github.com/Siitake-man/hisho-kun/releases/tag/v1.0.0">
+    <img src="https://img.shields.io/badge/📦_Download_v1.0.0-最新ZIPを入手-10b981?style=for-the-badge&logo=windows&logoColor=white" alt="Download Release v1.0.0">
   </a>
 </p>
 

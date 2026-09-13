@@ -44,8 +44,16 @@ Autonomous coding agents (**Claude Code, Cline, Cursor, Codex**) are incredible,
 3. **Desk Pet & Retro Aesthetic**: A 16-bit pixel companion breathes and reacts on both screens, bringing warmth and fun to sterile terminal workflows.
 
 <p align="center" style="margin: 24px 0;">
-  <a href="https://siitake-man.github.io/hisho-kun/docs/neo-secretary-showcase.html">
-    <img src="https://img.shields.io/badge/🌟_Interactive_Architecture_Showcase-Explore_System_Blueprint-indigo?style=for-the-badge&logo=google-cloud&logoColor=white" alt="Interactive Architecture Showcase">
+  <a href="https://siitake-man.github.io/hisho-kun/neo-secretary-showcase.html">
+    <img src="https://img.shields.io/badge/🌟_Interactive_Showcase-Explore_System_Blueprint-40458f?style=for-the-badge&logo=google-cloud&logoColor=white" alt="Interactive Architecture Showcase">
+  </a>
+  &nbsp;&nbsp;
+  <a href="https://siitake-man.github.io/hisho-kun/guides/NEO_HISHO_CHEAT_SHEETS.html">
+    <img src="https://img.shields.io/badge/📘_Cheat_Sheets-Official_User_Guide-8b5e3c?style=for-the-badge&logo=readthedocs&logoColor=white" alt="Official Cheat Sheets">
+  </a>
+  &nbsp;&nbsp;
+  <a href="https://github.com/Siitake-man/hisho-kun/releases/tag/v1.0.0">
+    <img src="https://img.shields.io/badge/📦_Download_v1.0.0-Get_Latest_ZIP-10b981?style=for-the-badge&logo=windows&logoColor=white" alt="Download Release v1.0.0">
   </a>
 </p>
 
