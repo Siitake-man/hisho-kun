@@ -903,6 +903,29 @@ class DeskPetSyncHandler(SimpleHTTPRequestHandler):
         client_ip = self.client_address[0] if self.client_address else "unknown"
         user_agent = self.headers.get("User-Agent", "")
 
+        # 0.0 バージョン定数一元化 (GET /version.js または GET /web_pet/version.js)
+        #     Single Source of Truth: version.py の __version__ から動的生成
+        req_path_clean = self.path.split("?")[0]
+        if req_path_clean in ("/version.js", "/web_pet/version.js"):
+            from version import __version__
+            self.send_response(200)
+            self.send_header("Content-Type", "application/javascript; charset=utf-8")
+            self.send_header("Cache-Control", "no-cache, no-store, must-revalidate, max-age=0")
+            self.send_header("Pragma", "no-cache")
+            self._set_cors_headers()
+            self.end_headers()
+            js_body = (
+                f"// Auto-generated from version.py (Single Source of Truth)\n"
+                f'self.APP_VERSION = "{__version__}";\n'
+                f'self.WEB_PET_CACHE_NAME = "neo-pet-v{__version__}";\n'
+                f"if (typeof window !== 'undefined') {{\n"
+                f"    window.APP_VERSION = self.APP_VERSION;\n"
+                f"    window.WEB_PET_CACHE_NAME = self.WEB_PET_CACHE_NAME;\n"
+                f"}}\n"
+            )
+            self.wfile.write(js_body.encode("utf-8"))
+            return
+
         # 0. トークン配布 (GET /api/auth/token) — ペアリング開放中 or 同一PC内 (ループバック) のみ
         #    ゼロトラスト強化 (2026-09-12): 従来は同一LAN (192.168.x.x 等) からの要求を
         #    無条件で通していたが、共有 Wi-Fi (カフェ・コワーキング等) では第三者が

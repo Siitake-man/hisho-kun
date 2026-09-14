@@ -1,6 +1,6 @@
 # システム設計書: Neo-Secretary (ネオ秘書くん) Python Agent Edition
 
-- **最終更新日時**: 2026-09-13 23:05 (🌐 **Section 12 Global Showcase ＆ Cheat Sheets 英語版配備 ＆ Qiita記事完全配備版**)
+- **最終更新日時**: 2026-09-14 13:00 (🏛️ **Section 13 バージョン定数一元化アーキテクチャ (version.js 動的配信) 配備版**)
 - **Architecture**: Python Desktop App with LangGraph & PWA Mobile Approval Remote
 
 ---
@@ -492,3 +492,36 @@ web_pet/
    - 全6枚の公式インフォグラフィック（`banner_main_en.jpg`, `cs01_setup_en.jpg` 〜 `cs05_localllm_en.jpg`）を超高精細AI生成で完全英訳・配備。
 3. **5大チートシート Raw Markdown 英語版 (`docs/guides/cheatsheet_0X_..._en.md`)**:
    - GitHubリポジトリ上で直接ドキュメントを閲覧する海外開発者のため、①〜⑤の全Markdownファイルを英訳し、インフォグラフィック画像を埋め込み配備。
+
+---
+
+## 13. バージョン定数一元化アーキテクチャ (version.js 動的配信・2026-09-14 策定)
+
+### 13.1 散弾銃手術（Shotgun Surgery）の課題と背景
+従来、PWAキャッシュ更新時に以下の複数箇所へバージョン文字列が散逸していた：
+1. `version.py` (`__version__ = "1.0.0"`)
+2. `web_pet/sw.js` (`CACHE_NAME = 'neo-pet-v5.32'`)
+3. `web_pet/pet.js` (キャッシュパージキー `'neo-pet-v5.32'`)
+4. `web_pet/index.html` (スクリプトタグのクエリパラメータ `?v=5.32`)
+
+これにより、更新漏れによる古いキャッシュの残存や、UI表示とAPI契約の不整合リスクが存在していた。
+
+### 13.2 Single Source of Truth (SSOT) 設計
+- **正本 (SSOT)**: `version.py` の `__version__` を唯一の情報源とする。
+- **動的エンドポイント (`DeskPetSyncHandler.do_GET`)**:
+  - `/version.js` または `/web_pet/version.js` へのGET要求に対し、`version.py` を読み込んで以下の JavaScript を動的生成・レスポンス（`Content-Type: application/javascript`, `Cache-Control: no-cache`）：
+  ```javascript
+  self.APP_VERSION = "1.0.0";
+  self.WEB_PET_CACHE_NAME = "neo-pet-v1.0.0";
+  if (typeof window !== "undefined") {
+      window.APP_VERSION = self.APP_VERSION;
+      window.WEB_PET_CACHE_NAME = self.WEB_PET_CACHE_NAME;
+  }
+  ```
+- **Service Worker (`sw.js`) 連携**:
+  - 冒頭で `importScripts('./version.js');` を実行し、`const CACHE_NAME = self.WEB_PET_CACHE_NAME || 'neo-pet-v1.0.0';` へ統一。
+- **フロントエンド (`pet.js` / `index.html`) 連携**:
+  - `index.html` の先頭で `<script src="version.js"></script>` を読み込み。
+  - `pet.js` のキャッシュパージ処理で `window.WEB_PET_CACHE_NAME` を参照。
+- **フォールバック**:
+  - オフライン時および開発環境向けに静的ファイル `web_pet/version.js` を同梱配備。

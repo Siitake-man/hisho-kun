@@ -3,11 +3,12 @@
  * 5大背景環境 ＆ Glass Bottom Sheetニュースリーダー ＆ なでなでパーティクル
  */
 
-// 🧹 古いPWA/ブラウザキャッシュを安全に自動パージ
+// 🧹 古いPWA/ブラウザキャッシュを安全に自動パージ (version.js の WEB_PET_CACHE_NAME を参照)
 if ('caches' in window) {
   caches.keys().then(keys => {
+    const activeCache = window.WEB_PET_CACHE_NAME || ('neo-pet-v' + (window.APP_VERSION || '1.0.0'));
     keys.forEach(key => {
-      if (key !== 'neo-pet-v5.32') caches.delete(key);
+      if (key !== activeCache) caches.delete(key);
     });
   });
 }
