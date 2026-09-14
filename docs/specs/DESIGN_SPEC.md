@@ -665,6 +665,6 @@ web_pet/
    - 各リポジトリ単体でのモック化・テストが容易になり、CIテストの並列性も向上する。
 
 ### 18.4 移行ステップ (Incremental Migration Plan)
-- **Phase 1 (非破壊的モデル・接続の切り出し)**: `storage/models.py` と `storage/connection.py` を先行新設し、`database.py` から参照。
-- **Phase 2 (個別リポジトリの切り出し)**: `audit_repo.py` ➔ `device_repo.py` ➔ `insight_repo.py` ➔ `note_repo.py` ➔ `habit_repo.py` ➔ `calendar_repo.py` ➔ `task_repo.py` の順で1ドメインずつ安全に Seam 分割。
-- **Phase 3 (回帰防止アサーション)**: 全71件の既存テストを実行し、全緑を無停止で維持。
+- **Phase 1 (非破壊的モデル・接続の切り出し - ✅ 2026-09-14 完了)**: `storage/models.py` (全13モデル) と `storage/connection.py` (WAL・init_db・マイグレーション) を先行新設し、`database.py` から参照。行数を2,498行 ➔ 1,960行へ約538行削減。全体テスト446件全緑（444 passed, 2 skipped, 0 failed）達成。
+- **Phase 2 (個別リポジトリの切り出し - 次回着手予定)**: `audit_repo.py` ➔ `device_repo.py` ➔ `insight_repo.py` ➔ `note_repo.py` ➔ `habit_repo.py` ➔ `calendar_repo.py` ➔ `task_repo.py` の順で1ドメインずつ安全に Seam 分割。`database.py` を200行未満の純粋なFacadeへ集約。
+- **Phase 3 (回帰防止アサーション - 継続中)**: 全スイートのテストを実行し、全緑を無停止で維持。
