@@ -1,15 +1,16 @@
 """
 Neo-Secretary ストレージ層 - Pydanticモデル定義 (storage/models.py)
 
-カレンダー、タスク、習慣、知見（MentisDB）、端末台帳などのデータモデルを
+カレンダー、タスク、習慣、知見（MentisDB）、端末台帳、承認監査ログなどのデータモデルを
 Pydantic V2形式で型安全に定義します。
 外部のデータベース接続に依存しない純粋なデータ構造（Value Object）です。
 """
 
+import time
 from datetime import datetime
 from typing import Optional, List, Dict, Any
 
-from pydantic import BaseModel, Field, ValidationInfo, field_validator
+from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator
 
 
 # =============================================================================
@@ -298,3 +299,27 @@ class Device(BaseModel):
     created_at: int = Field(default_factory=lambda: int(datetime.now().timestamp() * 1000))
     last_seen: int = Field(default_factory=lambda: int(datetime.now().timestamp() * 1000))
     is_revoked: int = 0
+
+
+# =============================================================================
+# 承認監査ログモデル
+# =============================================================================
+
+class AuditLogEntry(BaseModel):
+    """承認監査ログの1レコードを表すモデル。"""
+    model_config = ConfigDict(extra="allow")
+
+    id: Optional[int] = None
+    request_id: str
+    agent_type: str = "generic"
+    agent_name: str = "AI Agent"
+    command: str = ""
+    summary: str = ""
+    risk_level: str = "prompt"
+    decision: str = "pending"  # approved / rejected / auto_allowed / expired / timeout
+    decision_by: str = "human"  # human / policy_engine / timeout
+    decision_message: Optional[str] = None
+    requester_ip: Optional[str] = None
+    client_ip: Optional[str] = None
+    duration_sec: float = 0.0
+    created_at: int = Field(default_factory=lambda: int(time.time()))
