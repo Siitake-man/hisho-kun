@@ -26,7 +26,10 @@ class TestCalendarWindowRendering(unittest.TestCase):
     """3表示モードの描画とナビゲーションを検証する"""
 
     def setUp(self):
-        self.root = tk.Tk()
+        try:
+            self.root = tk.Tk()
+        except tk.TclError:
+            self.skipTest("Tk を初期化できない環境 (TCL_LIBRARY未設定またはheadless) のためスキップします")
         self.root.withdraw()
         # 新しいテーブル（calendar_sources）を含むDBスキーマを初期化
         database.init_db()
@@ -34,10 +37,15 @@ class TestCalendarWindowRendering(unittest.TestCase):
         self.win.update()
 
     def tearDown(self):
-        self.win.destroy()
+        if hasattr(self, "win") and self.win:
+            try:
+                self.win.destroy()
+            except Exception:
+                pass
         # 🧹 CTk 監視ループ停止 ＆ 未消化 after のキャンセル込みで静かに破棄
         #    (破棄後の「invalid command name」ノイズ根治・Jules タスクB)
-        quiet_destroy(self.root)
+        if hasattr(self, "root") and self.root:
+            quiet_destroy(self.root)
 
     def test_month_view_renders(self):
         """月間グリッドが描画される"""

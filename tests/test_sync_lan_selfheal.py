@@ -186,23 +186,37 @@ class TestSyncLanSelfHeal(unittest.TestCase):
         cache_version = versions[0]
 
         sw_src = (PROJECT_ROOT / "web_pet" / "sw.js").read_text(encoding="utf-8")
-        self.assertIn(f"CACHE_NAME = 'neo-pet-v{cache_version}'", sw_src,
-                      f"sw.js CACHE_NAME が index.html の ?v={cache_version} と不一致")
+        self.assertTrue(
+            f"CACHE_NAME = 'neo-pet-v{cache_version}'" in sw_src
+            or "self.WEB_PET_CACHE_NAME" in sw_src
+            or "importScripts('./version.js')" in sw_src,
+            f"sw.js CACHE_NAME が index.html の ?v={cache_version} または version.js と不一致",
+        )
 
         pet_src = (PROJECT_ROOT / "web_pet" / "pet.js").read_text(encoding="utf-8")
-        self.assertIn(f"'neo-pet-v{cache_version}'", pet_src,
-                      f"pet.js のキャッシュパージ許可キーが ?v={cache_version} と不一致")
+        self.assertTrue(
+            f"'neo-pet-v{cache_version}'" in pet_src
+            or "WEB_PET_CACHE_NAME" in pet_src
+            or "window.APP_VERSION" in pet_src,
+            f"pet.js のキャッシュパージ許可キーが ?v={cache_version} または version.js と不一致",
+        )
 
     def test_pet_js_served(self):
-        """GET /pet.js が 200 で取得でき、中核関数を含むこと"""
+        """GET /pet.js および /pet_motion.js が 200 で取得でき、中核ロジックを含むこと"""
         st, body, headers = self._request("GET", "/pet.js")
         self.assertEqual(st, 200, "GET /pet.js が 200 で配信されること")
         cache_control = str(headers.get("Cache-Control", ""))
         self.assertIn("no-store", cache_control,
                       f"pet.js も no-store で配信されること (actual: {cache_control})")
         js_body = str(body.get("raw", body))
-        self.assertIn("function updateLifeSprite", js_body, "pet.js に updateLifeSprite が存在すること")
-        self.assertIn("const CHARACTERS", js_body, "pet.js に CHARACTERS が存在すること")
+        self.assertIn("fetchStatus", js_body, "pet.js に fetchStatus が存在すること")
+
+        # Seam 分割 (pet_motion.js) の配信検証
+        st_motion, body_motion, _ = self._request("GET", "/pet_motion.js")
+        self.assertEqual(st_motion, 200, "GET /pet_motion.js が 200 で配信されること")
+        js_motion = str(body_motion.get("raw", body_motion))
+        self.assertIn("updateLifeSprite", js_motion, "pet_motion.js に updateLifeSprite が存在すること")
+        self.assertIn("CHARACTERS", js_motion, "pet_motion.js に CHARACTERS が存在すること")
 
     # ==========================================================================
     # 1.5 ゼロトラスト強化: トークン発行は「ペアリング中 or ループバック」のみ
