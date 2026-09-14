@@ -1,7 +1,8 @@
-# システム設計書: Neo-Secretary (ネオ秘書くん) Python Agent Edition
+# ネオ秘書くん システム設計書 (DESIGN_SPEC.md)
 
-- **最終更新日時**: 2026-09-14 13:48 (🏛️ **Section 17 フロントエンド Seam 分割 第4・5弾 起動時SyntaxError根絶 ＆ フェイルセーフ初期化配備版**)
-- **Architecture**: Python Desktop App with LangGraph & PWA Mobile Approval Remote
+- **バージョン**: 1.1.0 (🏛️ PWA Seam分割 第1〜5弾完了 ＆ Web Showcase 日英完全同期 ＆ database.py Repository 分割設計策定版)
+- **最終更新日時**: 2026-09-14 14:00
+- **アーキテクチャ方針**: 完全ローカル完結型 非ブロッキング並行システム (Tkinter Desktop Overlay × Mobile PWA × LangGraph Agent × Zero-Trust Local Bridge)
 
 ---
 
@@ -622,3 +623,48 @@ web_pet/
 - **グローバル公開**: モジュール/非モジュール双方に対応し、`window.xxx` および `var xxx` で全関数・定数を公開。
 - **回帰防止テスト**: `tests/test_pet_seam_motion_ui.py` により、物理存在、必須シンボル公開、スクリプト読み込み順序、SWオフラインキャッシュ、HTTP静的配信（200 OK）を完全網羅。
 - **コード削減成果**: `pet.js` の行数が 2,519行 ➔ **1,604行**（約915行削減、当初3,335行から通算約1,731行スリム化）を達成。
+
+---
+
+## 18. バックエンド `database.py` Repository パターン分割計画 (Architectural Blueprint)
+
+### 18.1 現状の課題と動機 (Why)
+- **現状**: `database.py` が単一ファイルで **2,498行** に達し、8つの異質なドメイン関心事が1箇所に密集。
+- **課題**: 
+  1. タスクの修正時にカレンダーや監査ログのコードを巻き込む認知負荷。
+  2. AIエージェントが編集する際のトークン消費と推論遅延の増大。
+  3. 単体テスト実行時にファイル全体をロードする必要がある結合度。
+
+### 18.2 設計原則: Facade パターンによる完全後方互換性の死守 (What & How)
+既存の71件以上のテストスイート（`tests/test_*.py`）および各サブシステム（`gui.py`, `local_sync_server.py`, `agent.py`, `briefing_engine.py`, `hisho_mcp_server.py` 等）は、すべて `import database` または `from database import ...` を直接呼び出している。
+これらを破壊せず安全に分割するため、**Facade パターン（窓口維持方式）** を採用する。
+
+```
+ネオ秘書くん/
+├── storage/                    # 🗄️ 新設: 分割されたRepositoryパッケージ
+│   ├── __init__.py             # パッケージ宣言
+│   ├── connection.py           # コネクションライフサイクル, WAL設定, init_db, バックアップ
+│   ├── models.py               # Pydanticモデル定義 (Category, Event, Task, Habit, Insight等)
+│   ├── calendar_repo.py        # Event, Category, CalendarSource CRUD & 繰り返し展開計算
+│   ├── task_repo.py            # Task, TaskList CRUD, 階層ツリー, 4象限マトリクス
+│   ├── habit_repo.py           # Habit, HabitLog CRUD, ストリーク計算, 年間ヒートマップ集計
+│   ├── insight_repo.py         # UserInsight (MentisDB) CRUD, タグ検索, 重要度スコアリング
+│   ├── note_repo.py            # StickyNote CRUD, デスクトップ位置・サイズ永続化
+│   ├── device_repo.py          # Device 台帳 CRUD, トークンハッシュ照合, 失効管理
+│   ├── audit_repo.py           # ApprovalAuditLog CRUD, 改ざん耐性監査台帳
+│   └── minigame_repo.py        # MinigameScore CRUD, ハイスコア集計
+└── database.py                 # 🏛️ 既存維持: storage/ の全公開シンボルを再エクスポートする薄いFacade
+```
+
+### 18.3 パフォーマンスへの影響評価 (Performance & Zero-Overhead)
+1. **実行時パフォーマンス (Runtime Performance)**:
+   - Python のモジュールインポートによる名前解決は起動時に一度辞書（`sys.modules`）へ登録されるのみであり、関数呼び出し時のオーバーヘッドは **0.000ミリ秒**（ゼロオーバーヘッド）。
+   - SQLite WAL の同時読み書き性能やクエリスループットは接続コンテキストマネージャ（`get_db_connection`）と SQLite Cエンジン内部で決定されるため、ファイル分割による劣化は一切生じない。
+2. **保守・開発パフォーマンス (Developer Velocity)**:
+   - 各 Repository が 200〜400行 前後の「深いモジュール（Deep Module）」として自己完結するため、AIのコード生成精度が向上し、コンテキスト溢れや副作用バグ（玉突き事故）が構造的に撲滅される。
+   - 各リポジトリ単体でのモック化・テストが容易になり、CIテストの並列性も向上する。
+
+### 18.4 移行ステップ (Incremental Migration Plan)
+- **Phase 1 (非破壊的モデル・接続の切り出し)**: `storage/models.py` と `storage/connection.py` を先行新設し、`database.py` から参照。
+- **Phase 2 (個別リポジトリの切り出し)**: `audit_repo.py` ➔ `device_repo.py` ➔ `insight_repo.py` ➔ `note_repo.py` ➔ `habit_repo.py` ➔ `calendar_repo.py` ➔ `task_repo.py` の順で1ドメインずつ安全に Seam 分割。
+- **Phase 3 (回帰防止アサーション)**: 全71件の既存テストを実行し、全緑を無停止で維持。
