@@ -67,16 +67,16 @@ class TestPetSeamParticles(unittest.TestCase):
         """index.html で pet_particles.js が pet_audio_se.js の直後かつ pet.js の直前に読み込まれていること"""
         content = self.index_html.read_text(encoding="utf-8")
 
-        self.assertIn(
-            '<script src="pet_particles.js"></script>',
+        self.assertRegex(
             content,
+            r'<script\s+src="pet_particles\.js(?:\?[^"]*)?"></script>',
             "index.html に pet_particles.js の script タグがありません",
         )
 
-        idx_version = content.find('src="version.js"')
-        idx_auth = content.find('src="pet_auth.js"')
-        idx_audio = content.find('src="pet_audio_se.js"')
-        idx_particles = content.find('src="pet_particles.js"')
+        idx_version = content.find('src="version.js')
+        idx_auth = content.find('src="pet_auth.js')
+        idx_audio = content.find('src="pet_audio_se.js')
+        idx_particles = content.find('src="pet_particles.js')
         idx_pet = content.find('src="pet.js')
 
         self.assertTrue(

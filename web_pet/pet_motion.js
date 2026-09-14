@@ -231,18 +231,30 @@
       var bubble = document.getElementById('speech-bubble');
       if (!sprite) return;
 
+      var now = Date.now();
+      // 🛡️ 多重発火ガード: すでに歓喜ジャンプ中の場合はタイマー延長のみ行い、リフローやパーティクルの二重生成を抑止
+      if (window._celebratingUntil && now < window._celebratingUntil) {
+        window._celebratingUntil = Math.max(window._celebratingUntil, now + durationMs);
+        return;
+      }
+
       // 既存タイマーのクリア
       if (_celebrateTimer) clearTimeout(_celebrateTimer);
       if (_celebrateFrameInterval) clearInterval(_celebrateFrameInterval);
 
       window.petStateNow = 'celebrate';
-      window._celebratingUntil = Date.now() + durationMs;
+      window._celebratingUntil = now + durationMs;
 
       // 1. CSSジャンプアニメーション＆足元シャドウ連動の適用
-      sprite.classList.remove('squashing');
-      void sprite.offsetWidth; // リフロー強制
-      sprite.classList.add('celebrating');
-      if (shadow) shadow.classList.add('celebrating');
+      if (!sprite.classList.contains('celebrating')) {
+        sprite.classList.remove('squashing');
+        // チラつき防止: 既にアニメーション中でない場合のみリフロー安全適用
+        void sprite.offsetWidth;
+        sprite.classList.add('celebrating');
+      }
+      if (shadow && !shadow.classList.contains('celebrating')) {
+        shadow.classList.add('celebrating');
+      }
 
       // 2. スプライトのパラパラアニメ（celebrate_1 ⇄ celebrate_2 ⇄ celebrate_3 ⇄ happy）
       var celebrateFrames = ['celebrate_1', 'celebrate_2', 'celebrate_3', 'happy'];

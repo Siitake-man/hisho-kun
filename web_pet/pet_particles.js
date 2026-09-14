@@ -33,6 +33,29 @@
   let envCanvas = null;
   let envCtx = null;
 
+  // 🛡️ ダブルバッファリング用オフスクリーンCanvas（チラつき・フリッカー完全根絶）
+  let bgCacheCanvas = null;
+  let bgCacheCtx = null;
+  let bgNeedsRedraw = true;
+
+  /**
+   * 背景シーンをオフスクリーンCanvasにプリレンダリング（ダブルバッファ化）
+   */
+  function updateBgCache() {
+    if (!envCanvas) return;
+    if (!bgCacheCanvas) {
+      bgCacheCanvas = document.createElement('canvas');
+      bgCacheCtx = bgCacheCanvas.getContext('2d');
+    }
+    bgCacheCanvas.width = envCanvas.width;
+    bgCacheCanvas.height = envCanvas.height;
+    if (bgCacheCtx) {
+      bgCacheCtx.clearRect(0, 0, bgCacheCanvas.width, bgCacheCanvas.height);
+      drawEnvSceneTo(bgCacheCtx, bgCacheCanvas.width, bgCacheCanvas.height);
+    }
+    bgNeedsRedraw = false;
+  }
+
   /**
    * Canvasの初期化およびリサイズ追従
    */
@@ -45,6 +68,7 @@
       // グローバル参照への安全な公開 (NoSleep等の外部参照互換)
       window.envCanvas = envCanvas;
       window.envCtx = envCtx;
+      updateBgCache();
     }
   }
 
@@ -71,6 +95,7 @@
       const label = document.getElementById('env-label');
       if (label) label.innerText = theme.label;
       envParticles.length = 0; // 閉包内配列を安全にクリア
+      updateBgCache();
       return theme;
     }
     return null;
@@ -89,6 +114,19 @@
     // トースト通知（showToast が定義されていれば表示）
     if (typeof window.showToast === 'function') {
       window.showToast(`🏞️ ${theme.label}テーマに変わりました`);
+    }
+  }
+
+  /**
+   * ターゲットCanvasコンテキストへの背景シーン描画ヘルパー
+   */
+  function drawEnvSceneTo(targetCtx, targetW, targetH) {
+    var origCtx = envCtx;
+    try {
+      envCtx = targetCtx;
+      drawEnvScene();
+    } finally {
+      envCtx = origCtx;
     }
   }
 
@@ -609,8 +647,15 @@
       if (envCtx && envCanvas) {
         envCtx.clearRect(0, 0, envCanvas.width, envCanvas.height);
 
-        // テーマごとの背景シーン（暖炉・窓・木々・波・ネオンビル等）を描画
-        drawEnvScene();
+        // 🛡️ ダブルバッファリング: プリレンダリング済み背景を1回のdrawImageで高速転送（チラつき・フリッカー完全根絶）
+        if (!bgCacheCanvas || bgNeedsRedraw) {
+          updateBgCache();
+        }
+        if (bgCacheCanvas) {
+          envCtx.drawImage(bgCacheCanvas, 0, 0);
+        } else {
+          drawEnvScene();
+        }
 
         // 天候エフェクト（雨・雪・雷・落ち葉）を生成
         spawnWeatherParticles();

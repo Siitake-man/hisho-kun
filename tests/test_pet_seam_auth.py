@@ -77,10 +77,10 @@ class TestPetSeamAuth(unittest.TestCase):
         html_path = PROJECT_ROOT / "web_pet" / "index.html"
         content = html_path.read_text(encoding="utf-8")
         
-        self.assertIn('<script src="pet_auth.js"></script>', content)
+        self.assertRegex(content, r'<script\s+src="pet_auth\.js(?:\?[^"]*)?"></script>')
         
-        pos_version = content.find('src="version.js"')
-        pos_auth = content.find('src="pet_auth.js"')
+        pos_version = content.find('src="version.js')
+        pos_auth = content.find('src="pet_auth.js')
         pos_pet = content.find('src="pet.js')
         
         self.assertGreater(pos_auth, pos_version, "pet_auth.js は version.js の後に読み込む必要があります")

@@ -89,15 +89,15 @@ class TestPetSeamMotionAndUI(unittest.TestCase):
         """index.html でスクリプト読み込み順序が正しいこと"""
         content = self.index_html.read_text(encoding="utf-8")
 
-        self.assertIn('<script src="pet_motion.js"></script>', content)
-        self.assertIn('<script src="pet_ui.js"></script>', content)
+        self.assertRegex(content, r'<script\s+src="pet_motion\.js(?:\?[^"]*)?"></script>')
+        self.assertRegex(content, r'<script\s+src="pet_ui\.js(?:\?[^"]*)?"></script>')
 
-        idx_version = content.find('src="version.js"')
-        idx_auth = content.find('src="pet_auth.js"')
-        idx_audio = content.find('src="pet_audio_se.js"')
-        idx_particles = content.find('src="pet_particles.js"')
-        idx_motion = content.find('src="pet_motion.js"')
-        idx_ui = content.find('src="pet_ui.js"')
+        idx_version = content.find('src="version.js')
+        idx_auth = content.find('src="pet_auth.js')
+        idx_audio = content.find('src="pet_audio_se.js')
+        idx_particles = content.find('src="pet_particles.js')
+        idx_motion = content.find('src="pet_motion.js')
+        idx_ui = content.find('src="pet_ui.js')
         idx_pet = content.find('src="pet.js')
 
         self.assertTrue(

@@ -38,7 +38,7 @@ class TestSuggestCalendarDates(unittest.TestCase):
 
     def setUp(self):
         """テスト用モックおよびエンジンの初期化"""
-        self.engine = SuggestionEngine()
+        self.engine = SuggestionEngine(start_worker=False)
         # カレンダーソースのみ有効化
         self.engine.config = {
             "sources": {
@@ -51,6 +51,11 @@ class TestSuggestCalendarDates(unittest.TestCase):
                 "gmail": {"enabled": False},
             }
         }
+
+    def tearDown(self):
+        """ワーカーの停止"""
+        if hasattr(self, "engine"):
+            self.engine.stop_background_worker()
 
     @patch("suggest_engine.database.get_upcoming_events")
     def test_01_today_future_event_label(self, mock_events):

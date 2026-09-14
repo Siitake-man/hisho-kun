@@ -64,7 +64,7 @@ class TestSuggestNewsSummary(unittest.TestCase):
                 json.dump(initial_config, f)
 
             with patch("suggest_engine.CONFIG_PATH", config_file):
-                engine = SuggestionEngine()
+                engine = SuggestionEngine(start_worker=False)
                 self.assertEqual(engine.get_news_keywords(), ["AI", "ネットワーク"])
 
                 # カンマ区切りの文字列で更新
@@ -78,7 +78,7 @@ class TestSuggestNewsSummary(unittest.TestCase):
 
     def test_generate_3line_summary_fallback(self):
         """LLMが利用できない場合にルールベースの3行サマリが生成されるか検証"""
-        engine = SuggestionEngine()
+        engine = SuggestionEngine(start_worker=False)
         title = "新世代ネットワークルーターの性能測定結果"
         desc = "BGP経路の収束速度が従来の2倍に向上しました。メモリ消費量も半減しています。エンタープライズNW向けに提供が開始されます。"
         
@@ -91,7 +91,7 @@ class TestSuggestNewsSummary(unittest.TestCase):
 
     def test_extract_content_points_splits_sentences(self):
         """descriptionが文単位のポイントに分解され、タイトル反復・ノイズ行が除外されるか検証"""
-        engine = SuggestionEngine()
+        engine = SuggestionEngine(start_worker=False)
         title = "新技術の発表会が開催"
         desc = "新技術の発表会が開催された。処理速度が3倍に向上した。対応機器が拡大している。 - Tech Media"
         points = engine._extract_content_points(desc, title, media="Tech Media")
@@ -105,7 +105,7 @@ class TestSuggestNewsSummary(unittest.TestCase):
 
     def test_fallback_no_meta_filler_when_desc_has_content(self):
         """descriptionに実内容がある場合、案内文（タップで詳細）で行を埋めないか検証"""
-        engine = SuggestionEngine()
+        engine = SuggestionEngine(start_worker=False)
         title = "次世代AIチップが発表"
         desc = "消費電力を従来の半分に抑えた。推論性能は2倍に向上した。"
         with patch("llm_factory.get_llm_factory", side_effect=Exception("LLM offline")):
@@ -117,7 +117,7 @@ class TestSuggestNewsSummary(unittest.TestCase):
 
     def test_fallback_tap_hint_limited_to_one_line(self):
         """descriptionがタイトル反復のみの場合、案内文は1行に限られるか検証"""
-        engine = SuggestionEngine()
+        engine = SuggestionEngine(start_worker=False)
         title = "国産セキュリティサービス提供開始（2026年8月27日）"
         # Google News RSS 特有の「タイトルの反復＋媒体名」パターン
         desc = "国産セキュリティサービス提供開始（2026年8月27日）：プレスリリース - NEC"
@@ -130,7 +130,7 @@ class TestSuggestNewsSummary(unittest.TestCase):
 
     def test_llm_short_output_filled_from_description(self):
         """LLM出力が3行未満の場合、description由来のポイントで補完されるか検証"""
-        engine = SuggestionEngine()
+        engine = SuggestionEngine(start_worker=False)
         title = "量子ネットワーク実証実験に成功"
         desc = "東京と大阪間で量子もつれを安定生成した。誤り訂正技術を実装した。通信距離は500kmに到達した。"
         llm_response = MagicMock()

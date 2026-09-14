@@ -428,13 +428,50 @@
     }, { passive: true });
   }
 
+  // 🛡️ ユーザーが消去した完了イベントのID/タイムスタンプをメモリ上で保持するSet
+  var _dismissedCompletedIds = new Set();
+
+  /** 完了通知がユーザーによって消去済みかを判定 */
+  function isCompletedDismissed(ev) {
+    if (!ev) return false;
+    if (ev.id && _dismissedCompletedIds.has(ev.id)) return true;
+    if (ev.timestamp && _dismissedCompletedIds.has(String(ev.timestamp))) return true;
+    try {
+      if (ev.timestamp && sessionStorage.getItem('dismissed_completed_' + ev.timestamp) === '1') return true;
+      if (ev.id && sessionStorage.getItem('dismissed_completed_' + ev.id) === '1') return true;
+    } catch (e) {}
+    return false;
+  }
+
   function dismissCompleted(e) {
     if (e && e.stopPropagation) e.stopPropagation();
     try {
-      if (window.currentActiveEvent && window.currentActiveEvent.timestamp) {
-        sessionStorage.setItem('dismissed_completed_' + window.currentActiveEvent.timestamp, '1');
+      var ev = window.currentActiveEvent;
+      if (ev) {
+        if (ev.id) {
+          _dismissedCompletedIds.add(ev.id);
+          try { sessionStorage.setItem('dismissed_completed_' + ev.id, '1'); } catch (e) {}
+        }
+        if (ev.timestamp) {
+          _dismissedCompletedIds.add(String(ev.timestamp));
+          try { sessionStorage.setItem('dismissed_completed_' + ev.timestamp, '1'); } catch (e) {}
+        }
       }
       _hideBanner();
+      if (typeof closeBottomSheet === 'function') closeBottomSheet();
+
+      // 🛡️ サーバーへも即座に通知して latest_completed を消去（90秒TTLを待たずに即時破棄）
+      var token = typeof getSyncToken === 'function' ? getSyncToken() : '';
+      var headers = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = 'Bearer ' + token;
+      fetch('/api/agent/dismiss_completed', {
+        method: 'POST',
+        headers: headers,
+        body: JSON.stringify({})
+      }).catch(function(err) {
+        console.warn('[pet_ui] POST /api/agent/dismiss_completed error:', err);
+      });
+
       if (typeof window.fetchStatus === 'function') window.fetchStatus();
     } catch (err) {
       console.warn('[pet_ui] dismissCompleted failed:', err);
@@ -713,6 +750,7 @@
   window.setupSuggestSwipe = setupSuggestSwipe;
   window.setupBannerSwipe = setupBannerSwipe;
   window.dismissCompleted = dismissCompleted;
+  window.isCompletedDismissed = isCompletedDismissed;
   window._hideBanner = _hideBanner;
   window.openApprovalSheet = openApprovalSheet;
   window.openQuestionSheet = openQuestionSheet;
@@ -742,6 +780,7 @@ var triggerSecretRoomIris = window.triggerSecretRoomIris;
 var setupSuggestSwipe = window.setupSuggestSwipe;
 var setupBannerSwipe = window.setupBannerSwipe;
 var dismissCompleted = window.dismissCompleted;
+var isCompletedDismissed = window.isCompletedDismissed;
 var _hideBanner = window._hideBanner;
 var openApprovalSheet = window.openApprovalSheet;
 var openQuestionSheet = window.openQuestionSheet;

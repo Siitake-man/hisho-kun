@@ -133,7 +133,7 @@ def init_db(db_path: str = "neo_secretary.db") -> None:
             )
         """)
 
-        # user_insightsテーブル (MentisDB型 長期知見記憶)
+        # user_insightsテーブル (知識の宝庫 長期知見記憶)
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS user_insights (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,

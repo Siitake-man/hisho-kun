@@ -321,31 +321,43 @@ async function fetchStatus() {
       if (bannerActions) bannerActions.style.display = 'none';
       if (data.active_event) {
         const ev = data.active_event;
-        const eventKey = `${ev.type || ''}:${ev.timestamp || ''}:${ev.summary || ev.title || ''}`;
-        const isNew = (lastActiveEventKey !== eventKey);
-        lastActiveEventKey = eventKey;
-        currentActiveEvent = ev;
-        window.currentActiveEvent = ev;
-        eventBanner.style.display = 'block';
-        eventBanner.style.opacity = '1';
-        eventBanner.style.transform = '';
-        eventBanner.style.transition = '';
-        eventBanner.className = ev.type || 'completed';
-        const typeLabel = ev.type === 'question' ? '質問' : '完了通知';
-        document.getElementById('event-type-badge').innerText = `✨ 【${ev.agent_name || 'AI'}】${typeLabel}`;
-        document.getElementById('banner-hint').innerText = 'タップで詳細';
-        document.getElementById('event-title').innerText = ev.summary || ev.title || '';
-        document.getElementById('event-desc').innerText = 'タップして確認';
-        // ✖ dismiss button: completed 時にのみ表示
-        const dismissBtn = document.getElementById('banner-dismiss-btn');
-        if (dismissBtn) dismissBtn.style.display = ev.type === 'completed' ? '' : 'none';
-        if (isNew) {
-          window._notifDisplayedAt = Date.now();
-          playAlertChime(2);
-          // 🛡️ 重複排除: バナーが表示されるため上部HUDトーストは出さない
-          if (navigator.vibrate) navigator.vibrate([120, 80, 120, 80, 240]);
-          triggerCelebrateReaction(4000);
-          if (window.EasterEggEngine) EasterEggEngine.playSound('revive');
+        // 🛡️ 完了通知かつユーザーが消去（dismiss）済みなら即座に非表示を維持
+        const isDismissed = (ev.type === 'completed') && (
+          (typeof isCompletedDismissed === 'function' && isCompletedDismissed(ev)) ||
+          (ev.id && sessionStorage.getItem('dismissed_completed_' + ev.id) === '1') ||
+          (ev.timestamp && sessionStorage.getItem('dismissed_completed_' + ev.timestamp) === '1')
+        );
+        if (isDismissed) {
+          eventBanner.style.display = 'none';
+          currentActiveEvent = null;
+          window.currentActiveEvent = null;
+        } else {
+          const eventKey = `${ev.type || ''}:${ev.timestamp || ''}:${ev.summary || ev.title || ''}`;
+          const isNew = (lastActiveEventKey !== eventKey);
+          lastActiveEventKey = eventKey;
+          currentActiveEvent = ev;
+          window.currentActiveEvent = ev;
+          eventBanner.style.display = 'block';
+          eventBanner.style.opacity = '1';
+          eventBanner.style.transform = '';
+          eventBanner.style.transition = '';
+          eventBanner.className = ev.type || 'completed';
+          const typeLabel = ev.type === 'question' ? '質問' : '完了通知';
+          document.getElementById('event-type-badge').innerText = `✨ 【${ev.agent_name || 'AI'}】${typeLabel}`;
+          document.getElementById('banner-hint').innerText = 'タップで詳細';
+          document.getElementById('event-title').innerText = ev.summary || ev.title || '';
+          document.getElementById('event-desc').innerText = 'タップして確認';
+          // ✖ dismiss button: completed 時にのみ表示
+          const dismissBtn = document.getElementById('banner-dismiss-btn');
+          if (dismissBtn) dismissBtn.style.display = ev.type === 'completed' ? '' : 'none';
+          if (isNew) {
+            window._notifDisplayedAt = Date.now();
+            playAlertChime(2);
+            // 🛡️ 重複排除: バナーが表示されるため上部HUDトーストは出さない
+            if (navigator.vibrate) navigator.vibrate([120, 80, 120, 80, 240]);
+            triggerCelebrateReaction(4000);
+            if (window.EasterEggEngine) EasterEggEngine.playSound('revive');
+          }
         }
       } else if (data.due_reminders && data.due_reminders.length > 0) {
         const rem = data.due_reminders[0];
@@ -526,9 +538,12 @@ function handleActiveEventClick() {
   openBottomSheet(currentActiveEvent);
 }
 
-// ※ dismissCompleted は先行読み込みされる pet_ui.js で定義および window に公開されています。
+// ※ dismissCompleted, isCompletedDismissed は先行読み込みされる pet_ui.js で定義および window に公開されています。
 if (typeof dismissCompleted === 'undefined' && typeof window.dismissCompleted !== 'undefined') {
   var dismissCompleted = window.dismissCompleted;
+}
+if (typeof isCompletedDismissed === 'undefined' && typeof window.isCompletedDismissed !== 'undefined') {
+  var isCompletedDismissed = window.isCompletedDismissed;
 }
 
 /** アップデートバナーを閉じる（sessionStorageで永続化：同一セッションでは再表示しない） */

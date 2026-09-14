@@ -4,8 +4,10 @@
 
 2026年7月28日正式リリース最新仕様（Stateless / MRTR対応）に完全準拠。
 Antigravity, Claude Code, Cursor, Codex 等のコーディングエージェントへ
-「スマホDesk Pet承認要請 (Agent Bridge)」「MentisDB長期知見 (user_insights)」
-「TODOタスク手帳同期」を標準プロトコル経由で提供します。
+「スマホDesk Pet承認要請 (Agent Bridge)」「知識の宝庫 (user_insights)」
+「手帳TODO/カレンダー操作」「タスク完了/入力要求通知」
+「リアルタイム死活監視 (Link Monitor)」などの
+コアケイパビリティをツール群として外部コーディングエージェントへ提供します。
 """
 
 import sys
@@ -231,7 +233,7 @@ def execute_remember_boss_insight(
     content: str,
     importance: int = 2
 ) -> Dict[str, Any]:
-    """ボスの制約・好み・作業習慣を MentisDB (user_insights) に永続化します。
+    """ボスの制約・好み・作業習慣を 知識の宝庫 (user_insights) に永続化します。
 
     Args:
         category (str): 知見カテゴリ ('制約', '好み', '習慣', '開発方針' 等)。
@@ -254,13 +256,13 @@ def execute_remember_boss_insight(
             content=content,
             importance=max(1, min(5, int(importance)))
         )
-        logger.info(f"MentisDBに知見を記憶しました: ID={insight_id}, Cat={category}")
+        logger.info(f"知識の宝庫に知見を記憶しました: ID={insight_id}, Cat={category}")
         return {
             "status": "success",
             "insight_id": insight_id,
             "category": category,
             "content": content,
-            "message": f"ボスの知見（{category}: {content}）をMentisDBに永続化しました。"
+            "message": f"ボスの知見（{category}: {content}）を知識の宝庫に永続化しました。"
         }
     except Exception as e:
         logger.error(f"知見記憶エラー: {e}")
@@ -271,7 +273,7 @@ def execute_get_boss_insights(
     category: str = "",
     limit: int = 10
 ) -> List[Dict[str, Any]]:
-    """MentisDBからボスの制約・好み・方針を検索・取得します。
+    """知識の宝庫からボスの制約・好み・方針を検索・取得します。
 
     Args:
         category (str, optional): カテゴリフィルタ。 Defaults to "".
@@ -423,7 +425,7 @@ def run_fastmcp_server() -> None:
     mcp = FastMCP(
         name="neo_hisho_bridge",
         instructions=(
-            "ネオ秘書くん Agent Bridge ＆ MentisDB サーバー。\n"
+            "ネオ秘書くん Agent Bridge ＆ 知識の宝庫 サーバー。\n"
             "危険なコマンド実行時は `ask_human_approval` でスマホDesk Petに承認を求めてください。\n"
             "ボスの制約や好みは `hisho://insights` リソースおよび `remember_boss_insight` を活用してください。"
         )
@@ -460,12 +462,12 @@ def run_fastmcp_server() -> None:
         """手帳カレンダーに予定を登録します。"""
         return execute_create_calendar_event(title, start_time_iso, end_time_iso, description)
 
-    @mcp.tool(description="ボスの制約・好み・作業習慣・開発ルールをMentisDB長期記憶に永続化します。")
+    @mcp.tool(description="ボスの制約・好み・作業習慣・開発ルールを知識の宝庫（長期記憶）に永続化します。")
     def remember_boss_insight(category: str, content: str, importance: int = 2) -> Dict[str, Any]:
-        """ボスの知見・制約をMentisDBに記憶します。"""
+        """ボスの知見・制約を知識の宝庫に記憶します。"""
         return execute_remember_boss_insight(category, content, importance)
 
-    @mcp.tool(description="MentisDBからボスの制約や好みを検索・取得します。")
+    @mcp.tool(description="知識の宝庫からボスの制約や好みを検索・取得します。")
     def get_boss_insights(category: str = "", limit: int = 10) -> List[Dict[str, Any]]:
         """ボスの知見を検索・取得します。"""
         return execute_get_boss_insights(category, limit)
@@ -561,7 +563,7 @@ def run_fallback_jsonrpc_server() -> None:
         },
         {
             "name": "remember_boss_insight",
-            "description": "ボスの制約・好みをMentisDBに記憶します。",
+            "description": "ボスの制約・好みを知識の宝庫に記憶します。",
             "inputSchema": {
                 "type": "object",
                 "properties": {
@@ -574,7 +576,7 @@ def run_fallback_jsonrpc_server() -> None:
         },
         {
             "name": "get_boss_insights",
-            "description": "MentisDBからボスの知見・制約を取得します。",
+            "description": "知識の宝庫からボスの知見・制約を取得します。",
             "inputSchema": {
                 "type": "object",
                 "properties": {

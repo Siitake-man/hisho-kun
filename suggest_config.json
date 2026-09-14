@@ -18,7 +18,7 @@
     "boss_insights": {
       "name": "🧠 開発知見・マインドセット",
       "enabled": false,
-      "description": "MentisDBに蓄積されたボスのルールや天風哲学のTips"
+      "description": "知識の宝庫に蓄積されたボスのルールや天風哲学のTips"
     },
     "news_topics": {
       "name": "🌐 関心ニュース・AIトレンド",

@@ -67,16 +67,16 @@ class TestPetSeamAudio(unittest.TestCase):
         """index.html で pet_audio_se.js が pet_auth.js の直後かつ pet.js の直前に読み込まれていること"""
         content = self.index_html.read_text(encoding="utf-8")
 
-        self.assertIn(
-            '<script src="pet_audio_se.js"></script>',
+        self.assertRegex(
             content,
+            r'<script\s+src="pet_audio_se\.js(?:\?[^"]*)?"></script>',
             "index.html に pet_audio_se.js の script タグがありません",
         )
 
         # 読み込み順序の厳密検証: version.js -> pet_auth.js -> pet_audio_se.js -> pet.js
-        idx_version = content.find('src="version.js"')
-        idx_auth = content.find('src="pet_auth.js"')
-        idx_audio = content.find('src="pet_audio_se.js"')
+        idx_version = content.find('src="version.js')
+        idx_auth = content.find('src="pet_auth.js')
+        idx_audio = content.find('src="pet_audio_se.js')
         idx_pet = content.find('src="pet.js')
 
         self.assertTrue(

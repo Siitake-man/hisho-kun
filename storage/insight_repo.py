@@ -1,7 +1,7 @@
 """
 Neo-Secretary ストレージ層 - ユーザー知見リポジトリ (storage/insight_repo.py)
 
-ユーザー知見（MentisDB型 長期記憶: user_insights テーブル）の
+ユーザー知見（知識の宝庫: user_insights テーブル）の
 永続化・取得・検索・削除を提供します。
 """
 

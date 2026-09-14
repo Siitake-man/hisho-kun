@@ -116,7 +116,7 @@ tool_node = ToolNode(tools)
 def planner_node(state: AgentState):
     """
     ユーザーからの入力を受け取り、どう行動するか（ツールを使うか、そのまま返すか）を考える最初の窓口ノード。
-    MentisDB型のユーザー長期知見を自動ロードしてプロンプトに注入します。
+    知識の宝庫に蓄積されたボスの長期知見を自動ロードしてプロンプトに注入します。
     """
     logger.info("Planner Node がユーザー入力を処理中...")
     messages = state.get("messages", [])

@@ -495,7 +495,7 @@ class SettingsWindow(ctk.CTkToplevel):
 
         guide_desc = (
             "Codex, Claude Code, Cursor, Antigravity 等のコーディングAIにネオ秘書くんの\n"
-            "MCPサーバー（スマホ承認・質問回答・作業完了通知・MentisDB知見）を登録します。\n"
+            "MCPサーバー（スマホ承認・質問回答・作業完了通知・知識の宝庫）を登録します。\n"
             "下のボタンから各ツールの設定ファイル用コードを1クリックでコピーできます。"
         )
         ctk.CTkLabel(content_mcp, text=guide_desc, font=self.font_small, text_color="#5D4037", justify="left", anchor="w").pack(fill="x", pady=(0, 8))

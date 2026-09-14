@@ -1,6 +1,6 @@
 # ネオ秘書くん MCP サーバー連携仕様書 (MCP_INTEGRATION.md)
 
-- **最終更新日時**: 2026-08-16 18:28 (横置き3大リッチカードUI ＆ 双方向質問回答 ＆ タブ型MCP設定完全対応)
+- **最終更新日時**: 2026-09-14 22:15 (知見蓄積機能の呼称刷新「知識の宝庫」完全対応)
 - **準拠規格**: Model Context Protocol (2026-07-28 Specification / FastMCP / stdio JSON-RPC 2.0)
 
 ---
@@ -23,7 +23,7 @@
 │  ├── 🔔 notify_user_input_needed  : 選択肢付き質問の送信 ＆ スマホ回答待機│
 │  ├── 🎉 notify_task_completed    : 作業完了通知＆成果物サマリリッチカード│
 │  ├── 📋 create_task              : TODO手帳へのタスク自動登録           │
-│  └── 🧠 remember_boss_insight    : ボスの制約・知見 (MentisDB) 永続化    │
+│  └── 🧠 remember_boss_insight    : ボスの制約・知見 (知識の宝庫) 永続化  │
 └──────────────────────────────────┬─────────────────────────────────────┘
                                    │ (Local HTTP: Port 8765)
                                    ▼
@@ -46,7 +46,7 @@
 | **`notify_user_input_needed`** | 質問・確認・選択肢の**入力待ち要請** | `question` (必須), `choices` (カンマ区切りまたは配列), `agent_name`, `timeout_sec` | スマホに **② 🔔 質問回答カード** が表示され、選択肢ボタンをタップすると回答がAIへ即時返却。 |
 | **`notify_task_completed`** | タスク終了・ターン完了の**作業完了通知** | `title`, `message`, `details`, `agent_name` | スマホに **③ 🎉 作業完了カード**（成果物サマリ）が表示され、ペットが大喜び。 |
 | **`create_task`** | 気づいた課題の**TODO手帳登録** | `title` (必須), `priority`, `memo` | ネオ秘書くんのTODO手帳へ即時登録。 |
-| **`remember_boss_insight`** | ボスの制約・好みの**MentisDB記憶** | `category` (必須), `content` (必須), `importance` | 次回以降のセッションでも参照可能な長期記憶として永続化。 |
+| **`remember_boss_insight`** | ボスの制約・好みの**知識の宝庫への記憶** | `category` (必須), `content` (必須), `importance` | 次回以降のセッションでも参照可能な長期記憶として永続化。 |
 
 ---
 

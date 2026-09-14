@@ -1,7 +1,7 @@
 # ネオ秘書くん システム設計書 (DESIGN_SPEC.md)
 
-- **バージョン**: 1.1.2 (🏆 予定日跨ぎ判定バグ根治 ＆ デスクトップ吹き出しマークダウン太字強調 ＆ database.py Seam分割 Phase 2完遂版)
-- **最終更新日時**: 2026-09-14 20:30
+- **バージョン**: 1.1.3 (🏆 知見機能の呼称刷新「知識の宝庫」 ＆ 6大パフォーマンスボトルネック・省電力設計刻み込み版)
+- **最終更新日時**: 2026-09-14 22:15
 - **アーキテクチャ方針**: 完全ローカル完結型 非ブロッキング並行システム (Tkinter Desktop Overlay × Mobile PWA × LangGraph Agent × Zero-Trust Local Bridge)
 
 ---
@@ -114,7 +114,7 @@ Manusの設計をSQLite用に正規化して採用する。
 - `status`: TEXT ('inbox', 'todo', 'in_progress', 'completed')
 - `parent_id`: INTEGER (サブタスク用)
 
-### Table: user_insights (MentisDB型 ユーザー長期知見テーブル - 新規追加)
+### Table: user_insights (知識の宝庫 ユーザー長期知見テーブル - 新規追加)
 - `id`: INTEGER PK
 - `category`: TEXT ('Constraint': 制約, 'Preference': 好み, 'Habit': 習慣, 'Project': PJルール)
 - `content`: TEXT (例: '平日夜は家族のケアサポートのため予定を入れない')
@@ -159,14 +159,14 @@ Manusの設計をSQLite用に正規化して採用する。
 - **LM Studio (Local)**:
   - `local-model` (完全オフライン・機密保護・ゼロコスト)
 
-### 5.2 MentisDB型 ユーザー知見蓄積エンジン (Long-Term Memory)
+### 5.2 知識の宝庫 (Knowledge Vault) ユーザー知見蓄積エンジン (Long-Term Memory)
 1. **知見の自動抽出**: 会話の中からユーザーの制約・好み・生活リズムを検知し、`user_insights` テーブルへ永続化。
 2. **コンテキスト注入**: 推論時に重要度の高い知見（上位5件）をシステムプロンプトへ自動挿入。
 
 ### 5.3 Tools for Agent
 - **Calendar & Task Manager**: `create_event_tool`, `get_upcoming_events_tool`, `create_task_tool`, `list_tasks_tool`, `complete_task_tool`
 - **Sticky Note Manager**: `create_sticky_note_tool`
-- **MentisDB Long-Term Memory**: `remember_user_insight_tool`, `get_user_insights_tool`
+- **知識の宝庫 (Knowledge Vault) Long-Term Memory**: `remember_user_insight_tool`, `get_user_insights_tool`
 - **Vision & Screen Recognition (MiniCPM型)**: `capture_screen_tool`, `analyze_screen_error_tool`
 - **Proactive Health & Care**: `proactive_engine.py` による45分作業・夕方の自律声掛け
 - **Google Workspace (Calendar & Gmail)**: `get_google_calendar_events_tool`, `create_google_calendar_event_tool`, `search_gmail_messages_tool`
@@ -299,7 +299,7 @@ MiniCPM-Petの秀逸な着眼点をネオ秘書くんのクリーンアーキテ
 - **秘密iCal URL 連携 [✅ 実装済み 2026-08-25]**: `ics_tools.py` の `sync_calendar_from_ical_url()` により、Googleカレンダーの「予定の取得用の秘密のアドレス (iCal)」を貼るだけで**OAuth・APIキー・クライアントシークレット不要**で予定を読み取り専用同期（30分間隔自動＋手動ボタン）。Google由来予定は `google_event_id` で管理し重複なし。※設定画面に取得手順・読み取り専用の注意書きを表示。
 
 ## 8. 最新マスターロードマップ
-1. **Phase A〜E: デスクトップ常駐MVP・LangGraph・MentisDB・手帳・PWA・MCP自動登録 [✅ 完了]**
+1. **Phase A〜E: デスクトップ常駐MVP・LangGraph・知識の宝庫・手帳・PWA・MCP自動登録 [✅ 完了]**
 2. **Phase F: ゲーム級UX ＆ アニメーション基盤（ポモドーロネオン円形ゲージ・集中時の闘気/炎・猛烈タイピングエフェクト） [🚧 現在着手]**
 3. **Phase G: 内包型ローカルLLM推論基盤 ＆ モデル管理UI（GGUF / llama-server サイドカー ＆ カスタムGGUFドラッグ＆ドロップ） [🔲 次期予定]**
 4. **Phase H: 外部Agentログ監視（File Watcher）＆ 状態連動FSM ＆ タスクナレーション（Task Narration） [🔲 次期予定]**
@@ -445,7 +445,7 @@ MiniCPM-Petの秀逸な着眼点をネオ秘書くんのクリーンアーキテ
 ### 11.1 背景と課題（Shallow Module化の危機）
 - **現状のホットスポット**:
   1. `web_pet/pet.js` (3,335行): 通信、UIバナー、スプライト管理、歩行物理、歓喜アニメ、パーティクル、隠しコマンドの7つの異なるライフサイクルが単一ファイルに同居。
-  2. `database.py` (2,498行): タスク、カレンダー、習慣、MentisDB知見、監査ログの全CRUDが単一ファイルに集中。
+  2. `database.py` (2,498行): タスク、カレンダー、習慣、知識の宝庫知見、監査ログの全CRUDが単一ファイルに集中。
 - **課題**: 異なる役割が同一スコープに同居することで、修正時の玉突き事故（副作用）、AI推論オーバーヘッドによるハング、5分コードレビューの困難化を招いている。
 
 ### 11.2 PWAフロントエンド Seam 4分割設計 (`web_pet/`)
@@ -469,7 +469,7 @@ web_pet/
 - `database/connection.py`: コネクションプール・WAL設定・トランザクション保護
 - `database/task_repo.py`: タスクCRUD・再帰ルール・階層管理
 - `database/calendar_repo.py`: カレンダーイベント同期・終日判定
-- `database/insight_repo.py`: MentisDB（ボスの知見・トリセツ管理）
+- `database/insight_repo.py`: 知識の宝庫（ボスの知見・トリセツ管理）
 - `database/audit_repo.py`: 承認監査ログ永続化
 - `database.py` は各Repositoryのファサード（Deep Module）として薄いインターフェースを提供。
 
@@ -648,7 +648,7 @@ web_pet/
 │   ├── calendar_repo.py        # Event, Category, CalendarSource CRUD & 繰り返し展開計算
 │   ├── task_repo.py            # Task, TaskList CRUD, 階層ツリー, 4象限マトリクス
 │   ├── habit_repo.py           # Habit, HabitLog CRUD, ストリーク計算, 年間ヒートマップ集計
-│   ├── insight_repo.py         # UserInsight (MentisDB) CRUD, タグ検索, 重要度スコアリング
+│   ├── insight_repo.py         # UserInsight (知識の宝庫) CRUD, タグ検索, 重要度スコアリング
 │   ├── note_repo.py            # StickyNote CRUD, デスクトップ位置・サイズ永続化
 │   ├── device_repo.py          # Device 台帳 CRUD, トークンハッシュ照合, 失効管理
 │   ├── audit_repo.py           # ApprovalAuditLog CRUD, 改ざん耐性監査台帳
@@ -672,3 +672,30 @@ web_pet/
   - `storage/__init__.py` で全シンボルを集約エクスポート。
   - `database.py` を実体1,721行から **243行の純粋な薄型Facade** へスリム化。既存の呼び出し元コードとの100%後方互換性を死守。
 - **Phase 3 (回帰防止アサーション - ✅ 2026-09-14 完了)**: `tests/test_storage_seam_phase2_step1.py` および `tests/test_storage_seam_phase2_step2.py` による全シンボル・Facade同一性・各ドメインCRUDの自動検証を配備。
+
+---
+
+## 19. パフォーマンス最適化・省電力設計 (Performance & Battery Optimization - v1.0.3)
+
+2026-09-14 の深層監査（`/deep-audit`）によって特定された「6大パフォーマンス・ボトルネック」に対する恒久設計指針。
+
+### 19.1 クライアント側（スマホPWA）の省電力・低負荷設計
+1. **Page Visibility ポーリング抑制 (P0)**:
+   - `document.hidden === true`（画面OFF・バックグラウンド時）は `getNextFetchInterval()` を 30秒 に自動伸長。
+   - `visibilitychange` イベントで復帰した瞬間、`fetchFailCount` をリセットして即時1回 Fetch を実行し、遅延なく最新状態に復帰。
+2. **ダブルバッファリング ＆ Wake-on-Demand (P1〜P2)**:
+   - 背景シーンはオフスクリーンCanvas（`bgCacheCanvas`）で事前レンダリングし、毎フレームは `drawImage` 1発で超高速転送（実装済み）。
+   - パーティクルが0個の完全アイドル時は `requestAnimationFrame` を一時停止し、通知着信やなでなで時のみ叩き起こす（Wake-on-Demand）。
+3. **DOM更新の条件付きクランプ (P1)**:
+   - `petWanderTick`（120ms周期）での吹き出し位置スタイル更新は、ペットが実際に歩行中（`isMoving === true`）のみに限定し、不要なレイアウト再計算を抑制。
+
+### 19.2 サーバー側（Python / SQLite / GUI）のスケーラビリティ設計
+1. **ステータスAPI キャッシュの完全網羅 (P0)**:
+   - `/api/status` において、タスク・予定（2秒TTL）に加え、習慣データ（`habits_data`）および70日分ヒートマップ（`heatmap_data`）を 30秒TTLキャッシュ に格納。
+   - 2秒ポーリングによる高頻度SQLiteクエリを遮断し、DB負荷を93%削減。
+2. **検索頻出カラムの明示的インデックス (P1)**:
+   - `tasks(status, due_date)` および `events(start_time, end_time)` にインデックスを新設し、フルテーブルスキャン（O(N)）をO(log N)へ最適化。
+3. **適応型スリープ（Adaptive Sleep - P1)**:
+   - `main.py` の `async_mainloop` において、ユーザー無操作時は `asyncio.sleep(0.03)`（約30Hz）に緩和し、PC側CPUコアの常時占有を半減。
+4. **ポート番号の環境変数オーバーライド (P1)**:
+   - `local_sync_server.py` のポートバインドを `int(os.getenv("NEO_HISHO_PORT", "8765"))` とし、ポート競合耐性を担保。
