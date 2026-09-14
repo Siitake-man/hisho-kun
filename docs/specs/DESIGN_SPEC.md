@@ -1,6 +1,6 @@
 # システム設計書: Neo-Secretary (ネオ秘書くん) Python Agent Edition
 
-- **最終更新日時**: 2026-09-14 13:15 (🏛️ **Section 15 フロントエンド Seam 分割 第2弾 (pet_audio_se.js) 配備版**)
+- **最終更新日時**: 2026-09-14 13:25 (🏛️ **Section 16 フロントエンド Seam 分割 第3弾 (pet_particles.js) 配備版**)
 - **Architecture**: Python Desktop App with LangGraph & PWA Mobile Approval Remote
 
 ---
@@ -567,3 +567,24 @@ web_pet/
    - `getAudioContext()`, `unlockAudio()`, `playTwoTone()`, `playAlertChime()`, `stopAlertChime()`, `playDecisionSound()`, `playCharacterSE()` を `window` および非モジュールスコープへ公開。
 5. **回帰防止テスト**:
    - `tests/test_pet_seam_audio.py` により、物理存在・シンボル定義・読み込み順序・SWオフラインキャッシュ・HTTP配信（200 OK）を完全網羅。
+
+---
+
+## 16. フロントエンド Seam 分割 第3弾: 背景環境・天候・パーティクルエンジン (`web_pet/pet_particles.js`)
+
+### 16.1 責務の分離と描画パイプラインの独立
+`web_pet/pet.js` 内にインライン記述されていた5大背景テーマ定義、Canvas初期化とリサイズ同期、5大シーン描画ロジック（書斎・カフェ・森・海・サイバー）、天候パーティクル（雨・雪・雷・落ち葉）、なでなでパーティクル、および歓喜セレブレーション紙吹雪の物理演算ループ（約600行）を、完全に独立した「HTML5 Canvas 背景・パーティクルエンジン」として `web_pet/pet_particles.js` へ抽出・モジュール化。
+
+### 16.2 アーキテクチャと堅牢性設計（P0〜P3 レビュー反映）
+1. **不滅のアニメーションループ (Fail-safe Animation Pipeline)**:
+   - 描画処理内部で予期せぬ例外が発生してもメインループが二度と停止しないよう、`particleLoop` を `try { ... } finally { requestAnimationFrame(particleLoop); }` 構造で完全防護。
+   - `drawEnvScene` 内の Canvas コンテキスト変形（`save() / restore()`）も `try-finally` で保護し、コンテキストリークや画面描画崩壊を構造的に防止。
+2. **状態の双方向同期 ＆ NoSleep Canvas 参照保証**:
+   - 閉包（IIFE）内の環境インデックスとグローバルな `window.currentEnvIndex` の乖離を根絶するため、`Object.defineProperty` による双方向ゲッター／セッターおよび `setEnvTheme(idx)` API を配備。DOMの `active` クラスとパーティクル種別を100%同期。
+   - `pet.js` の `NoSleep`（`captureStream()`）が参照する `window.envCanvas` および `window.envCtx` をトップレベルで確実に公開し、スリープ防止の壊れを回避。
+3. **情緒物理の最適化 (Real Organic Physics)**:
+   - 完了通知時の最高報酬演出である紙吹雪大噴射（`spawnCelebrationConfetti`）に、重力加速度（`gravity: 0.14`）と空気抵抗（減衰率 `0.985`）を適用。直線的な拡散ではなく、上空へ吹き上がった後に放物線を描いてヒラヒラと舞い落ちるオーガニックな物理挙動を実現。
+4. **公開インターフェース (Global Export)**:
+   - `initEnvCanvas()`, `particleLoop()`, `drawEnvScene()`, `spawnWeatherParticles()`, `cycleEnvTheme()`, `setEnvTheme()`, `spawnTouchParticles()`, `spawnCelebrationConfetti()`, `ENV_THEMES`, `envCanvas`, `envCtx` を公開。
+5. **回帰防止テスト**:
+   - `tests/test_pet_seam_particles.py` により、物理存在、必須シンボル公開、スクリプト読み込み順序（`pet_audio_se.js` 直後かつ `pet.js` 直前）、SWオフラインキャッシュ、HTTP配信（200 OK）を完全自動検証。
