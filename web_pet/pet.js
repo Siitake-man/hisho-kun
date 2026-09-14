@@ -51,9 +51,17 @@ let currentWeather = 'sunny';
 let currentActivity = 'resting';
 let lastLifeMessage = '';
 
-// 🤖 AIエージェント稼働ライブバッジ (Phase H) — 表示中キーのキャッシュ。
-// ⚠️ 本変数は本ファイル内でこの1箇所でのみ宣言すること (重複宣言はTDZ SyntaxErrorで全停止)。
 let currentAgentBadgeState = '';
+
+// 🌐 各Seamモジュール (pet_motion.js, pet_ui.js) とのグローバル状態共有
+window.suggestionsData = suggestionsData;
+window.currentApprovalRequest = currentApprovalRequest;
+window.currentActiveEvent = currentActiveEvent;
+window._resolvedRequestIds = _resolvedRequestIds;
+window.currentPomodoro = currentPomodoro;
+window.petStateNow = petStateNow;
+window.currentCharacterId = currentCharacterId;
+window.currentActivity = currentActivity;
 
 // =============================================================================
 // 🔐 認証トークン管理 ＆ authFetch (pet_auth.js にSeam分離済み)
@@ -76,6 +84,7 @@ window.addEventListener('DOMContentLoaded', () => {
   unlockAudio();
   setupMediaKeyApproval();
   setupBannerSwipe();
+  setupSuggestSwipe();
   updateBriefingBannerText();
   requestAnimationFrame(particleLoop);
   preloadSprites(currentCharacterId);
@@ -92,59 +101,12 @@ window.addEventListener('DOMContentLoaded', () => {
 });
 
 // =============================================================================
-// 1.5. 背景シーン描画 ＆ パーティクルループ (pet_particles.js に委譲)
 // =============================================================================
-
-/** 高視認性HUDトースト通知 */
-let toastTimer = null;
-function showToast(message, duration = 3500, isHighlight = false) {
-  let toast = document.getElementById('global-hud-toast');
-  if (!toast) {
-    toast = document.createElement('div');
-    toast.id = 'global-hud-toast';
-    toast.style.cssText = `
-      position: fixed;
-      top: 42px;
-      left: 50%;
-      transform: translateX(-50%) translateY(-10px);
-      background: linear-gradient(135deg, rgba(30, 20, 14, 0.97), rgba(46, 28, 20, 0.97));
-      border: 2px solid var(--accent-amber);
-      color: #F5F5DC;
-      padding: 9px 18px;
-      border-radius: 8px;
-      font-family: 'DotGothic16', monospace;
-      font-size: 13px;
-      font-weight: bold;
-      z-index: 999999;
-      box-shadow: 0 8px 30px rgba(0,0,0,0.85), 0 0 15px rgba(255,184,0,0.5);
-      opacity: 0;
-      transition: all 0.3s cubic-bezier(0.18, 0.89, 0.32, 1.28);
-      pointer-events: none;
-      text-align: center;
-      max-width: 90vw;
-      word-break: break-word;
-      line-height: 1.4;
-    `;
-    document.body.appendChild(toast);
-  }
-
-  if (isHighlight) {
-    toast.style.borderColor = '#00E676';
-    toast.style.boxShadow = '0 8px 30px rgba(0,0,0,0.85), 0 0 20px rgba(0,230,118,0.7)';
-  } else {
-    toast.style.borderColor = '#FFB800';
-    toast.style.boxShadow = '0 8px 30px rgba(0,0,0,0.85), 0 0 15px rgba(255,184,0,0.5)';
-  }
-
-  toast.innerHTML = message;
-  toast.style.opacity = '1';
-  toast.style.transform = 'translateX(-50%) translateY(0)';
-
-  if (toastTimer) clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => {
-    toast.style.opacity = '0';
-    toast.style.transform = 'translateX(-50%) translateY(-10px)';
-  }, duration);
+// 1.5. 高視認性HUDトースト通知 (pet_ui.js に委譲)
+// =============================================================================
+// ※ showToast は先行読み込みされる pet_ui.js で定義および window に公開されています。
+if (typeof showToast === 'undefined' && typeof window.showToast !== 'undefined') {
+  var showToast = window.showToast;
 }
 
 // =============================================================================
@@ -171,647 +133,22 @@ document.addEventListener('visibilitychange', () => {
   }
 });
 
-function onPetTap(event) {
-  // 微細振動フィードバック
-  if (navigator.vibrate) navigator.vibrate(30);
-
-  // キャラ固有のSE再生
-  playCharacterSE(currentCharacterId);
-
-  // スプライトに弾力バウンスアニメーションを適用
-  const sprite = document.getElementById('pet-sprite');
-  if (sprite) {
-    sprite.classList.remove('squashing');
-    void sprite.offsetWidth; // リフロー強制
-    sprite.classList.add('squashing');
-    setTimeout(() => sprite.classList.remove('squashing'), 500);
-  }
-
-  // タッチ位置にハートや星をスポーン
-  const rect = event.currentTarget.getBoundingClientRect();
-  const clickX = (event.clientX || (event.touches && event.touches[0].clientX)) || (rect.left + rect.width / 2);
-  const clickY = (event.clientY || (event.touches && event.touches[0].clientY)) || (rect.top + rect.height / 2);
-
-  if (typeof spawnTouchParticles === 'function') {
-    spawnTouchParticles(clickX, clickY, 5);
-  }
-
-  // なでなでリアクション
-  const bubble = document.getElementById('speech-bubble');
-  if (bubble) {
-    const happyReplies = [
-      "えへへ〜、くすぐったいです！🥰",
-      "ボスになでなでしてもらえて幸せです〜！✨",
-      "もちもちパワー全開ですっ！パチパチ👏",
-      "今日もボスのお仕事、全力で応援しますね！🔥"
-    ];
-    bubble.innerText = happyReplies[Math.floor(Math.random() * happyReplies.length)];
-  }
-}
+// =============================================================================
+// 2. なでなで・キャラクター・生活・歓喜演出 (pet_motion.js に委譲)
+// =============================================================================
+// ※ onPetTap, cycleCharacter, preloadSprites, updateLifeSprite,
+//    updatePetLifeActivity, triggerCelebrateReaction, petWanderTick
+//    は先行読み込みされる pet_motion.js で定義および window に公開されています。
 
 // =============================================================================
-// 4. キャラクター切り替え
+// 3. サジェスト・ボトムシート・時計・ポモドーロ・バッジUI (pet_ui.js に委譲)
 // =============================================================================
-const CHARACTERS = [
-  { id: 'hisho', name: '秘書くん', emoji: '👔' },
-  { id: 'kyle', name: 'カイル風精霊', emoji: '🐚' }
-];
+// ※ renderSuggestionCard, nextSuggest, prevSuggest, onSuggestCardClick,
+//    quickCompleteCurrentTask, openBottomSheet, closeBottomSheet, onSheetCompleteTask,
+//    setupSuggestSwipe, triggerSecretRoomIris, updateClock, togglePomodoro,
+//    updateAgentActivityBadge, AGENT_BADGE_STYLES
+//    は先行読み込みされる pet_ui.js で定義および window に公開されています。
 
-function cycleCharacter() {
-  const curIdx = CHARACTERS.findIndex(c => c.id === currentCharacterId);
-  const nextChar = CHARACTERS[(curIdx + 1) % CHARACTERS.length];
-  currentCharacterId = nextChar.id;
-
-  const emojiEl = document.getElementById('char-emoji');
-  if (emojiEl) emojiEl.innerText = nextChar.emoji;
-
-  preloadSprites(currentCharacterId);
-
-  // サーバーへも切り替え通知（認証付き）
-  authFetch('/api/action', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ action: 'switch_character', character_id: currentCharacterId })
-  }).catch(err => console.debug('Action failed:', err));
-
-  if (navigator.vibrate) navigator.vibrate(35);
-}
-
-// =============================================================================
-// 5. スプライト画像プリローダー
-// =============================================================================
-function preloadSprites(charId) {
-  const spriteEl = document.getElementById('pet-sprite');
-  if (spriteEl) {
-    spriteEl.onerror = null;
-    spriteEl.src = `/assets/dot/${charId}/idle_1.png`;
-  }
-}
-
-// 🌈 生活イベントに応じたスプライト候補（優先順）
-const ACTIVITY_SPRITES = {
-  waking:    ['stretch_1', 'stretch', 'happy', 'idle_1'],
-  breakfast: ['tea_1', 'happy', 'idle_1'],
-  lunch:     ['happy', 'care_1', 'idle_1'],
-  dinner:    ['cheer', 'happy', 'idle_1'],
-  bathing:   ['care_1', 'care', 'happy', 'idle_1'],
-  working:   ['focus_1', 'focus', 'idle_1'],
-  resting:   ['tea_1', 'tea', 'idle_1'],
-  reading:   ['reading_1', 'reading', 'focus_1', 'idle_1'],
-  sleeping:  ['sleepy_1', 'sleepy', 'idle_1'],
-  playing:   ['celebrate_1', 'celebrate', 'cheer', 'idle_1']
-};
-
-// ※ currentActivity はファイル先頭で一度だけ宣言済み（旧ブロックとの重複宣言を統合して削除）
-
-/**
- * 生活イベントに応じてペットのスプライトを差し替える。
- * dot/{char}/{name}.png を最優先し、無ければ自キャラの idle_1 で安定させる。
- */
-function updateLifeSprite(activity) {
-  const spriteEl = document.getElementById('pet-sprite');
-  if (!spriteEl) return;
-  const candidates = ACTIVITY_SPRITES[activity] || ['idle_1'];
-  
-  // 自キャラの dot 配下の候補URLのみを生成
-  const urls = candidates.map(name => `/assets/dot/${currentCharacterId}/${name}.png`);
-  urls.push(`/assets/dot/${currentCharacterId}/idle_1.png`);
-
-  let idx = 0;
-  spriteEl.onerror = () => {
-    idx += 1;
-    if (idx < urls.length) {
-      spriteEl.src = urls[idx];
-    } else {
-      spriteEl.onerror = null; // 最終フォールバックで停止
-      spriteEl.src = `/assets/dot/${currentCharacterId}/idle_1.png`;
-    }
-  };
-  spriteEl.src = urls[0];
-
-  // キャラ本来の鮮やかなドット絵を保つ（不自然な暗色フィルターは撤廃）
-  spriteEl.style.filter = '';
-}
-
-// =============================================================================
-// 🎉 歓喜ジャンプ＆セレブレーション・エフェクト（Phase H: Desk Pet Live Reaction）
-// =============================================================================
-let _celebrateTimer = null;
-let _celebrateFrameInterval = null;
-
-/**
- * タスク完了や承認時にペットが大歓喜でピョンピョン跳ね、紙吹雪を舞わせる
- */
-function triggerCelebrateReaction(durationMs = 3500) {
-  const sprite = document.getElementById('pet-sprite');
-  const shadow = document.querySelector('.pet-shadow');
-  const bubble = document.getElementById('speech-bubble');
-  if (!sprite) return;
-
-  // 既存タイマーのクリア
-  if (_celebrateTimer) clearTimeout(_celebrateTimer);
-  if (_celebrateFrameInterval) clearInterval(_celebrateFrameInterval);
-
-  petStateNow = 'celebrate';
-  window._celebratingUntil = Date.now() + durationMs;
-
-  // 1. CSSジャンプアニメーション＆足元シャドウ連動の適用
-  sprite.classList.remove('squashing');
-  void sprite.offsetWidth; // リフロー強制
-  sprite.classList.add('celebrating');
-  if (shadow) shadow.classList.add('celebrating');
-
-  // 2. スプライトのパラパラアニメ（celebrate_1 ⇄ celebrate_2 ⇄ celebrate_3 ⇄ happy）
-  const celebrateFrames = ['celebrate_1', 'celebrate_2', 'celebrate_3', 'happy'];
-  let frameIdx = 0;
-  _setPetSprite(celebrateFrames[frameIdx]);
-
-  _celebrateFrameInterval = setInterval(() => {
-    frameIdx = (frameIdx + 1) % celebrateFrames.length;
-    _setPetSprite(celebrateFrames[frameIdx]);
-  }, 220);
-
-  // 3. 紙吹雪・お祝いパーティクル大噴射（キラキラ☆彡）
-  if (typeof spawnCelebrationConfetti === 'function') {
-    const wrap = document.querySelector('.pet-img-wrap');
-    const rect = wrap ? wrap.getBoundingClientRect() : sprite.getBoundingClientRect();
-    const cx = rect.left + rect.width / 2;
-    const cy = rect.top + rect.height / 3;
-    spawnCelebrationConfetti(cx, cy, 18);
-  }
-
-  // 4. 歓喜のセリフ（吹き出しが承認要請等でない場合）
-  if (bubble && !bubble.innerText.includes('⚠️') && !bubble.innerText.includes('【要承認】')) {
-    const happyQuotes = [
-      "わーい！ボス、ありがとうございますっ！🎉✨",
-      "やったーー！大成功ですっ！ぴょんぴょん！😆🌟",
-      "ボス最高ーー！感激ですっ！🙌💖",
-      "タスク完了！ボスのお役に立てて嬉しいですっ！🌸"
-    ];
-    // 最新通知で上書きされていない場合のみ差し替え
-    if (!bubble.innerText.startsWith('🎉')) {
-      bubble.innerText = happyQuotes[Math.floor(Math.random() * happyQuotes.length)];
-    }
-  }
-
-  // 5. 終了後の通常状態への自動復帰
-  _celebrateTimer = setTimeout(() => {
-    if (_celebrateFrameInterval) clearInterval(_celebrateFrameInterval);
-    _celebrateFrameInterval = null;
-    _celebrateTimer = null;
-    window._celebratingUntil = 0;
-
-    sprite.classList.remove('celebrating');
-    if (shadow) shadow.classList.remove('celebrating');
-
-    petStateNow = 'idle';
-    if (typeof updateLifeSprite === 'function' && typeof currentActivity !== 'undefined') {
-      updateLifeSprite(currentActivity);
-    } else {
-      _setPetSprite('idle_1');
-    }
-  }, durationMs);
-}
-
-/**
- * 時間帯およびランダム気まぐれ行動によるペットの生活サイクル自動更新
- */
-function updatePetLifeActivity(forcedActivity = null) {
-  const now = new Date();
-  const hour = now.getHours();
-  const min = now.getMinutes();
-
-  let act = 'working';
-  let dialog = 'カタカタ…集中してお手伝い中！';
-
-  if (hour >= 23 || hour < 6) {
-    act = 'sleeping';
-    dialog = 'すやすや…ボス、良い夢を…💤';
-  } else if (hour >= 6 && hour < 8) {
-    act = 'breakfast';
-    dialog = 'おはようございます！朝ごはん美味しいです🍞';
-  } else if (hour >= 11 && hour < 13 && min >= 30 || hour === 12) {
-    act = 'lunch';
-    dialog = 'もぐもぐ…お昼ごはんの時間ですね🍱';
-  } else if (hour === 15) {
-    act = 'resting';
-    dialog = 'ほっと一息、お茶とお菓子タイムです🍵';
-  } else if (hour >= 16 && hour < 18) {
-    act = 'reading';
-    dialog = 'ふむふむ…新しい技術や本を読んで勉強中📖';
-  } else if (hour >= 18 && hour < 20) {
-    act = 'dinner';
-    dialog = '今日もお疲れ様でした！美味しい晩ごはんです🍚';
-  } else if (hour >= 20 && hour < 22) {
-    act = 'bathing';
-    dialog = 'いい湯だな〜♪さっぱりリフレッシュ🛁';
-  } else {
-    const randomActs = [
-      { act: 'working', msg: 'カタカタ…集中してお手伝い中！' },
-      { act: 'reading', msg: '仕様書やニュースをチェック中📖' },
-      { act: 'resting', msg: '深呼吸してストレッチ〜✨' },
-      { act: 'playing', msg: 'ボスと一緒にいられて嬉しいです♪' }
-    ];
-    const pick = randomActs[Math.floor(Math.random() * randomActs.length)];
-    act = pick.act;
-    dialog = pick.msg;
-  }
-
-  if (forcedActivity) act = forcedActivity;
-
-  currentActivity = act;
-  updateLifeSprite(act);
-
-  const bubble = document.getElementById('speech-bubble');
-  if (bubble && (!petStateNow || petStateNow === 'idle')) {
-    bubble.innerText = dialog;
-  }
-}
-
-// 45秒ごとに生活リズムを自律更新
-setInterval(() => {
-  if (!currentPomodoro || !currentPomodoro.active) {
-    updatePetLifeActivity();
-  }
-}, 45000);
-
-// =============================================================================
-// 6. サジェスト表示 ＆ Glass Bottom Sheet ニュースリーダー ＆ 手動スワイプ
-// =============================================================================
-let currentSheetItem = null;
-
-function renderSuggestionCard() {
-  if (!suggestionsData || suggestionsData.length === 0) {
-    const titleEl = document.getElementById('suggest-title');
-    const descEl = document.getElementById('suggest-desc');
-    const tagEl = document.getElementById('suggest-tag');
-    const qBtn = document.getElementById('suggest-quick-complete-btn');
-    if (titleEl) titleEl.innerText = "予定・タスクはありません";
-    if (descEl) descEl.innerText = "ゆっくりお茶でも飲んで休みましょう🍵";
-    if (tagEl) tagEl.innerText = "💡 サジェスト";
-    if (qBtn) qBtn.style.display = 'none';
-    return;
-  }
-
-  suggestIndex = (suggestIndex + suggestionsData.length) % suggestionsData.length;
-  const s = suggestionsData[suggestIndex];
-  const total = suggestionsData.length;
-  const curr = suggestIndex + 1;
-  const icon = s.icon || "💡";
-  const tag = s.tag || "サジェスト";
-
-  const tagEl = document.getElementById('suggest-tag');
-  if (tagEl) tagEl.innerText = `${icon} ${tag} (${curr}/${total})`;
-  
-  const titleEl = document.getElementById('suggest-title');
-  if (titleEl) titleEl.innerText = s.title || "";
-  
-  const descEl = document.getElementById('suggest-desc');
-  if (descEl) descEl.innerText = s.description || "";
-
-  // サジェストヘッダーの「✅ 完了」クイックボタン表示制御
-  const qBtn = document.getElementById('suggest-quick-complete-btn');
-  if (qBtn) {
-    if (s && s.source === 'tasks' && s.id && s.id.startsWith('task_')) {
-      qBtn.style.display = 'inline-flex';
-    } else {
-      qBtn.style.display = 'none';
-    }
-  }
-}
-
-function nextSuggest(e) {
-  if (e) e.stopPropagation();
-  if (!suggestionsData || suggestionsData.length === 0) return;
-  suggestIndex = (suggestIndex + 1) % suggestionsData.length;
-  renderSuggestionCard();
-  if (navigator.vibrate) navigator.vibrate(15);
-}
-
-function prevSuggest(e) {
-  if (e) e.stopPropagation();
-  if (!suggestionsData || suggestionsData.length === 0) return;
-  suggestIndex = (suggestIndex - 1 + suggestionsData.length) % suggestionsData.length;
-  renderSuggestionCard();
-  if (navigator.vibrate) navigator.vibrate(15);
-}
-
-function onSuggestCardClick() {
-  if (!suggestionsData || suggestionsData.length === 0) return;
-  const s = suggestionsData[suggestIndex];
-  if (!s) return;
-
-  openBottomSheet(s);
-}
-
-// サジェストカードから直接ワンタップでTODOを完了する (Bearer認証対応)
-async function quickCompleteCurrentTask(e) {
-  if (e) e.stopPropagation();
-  if (!suggestionsData || suggestionsData.length === 0) return;
-  const s = suggestionsData[suggestIndex];
-  if (!s || !s.id || !s.id.startsWith('task_')) return;
-  const taskId = s.id.replace('task_', '');
-
-  try {
-    const res = await authFetch('/api/action', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'complete_task', task_id: taskId })
-    });
-    const result = await res.json();
-    if (result.status === 'success') {
-      showToast('✅ タスクを完了しました！', 2500, true);
-      if (typeof addBondExp === 'function') addBondExp(15);
-      updateLifeSprite('playing');
-      setTimeout(fetchStatus, 300);
-    } else {
-      showToast('❌ 完了に失敗しました', 2000, false);
-    }
-  } catch (e) {
-    console.error('Quick complete error:', e);
-    showToast('❌ 通信エラーが発生しました', 2000, false);
-  }
-}
-
-function openBottomSheet(item, bodyHtml) {
-  const sheet = document.getElementById('bottom-sheet');
-  const overlay = document.getElementById('bottom-sheet-overlay');
-  if (!sheet || !overlay) return;
-
-  currentSheetItem = item;
-
-  document.getElementById('sheet-tag').innerText = `${item.icon || '💡'} ${item.tag || '詳細'}`;
-  document.getElementById('sheet-title').innerText = item.title || "";
-
-  const bodyEl = document.getElementById('sheet-body');
-  if (typeof bodyHtml === 'string') {
-    bodyEl.innerHTML = bodyHtml;
-    bodyEl.style.maxHeight = '60vh';
-  } else {
-    bodyEl.innerText = item.description || "詳細情報はありません。";
-  }
-
-  // TODO完了ボタンの制御
-  const completeBtn = document.getElementById('sheet-complete-btn');
-  if (completeBtn) {
-    if (item && item.source === 'tasks' && item.id && item.id.startsWith('task_')) {
-      completeBtn.style.display = 'flex';
-    } else {
-      completeBtn.style.display = 'none';
-    }
-  }
-
-  // URL抽出
-  const matchUrl = item.description ? item.description.match(/https?:\/\/[^\s)\]"'>]+/)?.[0] : null;
-  const targetUrl = typeof bodyHtml === 'string' ? null : (item.link || item.url || matchUrl);
-
-  const linkBtn = document.getElementById('sheet-link-btn');
-  if (linkBtn) {
-    if (targetUrl) {
-      linkBtn.style.display = 'flex';
-      linkBtn.href = targetUrl;
-    } else {
-      linkBtn.style.display = 'none';
-    }
-  }
-
-  overlay.classList.add('open');
-  sheet.classList.add('open');
-  if (navigator.vibrate) navigator.vibrate(20);
-}
-
-async function onSheetCompleteTask() {
-  if (!currentSheetItem || !currentSheetItem.id) return;
-  const taskId = currentSheetItem.id.replace('task_', '');
-  if (!taskId) return;
-
-  try {
-    const res = await authFetch('/api/action', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'complete_task', task_id: taskId })
-    });
-    const result = await res.json();
-    if (result.status === 'success') {
-      closeBottomSheet();
-      showToast('✅ タスクを完了しました！', 2500, true);
-      if (typeof addBondExp === 'function') addBondExp(15);
-      updateLifeSprite('playing');
-      fetchStatus();
-    } else {
-      showToast('❌ タスク完了に失敗しました', 2000, false);
-    }
-  } catch (e) {
-    console.error('Task complete error:', e);
-    showToast('❌ 通信エラーが発生しました', 2000, false);
-  }
-}
-
-function closeBottomSheet() {
-  const sheet = document.getElementById('bottom-sheet');
-  const overlay = document.getElementById('bottom-sheet-overlay');
-  if (sheet) sheet.classList.remove('open');
-  if (overlay) overlay.classList.remove('open');
-  currentSheetItem = null;
-}
-
-// 👾 秘密の部屋（サークル暗転トランジション）
-// 旧マリオ風のアイリスアウト: タップ位置を中心に世界が一点へ吸い込まれ、
-// ゲームがその点から展開される。.iris-hole（透明な穴＋巨大な黒い影）の
-// width/height を縮小/拡大する方式。穴が 0 になった最終フレームで黒影
-// (120vmax) が単体で画面を完全に覆うため「全面黒」が幾何学的に保証される。
-// （transform: scale は黒影の外周まで縮めてしまい全面黒にならないため廃止）
-function triggerSecretRoomIris(e) {
-  if (e) e.stopPropagation();
-  const overlay = document.getElementById('iris-transition-overlay');
-  const hole = overlay ? overlay.querySelector('.iris-hole') : null;
-
-  // オーバーレイが無い環境では演出をスキップして直接ゲームを起動
-  if (!overlay || !hole) {
-    if (window.PixelDefense) window.PixelDefense.show();
-    return;
-  }
-
-  // 演出中の再入防止（連続タップでタイマーが多重化するのを防ぐ）
-  if (overlay.style.display === 'block') return;
-
-  // タップ位置（%指定。タップ座標が取れない場合は右上のバッジ位置を使用）
-  let x = 85;
-  let y = 15;
-  if (e && typeof e.clientX === 'number' && typeof e.clientY === 'number') {
-    x = (e.clientX / window.innerWidth) * 100;
-    y = (e.clientY / window.innerHeight) * 100;
-  }
-  overlay.style.setProperty('--iris-x', `${x.toFixed(1)}%`);
-  overlay.style.setProperty('--iris-y', `${y.toFixed(1)}%`);
-  if (navigator.vibrate) navigator.vibrate(30);
-
-  // 1) 「穴=全画面（透過）」の初期状態で一度描画を確定させてから
-  // 2) closing クラスで穴を点まで縮小（吸い込み）。
-  //    display:none → block とクラス変更を同フレームで行うと遷移が
-  //    発火しないため、ダブル requestAnimationFrame で分離する。
-  overlay.className = 'iris-transition-overlay';
-  overlay.style.display = 'block';
-
-  requestAnimationFrame(() => {
-    requestAnimationFrame(() => {
-      overlay.className = 'iris-transition-overlay closing';
-
-      // 3) 400ms後: ゲーム起動 → opening クラスで穴を広げ（アイリスイン）、
-      //    完了後にオーバーレイを必ず非表示へ戻す（残渣による画面封鎖防止）
-      setTimeout(() => {
-        try {
-          if (window.PixelDefense) {
-            window.PixelDefense.show();
-          } else {
-            showToast('👾 秘密の部屋を起動中...', 2000, true);
-          }
-        } finally {
-          overlay.className = 'iris-transition-overlay opening';
-          setTimeout(() => {
-            overlay.className = 'iris-transition-overlay';
-            overlay.style.display = 'none';
-          }, 450);
-        }
-      }, 400);
-    });
-  });
-}
-
-// サジェストカードのタッチスワイプ（左右フリック）機能
-function setupSuggestSwipe() {
-  const card = document.getElementById('suggest-card');
-  if (!card) return;
-
-  let startX = 0;
-  let startY = 0;
-  let isSwiping = false;
-
-  card.addEventListener('touchstart', (e) => {
-    // 内部ボタンタップ時はスワイプ判定をスキップ
-    if (e.target.closest('.btn-suggest-nav') || e.target.closest('.btn-suggest-quick-complete')) {
-      return;
-    }
-    if (e.touches.length === 1) {
-      startX = e.touches[0].clientX;
-      startY = e.touches[0].clientY;
-      isSwiping = true;
-    }
-  }, { passive: true });
-
-  card.addEventListener('touchend', (e) => {
-    if (!isSwiping) return;
-    isSwiping = false;
-    if (e.changedTouches.length === 1) {
-      const diffX = e.changedTouches[0].clientX - startX;
-      const diffY = e.changedTouches[0].clientY - startY;
-      
-      // 水平方向のスワイプ判定（縦スクロールと分離：|diffX| > |diffY| かつ 25px 以上）
-      if (Math.abs(diffX) > Math.abs(diffY) && Math.abs(diffX) > 25) {
-        if (diffX < 0) {
-          nextSuggest();
-        } else {
-          prevSuggest();
-        }
-      }
-    }
-  }, { passive: true });
-}
-
-// グローバルスコープへの関数エクスポート（HTML onclick からの完全呼び出し保証）
-window.prevSuggest = prevSuggest;
-window.nextSuggest = nextSuggest;
-window.quickCompleteCurrentTask = quickCompleteCurrentTask;
-window.onSheetCompleteTask = onSheetCompleteTask;
-window.closeBottomSheet = closeBottomSheet;
-window.onSuggestCardClick = onSuggestCardClick;
-window.triggerSecretRoomIris = triggerSecretRoomIris;
-
-// 初期化時にスワイプと生活リズムを起動
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', () => {
-    setupSuggestSwipe();
-    updatePetLifeActivity();
-  });
-} else {
-  setupSuggestSwipe();
-  updatePetLifeActivity();
-}
-
-// 20秒ごとにサジェスト自動ローテーション
-setInterval(() => {
-  if (suggestionsData.length > 1) {
-    suggestIndex++;
-    renderSuggestionCard();
-  }
-}, 20000);
-
-// =============================================================================
-// 7. 時計 ＆ ポモドーロ
-// =============================================================================
-function updateClock() {
-  const now = new Date();
-  const h = String(now.getHours()).padStart(2, '0');
-  const m = String(now.getMinutes()).padStart(2, '0');
-  const s = String(now.getSeconds()).padStart(2, '0');
-  const clockEl = document.getElementById('clock-display');
-  if (clockEl) clockEl.innerText = `${h}:${m}:${s}`;
-}
-setInterval(updateClock, 1000);
-updateClock();
-
-function togglePomodoro() {
-  // トグル動作: 実行中なら停止(stop_pomodoro)、停止中なら開始(start_pomodoro)
-  const isActive = currentPomodoro && currentPomodoro.active;
-  const payload = isActive
-    ? { action: 'stop_pomodoro' }
-    : { action: 'start_pomodoro', minutes: 25 };
-  authFetch('/api/action', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload)
-  }).then(fetchStatus).catch(err => console.debug('Pomodoro action failed:', err));
-  if (navigator.vibrate) navigator.vibrate(40);
-}
-
-// =============================================================================
-// 8. サーバー状態フェッチ ＆ イベント監視
-// =============================================================================
-// 🤖 エージェント状態 ➔ ライブバッジ演出マッピング (Phase H)
-const AGENT_BADGE_STYLES = {
-  coding:           { cls: 'a-coding',   icon: '🟢', suffix: 'Coding... 🔥' },
-  thinking:         { cls: 'a-thinking', icon: '🟡', suffix: 'Thinking... 🤔' },
-  waiting_approval: { cls: 'a-waiting',  icon: '🟣', suffix: 'Waiting Approval 🚨' },
-  success:          { cls: 'a-success',  icon: '✅', suffix: 'Done ✨' }
-};
-
-/**
- * /api/status の agent_activity を受けて、時計直下のライブバッジを更新する。
- * エージェントが非アクティブ (idle / TTL切れ) の場合はバッジを隠す。
- * @param {Object|null} activity - payload.agent_activity
- */
-function updateAgentActivityBadge(activity) {
-  const badge = document.getElementById('agent-live-badge');
-  if (!badge) return;
-  const isActive = !!(activity && activity.is_active);
-  const state = isActive ? String(activity.state || '') : '';
-  const conf = AGENT_BADGE_STYLES[state];
-  if (!isActive || !conf) {
-    if (badge.style.display !== 'none') {
-      badge.style.display = 'none';
-      currentAgentBadgeState = '';
-    }
-    return;
-  }
-  const agentName = String(activity.agent_name || 'AI Agent').trim() || 'AI Agent';
-  const stateKey = state + ':' + agentName;
-  if (currentAgentBadgeState === stateKey) return; // 同一状態の再描画は抑制
-  currentAgentBadgeState = stateKey;
-  const textEl = document.getElementById('agent-live-badge-text');
-  if (textEl) textEl.innerText = conf.icon + ' [' + agentName + '] ' + conf.suffix;
-  badge.className = 'agent-live-badge ' + conf.cls;
-  badge.style.display = 'flex';
-}
 
 async function fetchStatus() {
   try {
@@ -841,6 +178,7 @@ async function fetchStatus() {
         triggerCelebrateReaction(4000);
       } else {
         petStateNow = data.pet_state || 'idle';
+        window.petStateNow = petStateNow;
       }
     }
 
@@ -858,6 +196,7 @@ async function fetchStatus() {
     // 2. キャラクター
     if (data.character && data.character.id !== currentCharacterId) {
       currentCharacterId = data.character.id;
+      window.currentCharacterId = currentCharacterId;
       const emojiEl = document.getElementById('char-emoji');
       if (emojiEl) emojiEl.innerText = data.character.emoji;
       preloadSprites(currentCharacterId);
@@ -866,6 +205,7 @@ async function fetchStatus() {
     // 3. サジェストデータ
     if (data.suggestions) {
       suggestionsData = data.suggestions;
+      window.suggestionsData = suggestionsData;
       renderSuggestionCard();
     }
 
@@ -878,6 +218,7 @@ async function fetchStatus() {
     if (data.pomodoro) {
       const wasActive = currentPomodoro && currentPomodoro.active;
       currentPomodoro = data.pomodoro;
+      window.currentPomodoro = currentPomodoro;
       const pomoBtn = document.getElementById('pomodoro-btn');
       const timerText = document.getElementById('pomodoro-timer-text');
       if (pomoBtn && timerText) {
@@ -922,6 +263,8 @@ async function fetchStatus() {
       const isNew = (!currentApprovalRequest || currentApprovalRequest.request_id !== req.request_id);
       currentApprovalRequest = req;
       currentActiveEvent = req;
+      window.currentApprovalRequest = req;
+      window.currentActiveEvent = req;
       eventBanner.style.display = 'block';
       eventBanner.style.opacity = '1';
       eventBanner.style.transform = '';
@@ -960,6 +303,7 @@ async function fetchStatus() {
       }
     } else {
       currentApprovalRequest = null;
+      window.currentApprovalRequest = null;
       if (bannerActions) bannerActions.style.display = 'none';
       if (data.active_event) {
         const ev = data.active_event;
@@ -967,6 +311,7 @@ async function fetchStatus() {
         const isNew = (lastActiveEventKey !== eventKey);
         lastActiveEventKey = eventKey;
         currentActiveEvent = ev;
+        window.currentActiveEvent = ev;
         eventBanner.style.display = 'block';
         eventBanner.style.opacity = '1';
         eventBanner.style.transform = '';
@@ -994,6 +339,7 @@ async function fetchStatus() {
         const isNew = (lastReminderKey !== remKey);
         lastReminderKey = remKey;
         currentActiveEvent = rem;
+        window.currentActiveEvent = rem;
         eventBanner.style.display = 'block';
         eventBanner.style.opacity = '1';
         eventBanner.style.transform = '';
@@ -1016,6 +362,7 @@ async function fetchStatus() {
         }
       } else {
         currentActiveEvent = null;
+        window.currentActiveEvent = null;
         lastActiveEventKey = null;
         lastReminderKey = null;
         eventBanner.style.display = 'none';
@@ -1185,201 +532,13 @@ function dismissUpdateBanner() {
   sessionStorage.setItem('update_banner_dismissed', 'true');
 }
 
-/** バナーを即座に非表示にする（内部ヘルパー） */
-function _hideBanner() {
-  currentActiveEvent = null;
-  lastActiveEventKey = null;
-  const banner = document.getElementById('active-event-banner');
-  if (banner) {
-    banner.style.display = 'none';
-    banner.style.opacity = '1';
-    banner.style.transform = ''; // スワイプ変形をリセット
-    banner.style.transition = '';
-  }
-  const dismissBtn = document.getElementById('banner-dismiss-btn');
-  if (dismissBtn) dismissBtn.style.display = 'none';
-}
-
 // =============================================================================
-// 12. バナースワイプ dismiss (タッチでスワイプして閉じる)
+// 12. バナースワイプ・承認・質問・MediaSession (pet_ui.js に委譲)
 // =============================================================================
-let _bannerSwipeX = 0;
-let _bannerSwipeStartX = 0;
-let _bannerSwipeDelta = 0;
+// ※ setupBannerSwipe, openApprovalSheet, openQuestionSheet, respondChoice,
+//    respondApproval, setupMediaKeyApproval
+//    は先行読み込みされる pet_ui.js で定義および window に公開されています。
 
-function setupBannerSwipe() {
-  const banner = document.getElementById('active-event-banner');
-  if (!banner) return;
-  banner.addEventListener('touchstart', (e) => {
-    _bannerSwipeStartX = e.touches[0].clientX;
-    _bannerSwipeDelta = 0;
-    banner.style.transition = 'none';
-  }, { passive: true });
-  banner.addEventListener('touchmove', (e) => {
-    _bannerSwipeDelta = e.touches[0].clientX - _bannerSwipeStartX;
-    if (_bannerSwipeDelta > 0) {
-      banner.style.transform = `translateX(${_bannerSwipeDelta * 0.5}px)`;
-      banner.style.opacity = Math.max(0, 1 - _bannerSwipeDelta / 200);
-    }
-  }, { passive: true });
-  banner.addEventListener('touchend', () => {
-    banner.style.transition = 'transform 0.25s ease, opacity 0.25s ease';
-    if (_bannerSwipeDelta > 80) {
-      // 右に80px以上スワイプ → dismiss
-      banner.style.transform = 'translateX(120%)';
-      banner.style.opacity = '0';
-      setTimeout(() => {
-        if (currentActiveEvent && currentActiveEvent.type === 'completed') {
-          dismissCompleted();
-        } else {
-          _hideBanner();
-        }
-      }, 250);
-    } else {
-      // 戻す
-      banner.style.transform = '';
-      banner.style.opacity = '1';
-    }
-  }, { passive: true });
-}
-
-/** 承認シート（コマンド全文 ＆ 大ボタンで承認/却下） */
-function openApprovalSheet() {
-  const req = currentApprovalRequest;
-  if (!req) return;
-  const isStrict = (req.risk_level === 'strict');
-  const warningHtml = isStrict
-    ? `<div class="note-item" style="border-left: 3px solid #FF5252; background: rgba(255, 82, 82, 0.15);"><div class="note-title" style="color:#FF5252;">🚨 破壊的変更の警告</div><div class="note-desc">git reset / rm / drop table などの重大操作が含まれる可能性があります。コマンド内容を必ず確認してください。</div></div>`
-    : '';
-  const commandHtml = req.command
-    ? `<div class="note-item"><div class="note-title">⌨️ 実行コマンド</div><div class="note-desc" style="white-space: pre-wrap;">${escapeHtml(req.command)}</div></div>`
-    : '';
-  const html = `${warningHtml}${commandHtml}
-    <div class="note-item"><div class="note-title">🛡️ このコマンドの実行を許可しますか？</div><div class="note-desc">イヤホンの再生ボタンでも承認できます</div></div>
-    <div class="approval-sheet-actions">
-      <button class="btn-approve" onclick="closeBottomSheet(); respondApproval('approve')">✅ 承認する</button>
-      <button class="btn-deny" onclick="closeBottomSheet(); respondApproval('deny')">🛑 却下する</button>
-    </div>`;
-  const sheetIcon = isStrict ? '🚨' : '🛡️';
-  const sheetTag = isStrict ? '高リスク承認' : '承認要請';
-  openBottomSheet({ icon: sheetIcon, tag: sheetTag, title: req.summary || 'コマンド実行の承認' }, html);
-}
-
-/** 質問シート（選択肢を大ボタンで表示） */
-function openQuestionSheet() {
-  const req = currentApprovalRequest;
-  if (!req) return;
-  const choices = req.choices || [];
-  let choicesHtml = '';
-  if (choices.length > 0) {
-    // インデックス参照で選択肢テキストを渡す（JSON.stringifyの二重引用符競合を回避）
-    choicesHtml = choices.map((c, i) =>
-      `<button class="btn-approve" onclick="closeBottomSheet(); respondChoice(${i})">${i+1}. ${escapeHtml(c)}</button>`
-    ).join('');
-  } else {
-    choicesHtml = `<div class="note-item"><div class="note-desc">自由回答はPC側でお願いします</div></div>`;
-  }
-  const html = `
-    <div class="note-item"><div class="note-title">❓ ${escapeHtml(req.title || req.question || '')}</div></div>
-    <div class="approval-sheet-actions" style="flex-direction:column;gap:6px;">
-      ${choicesHtml}
-    </div>`;
-  openBottomSheet({ icon: '❓', tag: '質問', title: `${req.agent_name} からの質問` }, html);
-}
-
-/** 質問シートの選択肢ボタンから呼ばれるヘルパー（index参照で二重引用符競合を回避） */
-function respondChoice(index) {
-  const req = currentApprovalRequest;
-  if (!req || !req.choices || !req.choices[index]) return;
-  respondApproval('answered', null, req.choices[index]);
-}
-
-/** 承認/却下/回答をサーバーへ送信する（バナーボタン・シート・メディアキー共通） */
-async function respondApproval(decision, ev, answerText) {
-  if (ev && ev.stopPropagation) ev.stopPropagation();
-  if (!currentApprovalRequest) return;
-  stopAlertChime();
-  if (navigator.vibrate) navigator.vibrate(60);
-  const req = currentApprovalRequest;
-  if (req && req.request_id) {
-    _resolvedRequestIds.add(req.request_id);
-    if (_resolvedRequestIds.size > 100) {
-      const oldest = _resolvedRequestIds.values().next().value;
-      _resolvedRequestIds.delete(oldest);
-    }
-  }
-  try {
-    const res = await authFetch('/api/agent/respond', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ request_id: req.request_id, decision, message: answerText || '' })
-    });
-    if (res.ok) {
-      const data = await res.json().catch(() => ({}));
-      if (data.status === 'expired') {
-        showToast('⏰ この質問・要請は期限切れです');
-        currentApprovalRequest = null;
-        currentActiveEvent = null;
-        const banner = document.getElementById('active-event-banner');
-        if (banner) banner.style.display = 'none';
-        fetchStatus();
-        return;
-      }
-      if (data.status === 'error') {
-        showToast(`🛑 ${data.message || '自己承認等のエラーで拒否されました'}`);
-        fetchStatus();
-        return;
-      }
-      if (data.status === 'not_found') {
-        showToast('⚠️ 対象の要請が見つかりません（既に処理されたか取消されました）');
-        currentApprovalRequest = null;
-        currentActiveEvent = null;
-        const banner = document.getElementById('active-event-banner');
-        if (banner) banner.style.display = 'none';
-        fetchStatus();
-        return;
-      }
-      currentApprovalRequest = null;
-      currentActiveEvent = null;
-      const banner = document.getElementById('active-event-banner');
-      if (banner) banner.style.display = 'none';
-      playDecisionSound(decision === 'approve');
-      if (decision === 'approve') {
-        const bubble = document.getElementById('speech-bubble');
-        if (bubble) bubble.innerText = '承知いたしました！作業を続行します(｀・ω・´)ゞ';
-      } else if (decision === 'answered') {
-        const bubble = document.getElementById('speech-bubble');
-        if (bubble) bubble.innerText = '了解です！回答を反映して進めます✨';
-      } else {
-        const bubble = document.getElementById('speech-bubble');
-        if (bubble) bubble.innerText = '🛑 却下を確認しました。軌道修正します！';
-      }
-      // PC側ペットにも結果をリアクションさせる（承認=集中作業・却下=心配）
-      authFetch('/api/action', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'pet_reaction', state: decision === 'approve' ? 'focus' : 'care', duration_ms: 3000 })
-      }).catch(err => console.debug('Pet reaction failed:', err));
-    } else {
-      showToast('⚠️ 送信に失敗しました');
-    }
-  } catch (err) {
-    console.debug('Respond error:', err);
-    showToast('⚠️ 通信エラー');
-  }
-  fetchStatus();
-}
-
-/** イヤホンの再生/一時停止ボタンを「承認」として割り当てる（ノールック操作） */
-function setupMediaKeyApproval() {
-  if (!('mediaSession' in navigator)) return;
-  const handleMediaKey = () => {
-    if (currentApprovalRequest) respondApproval('approve');
-  };
-  try { navigator.mediaSession.setActionHandler('play', handleMediaKey); } catch (e) { /* 非対応ブラウザ */ }
-  try { navigator.mediaSession.setActionHandler('pause', handleMediaKey); } catch (e) { /* 非対応ブラウザ */ }
-  try { navigator.mediaSession.setActionHandler('nexttrack', handleMediaKey); } catch (e) { /* 非対応ブラウザ */ }
-}
 
 // =============================================================================
 // 10. 手帳モーダル（予定・TODO・習慣・設定）本実装
@@ -2092,90 +1251,16 @@ function updateNoSleepUI() {
 }
 
 // =============================================================================
-// 12. 自律歩行コントローラー（テクテク歩き ＆ フレームアニメ）
-//     - idle_1/idle_2 のフレーム切替で呼吸感を演出
-//     - 地面ライン上をランダムに歩行（方向転換あり・進行方向へスプライト反転）
-//     - 集中中・承認待ち等の特別状態では歩行を中断し既存描画に任せる
+// 12. 自律歩行コントローラー (pet_motion.js に委譲)
 // =============================================================================
-const WANDER = { mode: 'idle', dir: 1, x: 0.5, until: Date.now() + 5000, frame: 0, lastFrameAt: 0, lastTick: 0 };
-const WALK_MIN = 0.18, WALK_MAX = 0.82, WALK_SPEED = 0.045;
+// ※ WANDER, _setPetSprite, petWanderTick
+//    は先行読み込みされる pet_motion.js で定義および window に公開されています。
 
-function _setPetSprite(name) {
-  const el = document.getElementById('pet-sprite');
-  if (!el) return;
-  const url = '/assets/dot/' + currentCharacterId + '/' + name + '.png';
-  if (el.src.indexOf(url) !== -1) return;
-  // 歩行フレーム未保有キャラ等で 404 になった場合は idle へフォールバック
-  el.onerror = function () {
-    el.onerror = null;
-    el.src = '/assets/dot/' + currentCharacterId + '/idle_1.png';
-  };
-  el.src = url;
-}
-
-function petWanderTick() {
-  if (typeof currentPomodoro !== 'undefined' && currentPomodoro && currentPomodoro.active) return;
-  if (petStateNow && petStateNow !== 'idle') return;
-  const wrap = document.querySelector('.pet-img-wrap');
-  if (!wrap) return;
-  const now = Date.now();
-  const dt = Math.min(0.5, (now - (WANDER.lastTick || now)) / 1000);
-  WANDER.lastTick = now;
-  if (WANDER.mode === 'walk') {
-    WANDER.x += WANDER.dir * WALK_SPEED * dt;
-    if (WANDER.x < WALK_MIN) { WANDER.x = WALK_MIN; WANDER.dir = 1; }
-    if (WANDER.x > WALK_MAX) { WANDER.x = WALK_MAX; WANDER.dir = -1; }
-    wrap.style.left = (WANDER.x * 100) + '%';
-    wrap.style.transform = WANDER.dir < 0 ? 'scaleX(-1)' : 'none';
-    if (now - WANDER.lastFrameAt > 160) {
-      WANDER.lastFrameAt = now;
-      WANDER.frame = 1 - WANDER.frame;
-      const hasWalk = WALK_CAPABLE_CHARS.indexOf(currentCharacterId) !== -1;
-      _setPetSprite(WANDER.frame ? (hasWalk ? 'walk_1' : 'idle_2') : (hasWalk ? 'walk_2' : 'idle_1'));
-    }
-    if (now > WANDER.until) {
-      WANDER.mode = 'idle';
-      WANDER.until = now + 4000 + Math.random() * 6000;
-    }
-  } else {
-    wrap.style.transform = 'none';
-    if (now - WANDER.lastFrameAt > 700) {
-      WANDER.lastFrameAt = now;
-      WANDER.frame = 1 - WANDER.frame;
-      _setPetSprite(WANDER.frame ? 'idle_2' : 'idle_1');
-    }
-    if (now > WANDER.until) {
-      WANDER.mode = 'walk';
-      WANDER.dir = Math.random() < 0.5 ? -1 : 1;
-      WANDER.until = now + 2000 + Math.random() * 2500;
-    }
-  }
-  // 🐾 吹き出しをペットの頭上にリアルタイム追従（画面端のはみ出し防止クランプ付き）
-  const bubble = document.getElementById('speech-bubble');
-  if (bubble) {
-    const bubbleX = Math.max(22, Math.min(78, WANDER.x * 100));
-    bubble.style.left = bubbleX + '%';
-  }
-}
-setInterval(petWanderTick, 120);
 
 // =============================================================================
 // 13. 朝会/終礼ブリーフィング (Phase L3) & Web Speech API (TTS)
-// =============================================================================
-function updateBriefingBannerText() {
-  const btnText = document.getElementById('briefing-quick-text');
-  if (!btnText) return;
-  const hour = new Date().getHours();
-  if (5 <= hour && hour < 12) {
-    btnText.innerText = "☀️ 今日の朝会ブリーフィングを聞く";
-  } else if (12 <= hour && hour < 18) {
-    btnText.innerText = "⛅ 午後の進捗ブリーフィング";
-  } else if (18 <= hour && hour < 24) {
-    btnText.innerText = "🌙 本日の終礼日報をまとめる";
-  } else {
-    btnText.innerText = "🌌 夜間ブリーフィング";
-  }
-}
+// ※ updateBriefingBannerText は先行読み込みされる pet_ui.js で定義および window に公開されています。
+
 
 async function openBriefingModal(forceMode) {
   if (navigator.vibrate) navigator.vibrate(25);

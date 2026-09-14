@@ -1,6 +1,6 @@
 # システム設計書: Neo-Secretary (ネオ秘書くん) Python Agent Edition
 
-- **最終更新日時**: 2026-09-14 13:25 (🏛️ **Section 16 フロントエンド Seam 分割 第3弾 (pet_particles.js) 配備版**)
+- **最終更新日時**: 2026-09-14 13:35 (🏛️ **Section 17 フロントエンド Seam 分割 第4・5弾 (pet_motion.js / pet_ui.js) 配備版**)
 - **Architecture**: Python Desktop App with LangGraph & PWA Mobile Approval Remote
 
 ---
@@ -588,3 +588,37 @@ web_pet/
    - `initEnvCanvas()`, `particleLoop()`, `drawEnvScene()`, `spawnWeatherParticles()`, `cycleEnvTheme()`, `setEnvTheme()`, `spawnTouchParticles()`, `spawnCelebrationConfetti()`, `ENV_THEMES`, `envCanvas`, `envCtx` を公開。
 5. **回帰防止テスト**:
    - `tests/test_pet_seam_particles.py` により、物理存在、必須シンボル公開、スクリプト読み込み順序（`pet_audio_se.js` 直後かつ `pet.js` 直前）、SWオフラインキャッシュ、HTTP配信（200 OK）を完全自動検証。
+
+---
+
+## 17. フロントエンド Seam 分割 第4弾 (`web_pet/pet_motion.js`) ＆ 第5弾 (`web_pet/pet_ui.js`)
+
+### 17.1 モーション・キャラクター・生活リズムエンジン (`web_pet/pet_motion.js`)
+1. **責務の分離**:
+   - キャラクター定義（`CHARACTERS`）と動的切り替え（`cycleCharacter`）、スプライトプリロード（`preloadSprites`）、スプライト切り替え（`_setPetSprite`, `setPetSprite` エイリアス）。
+   - 生活リズム・睡眠サイクル（`ACTIVITY_SPRITES`, `updateLifeSprite`, `updatePetLifeActivity`）。
+   - 歓喜ジャンプ演出（`triggerCelebrateReaction`: CSS物理バウンス、足元シャドウ、パラパラアニメ、紙吹雪連動）。
+   - 自律歩行エンジン（`WANDER`, `petWanderTick`: 120msインターバル、地面ランダム歩行、左右反転、吹き出し頭上リアルタイム追従）。
+   - なでなでインタラクション（`onPetTap`: 弾力バウンス、Haptics、キャラクター固有SE、パーティクル連動、ランダムセリフ）。
+2. **堅牢性・フェイルセーフ設計**:
+   - 未知のキャラクターID指定時でもデフォルトへの安全なフォールバック。
+   - `window.petStateNow` および `window.currentPetCharacter` との双方向同期。
+
+### 17.2 UI制御・エージェント承認・ボトムシート (`web_pet/pet_ui.js`)
+1. **責務の分離**:
+   - 高視認性HUDトースト通知（`showToast`, `toastTimer`）。
+   - サジェストカード表示 ＆ Glass Bottom Sheet（`renderSuggestionCard`, `nextSuggest`, `prevSuggest`, `openBottomSheet`, `closeBottomSheet`, `quickCompleteCurrentTask`, `setupSuggestSwipe`, `triggerSecretRoomIris`）。
+   - エージェント遠隔承認バナー ＆ イベント操作（`setupBannerSwipe`, `openApprovalSheet`, `openQuestionSheet`, `respondApproval`, `respondChoice`, `dismissCompleted`, `_hideBanner`）。
+   - MediaSession API ノールック承認（`setupMediaKeyApproval`: ハードウェアキー/イヤホンボタン連動）。
+   - 時計 ＆ ポモドーロUI制御（`updateClock`, `togglePomodoro`）。
+   - エージェント稼働ライブバッジ表示（`updateAgentActivityBadge`）。
+   - HTMLエスケープユーティリティ（`escapeHtml`）。
+2. **堅牢性・フェイルセーフ設計**:
+   - `_hideBanner` の責務統合（スワイプ変形リセット、`currentActiveEvent` リセット、クラス除去をアトミックに実行）。
+   - サジェストスワイプの `DOMContentLoaded` 初期化保証。
+   - `escapeHtml` によるXSS完全防御。
+
+### 17.3 公開インターフェースと回帰防止テスト
+- **グローバル公開**: モジュール/非モジュール双方に対応し、`window.xxx` および `var xxx` で全関数・定数を公開。
+- **回帰防止テスト**: `tests/test_pet_seam_motion_ui.py` により、物理存在、必須シンボル公開、スクリプト読み込み順序、SWオフラインキャッシュ、HTTP静的配信（200 OK）を完全網羅。
+- **コード削減成果**: `pet.js` の行数が 2,519行 ➔ **1,604行**（約915行削減、当初3,335行から通算約1,731行スリム化）を達成。
