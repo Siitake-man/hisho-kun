@@ -56,55 +56,15 @@ let lastLifeMessage = '';
 let currentAgentBadgeState = '';
 
 // =============================================================================
-// 🔐 同期サーバー認証トークン管理 (Zero-Trust Bearer Auth)
+// 🔐 認証トークン管理 ＆ authFetch (pet_auth.js にSeam分離済み)
 // =============================================================================
-// PC側の .sync_token と一致するトークンを localStorage に保持し、
-// 全APIリクエストに Authorization: Bearer ヘッダーで添付する。
-const SYNC_TOKEN_KEY = 'neo_hisho_sync_token';
-let syncToken = '';
-
-function loadSyncToken() {
-  const urlParams = new URLSearchParams(window.location.search);
-  const paramToken = urlParams.get('token');
-  if (paramToken) {
-    syncToken = paramToken;
-    localStorage.setItem(SYNC_TOKEN_KEY, syncToken);
-    return;
-  }
-  syncToken = localStorage.getItem(SYNC_TOKEN_KEY) || '';
+// ※ SYNC_TOKEN_KEY, syncToken, loadSyncToken, setSyncToken, authFetch は
+//    先行読み込みされる pet_auth.js で定義および window に公開されています。
+if (typeof authFetch === 'undefined' && typeof window.authFetch !== 'undefined') {
+  var authFetch = window.authFetch;
 }
-loadSyncToken();
-
-/**
- * 認証済みfetchラッパー。全API呼び出しはこれを経由すること。
- * 401応答時はトークンを自動取得して1回だけ再試行する。
- */
-async function authFetch(url, options = {}) {
-  const headers = Object.assign({}, options.headers || {});
-  if (syncToken) {
-    headers['Authorization'] = `Bearer ${syncToken}`;
-  }
-  if (options.body && !headers['Content-Type']) {
-    headers['Content-Type'] = 'application/json';
-  }
-  let res = await fetch(url, Object.assign({}, options, { headers }));
-  if (res.status === 401 && !options._retried) {
-    // トークン未取得・失効の可能性 → /api/auth/token で再取得して1回だけ再試行
-    try {
-      const tokenRes = await fetch('/api/auth/token');
-      if (tokenRes.ok) {
-        const tokenData = await tokenRes.json();
-        if (tokenData.token) {
-          syncToken = tokenData.token;
-          localStorage.setItem(SYNC_TOKEN_KEY, syncToken);
-          return authFetch(url, Object.assign({}, options, { _retried: true }));
-        }
-      }
-    } catch (e) {
-      console.debug('Token refresh error:', e);
-    }
-  }
-  return res;
+if (typeof syncToken === 'undefined' && typeof window.syncToken !== 'undefined') {
+  var syncToken = window.syncToken;
 }
 
 // 5大背景テーマ定義
@@ -1651,8 +1611,12 @@ async function fetchStatus() {
 
     // 🔐 トークン自動同期（自己治癒）
     if (data.sync_token && data.sync_token !== syncToken) {
-      syncToken = data.sync_token;
-      localStorage.setItem(SYNC_TOKEN_KEY, syncToken);
+      if (typeof setSyncToken === 'function') {
+        setSyncToken(data.sync_token);
+      } else {
+        syncToken = data.sync_token;
+        localStorage.setItem(SYNC_TOKEN_KEY, syncToken);
+      }
     }
 
     // 0. ペット状態（歩行コントローラーのガード用 ＆ 歓喜アニメーション連動）

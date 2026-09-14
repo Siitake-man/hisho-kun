@@ -84,7 +84,7 @@ graph TD
         Auto["🟢 Auto-Allow<br/>(git status, pytest - 0s delay)"]
         Prompt["🟡 Prompt<br/>(git commit, edits - normal alert)"]
         Strict["🔴 Strict<br/>(rm -rf, git reset - pulse banner)"]
-        Audit[("📝 SQLite Audit Log<br/>tamper-proof trail")]
+        Audit[("📝 SQLite Audit Log<br/>tamper-resistant and persistent trail")]
     end
 
     Server --> Auto
@@ -112,7 +112,7 @@ graph TD
        │ ├─ 🟢 Auto-Allow : Zero-delay auto-resolution for safe reads/tests
        │ ├─ 🟡 Prompt     : Push alert to phone for standard edits/commits
        │ ├─ 🔴 Strict     : Crimson pulsing banner for destructive commands
-       │ └─ 📝 Audit Log  : SQLite tamper-proof audit trail with timestamps
+       │ └─ 📝 Audit Log  : SQLite persistent tamper-resistant audit trail with timestamps
        ▼ (Home Wi-Fi / Tailscale: Bearer Auth & Anti-Self-Approval)
 [ Spare Smartphone ] 📱 "One-tap approval from bed or kitchen!"
 ```

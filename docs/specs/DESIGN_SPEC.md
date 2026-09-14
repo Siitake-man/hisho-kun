@@ -1,6 +1,6 @@
 # システム設計書: Neo-Secretary (ネオ秘書くん) Python Agent Edition
 
-- **最終更新日時**: 2026-09-14 13:00 (🏛️ **Section 13 バージョン定数一元化アーキテクチャ (version.js 動的配信) 配備版**)
+- **最終更新日時**: 2026-09-14 13:10 (🏛️ **Section 14 フロントエンド Seam 分割アーキテクチャ (pet_auth.js) 配備版**)
 - **Architecture**: Python Desktop App with LangGraph & PWA Mobile Approval Remote
 
 ---
@@ -525,3 +525,23 @@ web_pet/
   - `pet.js` のキャッシュパージ処理で `window.WEB_PET_CACHE_NAME` を参照。
 - **フォールバック**:
   - オフライン時および開発環境向けに静的ファイル `web_pet/version.js` を同梱配備。
+
+---
+
+## 14. フロントエンド Seam 分割アーキテクチャ (`web_pet/pet_auth.js`)
+
+### 14.1 モノリス解体と Seam Pattern（継ぎ目設計）
+`web_pet/pet.js`（3,335行）の肥大化・結合度を解消するため、Jules設計レポート（`docs/temp/seam_mapping_pet_js.md`）に基づき、依存度が低く最も重要な「認証・通信基盤」を第1弾として独立モジュール `web_pet/pet_auth.js` へ分離。
+
+### 14.2 `pet_auth.js` の責務と Zero-Trust 強化
+1. **Bearer トークン管理**:
+   - URLクエリパラメータ（`?token=...`）または `localStorage` からの安全な解決。
+   - 🛡️ **Zero-Trust URLサニタイズ**: URLからトークンを取得した直後に `history.replaceState` でクエリを除去し、画面共有やリファラヘッダー経由の漏洩を防止。
+2. **`authFetch` 透過ラッパー**:
+   - 🛡️ **同一オリジン保護**: 相対パスまたは同一オリジン宛てのリクエストのみ `Authorization: Bearer <token>` を付与し、外部URLへのトークン流出を構造的に遮断。
+   - 🛡️ **FormData 自動判定**: `options.body` が `FormData` の場合は `Content-Type` ヘッダーを自動付与せず、ブラウザによる multipart boundary 生成を保証。
+   - 🔄 **自己治癒（401自動リトライ）**: 401 Unauthorized 受信時、`/api/auth/token` で最新トークンを再取得して1回限定で再試行。
+3. **グローバル後方互換**:
+   - `pet.js` や各ミニゲーム（`pixel_defense.js`, `minigame_arcade.js`）からの直接呼び出しを保証するため、`window.authFetch`, `window.syncToken`, `window.getSyncToken`, `window.setSyncToken` を公開。
+4. **回帰防止テスト**:
+   - `tests/test_pet_seam_auth.py` により、ファイル存在・シンボル公開・ロード順序・SWキャッシュ・HTTP配信を自動検証。
