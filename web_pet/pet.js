@@ -764,40 +764,15 @@ function showToast(message, duration = 3500, isHighlight = false) {
 
 // =============================================================================
 // 3. なでなでインタラクション (Spring & Haptics & Particles & Web Audio SE)
+//    ※ 音声・効果音合成エンジンは pet_audio_se.js に委譲
 // =============================================================================
-let audioCtx = null;
-
-function getAudioContext() {
-  if (!audioCtx) {
-    const AudioContext = window.AudioContext || window.webkitAudioContext;
-    audioCtx = new AudioContext();
-  }
-  if (audioCtx.state === 'suspended') {
-    audioCtx.resume();
-  }
-  return audioCtx;
-}
 
 // =============================================================================
-// 3.5. 通知チャイム ＆ オーディオアンロック（ブラウザの User Gesture Policy 対応）
+// 3.5. 通知チャイム ＆ ポーリング状態管理
 // =============================================================================
 let lastApprovalRequestId = null;
 let lastActiveEventKey = null;
 let lastReminderKey = null;
-let chimeTimers = [];
-
-/** 最初のユーザー操作で AudioContext を解錠する（モバイル自動再生制限の解除） */
-function unlockAudio() {
-  try {
-    const ctx = getAudioContext();
-    if (ctx.state === 'suspended') ctx.resume();
-  } catch (e) {
-    console.debug('Audio unlock error:', e);
-  }
-}
-document.addEventListener('pointerdown', unlockAudio, { passive: true });
-document.addEventListener('touchstart', unlockAudio, { passive: true });
-document.addEventListener('visibilitychange', () => { if (!document.hidden) unlockAudio(); });
 
 // 🛡 通知再表示 (2026-08-31): 画面OFF/バックグラウンド中に通知トーストが描画されると
 //   音だけ鳴って表示は失われ、再読み込みするまで出ない障害の根本対策。
@@ -810,123 +785,6 @@ document.addEventListener('visibilitychange', () => {
     if (typeof fetchStatus === 'function') fetchStatus();
   }
 });
-
-/** 2音チャイム（ピンポン）を合成する */
-function playTwoTone(ctx, freqLow, freqHigh) {
-  const now = ctx.currentTime;
-  [[freqLow, 0.0], [freqHigh, 0.22]].forEach(([freq, offset]) => {
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.type = 'triangle';
-    osc.frequency.value = freq;
-    osc.connect(gain);
-    gain.connect(ctx.destination);
-    gain.gain.setValueAtTime(0.0001, now + offset);
-    gain.gain.exponentialRampToValueAtTime(0.4, now + offset + 0.03);
-    gain.gain.exponentialRampToValueAtTime(0.0001, now + offset + 0.55);
-    osc.start(now + offset);
-    osc.stop(now + offset + 0.6);
-  });
-}
-
-/** 通知アラート: チャイム連打 ＆ 振動パターン（前回分タイマーを必ず解除してから鳴らす） */
-function playAlertChime(repeat = 3) {
-  stopAlertChime();
-  unlockAudio();
-  try {
-    const ctx = getAudioContext();
-    for (let i = 0; i < repeat; i++) {
-      chimeTimers.push(setTimeout(() => {
-        try { playTwoTone(ctx, 880, 1245); } catch (e) { console.debug('Chime error:', e); }
-      }, i * 950));
-    }
-  } catch (e) {
-    console.debug('AudioContext error:', e);
-  }
-  if (navigator.vibrate) navigator.vibrate([220, 120, 220, 120, 320]);
-}
-
-/** 通知チャイムの停止（承認済み・タイムアウト時） */
-function stopAlertChime() {
-  chimeTimers.forEach(t => clearTimeout(t));
-  chimeTimers = [];
-}
-
-/** 承認/却下の結果を音で区別する（承認=上昇2音・却下=下降2音） */
-function playDecisionSound(approved) {
-  try {
-    const ctx = getAudioContext();
-    if (approved) {
-      playTwoTone(ctx, 880, 1245);
-    } else {
-      playTwoTone(ctx, 660, 440);
-    }
-  } catch (e) {
-    console.debug('Decision sound error:', e);
-  }
-}
-
-function playCharacterSE(charId) {
-  try {
-    const ctx = getAudioContext();
-    const now = ctx.currentTime;
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-
-    osc.connect(gain);
-    gain.connect(ctx.destination);
-
-    if (charId === 'hisho') {
-      // 👔 秘書くん: シャキーン！高音サイン波
-      osc.type = 'sine';
-      osc.frequency.setValueAtTime(880, now);
-      osc.frequency.exponentialRampToValueAtTime(1320, now + 0.12);
-      gain.gain.setValueAtTime(0.2, now);
-      gain.gain.exponentialRampToValueAtTime(0.01, now + 0.18);
-      osc.start(now);
-      osc.stop(now + 0.18);
-    } else if (charId === 'kinoko') {
-      // 🍄 キノコ君: ポフッ！ピッチベンド
-      osc.type = 'triangle';
-      osc.frequency.setValueAtTime(520, now);
-      osc.frequency.exponentialRampToValueAtTime(260, now + 0.15);
-      gain.gain.setValueAtTime(0.25, now);
-      gain.gain.exponentialRampToValueAtTime(0.01, now + 0.15);
-      osc.start(now);
-      osc.stop(now + 0.15);
-    } else if (charId === 'seal') {
-      // 🦭 アザラシ: モチッ！キュートな和音ピチピチ
-      osc.type = 'sine';
-      osc.frequency.setValueAtTime(660, now);
-      osc.frequency.exponentialRampToValueAtTime(990, now + 0.1);
-      gain.gain.setValueAtTime(0.22, now);
-      gain.gain.exponentialRampToValueAtTime(0.01, now + 0.14);
-      osc.start(now);
-      osc.stop(now + 0.14);
-    } else if (charId === 'wombat') {
-      // 🦫 ウォンバット: ズシッ！低音ずっしり
-      osc.type = 'square';
-      osc.frequency.setValueAtTime(180, now);
-      osc.frequency.exponentialRampToValueAtTime(90, now + 0.18);
-      gain.gain.setValueAtTime(0.18, now);
-      gain.gain.exponentialRampToValueAtTime(0.01, now + 0.18);
-      osc.start(now);
-      osc.stop(now + 0.18);
-    } else if (charId === 'kyle') {
-      // 🐚 カイル風精霊: カタッ！ピピッ！貝型PCを叩く8bit風2連音
-      osc.type = 'square';
-      osc.frequency.setValueAtTime(520, now);
-      osc.frequency.setValueAtTime(780, now + 0.07);
-      gain.gain.setValueAtTime(0.12, now);
-      gain.gain.setValueAtTime(0.12, now + 0.07);
-      gain.gain.exponentialRampToValueAtTime(0.01, now + 0.16);
-      osc.start(now);
-      osc.stop(now + 0.16);
-    }
-  } catch (e) {
-    console.debug('Audio playback error:', e);
-  }
-}
 
 function onPetTap(event) {
   // 微細振動フィードバック

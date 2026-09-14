@@ -12,6 +12,7 @@ const ASSETS_TO_CACHE = [
   './index.html',
   './version.js',
   './pet_auth.js',
+  './pet_audio_se.js',
   './pet.js',
   './manifest.json'
 ];

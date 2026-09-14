@@ -1,6 +1,6 @@
 # システム設計書: Neo-Secretary (ネオ秘書くん) Python Agent Edition
 
-- **最終更新日時**: 2026-09-14 13:10 (🏛️ **Section 14 フロントエンド Seam 分割アーキテクチャ (pet_auth.js) 配備版**)
+- **最終更新日時**: 2026-09-14 13:15 (🏛️ **Section 15 フロントエンド Seam 分割 第2弾 (pet_audio_se.js) 配備版**)
 - **Architecture**: Python Desktop App with LangGraph & PWA Mobile Approval Remote
 
 ---
@@ -545,3 +545,25 @@ web_pet/
    - `pet.js` や各ミニゲーム（`pixel_defense.js`, `minigame_arcade.js`）からの直接呼び出しを保証するため、`window.authFetch`, `window.syncToken`, `window.getSyncToken`, `window.setSyncToken` を公開。
 4. **回帰防止テスト**:
    - `tests/test_pet_seam_auth.py` により、ファイル存在・シンボル公開・ロード順序・SWキャッシュ・HTTP配信を自動検証。
+
+---
+
+## 15. フロントエンド Seam 分割 第2弾: 音響・効果音エンジン (`web_pet/pet_audio_se.js`)
+
+### 15.1 責務の分離と Deep Module 化
+`web_pet/pet.js` 内に直接インライン記述されていた発振器（Oscillator）の生成、周波数ランプ（`exponentialRampToValueAtTime`）、User Gesture解錠、および各キャラクターの固有音響合成ロジック（約170行）を、完全に独立した「Web Audio SE エンジン」として `web_pet/pet_audio_se.js` へ抽出・モジュール化。
+
+### 15.2 アーキテクチャとフェイルセーフ設計
+1. **完全ローカル・低遅延シンセサイザー (Web Audio API)**:
+   - 外部音声ファイル（mp3/wav）へのネットワーク通信依存を一切持たず、クライアント側のCPUで純粋な波形（サイン波・三角波・矩形波）をリアルタイム合成。
+   - `exponentialRampToValueAtTime` での0値指定例外（`RangeError`）を回避するため、`0.0001` からの指数減衰曲線を徹底。
+2. **多重 User Gesture 解錠ポリシー (Mobile Audio Unlock)**:
+   - モバイルブラウザの自動再生ブロックを突破するため、`pointerdown`, `touchstart`, `visibilitychange`（`passive: true`）の3重解錠リスナーを配備。
+   - アラートチャイム再生時にも `unlockAudio()` を内部連動させ、画面復帰直後の通知音鳴動を死守。
+3. **安全なフェイルセーフ ＆ フォールバック**:
+   - 全ての公開メソッドを `try-catch` で保護し、オーディオデバイス無効環境や `navigator.vibrate` 非対応端末（iOS/デスクトップ）でもメインUIループを絶対に巻き込まない設計。
+   - 未知のキャラクターIDが渡された場合、無駄なオシレーター生成を防ぎつつ即座にデフォルト（`hisho`）へフォールバック。
+4. **公開インターフェース (Global Export)**:
+   - `getAudioContext()`, `unlockAudio()`, `playTwoTone()`, `playAlertChime()`, `stopAlertChime()`, `playDecisionSound()`, `playCharacterSE()` を `window` および非モジュールスコープへ公開。
+5. **回帰防止テスト**:
+   - `tests/test_pet_seam_audio.py` により、物理存在・シンボル定義・読み込み順序・SWオフラインキャッシュ・HTTP配信（200 OK）を完全網羅。
