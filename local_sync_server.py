@@ -214,6 +214,18 @@ def get_sync_token_manager() -> SyncTokenManager:
     return _global_token_manager
 
 
+
+# 30秒TTL 習慣＆70日ヒートマップキャッシュ変数
+_last_habit_cache_time = 0.0
+_cached_habits_data = []
+_cached_heatmap_data = []
+
+def invalidate_habit_cache() -> None:
+    """習慣データおよび70日ヒートマップのインメモリTTLキャッシュを無効化する。"""
+    global _last_habit_cache_time
+    _last_habit_cache_time = 0.0
+
+
 # =============================================================================
 # 📶 デバイスリンク検知 ＆ 死活監視マネージャー (Link Monitor)
 # =============================================================================
@@ -1104,13 +1116,14 @@ class DeskPetSyncHandler(SimpleHTTPRequestHandler):
                 else:
                     pet_state = "focus" if (pomodoro_active and not pomodoro_is_break) else "idle"
                 
-                # 習慣 ＆ 草ヒートマップデータ
-                # ※ database はモジュール先頭で import 済み。関数内 import を置くと
-                #    Python が database をローカル変数扱いし、上記の get_tasks 等の参照が
-                #    UnboundLocalError となるため、ここでの再 import は禁止。
-                # P2①: DB戻り値が Pydantic モデルのため、JSON送信用に dict 化する
-                habits_data = [h.model_dump() for h in database.get_habits_with_status()]
-                heatmap_data = [d.model_dump() for d in database.get_habit_heatmap_data(days=70)]
+                # 習慣 ＆ 草ヒートマップデータ (30秒TTLキャッシュ)
+                global _last_habit_cache_time, _cached_habits_data, _cached_heatmap_data
+                if (now - _last_habit_cache_time) > 30.0:
+                    _cached_habits_data = [h.model_dump() for h in database.get_habits_with_status()]
+                    _cached_heatmap_data = [d.model_dump() for d in database.get_habit_heatmap_data(days=70)]
+                    _last_habit_cache_time = now
+                habits_data = _cached_habits_data
+                heatmap_data = _cached_heatmap_data
                 bond_info = char_mgr.get_bond_info()
 
                 # キャラ別挨拶 × 時間帯 × 90秒ローテーション（固定文言の解消）

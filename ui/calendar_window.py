@@ -1331,6 +1331,8 @@ class CalendarWindow(ctk.CTkToplevel):
         import database
         from database import Habit
         database.create_habit(Habit(title=text, emoji=emoji))
+        from local_sync_server import invalidate_habit_cache
+        invalidate_habit_cache()
         self.habit_entry.delete(0, tk.END)
         self.refresh_habits()
 
@@ -1464,6 +1466,8 @@ class CalendarWindow(ctk.CTkToplevel):
     def _on_toggle_habit(self, habit_id: int):
         import database
         is_now_done = database.toggle_habit_log(habit_id)
+        from local_sync_server import invalidate_habit_cache
+        invalidate_habit_cache()
         
         if is_now_done:
             # 達成時に親愛度XP加算 (+10 XP) ＆ 歓喜リアクション
@@ -1488,6 +1492,8 @@ class CalendarWindow(ctk.CTkToplevel):
     def _on_delete_habit(self, habit_id: int):
         import database
         database.delete_habit(habit_id)
+        from local_sync_server import invalidate_habit_cache
+        invalidate_habit_cache()
         self.refresh_habits()
 
     # =========================================================================
