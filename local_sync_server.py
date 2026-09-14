@@ -521,29 +521,6 @@ class AgentBridgeHub:
                     self.latest_completed = None
             return None
 
-    def respond(self, request_id: str, decision: str, message: str = "") -> bool:
-        """承認応答を処理する（後方互換ラッパー／非推奨）。
-
-        ⚠️ **非推奨 (Deprecated)**: セキュリティ上の理由から `respond_checked()`
-        の使用を強く推奨します。`respond()` は `responder_ip=None` で呼び出すため、
-        自己承認(RCE)防止チェックがバイパスされます。呼び出し側は `responder_ip`
-        を明示的に指定する `respond_checked()` に移行してください。
-
-        Args:
-            request_id (str): 対象リクエストID。
-            decision (str): 承認判定 ('approve' / 'reject' / 'answered' 等)。
-            message (str): ユーザーからの添付メッセージ。
-
-        Returns:
-            bool: 処理成功の場合 True。
-        """
-        logger.warning(
-            f"⚠️ [Deprecated] `respond()` が呼ばれました (ID={request_id}) — "
-            "自己承認チェックがバイパスされます。`respond_checked()` への移行を推奨します。"
-        )
-        ok, _reason = self.respond_checked(request_id, decision, message, responder_ip=None)
-        return ok
-
     def respond_checked(self, request_id: str, decision: str, message: str = "", responder_ip: Optional[str] = None) -> tuple:
         """承認応答を処理し、自己承認(RCE)防止チェックと期限切れ検知を行う拡張版。
 

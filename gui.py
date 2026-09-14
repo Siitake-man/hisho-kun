@@ -967,13 +967,19 @@ class NeoSecretaryGUI(PomodoroMixin, RadialMenuMixin, TourOverlayMixin):
                 logger.error(f"ブラウザ起動エラー: {e}")
 
     def update_message(self, text: str):
-        """吹き出しのメッセージを更新するメソッド（スクロール対応 ＆ URLリンク自動検出）"""
+        """吹き出しのメッセージを更新するメソッド（マークダウン強調 ＆ スクロール対応 ＆ URLリンク自動検出）"""
         import re
-        self.message_box.configure(state="normal")
-        self.message_box.delete("1.0", tk.END)
-        self.message_box.insert("1.0", text)
-        self.message_box.configure(state="disabled")
-        self.message_box.see("1.0")  # 先頭を表示
+        from ui.markdown_helper import render_markdown_to_textbox
+
+        # マークダウン記法（**太字**）を装飾して描画
+        clean_text = render_markdown_to_textbox(
+            self.message_box,
+            text,
+            font_family="DotGothic16" if hasattr(tk, "font") and hasattr(tk.font, "families") and "DotGothic16" in tk.font.families() else "Meiryo UI",
+            font_size=13 if hasattr(tk, "font") and hasattr(tk.font, "families") and "DotGothic16" in tk.font.families() else 11,
+            bold_color="#1E120A",
+            normal_color="#4A3B32"
+        )
 
         # テキスト内のURL（http/https）を正規表現で検出
         urls = re.findall(r'https?://[^\s)\]"\'>]+', text)

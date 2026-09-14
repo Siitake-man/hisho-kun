@@ -19,6 +19,7 @@ from typing import Callable, Dict, List, Any, Optional
 from pathlib import Path
 
 import web_tools
+import database
 from proactive_scheduler import get_proactive_scheduler
 
 logger = logging.getLogger(__name__)
@@ -311,7 +312,6 @@ class SuggestionEngine:
             :meth:`get_cached_suggestions` を使用すること。
         """
         suggestions: List[Dict[str, Any]] = []
-        import database
 
         now_dt = datetime.datetime.now()
         now_ts = int(time.time() * 1000)
@@ -320,17 +320,25 @@ class SuggestionEngine:
         if self.is_source_enabled("calendar"):
             try:
                 events = database.get_upcoming_events(days=1)
+                today_date = now_dt.date()
+                tomorrow_date = today_date + datetime.timedelta(days=1)
+
                 for ev in events[:2]:
                     st = datetime.datetime.fromtimestamp(ev.start_time / 1000.0)
                     time_str = st.strftime("%H:%M")
                     diff_mins = int((ev.start_time - now_ts) / (1000 * 60))
+                    ev_date = st.date()
                     
                     if 0 <= diff_mins <= 60:
                         urgency = f"【あと {diff_mins}分】"
                     elif diff_mins < 0:
                         urgency = "【進行中】"
-                    else:
+                    elif ev_date == today_date:
                         urgency = f"【本日 {time_str}〜】"
+                    elif ev_date == tomorrow_date:
+                        urgency = f"【明日 {time_str}〜】"
+                    else:
+                        urgency = f"【{st.month}/{st.day} {time_str}〜】"
 
                     suggestions.append({
                         "id": f"event_{ev.id}",
@@ -341,7 +349,7 @@ class SuggestionEngine:
                         "tag": "カレンダー"
                     })
             except Exception as e:
-                logger.error(f"予定サジェスト生成エラー: {e}")
+                logger.error(f"予定サジェスト生成エラー: {e}", exc_info=True)
 
         # 2. 重要TODO (High Priority Tasks)
         if self.is_source_enabled("high_priority_tasks"):
@@ -733,3 +741,7 @@ def get_suggestion_engine() -> SuggestionEngine:
     if _engine_instance is None:
         _engine_instance = SuggestionEngine()
     return _engine_instance
+
+
+# 互換用エイリアス
+SuggestEngine = SuggestionEngine

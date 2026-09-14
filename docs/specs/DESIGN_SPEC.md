@@ -1,7 +1,7 @@
 # ネオ秘書くん システム設計書 (DESIGN_SPEC.md)
 
-- **バージョン**: 1.1.1 (🏆 全体テスト446件全緑達成 ＆ database.py Seam分割 Phase 1完了 ＆ PWA Seam分割 第1〜5弾完了版)
-- **最終更新日時**: 2026-09-14 14:15
+- **バージョン**: 1.1.2 (🏆 予定日跨ぎ判定バグ根治 ＆ デスクトップ吹き出しマークダウン太字強調 ＆ database.py Seam分割 Phase 2完遂版)
+- **最終更新日時**: 2026-09-14 20:30
 - **アーキテクチャ方針**: 完全ローカル完結型 非ブロッキング並行システム (Tkinter Desktop Overlay × Mobile PWA × LangGraph Agent × Zero-Trust Local Bridge)
 
 ---
@@ -666,5 +666,9 @@ web_pet/
 
 ### 18.4 移行ステップ (Incremental Migration Plan)
 - **Phase 1 (非破壊的モデル・接続の切り出し - ✅ 2026-09-14 完了)**: `storage/models.py` (全13モデル) と `storage/connection.py` (WAL・init_db・マイグレーション) を先行新設し、`database.py` から参照。行数を2,498行 ➔ 1,960行へ約538行削減。全体テスト446件全緑（444 passed, 2 skipped, 0 failed）達成。
-- **Phase 2 (個別リポジトリの切り出し - 次回着手予定)**: `audit_repo.py` ➔ `device_repo.py` ➔ `insight_repo.py` ➔ `note_repo.py` ➔ `habit_repo.py` ➔ `calendar_repo.py` ➔ `task_repo.py` の順で1ドメインずつ安全に Seam 分割。`database.py` を200行未満の純粋なFacadeへ集約。
-- **Phase 3 (回帰防止アサーション - 継続中)**: 全スイートのテストを実行し、全緑を無停止で維持。
+- **Phase 2 (ドメインRepository完全切り出し ＆ Facade集約 - ✅ 2026-09-14 完了)**: 
+  - `storage/audit_repo.py`, `storage/device_repo.py`, `storage/insight_repo.py`, `storage/sticky_repo.py`, `storage/habit_repo.py`, `storage/calendar_repo.py`, `storage/task_repo.py`, `storage/minigame_repo.py` の全ドメインRepositoryを完全分離。
+  - `storage/connection.py` に `backup_database` および世代管理付き `auto_backup` を配備。
+  - `storage/__init__.py` で全シンボルを集約エクスポート。
+  - `database.py` を実体1,721行から **243行の純粋な薄型Facade** へスリム化。既存の呼び出し元コードとの100%後方互換性を死守。
+- **Phase 3 (回帰防止アサーション - ✅ 2026-09-14 完了)**: `tests/test_storage_seam_phase2_step1.py` および `tests/test_storage_seam_phase2_step2.py` による全シンボル・Facade同一性・各ドメインCRUDの自動検証を配備。

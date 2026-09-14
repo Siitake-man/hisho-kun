@@ -11,7 +11,12 @@ import urllib.error
 import xml.etree.ElementTree as ET
 import re
 from typing import List, Dict, Any, Optional
-from langchain_core.tools import tool
+try:
+    from langchain_core.tools import tool
+except (ImportError, ModuleNotFoundError):
+    # LangChain 未導入環境向けフォールバックデコレータ
+    def tool(func):
+        return func
 
 logger = logging.getLogger(__name__)
 
