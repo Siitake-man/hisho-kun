@@ -38,9 +38,14 @@ const _resolvedRequestIds = new Set();
 let currentPomodoro = { active: false, is_break: false, remaining_seconds: 0, mode_label: "" };
 let petStateNow = 'idle';
 // 歩行フレーム(walk_1/2)を持つキャラ（未保有キャラは歩行中も idle フレームで代用）
-const WALK_CAPABLE_CHARS = ['kyle'];
+// ※ pet_motion.js で先行定義された変数を安全に参照
+if (typeof WALK_CAPABLE_CHARS === 'undefined') {
+  var WALK_CAPABLE_CHARS = window.WALK_CAPABLE_CHARS || ['kyle'];
+}
 let wakeLock = null;
-let currentCharacterId = 'hisho';
+if (typeof currentCharacterId === 'undefined') {
+  var currentCharacterId = window.currentCharacterId || 'hisho';
+}
 
 // 🌈 自律生活ドリーマー状態（/api/status の life_state から更新）
 const WEATHER_LABELS_JS = {
@@ -48,7 +53,9 @@ const WEATHER_LABELS_JS = {
   snowy: '❄️ 雪', thunder: '⚡ 嵐'
 };
 let currentWeather = 'sunny';
-let currentActivity = 'resting';
+if (typeof currentActivity === 'undefined') {
+  var currentActivity = window.currentActivity || 'resting';
+}
 let lastLifeMessage = '';
 
 let currentAgentBadgeState = '';
@@ -78,27 +85,34 @@ if (typeof syncToken === 'undefined' && typeof window.syncToken !== 'undefined')
 // =============================================================================
 // 1. 背景環境シーン ＆ パーティクル描画エンジン (pet_particles.js に委譲)
 // =============================================================================
-window.addEventListener('DOMContentLoaded', () => {
-  initEnvCanvas();
-  loadSyncToken();
-  unlockAudio();
-  setupMediaKeyApproval();
-  setupBannerSwipe();
-  setupSuggestSwipe();
-  updateBriefingBannerText();
-  requestAnimationFrame(particleLoop);
-  preloadSprites(currentCharacterId);
-  // 🐛 バグ修正 (2026-08-31): 通知キーをsessionStorageに永続化。
-  //   サーバー側TTL延長(10分)と組み合わせ、再読み込み時に既表示の通知が
-  //   二重表示されるのを防止する（同一セッション内でのみ有効）。
-  window._lastNotifKey = sessionStorage.getItem('lastNotifKey') || null;
-  fetchStatus();
+function initDeskPetApp() {
+  try { if (typeof initEnvCanvas === 'function') initEnvCanvas(); } catch (e) { console.warn('initEnvCanvas error:', e); }
+  try { if (typeof loadSyncToken === 'function') loadSyncToken(); } catch (e) { console.warn('loadSyncToken error:', e); }
+  try { if (typeof unlockAudio === 'function') unlockAudio(); } catch (e) { console.warn('unlockAudio error:', e); }
+  try { if (typeof setupMediaKeyApproval === 'function') setupMediaKeyApproval(); } catch (e) { console.warn('setupMediaKeyApproval error:', e); }
+  try { if (typeof setupBannerSwipe === 'function') setupBannerSwipe(); } catch (e) { console.warn('setupBannerSwipe error:', e); }
+  try { if (typeof setupSuggestSwipe === 'function') setupSuggestSwipe(); } catch (e) { console.warn('setupSuggestSwipe error:', e); }
+  try { if (typeof updateBriefingBannerText === 'function') updateBriefingBannerText(); } catch (e) { console.warn('updateBriefingBannerText error:', e); }
+  try { if (typeof particleLoop === 'function') requestAnimationFrame(particleLoop); } catch (e) { console.warn('particleLoop error:', e); }
+  try { if (typeof preloadSprites === 'function') preloadSprites(window.currentCharacterId || currentCharacterId); } catch (e) { console.warn('preloadSprites error:', e); }
+  
+  // 🐛 バグ修正 (2026-08-31): 通知キーをsessionStorageに永続化
+  try {
+    window._lastNotifKey = sessionStorage.getItem('lastNotifKey') || null;
+  } catch (e) {}
+
   (function pollingLoop() {
     fetchStatus();
     const nextInterval = getNextFetchInterval();
     setTimeout(pollingLoop, nextInterval);
   })();
-});
+}
+
+if (document.readyState === 'loading') {
+  window.addEventListener('DOMContentLoaded', initDeskPetApp);
+} else {
+  initDeskPetApp();
+}
 
 // =============================================================================
 // =============================================================================
@@ -512,17 +526,9 @@ function handleActiveEventClick() {
   openBottomSheet(currentActiveEvent);
 }
 
-/** 完了通知を閉じ、サーバ側のイベントも永続的に削除する */
-async function dismissCompleted() {
-  stopAlertChime();
-  if (navigator.vibrate) navigator.vibrate(20);
-  closeBottomSheet();
-  try {
-    await authFetch('/api/agent/dismiss_completed', { method: 'POST' });
-  } catch (e) { /* サーバ側エラーは無視（既に消えている場合もある） */ }
-  _hideBanner();
-  showToast('✅ 通知を閉じました');
-  fetchStatus();
+// ※ dismissCompleted は先行読み込みされる pet_ui.js で定義および window に公開されています。
+if (typeof dismissCompleted === 'undefined' && typeof window.dismissCompleted !== 'undefined') {
+  var dismissCompleted = window.dismissCompleted;
 }
 
 /** アップデートバナーを閉じる（sessionStorageで永続化：同一セッションでは再表示しない） */
@@ -544,11 +550,9 @@ function dismissUpdateBanner() {
 // 10. 手帳モーダル（予定・TODO・習慣・設定）本実装
 // =============================================================================
 
-/** HTML特殊文字のエスケープ（リスト表示のXSS対策） */
-function escapeHtml(str) {
-  return String(str || '').replace(/[&<>"']/g, m => (
-    { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]
-  ));
+// ※ escapeHtml は先行読み込みされる pet_ui.js で定義および window に公開されています。
+if (typeof escapeHtml === 'undefined' && typeof window.escapeHtml !== 'undefined') {
+  var escapeHtml = window.escapeHtml;
 }
 
 /** 📅 予定一覧モーダル */
@@ -978,7 +982,10 @@ function selectCharacter(charId) {
     if (result && result.status === 'success') {
       currentCharacterId = charId;
       preloadSprites(charId);
-      showToast(`🎭 キャラクターを【${CHARACTERS.find(c => c.id === charId)?.name || charId}】に変更しました`);
+      const charList = (typeof CHARACTERS !== 'undefined') ? CHARACTERS : (window.CHARACTERS || []);
+      const foundChar = charList.find ? charList.find(c => c.id === charId) : null;
+      const charDisplayName = foundChar ? foundChar.name : charId;
+      showToast(`🎭 キャラクターを【${charDisplayName}】に変更しました`);
     } else {
       showToast('⚠️ キャラクターの変更に失敗しました（サーバー拒否）');
     }

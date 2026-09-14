@@ -137,6 +137,32 @@ class TestPetSeamMotionAndUI(unittest.TestCase):
         finally:
             server.shutdown()
 
+    def test_07_no_scope_redeclarations_and_failsafe_init(self):
+        """pet.js で先行スクリプトのグローバル変数が let/const 再宣言されていないこと、およびフェイルセーフ初期化があること"""
+        pet_content = self.pet_js.read_text(encoding="utf-8")
+        ui_content = self.ui_js.read_text(encoding="utf-8")
+
+        # 1. let/const によるスコープ再宣言衝突（SyntaxError: Identifier already declared）の防止
+        forbidden_patterns = [
+            "let currentCharacterId",
+            "const currentCharacterId",
+            "let currentActivity",
+            "const currentActivity",
+            "const WALK_CAPABLE_CHARS",
+            "let WALK_CAPABLE_CHARS",
+        ]
+        for pat in forbidden_patterns:
+            self.assertNotIn(pat, pet_content, f"pet.js に SyntaxError を引き起こす再宣言 '{pat}' が残っています")
+
+        # 2. 古いブラウザで SyntaxError になる ?.[ オプショナルチェイニングの排除
+        self.assertNotIn("?.[", ui_content, "pet_ui.js に古い端末で SyntaxError になる '?.[0]' が残っています")
+        self.assertNotIn("?.[", pet_content, "pet.js に古い端末で SyntaxError になる '?.[0]' が残っています")
+
+        # 3. DOMContentLoaded 発火済みでも動作する document.readyState フォールバックの存在
+        self.assertIn("initDeskPetApp", pet_content, "pet.js にフェイルセーフ初期化関数 initDeskPetApp が定義されていません")
+        self.assertIn("document.readyState", pet_content, "pet.js に readyState 判定がありません")
+
 
 if __name__ == "__main__":
     unittest.main()
+

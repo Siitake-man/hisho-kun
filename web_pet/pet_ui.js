@@ -234,7 +234,11 @@
         }
       }
 
-      var matchUrl = item.description ? item.description.match(/https?:\/\/[^\s)\]"'>]+/)?.[0] : null;
+      var matchUrl = null;
+      if (item.description) {
+        var urlMatch = item.description.match(/https?:\/\/[^\s)\]"'>]+/);
+        if (urlMatch && urlMatch[0]) matchUrl = urlMatch[0];
+      }
       var targetUrl = typeof bodyHtml === 'string' ? null : (item.link || item.url || matchUrl);
 
       var linkBtn = document.getElementById('sheet-link-btn');
