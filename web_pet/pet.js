@@ -24,6 +24,8 @@ let fetchFailCount = 0;
 const FETCH_BACKOFF_THRESHOLD = 3;  // 連続3回失敗でバックオフ
 const FETCH_NORMAL_INTERVAL = 2000;
 const FETCH_BACKOFF_INTERVAL = 30000;
+const FETCH_HIDDEN_INTERVAL = 30000;  // 画面非表示時（バックグラウンド/スリープ）は30秒間隔で省電力化
+let pollingTimerId = null;  // ポーリングタイマー多重発火防止用ハンドル
 let fetchBackoffActive = false;
 let animTick = 0;
 let tasksData = [];
@@ -101,11 +103,16 @@ function initDeskPetApp() {
     window._lastNotifKey = sessionStorage.getItem('lastNotifKey') || null;
   } catch (e) {}
 
-  (function pollingLoop() {
+  window.triggerPollingStep = function triggerPollingStep() {
+    if (pollingTimerId !== null) {
+      clearTimeout(pollingTimerId);
+      pollingTimerId = null;
+    }
     fetchStatus();
     const nextInterval = getNextFetchInterval();
-    setTimeout(pollingLoop, nextInterval);
-  })();
+    pollingTimerId = setTimeout(triggerPollingStep, nextInterval);
+  };
+  window.triggerPollingStep();
 }
 
 if (document.readyState === 'loading') {
@@ -139,11 +146,26 @@ let lastReminderKey = null;
 //   音だけ鳴って表示は失われ、再読み込みするまで出ない障害の根本対策。
 //   非表示中に通知を処理していた場合はキーをリセットし、復帰後の最初のポーリングで
 //   サーバー (60秒TTL) から再取得・再表示させる。
+// 🛡 画面表示状態に応じた適応型ポーリング ＆ 通知再表示
 document.addEventListener('visibilitychange', () => {
-  if (!document.hidden && window._notifShownWhileHidden) {
-    window._notifShownWhileHidden = false;
-    window._lastNotifKey = null;
-    if (typeof fetchStatus === 'function') fetchStatus();
+  if (!document.hidden) {
+    // 画面復帰時: 即時同期とタイマーリセット（遅延ゼロ化）
+    if (window._notifShownWhileHidden) {
+      window._notifShownWhileHidden = false;
+      window._lastNotifKey = null;
+    }
+    if (typeof window.triggerPollingStep === 'function') {
+      window.triggerPollingStep();
+    } else if (typeof fetchStatus === 'function') {
+      fetchStatus();
+    }
+  } else {
+    // 画面非表示時: 次のインターバルを低頻度(30秒)に切り替え
+    if (pollingTimerId !== null) {
+      clearTimeout(pollingTimerId);
+      const nextInterval = getNextFetchInterval();
+      pollingTimerId = setTimeout(window.triggerPollingStep, nextInterval);
+    }
   }
 });
 
@@ -502,9 +524,10 @@ async function fetchStatus() {
   }
 }
 
-// ポーリング間隔を返す（通常時は2秒、バックオフ中は30秒）
+// ポーリング間隔を返す（非表示時は30秒、バックオフ中は30秒、通常表示中は2秒）
 function getNextFetchInterval() {
   if (fetchBackoffActive) return FETCH_BACKOFF_INTERVAL;
+  if (typeof document !== 'undefined' && document.hidden) return FETCH_HIDDEN_INTERVAL;
   return FETCH_NORMAL_INTERVAL;
 }
 

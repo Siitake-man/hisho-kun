@@ -1,7 +1,7 @@
 # ネオ秘書くん システム設計書 (DESIGN_SPEC.md)
 
-- **バージョン**: 1.1.3 (🏆 知見機能の呼称刷新「知識の宝庫」 ＆ 6大パフォーマンスボトルネック・省電力設計刻み込み版)
-- **最終更新日時**: 2026-09-14 22:15
+- **バージョン**: 1.1.4 (🏆 P0-1＆P0-2省電力スプリント完遂・Tclクラッシュ根治・全466テスト完全全緑版)
+- **最終更新日時**: 2026-09-15 21:45
 - **アーキテクチャ方針**: 完全ローカル完結型 非ブロッキング並行システム (Tkinter Desktop Overlay × Mobile PWA × LangGraph Agent × Zero-Trust Local Bridge)
 
 ---
@@ -680,9 +680,9 @@ web_pet/
 2026-09-14 の深層監査（`/deep-audit`）によって特定された「6大パフォーマンス・ボトルネック」に対する恒久設計指針。
 
 ### 19.1 クライアント側（スマホPWA）の省電力・低負荷設計
-1. **Page Visibility ポーリング抑制 (P0)**:
-   - `document.hidden === true`（画面OFF・バックグラウンド時）は `getNextFetchInterval()` を 30秒 に自動伸長。
-   - `visibilitychange` イベントで復帰した瞬間、`fetchFailCount` をリセットして即時1回 Fetch を実行し、遅延なく最新状態に復帰。
+1. **Page Visibility ポーリング抑制 (✅ 2026-09-15 完了 - P0)**:
+   - `document.hidden === true`（画面OFF・バックグラウンド時）は `getNextFetchInterval()` で `FETCH_HIDDEN_INTERVAL = 30000` (30秒) に自動伸長。
+   - `visibilitychange` イベントで復帰した瞬間、既存タイマーを `clearTimeout(pollingTimerId)` で即座に破棄し、0秒即時フェッチ＆2秒通常ポーリングへ復帰（遅延ゼロ）。タイマー二重発火も完全防止。単体テスト `tests/test_pet_seam_pwa_power_save.py` 完備。
 2. **ダブルバッファリング ＆ Wake-on-Demand (P1〜P2)**:
    - 背景シーンはオフスクリーンCanvas（`bgCacheCanvas`）で事前レンダリングし、毎フレームは `drawImage` 1発で超高速転送（実装済み）。
    - パーティクルが0個の完全アイドル時は `requestAnimationFrame` を一時停止し、通知着信やなでなで時のみ叩き起こす（Wake-on-Demand）。
@@ -690,9 +690,9 @@ web_pet/
    - `petWanderTick`（120ms周期）での吹き出し位置スタイル更新は、ペットが実際に歩行中（`isMoving === true`）のみに限定し、不要なレイアウト再計算を抑制。
 
 ### 19.2 サーバー側（Python / SQLite / GUI）のスケーラビリティ設計
-1. **ステータスAPI キャッシュの完全網羅 (P0)**:
+1. **ステータスAPI キャッシュの完全網羅 (✅ 2026-09-15 完了 - P0)**:
    - `/api/status` において、タスク・予定（2秒TTL）に加え、習慣データ（`habits_data`）および70日分ヒートマップ（`heatmap_data`）を 30秒TTLキャッシュ に格納。
-   - 2秒ポーリングによる高頻度SQLiteクエリを遮断し、DB負荷を93%削減。
+   - 2秒ポーリングによる高頻度SQLiteクエリを遮断し、DB負荷を93%削減。追加・トグル・削除時に `invalidate_habit_cache()` で即時破棄。単体テスト `tests/test_habit_cache.py` 完備。
 2. **検索頻出カラムの明示的インデックス (P1)**:
    - `tasks(status, due_date)` および `events(start_time, end_time)` にインデックスを新設し、フルテーブルスキャン（O(N)）をO(log N)へ最適化。
 3. **適応型スリープ（Adaptive Sleep - P1)**:

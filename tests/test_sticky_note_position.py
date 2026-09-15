@@ -17,6 +17,7 @@ import tempfile
 import unittest
 from pathlib import Path
 from unittest import mock
+from typing import Optional
 import tkinter as tk
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -25,12 +26,32 @@ if str(PROJECT_ROOT) not in sys.path:
 
 import ui.sticky_note as sticky_note_module
 from ui.sticky_note import DesktopStickyNote
+from ui.tk_teardown import quiet_destroy
 
 
 class StickyNotePositionTestBase(unittest.TestCase):
     """一時設定ファイルと Tk ルートを用意する共通基底クラス"""
 
+    root: Optional[tk.Tk] = None
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        try:
+            cls.root = tk.Tk()
+            cls.root.withdraw()
+        except tk.TclError:
+            cls.root = None
+
+    @classmethod
+    def tearDownClass(cls) -> None:
+        if cls.root is not None:
+            quiet_destroy(cls.root)
+            cls.root = None
+
     def setUp(self) -> None:
+        if self.root is None:
+            self.skipTest("Tk を初期化できない環境のためスキップします")
+
         self._tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self._tmp.cleanup)
         self.config_path = Path(self._tmp.name) / "character_config.json"
@@ -40,19 +61,13 @@ class StickyNotePositionTestBase(unittest.TestCase):
         patcher.start()
         self.addCleanup(patcher.stop)
 
-        try:
-            self.root = tk.Tk()
-        except tk.TclError:
-            self.skipTest("Tk を初期化できない環境のためスキップします")
-        self.root.withdraw()
-        self.addCleanup(self.root.destroy)
-
         # シングルトン状態をテスト毎に必ずリセットする
         DesktopStickyNote._instance = None
         self.addCleanup(setattr, DesktopStickyNote, "_instance", None)
 
     def _make_note(self) -> DesktopStickyNote:
         """テスト用の DesktopStickyNote インスタンスを生成する。"""
+        assert self.root is not None
         return DesktopStickyNote(self.root)
 
 

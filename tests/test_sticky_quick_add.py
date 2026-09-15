@@ -16,6 +16,7 @@ import sys
 import unittest
 from pathlib import Path
 from unittest import mock
+from typing import Optional
 import tkinter as tk
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -25,6 +26,7 @@ if str(PROJECT_ROOT) not in sys.path:
 import ui.sticky_note as sticky_note_module
 from database import Task
 from ui.sticky_note import DesktopStickyNote
+from ui.tk_teardown import quiet_destroy
 
 
 class _FakeEntry:
@@ -50,13 +52,25 @@ class _FakeWindow:
 class StickyQuickAddTestBase(unittest.TestCase):
     """Tk ルートとスタブを用意する共通基底クラス"""
 
-    def setUp(self) -> None:
+    root: Optional[tk.Tk] = None
+
+    @classmethod
+    def setUpClass(cls) -> None:
         try:
-            self.root = tk.Tk()
+            cls.root = tk.Tk()
+            cls.root.withdraw()
         except tk.TclError:
+            cls.root = None
+
+    @classmethod
+    def tearDownClass(cls) -> None:
+        if cls.root is not None:
+            quiet_destroy(cls.root)
+            cls.root = None
+
+    def setUp(self) -> None:
+        if self.root is None:
             self.skipTest("Tk を初期化できない環境のためスキップします")
-        self.root.withdraw()
-        self.addCleanup(self.root.destroy)
 
         # シングルトン状態をテスト毎に必ずリセットする
         DesktopStickyNote._instance = None
@@ -65,6 +79,7 @@ class StickyQuickAddTestBase(unittest.TestCase):
         self.note = DesktopStickyNote(self.root)
         self.note.window = _FakeWindow()
         self.note.tasks_container = tk.Frame(self.root)
+        self.addCleanup(self.note.tasks_container.destroy)
 
     def _all_label_texts(self) -> list:
         """tasks_container 配下の全 Label テキストを収集する。"""
