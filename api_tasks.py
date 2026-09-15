@@ -117,6 +117,8 @@ def action_toggle_habit(ctx: ApiContext) -> bool:
     if not req.habit_id:
         return _respond_missing_param(ctx, "toggle_habit", "habit_id")
     is_done = database.toggle_habit_log(req.habit_id)
+    from local_sync_server import invalidate_habit_cache
+    invalidate_habit_cache()
     # 親愛度XP加算 (+10 XP)
     if is_done:
         from character_manager import get_character_manager
@@ -148,6 +150,8 @@ def action_add_habit(ctx: ApiContext) -> bool:
         return _respond_missing_param(ctx, "add_habit", "title")
     from database import Habit
     h_id = database.create_habit(Habit(title=title, emoji=emoji))
+    from local_sync_server import invalidate_habit_cache
+    invalidate_habit_cache()
     logger.info(f"📱 スマホ側から習慣作成を受信: ID={h_id}, Title={title}")
     ctx.write_json({"status": "success", "habit_id": h_id})
     return True
