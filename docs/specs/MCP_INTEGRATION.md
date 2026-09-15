@@ -59,7 +59,7 @@
     "neo_hisho_bridge": {
       "command": "python",
       "args": [
-        "c:/Users/bonob/OneDrive/ドキュメント/AntiGlavity/ネオ秘書くん/hisho_mcp_server.py"
+        "<path-to-repo>/hisho_mcp_server.py"
       ],
       "env": {}
     }
@@ -71,10 +71,10 @@
 ```toml
 [mcp_servers.neo_hisho_bridge]
 command = "python"
-args = ["c:/Users/bonob/OneDrive/ドキュメント/AntiGlavity/ネオ秘書くん/hisho_mcp_server.py"]
+args = ["<path-to-repo>/hisho_mcp_server.py"]
 ```
 
 ### ③ Claude Code (CLI Command)
 ```bash
-claude mcp add neo_hisho_bridge python c:/Users/bonob/OneDrive/ドキュメント/AntiGlavity/ネオ秘書くん/hisho_mcp_server.py
+claude mcp add neo_hisho_bridge python <path-to-repo>/hisho_mcp_server.py
 ```
