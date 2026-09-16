@@ -21,6 +21,8 @@
 TDD: web_assets モジュールが無い状態では Red。
 """
 
+import contextlib
+import io
 import socket
 import sys
 import tempfile
@@ -219,6 +221,35 @@ class TestAssetsEndpointHardening(unittest.TestCase):
     def test_route_is_wired_to_safe_seam(self) -> None:
         """/assets 配信が純粋 Seam (resolve_asset_path) を経由していること"""
         self.assertIs(local_sync_server.resolve_asset_path, resolve_asset_path)
+
+
+class TestSelfCheckTool(unittest.TestCase):
+    """自己点検ツール tools/check_asset_security.py の動作契約（リリース前ゲートの担保）"""
+
+    def test_self_check_passes_against_real_assets(self) -> None:
+        """自己点検ツール（--serve 相当）が実アセットに対して全項目OKを返すこと"""
+        import tools.check_asset_security as checker
+
+        httpd, host, port = checker.start_ephemeral_server()
+        try:
+            with contextlib.redirect_stdout(io.StringIO()):
+                failures = checker.run_checks(host, port, checker.EXPECTATIONS)
+        finally:
+            httpd.shutdown()
+            httpd.server_close()
+
+        self.assertEqual(failures, 0, "自己点検ツールが /assets の防壁を検知できていません")
+
+    def test_expectations_cover_the_p0_vector(self) -> None:
+        """P0-1 の攻撃ベクタ（バックスラッシュ絶対パス）と正常系が点検項目に含まれること"""
+        import tools.check_asset_security as checker
+
+        raw_paths = [raw for _label, raw, _status, _forbidden in checker.EXPECTATIONS]
+        statuses = {status for _label, _raw, status, _forbidden in checker.EXPECTATIONS}
+
+        self.assertIn("/assets/\\Windows\\win.ini", raw_paths)
+        self.assertIn(200, statuses, "正常系（正規アイコン）の点検が抜けています")
+        self.assertIn(404, statuses)
 
 
 if __name__ == "__main__":

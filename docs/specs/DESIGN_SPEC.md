@@ -771,7 +771,11 @@ web_pet/
 3. **公開維持の判断**: 正規アイコン（`/assets/pwa/icon_192.png`）は 200 + image/png のまま
    （認証は付与しない。ブラウザは manifest/icons を Bearer なしで取得するため）。
    したがって **パス検証が唯一の防壁**であり、回帰テスト
-   `tests/test_asset_path_security.py`（純粋Seam 9件＋実HTTP 5件＝14件）で凍結する。
+   `tests/test_asset_path_security.py`（純粋Seam 9件＋実HTTP 5件＋自己点検ツール2件＝16件）で凍結する。
+4. **自己点検ツール (`tools/check_asset_security.py`)**: `curl` やブラウザは URL の `\` を `/` へ
+   正規化するため攻撃文字列を再現できない。**生ソケットで点検する専用ツール**を用意し、
+   実サーバー（既定）／LAN IP（`--host`）／アプリ未起動（`--serve`）の3モードで
+   正常系200・攻撃系404・内容漏えいなしを検査する（終了コード 1 でリリース前ゲートにも使用可）。
 
 ### 20.7 待受ポートの解決順序 (`sync_config.py`) — P1-1 修正 (2026-09-16)
 - 解決順は **OS環境変数 `NEO_HISHO_PORT` → `.env`（stdlibのみで軽量読取）→ 既定 8765**。
