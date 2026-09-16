@@ -94,8 +94,13 @@ function initDeskPetApp() {
   try { if (typeof setupMediaKeyApproval === 'function') setupMediaKeyApproval(); } catch (e) { console.warn('setupMediaKeyApproval error:', e); }
   try { if (typeof setupBannerSwipe === 'function') setupBannerSwipe(); } catch (e) { console.warn('setupBannerSwipe error:', e); }
   try { if (typeof setupSuggestSwipe === 'function') setupSuggestSwipe(); } catch (e) { console.warn('setupSuggestSwipe error:', e); }
-  try { if (typeof updateBriefingBannerText === 'function') updateBriefingBannerText(); } catch (e) { console.warn('updateBriefingBannerText error:', e); }
-  try { if (typeof particleLoop === 'function') requestAnimationFrame(particleLoop); } catch (e) { console.warn('particleLoop error:', e); }
+  try {
+    if (typeof wakeParticleLoop === 'function') {
+      wakeParticleLoop();
+    } else if (typeof particleLoop === 'function') {
+      requestAnimationFrame(particleLoop);
+    }
+  } catch (e) { console.warn('particleLoop error:', e); }
   try { if (typeof preloadSprites === 'function') preloadSprites(window.currentCharacterId || currentCharacterId); } catch (e) { console.warn('preloadSprites error:', e); }
   
   // 🐛 バグ修正 (2026-08-31): 通知キーをsessionStorageに永続化

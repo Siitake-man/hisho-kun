@@ -588,6 +588,35 @@
     }
   }
 
+  let isParticleLoopRunning = false;
+  let animFrameId = null;
+
+  /**
+   * ループが停止している場合にのみ requestAnimationFrame を叩き起こす (Wake-on-Demand)
+   */
+  function wakeParticleLoop() {
+    if (typeof document !== 'undefined' && document.hidden) {
+      return; // 画面非表示時は叩き起こさない（省電力優先）
+    }
+    if (!isParticleLoopRunning) {
+      isParticleLoopRunning = true;
+      animFrameId = requestAnimationFrame(particleLoop);
+    }
+  }
+
+  /**
+   * アニメーションループを明示的に即時停止し保留フレームを完全破棄 (0fps化・省電力)
+   */
+  function stopParticleLoop() {
+    if (animFrameId !== null) {
+      if (typeof cancelAnimationFrame === 'function') {
+        cancelAnimationFrame(animFrameId);
+      }
+      animFrameId = null;
+    }
+    isParticleLoopRunning = false;
+  }
+
   /**
    * なでなでパーティクル（ハート・星・音符等）の湧き出し生成
    * @param {number} cx 中心X座標
@@ -595,6 +624,7 @@
    * @param {number} count 生成個数（デフォルト 7個）
    */
   function spawnTouchParticles(cx, cy, count = 7) {
+    wakeParticleLoop();
     const emojis = ['💖', '✨', '🌟', '🐾', '🥰', '🎶', '⭐'];
     for (let i = 0; i < count; i++) {
       touchParticles.push({
@@ -618,6 +648,7 @@
    * @param {number} count 噴射個数（デフォルト 18個）
    */
   function spawnCelebrationConfetti(cx, cy, count = 18) {
+    wakeParticleLoop();
     const celebrationEmojis = ['🎉', '✨', '🌟', '💖', '🎊', '👏', '⭐', '🎈'];
     for (let i = 0; i < count; i++) {
       setTimeout(() => {
@@ -643,6 +674,12 @@
    * 🛡️ 不滅アニメーション保証: try-finally で囲み、万一の描画例外時もループ停止を100%防止
    */
   function particleLoop() {
+    // 🛡️ 画面非表示時（バックグラウンド/スリープ）はループを安全に停止（0fps化・省電力）
+    if (typeof document !== 'undefined' && document.hidden) {
+      stopParticleLoop();
+      return;
+    }
+    isParticleLoopRunning = true;
     try {
       if (envCtx && envCanvas) {
         envCtx.clearRect(0, 0, envCanvas.width, envCanvas.height);
@@ -775,49 +812,73 @@
     } catch (err) {
       console.error('[PetParticles] Loop error:', err);
     } finally {
-      requestAnimationFrame(particleLoop);
+      if (typeof document === 'undefined' || !document.hidden) {
+        isParticleLoopRunning = true;
+        animFrameId = requestAnimationFrame(particleLoop);
+      } else {
+        stopParticleLoop();
+      }
     }
   }
 
   // グローバル双方向同期: window.currentEnvIndex への代入で setEnvTheme を自動発火
-  try {
-    Object.defineProperty(window, 'currentEnvIndex', {
-      get: () => currentEnvIndex,
-      set: (v) => { setEnvTheme(v); },
-      configurable: true
+  if (typeof window !== 'undefined') {
+    try {
+      Object.defineProperty(window, 'currentEnvIndex', {
+        get: () => currentEnvIndex,
+        set: (v) => { setEnvTheme(v); },
+        configurable: true
+      });
+    } catch (e) {
+      window.currentEnvIndex = currentEnvIndex;
+    }
+  }
+
+  // 🛡️ Page Visibility API 連動: 画面復帰時にループ再開、画面非表示時は即時破棄 (0fps化)
+  if (typeof document !== 'undefined' && typeof document.addEventListener === 'function') {
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) {
+        stopParticleLoop();
+      } else {
+        wakeParticleLoop();
+      }
     });
-  } catch (e) {
-    window.currentEnvIndex = currentEnvIndex;
   }
 
   // グローバル公開
-  window.ENV_THEMES = ENV_THEMES;
-  window.envParticles = envParticles;
-  window.touchParticles = touchParticles;
-  window.envCanvas = envCanvas;
-  window.envCtx = envCtx;
-  window.initEnvCanvas = initEnvCanvas;
-  window.setEnvTheme = setEnvTheme;
-  window.drawEnvScene = drawEnvScene;
-  window.spawnWeatherParticles = spawnWeatherParticles;
-  window.spawnTouchParticles = spawnTouchParticles;
-  window.spawnCelebrationConfetti = spawnCelebrationConfetti;
-  window.particleLoop = particleLoop;
-  window.cycleEnvTheme = cycleEnvTheme;
+  if (typeof window !== 'undefined') {
+    window.ENV_THEMES = ENV_THEMES;
+    window.envParticles = envParticles;
+    window.touchParticles = touchParticles;
+    window.envCanvas = envCanvas;
+    window.envCtx = envCtx;
+    window.initEnvCanvas = initEnvCanvas;
+    window.setEnvTheme = setEnvTheme;
+    window.drawEnvScene = drawEnvScene;
+    window.spawnWeatherParticles = spawnWeatherParticles;
+    window.spawnTouchParticles = spawnTouchParticles;
+    window.spawnCelebrationConfetti = spawnCelebrationConfetti;
+    window.particleLoop = particleLoop;
+    window.wakeParticleLoop = wakeParticleLoop;
+    window.stopParticleLoop = stopParticleLoop;
+    window.cycleEnvTheme = cycleEnvTheme;
+  }
 })();
 
-// 非モジュール環境での直接呼び出し互換用トップレベルバインド
-var ENV_THEMES = window.ENV_THEMES;
-var currentEnvIndex = window.currentEnvIndex;
-var envParticles = window.envParticles;
-var touchParticles = window.touchParticles;
-var envCanvas = window.envCanvas;
-var envCtx = window.envCtx;
-var initEnvCanvas = window.initEnvCanvas;
-var setEnvTheme = window.setEnvTheme;
-var drawEnvScene = window.drawEnvScene;
-var spawnWeatherParticles = window.spawnWeatherParticles;
-var spawnTouchParticles = window.spawnTouchParticles;
-var spawnCelebrationConfetti = window.spawnCelebrationConfetti;
-var particleLoop = window.particleLoop;
-var cycleEnvTheme = window.cycleEnvTheme;
+// 非モジュール環境での直接呼び出し互換用トップレベルバインド (SSR/Node例外安全)
+var ENV_THEMES = typeof window !== 'undefined' ? window.ENV_THEMES : undefined;
+var currentEnvIndex = typeof window !== 'undefined' ? window.currentEnvIndex : 0;
+var envParticles = typeof window !== 'undefined' ? window.envParticles : [];
+var touchParticles = typeof window !== 'undefined' ? window.touchParticles : [];
+var envCanvas = typeof window !== 'undefined' ? window.envCanvas : null;
+var envCtx = typeof window !== 'undefined' ? window.envCtx : null;
+var initEnvCanvas = typeof window !== 'undefined' ? window.initEnvCanvas : undefined;
+var setEnvTheme = typeof window !== 'undefined' ? window.setEnvTheme : undefined;
+var drawEnvScene = typeof window !== 'undefined' ? window.drawEnvScene : undefined;
+var spawnWeatherParticles = typeof window !== 'undefined' ? window.spawnWeatherParticles : undefined;
+var spawnTouchParticles = typeof window !== 'undefined' ? window.spawnTouchParticles : undefined;
+var spawnCelebrationConfetti = typeof window !== 'undefined' ? window.spawnCelebrationConfetti : undefined;
+var particleLoop = typeof window !== 'undefined' ? window.particleLoop : undefined;
+var wakeParticleLoop = typeof window !== 'undefined' ? window.wakeParticleLoop : undefined;
+var stopParticleLoop = typeof window !== 'undefined' ? window.stopParticleLoop : undefined;
+var cycleEnvTheme = typeof window !== 'undefined' ? window.cycleEnvTheme : undefined;

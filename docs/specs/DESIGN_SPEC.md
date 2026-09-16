@@ -1,7 +1,7 @@
 # ネオ秘書くん システム設計書 (DESIGN_SPEC.md)
 
-- **バージョン**: 1.1.4 (🏆 P0-1＆P0-2省電力スプリント完遂・Tclクラッシュ根治・全466テスト完全全緑版)
-- **最終更新日時**: 2026-09-15 21:45
+- **バージョン**: 1.1.5 (🏆 P1-1省電力スプリント完遂・Canvas適応型描画ループ0fps化・全474テスト完全全緑版)
+- **最終更新日時**: 2026-09-16 11:55
 - **アーキテクチャ方針**: 完全ローカル完結型 非ブロッキング並行システム (Tkinter Desktop Overlay × Mobile PWA × LangGraph Agent × Zero-Trust Local Bridge)
 
 ---
@@ -683,9 +683,10 @@ web_pet/
 1. **Page Visibility ポーリング抑制 (✅ 2026-09-15 完了 - P0)**:
    - `document.hidden === true`（画面OFF・バックグラウンド時）は `getNextFetchInterval()` で `FETCH_HIDDEN_INTERVAL = 30000` (30秒) に自動伸長。
    - `visibilitychange` イベントで復帰した瞬間、既存タイマーを `clearTimeout(pollingTimerId)` で即座に破棄し、0秒即時フェッチ＆2秒通常ポーリングへ復帰（遅延ゼロ）。タイマー二重発火も完全防止。単体テスト `tests/test_pet_seam_pwa_power_save.py` 完備。
-2. **ダブルバッファリング ＆ Wake-on-Demand (P1〜P2)**:
-   - 背景シーンはオフスクリーンCanvas（`bgCacheCanvas`）で事前レンダリングし、毎フレームは `drawImage` 1発で超高速転送（実装済み）。
-   - パーティクルが0個の完全アイドル時は `requestAnimationFrame` を一時停止し、通知着信やなでなで時のみ叩き起こす（Wake-on-Demand）。
+2. **Canvas適応型描画ループ ＆ Wake-on-Demand (✅ 2026-09-16 完了 - P1-1)**:
+   - `web_pet/pet_particles.js`: `document.hidden === true`（画面非表示・バックグラウンド・スリープ時）に `stopParticleLoop()` を自動発火し、`cancelAnimationFrame(animFrameId)` で保留中フレームを完全消去してループを即時停止（**0fps完全スリープ**、GPU/CPU負荷ゼロ）。
+   - 画面復帰時（`visibilitychange`）やユーザー操作時（なでなで `spawnTouchParticles`、タスク完了 `spawnCelebrationConfetti`）のみ `wakeParticleLoop()` で最小限叩き起こす Wake-on-Demand 機構を配備。
+   - `isParticleLoopRunning` フラグによる多重ループ防止、`web_pet/pet.js` の初期化エントリーポイント統一、SSR/Node環境用 `typeof window !== 'undefined'` ガードを完備。TDDテスト `tests/test_pet_seam_canvas_power_save.py`（全8項目）完備。
 3. **DOM更新の条件付きクランプ (P1)**:
    - `petWanderTick`（120ms周期）での吹き出し位置スタイル更新は、ペットが実際に歩行中（`isMoving === true`）のみに限定し、不要なレイアウト再計算を抑制。
 
