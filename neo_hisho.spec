@@ -19,6 +19,15 @@
 """
 
 from PyInstaller.utils.hooks import collect_data_files, collect_dynamic_libs
+from pathlib import Path
+
+# プロジェクトルート: PyInstaller は spec 実行時に SPECPATH (spec のあるフォルダ) を
+# 注入する。単体テスト等で exec される場合に備え、未定義なら CWD へフォールバックする。
+_SPEC_DIR = globals().get("SPECPATH")
+PROJECT_ROOT = Path(_SPEC_DIR).resolve() if _SPEC_DIR else Path.cwd().resolve()
+
+# EXE/タスクバー用アイコン (初代秘書くん 256x256 .ico)
+ICON_PATH = PROJECT_ROOT / "assets" / "icon.ico"
 
 a = Analysis(
     ['main.py'],
@@ -107,7 +116,8 @@ exe = EXE(
     strip=False,
     upx=False,
     console=False,  # windowed: ダブルクリックで黒コンソールを出さない GUI アプリ
-    icon=None,
+    # 🖼️ EXE/タスクバーアイコン: 初代秘書くんの 256x256 .ico を適用 (タスク0)
+    icon=str(ICON_PATH),
 )
 coll = COLLECT(
     exe,

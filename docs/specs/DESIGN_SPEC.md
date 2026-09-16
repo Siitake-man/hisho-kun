@@ -1,7 +1,7 @@
 # ネオ秘書くん システム設計書 (DESIGN_SPEC.md)
 
-- **バージョン**: 1.1.6 (🏆 PR #5マージ・codebase-memory 0.11.0 ADR登録・Cline Desktop超詳細引き継ぎ指示書整備版)
-- **最終更新日時**: 2026-09-16 12:55
+- **バージョン**: 1.1.7 (🖼️ 秘書くんアイコン化・省電力完遂(P1-2/P1-3/P1-4)・PWAホーム画面アイコン・端末管理UI ＆ 🧠 用語境界規約恒久化)
+- **最終更新日時**: 2026-09-16 13:55
 - **アーキテクチャ方針**: 完全ローカル完結型 非ブロッキング並行システム (Tkinter Desktop Overlay × Mobile PWA × LangGraph Agent × Zero-Trust Local Bridge)
 
 ---
@@ -162,6 +162,10 @@ Manusの設計をSQLite用に正規化して採用する。
 ### 5.2 知識の宝庫 (Knowledge Vault) ユーザー知見蓄積エンジン (Long-Term Memory)
 1. **知見の自動抽出**: 会話の中からユーザーの制約・好み・生活リズムを検知し、`user_insights` テーブルへ永続化。
 2. **コンテキスト注入**: 推論時に重要度の高い知見（上位5件）をシステムプロンプトへ自動挿入。
+3. **⚠️ 用語の境界 (2026-09-16 恒久)**: 本機能「知識の宝庫」は秘書くんアプリ内の `user_insights` ストアであり、
+   Cline等の外部環境が提供する汎用エージェント記憶MCP「MentisDB」とは **別物** である（混同禁止）。
+   2026-09-14 に旧呼称「MentisDB」から本呼称へ全面改名済み。旧ドキュメントに残る "MentisDB" は歴史記録。
+   回帰防止テスト: `tests/test_terminology_boundary.py`。
 
 ### 5.3 Tools for Agent
 - **Calendar & Task Manager**: `create_event_tool`, `get_upcoming_events_tool`, `create_task_tool`, `list_tasks_tool`, `complete_task_tool`
@@ -694,9 +698,84 @@ web_pet/
 1. **ステータスAPI キャッシュの完全網羅 (✅ 2026-09-15 完了 - P0)**:
    - `/api/status` において、タスク・予定（2秒TTL）に加え、習慣データ（`habits_data`）および70日分ヒートマップ（`heatmap_data`）を 30秒TTLキャッシュ に格納。
    - 2秒ポーリングによる高頻度SQLiteクエリを遮断し、DB負荷を93%削減。追加・トグル・削除時に `invalidate_habit_cache()` で即時破棄。単体テスト `tests/test_habit_cache.py` 完備。
-2. **検索頻出カラムの明示的インデックス (P1)**:
-   - `tasks(status, due_date)` および `events(start_time, end_time)` にインデックスを新設し、フルテーブルスキャン（O(N)）をO(log N)へ最適化。
-3. **適応型スリープ（Adaptive Sleep - P1)**:
-   - `main.py` の `async_mainloop` において、ユーザー無操作時は `asyncio.sleep(0.03)`（約30Hz）に緩和し、PC側CPUコアの常時占有を半減。
-4. **ポート番号の環境変数オーバーライド (P1)**:
-   - `local_sync_server.py` のポートバインドを `int(os.getenv("NEO_HISHO_PORT", "8765"))` とし、ポート競合耐性を担保。
+2. **検索頻出カラムの明示的インデックス (✅ 2026-09-16 完了 - P1-2)**:
+   - `storage/connection.py` の `init_db()` に `idx_tasks_status_due (status, due_date)` および `idx_events_start_end (start_time, end_time)` を新設し、フルテーブルスキャン（O(N)）を O(log N) へ最適化。既存DBにも起動時の `CREATE INDEX IF NOT EXISTS`（冪等）で自動付与。EXPLAIN QUERY PLAN で索引使用を検証する `tests/test_db_indexes.py` 完備。
+3. **適応型スリープ（Adaptive Sleep - ✅ 2026-09-16 完了 - P1-3)**:
+   - `main.py` の `async_mainloop` において、ユーザー無操作時は `MAIN_LOOP_IDLE_SLEEP_SEC = 0.03`（約30Hz）へ緩和し、PC側CPUコアの常時占有を削減（定数へ一元化・マジックナンバー排除）。`tests/test_main_loop_power.py` 完備。
+4. **ポート番号の単一情報源 ＆ 環境変数オーバーライド (✅ 2026-09-16 完了 - P1-4)**:
+   - `sync_config.py` の `SERVER_PORT`（既定 `DEFAULT_SERVER_PORT = 8765` / 環境変数 `NEO_HISHO_PORT` で上書き可・不正値は既定へ安全退避）を唯一の情報源とし、`local_sync_server` / `ui/qr_dialog` / `main._auto_tailscale_serve` がすべてここを参照。QR接続ダイアログに残っていた `http://localhost:8765/...` のベタ書きを排除。`tests/test_port_single_source.py` 完備。
+
+## 20. 秘書くんアイコン化・PWAアイコン・端末管理UI アーキテクチャ (2026-09-16 Cline Desktop 実装)
+
+デフォルトの汎用アイコン（青い羽ペン相当）を廃止し、**初代秘書くんのドット絵**を
+アプリ全体（ウィンドウ / タスクトレイ / EXE / スマホPWAホーム画面）へ一貫適用する。
+
+### 20.1 アイコン適用の Seam（`ui/window_icon.py`）
+1. **Deep Module 化**: メインウィンドウ (`gui.py`) と各ダイアログ（手帳 / 設定 / QR接続）は
+   `apply_window_icon(window)` を 1 行呼ぶだけ。Tk 固有の分岐は Seam 側へ隠蔽する。
+2. **例外安全なフォールバック設計**: Windows では `iconbitmap(assets/icon.ico)`（タスクバー/Alt+Tab に反映）を
+   第一候補とし、失敗時は PNG ドット絵を `iconphoto(False, image)` へフォールバック。
+   双方失敗しても `False` を返すだけで起動を止めない（Fail-Safe）。
+3. **GC 対策**: `iconphoto` に渡した `PhotoImage` は参照を保持しないと消えるため、
+   ウィンドウ側属性 `_neo_hisho_icon_photo` に保持する。
+
+### 20.2 タスクトレイのキャラ着せ替え連動（`ui/system_tray.py`）
+1. **既定アセットの変更**: `_ASSET_CANDIDATES` の最優先候補を `assets/dot/hisho/idle_1.png` へ変更。
+2. **純粋関数 Seam**: `resolve_character_icon_path(character_id)` / `load_character_tray_image(character_id)` が
+   キャラIDから `assets/dot/<id>/idle_1.png`（64x64・NEAREST 拡大）を解決。未登録キャラは既定キャラへ退避。
+3. **ゼロトラスト入力検証**: キャラIDは `^[a-z0-9_]+$` に正規化し、パストラバーサル文字列で
+   assets 外のファイルを読み出せない（`sanitize_character_id`）。
+4. **着せ替え連動**: `SystemTrayManager.update_character_icon(character_id) -> bool` を新設し、
+   `gui.switch_character_skin()` が `_sync_tray_character_icon()` 経由で呼び出す
+   （トレイ未起動時は何もせず False を返す）。
+
+### 20.3 EXE 実行ファイルアイコン（`neo_hisho.spec`）
+- `icon=str(ICON_PATH)`（`<PROJECT_ROOT>/assets/icon.ico`・256x256）を指定。
+  プロジェクトルートは PyInstaller が注入する `SPECPATH` から解決し、
+  未定義環境（テスト等）では CWD へフォールバックする。
+
+### 20.4 スマホPWAホーム画面アイコン（`assets/pwa/` ＋ `web_pet/`）
+1. **実在×サイズ一致の原則**: 旧 manifest は「32x32 が実在しない `./assets/idle_1.png` を指す（404）」
+   「192/512 と宣言しながら実体は 128x128（サイズ不一致）」というインストール阻害要因を抱えていた。
+   これを全て解消し、宣言サイズ＝実画像サイズを保証する。
+2. **生成の再現性（`tools/build_pwa_icons.py`）**: ドット絵から 192/512（any）と
+   512（maskable）/ 180（apple-touch-icon）を NEAREST 拡大で生成。
+   maskable / iOS 用は透過を許さないためテーマ背景色で塗りつぶし、セーフゾーン（内側70%）に配置する。
+3. **iOS 対応 (`web_pet/index.html`)**: `apple-touch-icon`（180x180）と
+   `apple-mobile-web-app-title`、`rel="icon"`（192x192 PNG）を宣言。
+4. **オフライン整合 (`web_pet/sw.js`)**: 4 種のアイコンを `ASSETS_TO_CACHE` に追加し、
+   オフライン起動時もホーム画面アイコンが欠けないようにする。
+
+### 20.5 設定画面のゼロトラスト接続端末管理UI（`ui/device_manager_panel.py`）
+1. **Seam 分割**: 台帳→表示DTO変換 (`build_device_rows`) と Revoke 実行 (`revoke_device_entry`) は
+   GUI 非依存の純粋関数 / Seam として公開し、Tk を起動せずにテストできる。
+2. **表示項目**: 端末名（未登録時は User-Agent 解析名で補完）、UA要約＋IP、
+   初回接続日時・最終アクセス日時、認証ステータス（🟢 有効 / 🚫 拒否済み）。
+3. **Revoke フロー**: 赤系「🔒 接続解除」ボタン → 確認ダイアログ（注入可能な
+   `confirm_callback`）→ `database.revoke_device(device_id)` → 一覧を即時再描画。
+   失効済み端末のボタンは無効化（二重操作防止）。次回リクエストは 401/403 で遮断される。
+4. **神ファイル肥大化の抑止**: `ui/settings_window.py` へは「📱 接続端末管理」タブに
+   セクションを 1 つ差し込むだけに留め、ロジックは本モジュールへ委譲する。
+
+### 20.6 静的アセット配信のパス検証 Seam (`web_assets.py`) — 🔒 P0 修正 (2026-09-16)
+1. **背景（実測された脆弱性）**: `GET /assets/...` は PWA 表示のため認証なしで公開しており、
+   旧実装の検査（`".." / 先頭"/" / ":"`）を Windows の `\` 始まり絶対パスが通過した。
+   `GET /assets/\Windows\win.ini` が **200 OK＋実ファイル本文**を返し、`0.0.0.0` 待受のため
+   同一LAN/Tailscale 上の第三者へホスト内ファイルが露出していた（ruthless-code-evaluation で実測再現）。
+2. **修正**: 判断ロジックを純粋関数 `web_assets.resolve_asset_path(filename, assets_root)` へ集約し、
+   HTTPハンドラは結果を使うだけにする（Deep Module / Seam）。多層防御は
+   ① 危険表現（`\`・`:`・`%`・先頭 `/`）の事前排除
+   ② 画像拡張子アローリスト（`.png/.jpg/.jpeg/.gif/.webp/.svg/.ico`）
+   ③ 解決後の実パスがルート配下であることの検証（`Path.resolve()` + `is_relative_to`）。
+   Content-Type は `guess_asset_content_type()` で実ファイルから導出。
+3. **公開維持の判断**: 正規アイコン（`/assets/pwa/icon_192.png`）は 200 + image/png のまま
+   （認証は付与しない。ブラウザは manifest/icons を Bearer なしで取得するため）。
+   したがって **パス検証が唯一の防壁**であり、回帰テスト
+   `tests/test_asset_path_security.py`（純粋Seam 9件＋実HTTP 5件＝14件）で凍結する。
+
+### 20.7 待受ポートの解決順序 (`sync_config.py`) — P1-1 修正 (2026-09-16)
+- 解決順は **OS環境変数 `NEO_HISHO_PORT` → `.env`（stdlibのみで軽量読取）→ 既定 8765**。
+- `main.py` は `agent.py`（`load_dotenv()` 実行元）より先に `sync_config` を import するため、
+  `.env` の値は `os.environ` に載っていない。そこで `read_port_from_env_file()` が
+  アプリデータルート（`app_paths.get_app_root()`）の `.env` を直接読む（`os.environ` は汚染しない）。
+- 不正値は例外を出さず既定ポートへ退避する（`resolve_server_port` の入力検証）。

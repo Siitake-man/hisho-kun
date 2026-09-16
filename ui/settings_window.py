@@ -13,6 +13,8 @@ from pathlib import Path
 import customtkinter as ctk
 from dotenv import load_dotenv
 
+from ui.window_icon import apply_window_icon
+
 logger = logging.getLogger(__name__)
 
 class AddMCPServerDialog(ctk.CTkToplevel):
@@ -244,7 +246,10 @@ class SettingsWindow(ctk.CTkToplevel):
         self.font_title = ("DotGothic16", 15, "bold") if "DotGothic16" in tk.font.families() else ("Meiryo UI", 13, "bold")
         self.font_body = ("DotGothic16", 12) if "DotGothic16" in tk.font.families() else ("Meiryo UI", 10)
         self.font_small = ("Meiryo UI", 9)
-        
+
+        # 🖼️ ウィンドウアイコン (Alt+Tab/タスクバー) を統一 (例外安全 Seam)
+        apply_window_icon(self)
+
         self._build_ui()
 
     def _build_ui(self):
@@ -267,6 +272,7 @@ class SettingsWindow(ctk.CTkToplevel):
         tab_llm = self.tabview.add("🧠 AIモデル設定")
         tab_mcp = self.tabview.add("🤖 外部AI・MCP連携")
         tab_tools = self.tabview.add("📅 外部ツール・プラグイン")
+        tab_devices = self.tabview.add("📱 接続端末管理")
         tab_guide = self.tabview.add("📖 使い方ガイド")
 
         # =====================================================================
@@ -959,6 +965,18 @@ class SettingsWindow(ctk.CTkToplevel):
         for n in notices:
             ctk.CTkLabel(content_guide, text=n, font=self.font_small,
                           text_color="#7A6B62", anchor="w", wraplength=400).pack(anchor="w", padx=(8, 0))
+
+        # =====================================================================
+        # Tab 5: 接続端末管理（ゼロトラスト端末台帳）
+        #   Sprint C 先取り (2026-09-16): 台帳の表示・Revoke は
+        #   ui/device_manager_panel.py の Deep Module へ委譲し、
+        #   本画面はセクションを差し込むだけに留める (肥大化防止)。
+        # =====================================================================
+        from ui.device_manager_panel import DeviceManagerSection
+
+        self.device_manager_section = DeviceManagerSection(tab_devices)
+        self.device_manager_section.pack(fill="both", expand=True, padx=8, pady=6)
+
 
         # =====================================================================
         # 保存ボタン

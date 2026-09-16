@@ -5,7 +5,8 @@
 2026-08-28 改修:
 - Tailscale 接続時に HTTPS (Tailscale Serve 必須) と HTTP 直接入力 (設定不要) を両対応
 - Tailscale の仮想アダプタ IP (100.64.0.0/10 帯) を ipconfig から確実に検出
-- tailscale serve --bg 8765 コマンドのコピーボタンを設置
+- tailscale serve コマンドのコピーボタンを設置
+  （ポート番号は sync_config.SERVER_PORT を唯一の情報源とし、ベタ書きしない）
 """
 
 import logging
@@ -20,11 +21,16 @@ from typing import Dict, List
 import customtkinter as ctk
 from PIL import ImageTk
 
+from sync_config import SERVER_PORT
+from ui.window_icon import apply_window_icon
+
 logger = logging.getLogger(__name__)
 
+# 同期サーバーの待受ポート (ハードコード禁止: sync_config を唯一の情報源とする)
+TAILSCALE_HTTP_PORT = SERVER_PORT
+
 # Tailscale Serve のリバースプロキシ起動コマンド（HTTPS モード用）
-TAILSCALE_SERVE_COMMAND = "tailscale serve --bg 8765"
-TAILSCALE_HTTP_PORT = 8765
+TAILSCALE_SERVE_COMMAND = f"tailscale serve --bg {SERVER_PORT}"
 
 
 def is_tailscale_ip(ip: str) -> bool:
@@ -93,18 +99,35 @@ def build_lan_url(ip: str) -> str:
     return f"http://{ip}:{TAILSCALE_HTTP_PORT}"
 
 
+def build_loopback_api_url(path: str) -> str:
+    """PC自身（ループバック）からローカル同期APIへアクセスするURLを生成します。
+
+    Args:
+        path: APIパス (例: "/api/test_buzz")。先頭スラッシュは省略可。
+
+    Returns:
+        str: ``http://localhost:<SERVER_PORT><path>`` 形式のURL。
+
+    Notes:
+        ポート番号をベタ書きしないため、待受ポートを変更しても本関数の
+        呼び出し側は無修正で追従する (sync_config が唯一の情報源)。
+    """
+    normalized = path if path.startswith("/") else f"/{path}"
+    return f"http://localhost:{TAILSCALE_HTTP_PORT}{normalized}"
+
+
 def build_tailscale_https_url(hostname: str) -> str:
     """Tailscale Serve 経由 (HTTPS / ポート443) の URL を生成します。
 
     Notes:
-        PC 側で ``tailscale serve --bg 8765`` の実行が必要。
+        PC 側で ``TAILSCALE_SERVE_COMMAND`` (tailscale serve) の実行が必要。
     """
     hostname = hostname.strip()
     return f"https://{hostname}/" if hostname else ""
 
 
 def build_tailscale_http_url(host: str) -> str:
-    """Tailscale の HTTP 直接入力 (ポート8765) の URL を生成します。
+    """Tailscale の HTTP 直接入力 (TAILSCALE_HTTP_PORT) の URL を生成します。
 
     Notes:
         追加設定なしで即座に開通するが、PWA の一部機能 (マイク等の
@@ -135,6 +158,9 @@ class QRCodeConnectionDialog(ctk.CTkToplevel):
         self.font_body = ("DotGothic16", 11) if "DotGothic16" in tk.font.families() else ("Meiryo UI", 10)
         self.font_small = ("Meiryo UI", 9)
         self.font_mono = ("Consolas", 10)
+
+        # 🖼️ ウィンドウアイコン (Alt+Tab/タスクバー) を統一 (例外安全 Seam)
+        apply_window_icon(self)
         
         self.qr_image_tk = None
         self._build_ui()
@@ -245,7 +271,10 @@ class QRCodeConnectionDialog(ctk.CTkToplevel):
         serve_box.pack(fill="x", padx=pad, pady=2)
         ctk.CTkLabel(
             serve_box,
-            text="🌐 Tailscale (HTTPS) が繋がらない場合はPC側で下記を実行:\n tailscale serve --bg 8765 （443→8765 のプロキシ）",
+            text=(
+                "🌐 Tailscale (HTTPS) が繋がらない場合はPC側で下記を実行:\n"
+                f" {TAILSCALE_SERVE_COMMAND} （443→{TAILSCALE_HTTP_PORT} のプロキシ）"
+            ),
             font=self.font_small,
             text_color="#6A1B9A",
             justify="left"
@@ -393,7 +422,7 @@ class QRCodeConnectionDialog(ctk.CTkToplevel):
         try:
             from local_sync_server import get_sync_token_manager
             req = urllib.request.Request(
-                "http://localhost:8765/api/test_buzz",
+                build_loopback_api_url("/api/test_buzz"),
                 data=b"{}",
                 headers={
                     "Content-Type": "application/json",

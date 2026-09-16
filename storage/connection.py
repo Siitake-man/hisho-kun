@@ -93,6 +93,14 @@ def init_db(db_path: str = "neo_secretary.db") -> None:
                 FOREIGN KEY (category_id) REFERENCES categories (id)
             )
         """)
+
+        # P1-2 (省電力スプリント 2026-09-16): 予定の期間重複判定 (start_time/end_time) を
+        # インデックススキャン O(log N) へ高速化し、手帳画面表示・スマホPWAの
+        # 定期ポーリング時のフルスキャン O(N) を排除する。
+        cursor.execute(
+            "CREATE INDEX IF NOT EXISTS idx_events_start_end "
+            "ON events (start_time, end_time)"
+        )
         
         # calendar_sourcesテーブル (カレンダー購読ソース: 仕事用/プライベート等の複数iCal)
         cursor.execute("""
@@ -166,6 +174,15 @@ def init_db(db_path: str = "neo_secretary.db") -> None:
                 FOREIGN KEY (parent_id) REFERENCES tasks (id)
             )
         """)
+
+        # P1-2 (省電力スプリント 2026-09-16): TODOの「ステータス絞り込み＋期日比較」
+        # (例: /api/status の未完了タスク抽出、手帳の期日アラート) を
+        # インデックススキャン O(log N) へ高速化し、2秒周期ポーリング時の
+        # フルスキャン O(N) を排除する。
+        cursor.execute(
+            "CREATE INDEX IF NOT EXISTS idx_tasks_status_due "
+            "ON tasks (status, due_date)"
+        )
 
         # task_listsテーブル (タスクリスト・フォルダ分類: TickTick拡張)
         cursor.execute("""

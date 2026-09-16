@@ -78,6 +78,8 @@ def _fmt_event_dt(ms_val: Any) -> str:
         return ""
 
 import database
+import sync_config
+from web_assets import guess_asset_content_type, resolve_asset_path
 from update_checker import get_update_status
 from sync_dtos import validate_status_payload, validate_tasks_view_response
 from api_context import ApiContext
@@ -92,7 +94,8 @@ logger = logging.getLogger(__name__)
 
 WEB_PET_DIR = Path(__file__).parent / "web_pet"
 ASSETS_DIR = Path(__file__).parent / "assets"
-SERVER_PORT = 8765
+# 待受ポートは sync_config を唯一の情報源とする (QRダイアログ/Tailscale起動と一元化)
+SERVER_PORT = sync_config.SERVER_PORT
 TOKEN_FILE = Path(__file__).parent / ".sync_token"
 
 # =============================================================================
@@ -1278,26 +1281,22 @@ class DeskPetSyncHandler(SimpleHTTPRequestHandler):
                 logger.error(f"Briefing API エラー: {e}")
                 self.wfile.write(json.dumps({"status": "error", "message": str(e)}, ensure_ascii=False).encode("utf-8"))
 
-        # 4. アセット画像配信 (GET /assets/...) — 静的画像は認証不要（PWA表示用）
+        # 4. アセット配信 (GET /assets/...) — 静的画像のみ・認証不要（PWAアイコン/スプライト）
+        #    P0-1 (2026-09-16): パス検証を web_assets.resolve_asset_path へ集約。
+        #    「\」始まり絶対パス等による assets 外読み出しを根治（多層防御）。
         elif self.path.startswith("/assets/"):
             filename = self.path[len("/assets/"):].split("?")[0]
-            # パストラバーサル対策: 相対参照・ドライブ指定を含むリクエストは拒否
-            if ".." in filename or filename.startswith("/") or ":" in filename:
-                logger.warning(f"🚫 [Security] 不正なアセットパス要求を拒否: {filename}")
-                self.send_error(404, "Invalid asset path")
-                return
-            asset_file = ASSETS_DIR / filename
+            asset_file = resolve_asset_path(filename, ASSETS_DIR)
 
-            if asset_file.is_file():
+            if asset_file is not None:
                 self.send_response(200)
-                self.send_header("Content-Type", "image/png")
+                self.send_header("Content-Type", guess_asset_content_type(asset_file))
                 self.send_header("Cache-Control", "no-cache")
                 self._set_cors_headers()
                 self.end_headers()
                 with open(asset_file, "rb") as f:
                     self.wfile.write(f.read())
             else:
-                logger.warning(f"アセットが見つかりません: {filename}")
                 self.send_error(404, f"Asset not found: {filename}")
 
         else:

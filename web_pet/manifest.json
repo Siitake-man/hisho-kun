@@ -9,21 +9,22 @@
   "orientation": "any",
   "icons": [
     {
-      "src": "./assets/idle_1.png",
-      "sizes": "32x32",
-      "type": "image/png"
-    },
-    {
-      "src": "./assets/happy.png",
+      "src": "./assets/pwa/icon_192.png",
       "sizes": "192x192",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
     },
     {
-      "src": "./assets/happy.png",
+      "src": "./assets/pwa/icon_512.png",
       "sizes": "512x512",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
+    },
+    {
+      "src": "./assets/pwa/icon_maskable_512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
     }
   ]
 }

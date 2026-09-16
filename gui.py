@@ -26,6 +26,7 @@ from ui.pomodoro import PomodoroMixin
 from ui.radial_menu import RadialMenuMixin
 from ui.tour_overlay import TourOverlayMixin
 from ui.tk_teardown import install_quiet_teardown, quiet_destroy
+from ui.window_icon import apply_window_icon
 from llm_factory import LLMFactory
 
 logger = logging.getLogger(__name__)
@@ -74,6 +75,10 @@ class NeoSecretaryGUI(PomodoroMixin, RadialMenuMixin, TourOverlayMixin):
         #    「invalid command name ...check_dpi_scaling/update」が漏出するため、
         #    破棄後残滅の TclError を debug ログへ格下げする quiet ガードを装着。
         install_quiet_teardown(self.root)
+
+        # 🖼️ ウィンドウアイコン (タスクバー/Alt+Tab) へ初代秘書くんドット絵を適用
+        #    失敗しても起動を止めない例外安全 Seam (ui/window_icon.py)
+        apply_window_icon(self.root)
 
         # 🖥️ タスクトレイ常駐マネージャー (pystray) の初期化
         try:
@@ -375,6 +380,22 @@ class NeoSecretaryGUI(PomodoroMixin, RadialMenuMixin, TourOverlayMixin):
             import random
             greeting = random.choice(info["greetings"])
             self.update_message(f"【{info['emoji']} {info['name']} に変身！】\n{greeting}")
+            # 🖥️ タスクトレイのアイコンも新キャラのドット絵へ連動更新 (タスク0)
+            self._sync_tray_character_icon(char_id)
+
+    def _sync_tray_character_icon(self, char_id: str) -> None:
+        """着せ替えに連動してタスクトレイアイコンを更新する (未起動/未導入時は無視)。
+
+        Args:
+            char_id: 新しく選択されたキャラクターID。
+        """
+        tray = getattr(self, 'tray_manager', None)
+        if tray is None:
+            return
+        try:
+            tray.update_character_icon(char_id)
+        except Exception as e:
+            logger.debug(f"トレイアイコン連動更新スキップ: {e}")
 
     def _render_effects(self):
         """集中時の炎（🔥）・オーラ・パーティクルをCanvasに描画"""

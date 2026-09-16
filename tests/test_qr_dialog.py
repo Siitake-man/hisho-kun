@@ -58,7 +58,7 @@ def test_extract_ipv4_addresses():
 
 def test_build_urls():
     """各 URL ビルダーが仕様どおりの文字列を返すこと。"""
-    assert build_lan_url("192.168.1.5") == "http://192.168.1.5:8765"
+    assert build_lan_url("192.168.1.5") == f"http://192.168.1.5:{TAILSCALE_HTTP_PORT}"
     assert build_tailscale_https_url("myhost.ts.net") == "https://myhost.ts.net/"
     assert build_tailscale_https_url("  ") == ""
     assert build_tailscale_http_url("100.101.1.5") == f"http://100.101.1.5:{TAILSCALE_HTTP_PORT}"
@@ -67,7 +67,7 @@ def test_build_urls():
 
 def test_serve_command_constant():
     """コピー用コマンド定数が仕様どおりであること。"""
-    assert TAILSCALE_SERVE_COMMAND == "tailscale serve --bg 8765"
+    assert TAILSCALE_SERVE_COMMAND == f"tailscale serve --bg {TAILSCALE_HTTP_PORT}"
 
 
 def test_get_tailscale_ips_returns_list():

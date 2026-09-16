@@ -10,6 +10,7 @@ import tkinter as tk
 import customtkinter as ctk
 
 import database
+from ui.window_icon import apply_window_icon
 
 logger = logging.getLogger(__name__)
 
@@ -42,7 +43,10 @@ class CalendarWindow(ctk.CTkToplevel):
         self.font_title = ("DotGothic16", 16, "bold") if "DotGothic16" in tk.font.families() else ("Meiryo UI", 14, "bold")
         self.font_body = ("DotGothic16", 13) if "DotGothic16" in tk.font.families() else ("Meiryo UI", 11)
         self.font_small = ("Meiryo UI", 9)
-        
+
+        # 🖼️ ウィンドウアイコン (Alt+Tab/タスクバー) を統一 (例外安全 Seam)
+        apply_window_icon(self)
+
         self._build_ui()
         self.refresh_all_data()
 

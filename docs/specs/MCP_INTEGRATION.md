@@ -48,6 +48,8 @@
 | **`create_task`** | 気づいた課題の**TODO手帳登録** | `title` (必須), `priority`, `memo` | ネオ秘書くんのTODO手帳へ即時登録。 |
 | **`remember_boss_insight`** | ボスの制約・好みの**知識の宝庫への記憶** | `category` (必須), `content` (必須), `importance` | 次回以降のセッションでも参照可能な長期記憶として永続化。 |
 
+> 🧭 **用語の境界（2026-09-16 恒久ルール）**: `remember_boss_insight` が書き込む「知識の宝庫」は秘書くんアプリ内の `user_insights` ストアです。Cline環境の汎用エージェント記憶MCP「MentisDB」とは**別物**です（混同禁止・回帰防止テスト `tests/test_terminology_boundary.py`）。
+
 ---
 
 ## 3. 各エージェントへの登録設定（設定画面から1クリックコピー可能）

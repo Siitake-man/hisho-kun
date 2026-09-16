@@ -153,6 +153,14 @@ class TestSpecAssetsExist(unittest.TestCase):
                 (PROJECT_ROOT / rel).is_dir(), f"同梱対象が存在しません: {rel}"
             )
 
+    def test_executable_icon_is_configured(self) -> None:
+        """EXE/タスクバーアイコン (assets/icon.ico) が spec で指定されている。"""
+        spec_source = (PROJECT_ROOT / "neo_hisho.spec").read_text(encoding="utf-8")
+        self.assertIn("ICON_PATH", spec_source)
+        self.assertIn("icon=str(ICON_PATH)", spec_source)
+        self.assertNotIn("icon=None", spec_source)
+        self.assertTrue((PROJECT_ROOT / "assets" / "icon.ico").is_file())
+
     def test_env_example_exists(self) -> None:
         """.env.example (初回起動 .env 自動生成のソース) が存在する。"""
         self.assertTrue((PROJECT_ROOT / ".env.example").is_file())

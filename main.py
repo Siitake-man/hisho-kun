@@ -14,7 +14,15 @@ import subprocess
 import sys
 import threading
 import tkinter as tk
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Final, Optional
+
+from sync_config import SERVER_PORT
+
+# メインループのアイドル待機秒 (P1-3 省電力スプリント・2026-09-16)。
+# 旧 0.01 秒 (100Hz) は UI 応答性に対して過剰で、無操作時も PC の
+# メインスレッドを常時占有していた。約 30Hz (0.03 秒) へ緩和することで
+# 体感応答性 (最大 30ms 遅延) を維持しつつ、常時 CPU 占有率を削減する。
+MAIN_LOOP_IDLE_SLEEP_SEC: Final[float] = 0.03
 
 
 def _early_cli_dispatch() -> None:
@@ -96,14 +104,15 @@ logger = logging.getLogger(__name__)
 
 
 def _auto_tailscale_serve() -> None:
-    """Tailscale がインストールされていれば、起動時に `tailscale serve 8765` を自動実行する。
+    """Tailscale がインストールされていれば、起動時に tailscale serve を自動実行する。
 
     ユーザーが手動でコマンドを叩く手間を省くヘルパー。
+    ポート番号は sync_config.SERVER_PORT を参照する (ベタ書き禁止)。
     エラーは無視（入っていなければ単に何もしない）。
     """
     try:
         result = subprocess.run(
-            ["tailscale", "serve", "8765"],
+            ["tailscale", "serve", str(SERVER_PORT)],
             capture_output=True, text=True, timeout=10,
             creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0,
         )
@@ -537,10 +546,13 @@ async def async_mainloop(app: NeoSecretaryApp):
             app.gui.process_action_queue()
             app.gui.root.update()
             
-            # 2. ほんの僅かな時間（0.01秒）だけ処理を手放し、LLM推論等のAsyncioタスク群を動かす
+            # 2. ほんの僅かな時間だけ処理を手放し、LLM推論等のAsyncioタスク群を動かす
+            #    P1-3 (2026-09-16): 100Hz(0.01s) → 約30Hz(0.03s) へ緩和。
+            #    体感応答性 (最大30ms遅延) を維持しつつ、無操作時のメインスレッド
+            #    CPU常時占有率を削減する。値は MAIN_LOOP_IDLE_SLEEP_SEC に一元化。
             #    ※ プロアクティブ見守り・予定リマインダーの周期チェックは
             #       ProactiveScheduler (proactive_scheduler.py) の専用スレッドへ移管済み (P2対応)
-            await asyncio.sleep(0.01)
+            await asyncio.sleep(MAIN_LOOP_IDLE_SLEEP_SEC)
             
         except tk.TclError as te:
             # 本当にウィンドウが破棄された場合のみ終了

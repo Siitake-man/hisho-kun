@@ -17,7 +17,12 @@ const ASSETS_TO_CACHE = [
   './pet_motion.js',
   './pet_ui.js',
   './pet.js',
-  './manifest.json'
+  './manifest.json',
+  // ホーム画面アイコン (タスク3): オフライン起動時もアイコンが欠けないよう事前キャッシュ
+  './assets/pwa/icon_192.png',
+  './assets/pwa/icon_512.png',
+  './assets/pwa/icon_maskable_512.png',
+  './assets/pwa/apple_touch_icon_180.png'
 ];
 
 self.addEventListener('install', (event) => {
