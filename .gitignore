@@ -40,7 +40,9 @@ AGENTS.md
 prompt_for_jules*.md
 prompt_for_codex*.md
 .agents/
+*.bak
 *.md.bak
+*.html.bak
 
 # --- 秘密情報（絶対にコミット禁止） ---
 .env

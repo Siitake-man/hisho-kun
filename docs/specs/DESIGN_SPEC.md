@@ -1,7 +1,7 @@
 # ネオ秘書くん システム設計書 (DESIGN_SPEC.md)
 
-- **バージョン**: 1.1.5 (🏆 P1-1省電力スプリント完遂・Canvas適応型描画ループ0fps化・全474テスト完全全緑版)
-- **最終更新日時**: 2026-09-16 11:55
+- **バージョン**: 1.1.6 (🏆 PR #5マージ・codebase-memory 0.11.0 ADR登録・Cline Desktop超詳細引き継ぎ指示書整備版)
+- **最終更新日時**: 2026-09-16 12:55
 - **アーキテクチャ方針**: 完全ローカル完結型 非ブロッキング並行システム (Tkinter Desktop Overlay × Mobile PWA × LangGraph Agent × Zero-Trust Local Bridge)
 
 ---
