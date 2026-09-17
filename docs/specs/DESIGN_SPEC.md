@@ -1,7 +1,7 @@
 # ネオ秘書くん システム設計書 (DESIGN_SPEC.md)
 
-- **バージョン**: 1.1.7 (🖼️ 秘書くんアイコン化・省電力完遂(P1-2/P1-3/P1-4)・PWAホーム画面アイコン・端末管理UI ＆ 🧠 用語境界規約恒久化)
-- **最終更新日時**: 2026-09-16 13:55
+- **バージョン**: 1.1.8 (🧠 LLM出力言語ガード(P0中国語化修正)・アセット解決一本化・Tailscaleコマンド統一・P1〜P3負債返済)
+- **最終更新日時**: 2026-09-17 18:56
 - **アーキテクチャ方針**: 完全ローカル完結型 非ブロッキング並行システム (Tkinter Desktop Overlay × Mobile PWA × LangGraph Agent × Zero-Trust Local Bridge)
 
 ---
@@ -807,3 +807,31 @@ web_pet/
 3. **API ハンドラの Seam 化**: `POST /api/devices/revoke` の処理本体は
    `api_devices.handle_post_devices_revoke(ctx)` へ抽出（ループバック限定チェックは呼び出し元に残置）。
    400/404/200/500・CORS ヘッダーの挙動は従来踏襲（不正JSONのみ 500→400 へ明示化）。
+
+### 20.9 LLM 出力言語ガード (`i18n.py` / `life_coach_engine.py` / `agent.py`) — P0 (2026-09-17)
+1. **背景（実機で発生した事象）**: 生活コーチのレポートが**中国語で出力**された。
+   原因は `life_coach_engine._invoke_llm()` が LLM へ `Output language: ja` と
+   **言語コードのみ**を渡していたこと。DeepSeek 等の中国系モデルは曖昧な言語指示を解釈できず、
+   既定言語（中国語）で生成する（`OPENCODE_MODEL=deepseek-v4-pro` 環境で再現）。
+2. **設計**:
+   - `i18n.LANGUAGE_NAMES`（`{"ja": "日本語", "en": "English"}`）と `get_language_name()` を新設し、
+     プロンプトには**正式言語名**を渡す。
+   - `get_no_chinese_instruction()`（“Do NOT use Chinese (简体中文) …”）を全LLMプロンプトへ追記し、
+     中国語・他言語の混入を明示的に禁止する。
+   - メインチャット（`agent.py`）のシステムプロンプトにも**【言語規則】必ず日本語で応答**を明記
+     （キャラクター人格プロンプトと併記）。
+   - **言語タグによる再生成**: `LifeCoachEngine` は生成レポートに `language` を埋め、
+     `_load_latest_report()` で現在言語と不一致なら破棄して再生成する
+     （旧レポートの言語が残り続ける事故を防止・SQLite永続化を跨ぐ）。
+3. **回帰防止**: `tests/test_life_coach.py`（11件）＋ `tests/test_i18n*`。
+   実機確認（ボス）にて日本語出力を確認済み。
+
+### 20.10 継続セッションの品質負債返済 (2026-09-17)
+| 項目 | 内容 |
+|---|---|
+| **アセット解決の一本化** | `ui/system_tray.py` の `iter_tray_icon_candidates()` を唯一の情報源とし、`_ASSET_CANDIDATES`（固定リスト）と `resolve_character_icon_path`（キャラ別）の二重化を解消。**起動時のトレイアイコンが保存済みキャラクター（着せ替え状態）に追従**（旧: 常に既定キャラ固定）。`Image.open` は `with` で確実にクローズ |
+| **Tailscale コマンド統一** | `sync_config.tailscale_serve_command_args()` / `TAILSCALE_SERVE_FLAGS = ("--bg",)` を新設し、`main.py`（旧: `--bg` なし）・QRダイアログ・設定画面ガイド・LLMプロンプトを**同一コマンド**へ統一 |
+| **端末管理UIの文言是正** | 復旧手順を「設定画面の『🚫 スマホ連携をすべて解除（トークン再生成）』→ 新しいQRを読み直す」と正確化。全端末共通トークン運用のため**台帳は通常1件のみ**である旨を注記 |
+| **起動時DB初期化の可視化** | `init_db` の実行時間を計測し `DB_INIT_SLOW_THRESHOLD_MS`（2秒）超で警告。バックグラウンド化は起動直後の書き込みロック競合リスクが高く、本アプリのDB規模では不要と判断（理由を docstring に明記） |
+| **命名・整合の是正** | 「適応型スリープ」→「**アイドル待機の30Hz化（固定レート）**」へ是正（遅延上限=1ティック処理時間+30ms を明記）。`tools/build_pwa_icons.py --check`（生成仕様とのドリフト検出・終了コード1）を追加し、コミット済みアイコンが仕様と一致することをテストで凍結 |
+| **機密スキャナの実行不能バグ** | `tools/scan_git_secrets.py` が Windows コンソール（cp932）で絵文字により `UnicodeEncodeError` で落ちていたため、出力を ASCII（`[OK]`/`[NG]`/`[SCAN]`）へ変更 |
