@@ -10,7 +10,7 @@ import logging
 import re
 import threading
 from pathlib import Path
-from typing import Optional, Any
+from typing import Any, List, Optional
 from PIL import Image
 
 logger = logging.getLogger(__name__)
@@ -28,13 +28,6 @@ TRAY_ICON_SIZE = (64, 64)
 # キャラクターIDの許可文字 (パストラバーサル等の不正入力を遮断・ゼロトラスト)
 _CHARACTER_ID_PATTERN = re.compile(r"^[a-z0-9_]+$")
 
-_ASSET_CANDIDATES = [
-    ASSETS_DIR / "dot" / DEFAULT_CHARACTER_ID / TRAY_FRAME_NAME,
-    ASSETS_DIR / "happy.png",
-    ASSETS_DIR / "dot" / "seal" / TRAY_FRAME_NAME,
-    ASSETS_DIR / "dot" / "seal" / "happy.png",
-]
-
 
 def sanitize_character_id(character_id: Any) -> Optional[str]:
     """キャラクターIDを安全な文字列 (小文字英数とアンダースコアのみ) へ正規化する。
@@ -51,6 +44,35 @@ def sanitize_character_id(character_id: Any) -> Optional[str]:
     return text if _CHARACTER_ID_PATTERN.match(text) else None
 
 
+def iter_tray_icon_candidates(character_id: Any = None) -> List[Path]:
+    """トレイアイコンの候補パスを優先順に列挙する（アセット解決の単一情報源）。
+
+    Args:
+        character_id: キャラクターID。不正・未登録・None の場合は既定キャラへ退避。
+
+    Returns:
+        List[Path]: 「指定キャラの idle_1 → 指定キャラの happy → 既定キャラの idle_1 →
+            既定キャラの happy」の順の候補パス（実在確認は呼び出し側で行う）。
+
+    Notes:
+        P2 (2026-09-16 ruthless-code-evaluation): 旧実装は `_ASSET_CANDIDATES`（固定リスト）と
+        `resolve_character_icon_path`（キャラ別解決）でアセット解決が二重化していた。
+        本関数を唯一の情報源とし、両者はここから導出する。
+    """
+    candidates: List[Path] = []
+    safe_id = sanitize_character_id(character_id)
+
+    for char_id in ([safe_id] if safe_id else []):
+        candidates.append(ASSETS_DIR / "dot" / char_id / TRAY_FRAME_NAME)
+        candidates.append(ASSETS_DIR / "dot" / char_id / "happy.png")
+
+    if safe_id != DEFAULT_CHARACTER_ID:
+        candidates.append(ASSETS_DIR / "dot" / DEFAULT_CHARACTER_ID / TRAY_FRAME_NAME)
+        candidates.append(ASSETS_DIR / "dot" / DEFAULT_CHARACTER_ID / "happy.png")
+
+    return candidates
+
+
 def resolve_character_icon_path(character_id: Any = None) -> Optional[Path]:
     """キャラクターIDからトレイアイコン用ドット絵 (assets/dot/<id>/idle_1.png) を解決する。
 
@@ -62,14 +84,7 @@ def resolve_character_icon_path(character_id: Any = None) -> Optional[Path]:
     Returns:
         Optional[Path]: 実在する画像パス。assets 内に候補が無ければ None。
     """
-    candidates = []
-    safe_id = sanitize_character_id(character_id)
-    if safe_id:
-        candidates.append(ASSETS_DIR / "dot" / safe_id / TRAY_FRAME_NAME)
-        candidates.append(ASSETS_DIR / "dot" / safe_id / "happy.png")
-    candidates.append(ASSETS_DIR / "dot" / DEFAULT_CHARACTER_ID / TRAY_FRAME_NAME)
-
-    for path in candidates:
+    for path in iter_tray_icon_candidates(character_id):
         if path.is_file():
             return path
     return None
@@ -120,14 +135,34 @@ class SystemTrayManager:
         self._thread: Optional[threading.Thread] = None
         self._stop_event = threading.Event()
 
+    def _current_character_id(self) -> Optional[str]:
+        """保存済みの選択キャラクターIDを取得する（取得失敗時は None＝既定キャラ）。
+
+        Notes:
+            P2 (2026-09-16 独立査読): 旧実装は起動時のトレイアイコンが常に既定キャラ
+            (hisho) 固定で、保存済みの着せ替え状態が反映されなかった。
+        """
+        try:
+            from character_manager import get_character_manager
+
+            return get_character_manager().current_character_id
+        except Exception as e:
+            logger.debug(f"キャラクター設定の取得をスキップ（既定キャラを使用）: {e}")
+            return None
+
     def _load_tray_image(self) -> Image.Image:
-        """トレイアイコン用の画像をロード（見つからない場合はフォールバック生成）"""
-        for p in _ASSET_CANDIDATES:
-            if p.exists():
+        """トレイアイコン用の画像をロード（選択中キャラ→既定キャラ→生成フォールバック）。
+
+        アセット候補は `iter_tray_icon_candidates`（単一情報源）から取得する。
+        """
+        for p in iter_tray_icon_candidates(self._current_character_id()):
+            if p.is_file():
                 try:
-                    img = Image.open(p)
-                    # 透過PNG対応・RGBA
-                    return img.convert("RGBA").resize(TRAY_ICON_SIZE, Image.Resampling.NEAREST)
+                    # 透過PNG対応・RGBA（ファイルハンドルは with で確実に閉じる）
+                    with Image.open(p) as img:
+                        return img.convert("RGBA").resize(
+                            TRAY_ICON_SIZE, Image.Resampling.NEAREST
+                        )
                 except Exception as e:
                     logger.debug(f"トレイ画像読み込み失敗 ({p}): {e}")
 

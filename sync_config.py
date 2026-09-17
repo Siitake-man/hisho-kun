@@ -107,6 +107,33 @@ def _read_env_port() -> Optional[str]:
     return read_port_from_env_file()
 
 
+# Tailscale Serve のリバースプロキシ起動フラグ。
+# `--bg` を付けるとフォアグラウンドを占有せずバックグラウンドで常駐する
+# （付けないとコマンドが終了せず、アプリからの自動起動や手順書のコピペで混乱する）。
+# P2 (2026-09-16 ruthless-code-evaluation): 旧実装は main.py（--bg なし）と
+# QRダイアログ/手順書（--bg あり）で2種類のコマンドが混在していた。
+TAILSCALE_SERVE_FLAGS: Final[tuple] = ("--bg",)
+
+
+def tailscale_serve_command_args() -> list:
+    """Tailscale Serve 起動コマンドの引数リストを生成する（単一情報源）。
+
+    Returns:
+        list: 例 ``["tailscale", "serve", "--bg", "8765"]``。
+            ポートは `SERVER_PORT`（OS環境変数/.env/既定）を参照する。
+    """
+    return ["tailscale", "serve", *TAILSCALE_SERVE_FLAGS, str(SERVER_PORT)]
+
+
+def build_tailscale_serve_command() -> str:
+    """Tailscale Serve 起動コマンドの表示用文字列を生成する（手順書・UI用）。
+
+    Returns:
+        str: 例 ``"tailscale serve --bg 8765"``。
+    """
+    return " ".join(tailscale_serve_command_args())
+
+
 # 待受ポート (唯一の情報源)。QRコード・Tailscale Serve コマンド・サーバーバインドは
 # すべて本値を参照するため、変更はここ1箇所 (+ 必要なら NEO_HISHO_PORT の設定) で済む。
 SERVER_PORT: Final[int] = resolve_server_port(_read_env_port())

@@ -157,6 +157,25 @@ class TestIconGenerator(unittest.TestCase):
             with self.subTest(src=icon["src"]):
                 self.assertIn(Path(icon["src"]).name, source)
 
+    def test_committed_icons_match_generator_spec(self) -> None:
+        """コミット済みアイコンが生成仕様と一致すること（ドリフト検出・P3 2026-09-16）
+
+        手作業での画像差し替えや、spec 変更後の再生成忘れを検出する。
+        """
+        import importlib.util
+
+        spec = importlib.util.spec_from_file_location("build_pwa_icons", GENERATOR_PATH)
+        module = importlib.util.module_from_spec(spec)
+        assert spec.loader is not None
+        spec.loader.exec_module(module)
+
+        with module.Image.open(module.SOURCE_ART) as opened:
+            source = opened.copy()
+
+        drifted = module.check_icons(source)
+
+        self.assertEqual(drifted, 0, "アイコンが生成仕様と乖離しています（再生成が必要）")
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

@@ -14,7 +14,7 @@ import customtkinter as ctk
 from dotenv import load_dotenv
 
 from ui.window_icon import apply_window_icon
-from sync_config import SERVER_PORT
+from sync_config import SERVER_PORT, build_tailscale_serve_command
 
 logger = logging.getLogger(__name__)
 
@@ -767,7 +767,7 @@ class SettingsWindow(ctk.CTkToplevel):
                 "カフェ等の外出先Wi-Fi（端末間通信が禁止されたネットワーク）からでも\n"
                 "スマホDesk Petへ接続できるようにします。\n"
                 "【手順】1. PCとスマホ両方に Tailscale を入れ、同じアカウントでログイン\n"
-                f"　 　 2. PC側でコマンド実行: tailscale serve {SERVER_PORT}\n"
+                f"　 　 2. PC側でコマンド実行: {build_tailscale_serve_command()}\n"
                 "　 　 3. 下の欄にPCのTailscaleホスト名（例: hisyo-pc.tailXXXX.ts.net）を保存\n"
                 "詳細は docs/guides/TAILSCALE_SETUP.md を参照"
             ),
@@ -915,7 +915,7 @@ class SettingsWindow(ctk.CTkToplevel):
             btn_del.pack(side="right")
 
         # =====================================================================
-        # Tab 4: 使い方ガイド
+        # Tab 5: 使い方ガイド
         # =====================================================================
         content_guide = ctk.CTkScrollableFrame(tab_guide, fg_color="transparent")
         content_guide.pack(fill="both", expand=True, padx=8, pady=6)
@@ -968,7 +968,7 @@ class SettingsWindow(ctk.CTkToplevel):
                           text_color="#7A6B62", anchor="w", wraplength=400).pack(anchor="w", padx=(8, 0))
 
         # =====================================================================
-        # Tab 5: 接続端末管理（ゼロトラスト端末台帳）
+        # Tab 4: 接続端末管理（ゼロトラスト端末台帳）
         #   Sprint C 先取り (2026-09-16): 台帳の表示・Revoke は
         #   ui/device_manager_panel.py の Deep Module へ委譲し、
         #   本画面はセクションを差し込むだけに留める (肥大化防止)。
@@ -1314,7 +1314,7 @@ class SettingsWindow(ctk.CTkToplevel):
             "保存完了",
             "Tailscale ホスト名を保存しました。\n"
             "QR接続ダイアログに「🌐 外出先接続」URLが表示されます。\n"
-            f"（PC側で `tailscale serve {SERVER_PORT}` の実行が必要です）"
+            f"（PC側で `{build_tailscale_serve_command()}` の実行が必要です）"
         )
 
     def _revoke_sync_token(self):

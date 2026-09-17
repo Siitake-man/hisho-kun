@@ -16,12 +16,13 @@ import threading
 import tkinter as tk
 from typing import Dict, Any, Final, Optional
 
-from sync_config import SERVER_PORT
+from sync_config import SERVER_PORT, tailscale_serve_command_args
 
 # メインループのアイドル待機秒 (P1-3 省電力スプリント・2026-09-16)。
 # 旧 0.01 秒 (100Hz) は UI 応答性に対して過剰で、無操作時も PC の
-# メインスレッドを常時占有していた。約 30Hz (0.03 秒) へ緩和することで
-# 体感応答性 (最大 30ms 遅延) を維持しつつ、常時 CPU 占有率を削減する。
+# メインスレッドを常時占有していた。約 30Hz (0.03 秒) へ固定レートで緩和することで
+# 体感応答性 (遅延上限 = 1ティックの処理時間 + 30ms) を維持しつつ、常時 CPU 占有率を削減する。
+# ※ 無操作を検出して動的に伸長する「適応型」ではない（P3 2026-09-16 独立査読の指摘で明確化）。
 MAIN_LOOP_IDLE_SLEEP_SEC: Final[float] = 0.03
 
 
@@ -112,7 +113,7 @@ def _auto_tailscale_serve() -> None:
     """
     try:
         result = subprocess.run(
-            ["tailscale", "serve", str(SERVER_PORT)],
+            tailscale_serve_command_args(),
             capture_output=True, text=True, timeout=10,
             creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0,
         )

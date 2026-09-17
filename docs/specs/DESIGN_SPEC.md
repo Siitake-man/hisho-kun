@@ -700,8 +700,9 @@ web_pet/
    - 2秒ポーリングによる高頻度SQLiteクエリを遮断し、DB負荷を93%削減。追加・トグル・削除時に `invalidate_habit_cache()` で即時破棄。単体テスト `tests/test_habit_cache.py` 完備。
 2. **検索頻出カラムの明示的インデックス (✅ 2026-09-16 完了 - P1-2)**:
    - `storage/connection.py` の `init_db()` に `idx_tasks_status_due (status, due_date)` および `idx_events_start_end (start_time, end_time)` を新設し、フルテーブルスキャン（O(N)）を O(log N) へ最適化。既存DBにも起動時の `CREATE INDEX IF NOT EXISTS`（冪等）で自動付与。EXPLAIN QUERY PLAN で索引使用を検証する `tests/test_db_indexes.py` 完備。
-3. **適応型スリープ（Adaptive Sleep - ✅ 2026-09-16 完了 - P1-3)**:
-   - `main.py` の `async_mainloop` において、ユーザー無操作時は `MAIN_LOOP_IDLE_SLEEP_SEC = 0.03`（約30Hz）へ緩和し、PC側CPUコアの常時占有を削減（定数へ一元化・マジックナンバー排除）。`tests/test_main_loop_power.py` 完備。
+3. **アイドル待機の30Hz化（✅ 2026-09-16 完了 - P1-3）**:
+   - `main.py` の `async_mainloop` は無操作検出を行わず、待機を `MAIN_LOOP_IDLE_SLEEP_SEC = 0.03`（約30Hz）へ**固定レートで緩和**し、PC側CPUコアの常時占有を削減（定数へ一元化・マジックナンバー排除）。`tests/test_main_loop_power.py` 完備。
+   - 応答遅延の上限は「1ティックの処理時間 + 30ms」。リマインダーは `proactive_scheduler`（1秒専用スレッド）駆動のため精度影響なし。
 4. **ポート番号の単一情報源 ＆ 環境変数オーバーライド (✅ 2026-09-16 完了 - P1-4)**:
    - `sync_config.py` の `SERVER_PORT`（既定 `DEFAULT_SERVER_PORT = 8765` / 環境変数 `NEO_HISHO_PORT` で上書き可・不正値は既定へ安全退避）を唯一の情報源とし、`local_sync_server` / `ui/qr_dialog` / `main._auto_tailscale_serve` がすべてここを参照。QR接続ダイアログに残っていた `http://localhost:8765/...` のベタ書きを排除。`tests/test_port_single_source.py` 完備。
 

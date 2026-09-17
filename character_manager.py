@@ -17,7 +17,7 @@ from typing import Dict, Any, List, Optional, Tuple
 logger = logging.getLogger(__name__)
 
 import app_paths
-from sync_config import SERVER_PORT
+from sync_config import SERVER_PORT, build_tailscale_serve_command
 
 CONFIG_PATH = app_paths.get_app_root() / "character_config.json"
 
@@ -48,7 +48,7 @@ CHARACTERS_DATA: Dict[str, Dict[str, Any]] = {
             "   - ④ ネオ秘書くんの設定画面（または手帳の「＋購読を追加」）にURLを貼り付けて「すべて同期」を押せば完了です。\n"
             "3. 📱 スマホ連携（Desk Pet）と外出先VPN接続（Tailscale）:\n"
             "   - 同一Wi-Fiの場合: メニューから「📱 スマホDesk Pet」を開き、スマホカメラでQRコードを読むだけでブラウザにペットが表示されます。「ホーム画面に追加」で全画面アプリ化できます。\n"
-            f"   - 外出先・カフェ等の場合: PCとスマホの両方にTailscaleを導入してログインし、PCで `tailscale serve {SERVER_PORT}` を実行後、設定画面でPCのTailscaleホスト名を保存すれば、どこからでも繋がります。\n"
+            f"   - 外出先・カフェ等の場合: PCとスマホの両方にTailscaleを導入してログインし、PCで `{build_tailscale_serve_command()}` を実行後、設定画面でPCのTailscaleホスト名を保存すれば、どこからでも繋がります。\n"
             "4. ➕ 任意のカスタムMCPサーバーの自由な追加:\n"
             "   - 設定画面の「外部AI・MCP連携」タブにある「➕ 新しいMCPサーバーを追加」から、Notion, Slack, GitHub等の好きなMCPを自由に追加・管理できます。\n"
             "5. 🔒 完全オフライン・超軽量ローカルLLM:\n"

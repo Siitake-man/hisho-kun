@@ -1,13 +1,17 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-ネオ秘書くん - PCメインループ適応型スリープの単体テスト (tests/test_main_loop_power.py)
+ネオ秘書くん - PCメインループのアイドル待機レートの単体テスト (tests/test_main_loop_power.py)
 
 タスク2 (P1-3, 2026-09-16 Cline): 省電力スプリント完遂。
-ユーザー無操作 (アイドル) 時に 100Hz (0.01s) で回していた自前 Tk/asyncio ループを
-約30Hz (0.03s) へ緩和し、UI応答性を維持しつつメインスレッドのCPU常時占有率を
-削減する。マジックナンバーを避けるため定数 MAIN_LOOP_IDLE_SLEEP_SEC を
-唯一の情報源とする契約を凍結する。
+自前 Tk/asyncio ループの待機を 100Hz (0.01s) から約30Hz (0.03s) へ**固定レートで緩和**し、
+UI応答性を維持しつつメインスレッドのCPU常時占有率を削減する。
+マジックナンバーを避けるため定数 MAIN_LOOP_IDLE_SLEEP_SEC を唯一の情報源とする契約を凍結する。
+
+Note:
+    実装は無操作を検出して動的に伸長する方式ではない（＝「適応型」ではない）。
+    常時 0.03 秒待機の固定レートであり、ユーザー操作時の遅延上限は
+    「1ティックの処理時間 + 30ms」となる (P3 2026-09-16 独立査読の指摘を受け明確化)。
 
 TDD: MAIN_LOOP_IDLE_SLEEP_SEC が未定義の状態では Red で落ちる。
 """
@@ -24,8 +28,8 @@ if str(PROJECT_ROOT) not in sys.path:
 import main  # noqa: E402
 
 
-class TestAdaptiveIdleSleep(unittest.TestCase):
-    """P1-3: メインループ アイドル待機の契約"""
+class TestIdleSleepRate(unittest.TestCase):
+    """P1-3: メインループ アイドル待機レート（固定30Hz）の契約"""
 
     def test_idle_sleep_constant_is_30hz(self) -> None:
         """アイドル待機が約30Hz (0.03秒) に緩和されていること"""

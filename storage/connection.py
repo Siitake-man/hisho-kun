@@ -7,12 +7,16 @@ SQLiteデータベース接続の一元管理（WALモード、busy_timeout、�
 
 import logging
 import sqlite3
+import time
 from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
 from typing import Generator, Optional
 
 logger = logging.getLogger(__name__)
+
+# init_db の実行時間がこの閾値を超えたら警告する (P2: 起動時ブロックの可視化・2026-09-16)
+DB_INIT_SLOW_THRESHOLD_MS = 2000.0
 
 
 # =============================================================================
@@ -64,7 +68,15 @@ def init_db(db_path: str = "neo_secretary.db") -> None:
     """
     SQLiteデータベースを初期化し、全テーブル・インデックスを作成・検証します。
     既存データベースに対するカラム追加マイグレーションも冪等に実行します。
+
+    Notes:
+        本関数は起動時にメインスレッドで実行される。`CREATE INDEX IF NOT EXISTS` は
+        既存インデックスでは即座に no-op だが、**初回のみ**インデックス構築のコスト
+        （旧DB＋大量行では数十秒）が発生し得る。P2 (2026-09-16 独立査読) の指摘を受け、
+        実行時間を実測して閾値超過時に警告する（バックグラウンド化は起動直後の
+        書き込みロック競合リスクが高いため、まず可視化で判断材料を残す方針）。
     """
+    started_at = time.perf_counter()
     with get_db_connection(db_path) as conn:
         cursor = conn.cursor()
         
@@ -323,7 +335,14 @@ def init_db(db_path: str = "neo_secretary.db") -> None:
         )
         logger.info("approval_audit_logsテーブルを確認/作成しました")
         
-    logger.info(f"データベース初期化完了: {db_path}")
+    elapsed_ms = (time.perf_counter() - started_at) * 1000.0
+    logger.info(f"データベース初期化完了: {db_path} ({elapsed_ms:.0f}ms)")
+    if elapsed_ms > DB_INIT_SLOW_THRESHOLD_MS:
+        logger.warning(
+            "⚠️ データベース初期化に %.1f 秒かかりました（初回起動時のインデックス構築等）。"
+            "2回目以降の起動では短縮されるはずです。",
+            elapsed_ms / 1000.0,
+        )
 
 
 # =============================================================================

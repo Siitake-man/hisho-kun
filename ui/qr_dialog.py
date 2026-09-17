@@ -21,7 +21,7 @@ from typing import Dict, List
 import customtkinter as ctk
 from PIL import ImageTk
 
-from sync_config import SERVER_PORT
+from sync_config import SERVER_PORT, build_tailscale_serve_command
 from ui.window_icon import apply_window_icon
 
 logger = logging.getLogger(__name__)
@@ -30,7 +30,8 @@ logger = logging.getLogger(__name__)
 TAILSCALE_HTTP_PORT = SERVER_PORT
 
 # Tailscale Serve のリバースプロキシ起動コマンド（HTTPS モード用）
-TAILSCALE_SERVE_COMMAND = f"tailscale serve --bg {SERVER_PORT}"
+# フラグ・ポートは sync_config（単一情報源）から導出する（--bg 付きで統一）。
+TAILSCALE_SERVE_COMMAND = build_tailscale_serve_command()
 
 
 def is_tailscale_ip(ip: str) -> bool:

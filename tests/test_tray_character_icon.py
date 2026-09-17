@@ -15,6 +15,7 @@ TDD: resolve_character_icon_path / load_character_tray_image /
 import sys
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from PIL import Image
 
@@ -54,12 +55,34 @@ class TestCharacterIconPathResolution(unittest.TestCase):
     """キャラクターID → ドット絵アセットパス解決の契約"""
 
     def test_default_candidate_is_hisho_idle1(self) -> None:
-        """_ASSET_CANDIDATES の最優先候補が秘書くん idle_1.png であること"""
+        """候補列挙の最優先が秘書くん idle_1.png であること"""
+        candidates = system_tray.iter_tray_icon_candidates()
+
         self.assertEqual(
-            system_tray._ASSET_CANDIDATES[0],
-            PROJECT_ROOT / "assets" / "dot" / "hisho" / "idle_1.png",
+            candidates[0], PROJECT_ROOT / "assets" / "dot" / "hisho" / "idle_1.png"
         )
-        self.assertTrue(system_tray._ASSET_CANDIDATES[0].is_file())
+        self.assertTrue(candidates[0].is_file())
+
+    def test_candidates_place_character_before_default(self) -> None:
+        """キャラ指定時は「そのキャラ → 既定キャラ」の優先順で列挙されること"""
+        candidates = system_tray.iter_tray_icon_candidates("kyle")
+
+        self.assertEqual(
+            candidates[0], PROJECT_ROOT / "assets" / "dot" / "kyle" / "idle_1.png"
+        )
+        self.assertIn(
+            PROJECT_ROOT / "assets" / "dot" / "hisho" / "idle_1.png", candidates
+        )
+        self.assertLess(
+            candidates.index(PROJECT_ROOT / "assets" / "dot" / "kyle" / "idle_1.png"),
+            candidates.index(PROJECT_ROOT / "assets" / "dot" / "hisho" / "idle_1.png"),
+        )
+
+    def test_candidates_are_deduplicated_for_default_character(self) -> None:
+        """既定キャラ指定時に候補が重複しないこと（単一情報源・2026-09-16）"""
+        candidates = system_tray.iter_tray_icon_candidates("hisho")
+
+        self.assertEqual(len(candidates), len(set(candidates)))
 
     def test_resolves_each_registered_character_asset(self) -> None:
         """hisho / kyle それぞれの idle_1.png を解決できること"""
@@ -151,6 +174,35 @@ class TestUpdateCharacterIcon(unittest.TestCase):
         manager._icon = _FakeTrayIcon(fail_on_set=True)
 
         self.assertFalse(manager.update_character_icon("hisho"))
+
+
+    def test_initial_tray_image_follows_saved_character(self) -> None:
+        """起動時のトレイ画像が保存済みキャラクター（着せ替え状態）に追従すること
+
+        Notes:
+            P2 (2026-09-16 独立査読): 旧実装は常に既定キャラ固定だった。
+        """
+        manager = SystemTrayManager(_FakeGui())
+
+        with mock.patch.object(
+            SystemTrayManager, "_current_character_id", return_value="kyle"
+        ):
+            image = manager._load_tray_image()
+
+        expected = load_character_tray_image("kyle")
+        self.assertEqual(image.tobytes(), expected.tobytes())
+
+    def test_initial_tray_image_falls_back_when_character_unknown(self) -> None:
+        """キャラ設定が取得できない場合は既定キャラの画像で起動すること（Fail-Safe）"""
+        manager = SystemTrayManager(_FakeGui())
+
+        with mock.patch.object(
+            SystemTrayManager, "_current_character_id", return_value=None
+        ):
+            image = manager._load_tray_image()
+
+        expected = load_character_tray_image("hisho")
+        self.assertEqual(image.tobytes(), expected.tobytes())
 
 
 if __name__ == "__main__":

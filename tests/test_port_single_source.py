@@ -120,11 +120,27 @@ class TestPortSingleSource(unittest.TestCase):
             offenders, [], f"既定ポート番号のベタ書きが残っています: {offenders}"
         )
 
-    def test_main_tailscale_serve_uses_shared_port(self) -> None:
-        """main の自動 Tailscale serve 起動がポート定数を参照していること"""
+    def test_main_tailscale_serve_uses_shared_command_helper(self) -> None:
+        """main の自動 Tailscale serve 起動が共通コマンド定義（単一情報源）を参照すること"""
         source = inspect.getsource(main._auto_tailscale_serve)
-        self.assertIn("SERVER_PORT", source)
+
+        self.assertIn("tailscale_serve_command_args", source)
         self.assertNotIn(f'"{sync_config.SERVER_PORT}"', source)
+
+    def test_tailscale_command_is_unified_across_modules(self) -> None:
+        """QRダイアログ・main・表示用ヘルパーで同一の Tailscale コマンドになること (P2)
+
+        旧実装は main.py が `--bg` なし、QRダイアログ/手順書が `--bg` ありで混在していた。
+        """
+        expected_args = sync_config.tailscale_serve_command_args()
+
+        self.assertEqual(expected_args[:3], ["tailscale", "serve", "--bg"])
+        self.assertEqual(expected_args[3], str(sync_config.SERVER_PORT))
+        self.assertEqual(
+            qr_dialog.TAILSCALE_SERVE_COMMAND,
+            sync_config.build_tailscale_serve_command(),
+        )
+        self.assertIn("--bg", qr_dialog.TAILSCALE_SERVE_COMMAND)
 
 
 class TestPortEnvOverride(unittest.TestCase):

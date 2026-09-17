@@ -22,8 +22,10 @@
 - 生成物はバイナリのため、再生成手順を本スクリプトとして残し再現性を担保する。
 """
 
+import argparse
+import sys
 from pathlib import Path
-from typing import Optional
+from typing import List, Optional
 
 from PIL import Image
 
@@ -69,20 +71,70 @@ def build_icon(
     return canvas
 
 
-def main() -> int:
-    """全スペックのアイコンを生成する。
+def check_icons(source: Image.Image) -> int:
+    """生成されるはずの画像と既存ファイルの差分を検査する (ドリフト検出)。
+
+    Args:
+        source: 元ドット絵 (build_icon の入力)。
 
     Returns:
-        int: プロセス終了コード (0=成功, 1=元アセット不在)。
+        int: 差分・欠落があったファイル数 (0 なら一致)。
+
+    Notes:
+        P3 (2026-09-16 独立査読): manifest のアイコン定義と生成スクリプトが二重管理に
+        なりやすいため `--check` モードを用意し、リリース前にドリフトを検出できるようにする。
     """
+    drifted = 0
+    for file_name, size, padding_ratio, background in ICON_SPECS:
+        target = OUTPUT_DIR / file_name
+        expected = build_icon(source, size, padding_ratio, background)
+        if not target.is_file():
+            print(f"[NG] 未生成: {target.relative_to(PROJECT_ROOT)}")
+            drifted += 1
+            continue
+        with Image.open(target) as existing:
+            actual = existing.convert("RGBA")
+        if actual.size != expected.size or actual.tobytes() != expected.tobytes():
+            print(f"[NG] ドリフト検出: {target.relative_to(PROJECT_ROOT)}")
+            drifted += 1
+        else:
+            print(f"[OK] 一致: {target.relative_to(PROJECT_ROOT)}")
+    return drifted
+
+
+def main(argv: Optional[List[str]] = None) -> int:
+    """全スペックのアイコンを生成する（または `--check` で差分検査する）。
+
+    Args:
+        argv: コマンドライン引数（省略時は sys.argv）。
+
+    Returns:
+        int: プロセス終了コード (0=成功, 1=元アセット不在/ドリフト検出)。
+    """
+    parser = argparse.ArgumentParser(description="PWAホーム画面アイコンの生成 / 差分検査")
+    parser.add_argument(
+        "--check",
+        action="store_true",
+        help="生成は行わず、既存ファイルが仕様どおりかを検査する（差分があれば終了コード1）",
+    )
+    args = parser.parse_args(argv)
+
     if not SOURCE_ART.is_file():
         print(f"[NG] 元ドット絵が見つかりません: {SOURCE_ART}")
         return 1
 
-    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     with Image.open(SOURCE_ART) as opened:
         source = opened.copy()
 
+    if args.check:
+        drifted = check_icons(source)
+        if drifted:
+            print(f"[NG] {drifted} 件が仕様と不一致です。`python tools/build_pwa_icons.py` で再生成してください。")
+            return 1
+        print("[OK] 全アイコンが仕様と一致しています")
+        return 0
+
+    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     for file_name, size, padding_ratio, background in ICON_SPECS:
         target = OUTPUT_DIR / file_name
         build_icon(source, size, padding_ratio, background).save(target)
