@@ -27,7 +27,7 @@ from datetime import datetime
 from typing import Any, Callable, Dict, List, Optional
 
 import database
-from i18n import get_language, t
+from i18n import get_language, get_language_name, get_no_chinese_instruction, t
 from proactive_scheduler import PeriodicThrottle, get_proactive_scheduler
 
 logger = logging.getLogger(__name__)
@@ -169,9 +169,12 @@ class LifeCoachEngine:
         if not force:
             latest = self._load_latest_report()
             if latest is not None and (now_ms - self._last_run_ts_ms) < self._interval_sec * 1000:
-                with self._lock:
-                    self._latest_report = latest
-                return latest
+                # 言語変更時は旧レポートを破棄して再生成する (中国語化対策・2026-09-16)
+                if latest.get("language") == get_language():
+                    with self._lock:
+                        self._latest_report = latest
+                    return latest
+                logger.info("🧭 [LifeCoach] 言語が変更されたためレポートを再生成します")
 
         stats = self._collect_stats(now)
         report = self._invoke_llm(stats)
@@ -183,6 +186,7 @@ class LifeCoachEngine:
         report.update({
             "run_date": now.strftime("%Y-%m-%d"),
             "source": source,
+            "language": get_language(),
             "generated_at": int(now.timestamp() * 1000),
         })
         self._save_report(report)
@@ -257,7 +261,8 @@ class LifeCoachEngine:
             "You are a caring life coach embedded in a desktop pet app. "
             "Analyze the user's daily statistics and output coaching advice.\n"
             f"Statistics (JSON): {json.dumps(stats, ensure_ascii=False)}\n"
-            f"Output language: {get_language()}\n\n"
+            f"Output language: {get_language_name()}\n"
+            f"{get_no_chinese_instruction()}\n\n"
             "Output ONLY this JSON (no explanations, no code fences):\n"
             '{"analysis": "<1-2 sentences>", '
             '"micro_actions": ["<tomorrow-action>", "..."], '

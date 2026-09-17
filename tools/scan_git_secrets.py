@@ -195,24 +195,24 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="git履歴 機密スキャナ (ネオ秘書くん Phase J ゲート)")
     parser.parse_args()
 
-    print("🔍 git履歴 機密スキャンを開始します (--all)")
+    print("[SCAN] git履歴 機密スキャンを開始します (--all)")
     history_findings = scan_history()
     file_findings = scan_sensitive_files()
 
     if not history_findings and not file_findings:
-        print("✅ CLEAN: 機密パターン・機密ファイルともに検出ゼロでした。")
+        print("[OK] CLEAN: 機密パターン・機密ファイルともに検出ゼロでした。")
         return 0
 
     if history_findings:
-        print(f"\n🚨 差分内の機密パターン検出: {len(history_findings)}件")
+        print(f"\\n[NG] 差分内の機密パターン検出: {len(history_findings)}件")
         for commit, file_path, masked in history_findings:
             print(f"  - commit {commit} / {file_path}")
             print(f"      {masked}")
     if file_findings:
-        print(f"\n🚨 履歴に機密ファイルの追加コミットあり: {len(file_findings)}件")
+        print(f"\\n[NG] 履歴に機密ファイルの追加コミットあり: {len(file_findings)}件")
         for label, path in file_findings:
             print(f"  - [{label}] {path}")
-    print("\n→ 対応: 該当キーの無効化(ローテーション) ＋ 必要に応じて git filter-repo での履歴除去を検討してください。")
+    print("\\n→ 対応: 該当キーの無効化(ローテーション) ＋ 必要に応じて git filter-repo での履歴除去を検討してください。")
     return 1
 
 

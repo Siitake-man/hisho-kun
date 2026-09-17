@@ -35,12 +35,12 @@ OUTPUT_DIR = PROJECT_ROOT / "assets" / "pwa"
 THEME_BACKGROUND = "#1A1C23"
 
 # (ファイル名, 出力サイズ(px), 余白比率, 背景色 or None=透過)
-# 余白 0.15 = 内側 70% に artwork を配置 (maskable のセーフゾーン規格に適合)
+# 余白 0.08 = 内側 84% に artwork を配置 (maskable 規格は余白10%未満でOK・2026-09-16 査読指摘)
 ICON_SPECS = (
     ("icon_192.png", 192, 0.0, None),
     ("icon_512.png", 512, 0.0, None),
-    ("icon_maskable_512.png", 512, 0.15, THEME_BACKGROUND),
-    ("apple_touch_icon_180.png", 180, 0.15, THEME_BACKGROUND),
+    ("icon_maskable_512.png", 512, 0.08, THEME_BACKGROUND),
+    ("apple_touch_icon_180.png", 180, 0.08, THEME_BACKGROUND),
 )
 
 

@@ -21,6 +21,19 @@ logger = logging.getLogger(__name__)
 SUPPORTED_LANGUAGES: tuple = ("ja", "en")
 DEFAULT_LANGUAGE: str = "ja"
 
+# LLMプロンプトに渡す正式言語名 (言語コード "ja" は LLM にとって曖昧なため、
+# ここで正式名へマッピングする。DeepSeek 等の中国系モデルが曖昧な指示で
+# 中国語を出力する事故を防ぐ (2026-09-16 ボス報告)。
+LANGUAGE_NAMES: Dict[str, str] = {
+    "ja": "日本語",
+    "en": "English",
+}
+# 中国語を明示禁止する追記文 (DeepSeek 等の既定言語が中国語のモデル向け)
+_NO_CHINESE_INSTRUCTION: str = (
+    "IMPORTANT: Write ALL text fields in the language specified above. "
+    "Do NOT use Chinese (简体中文), English (unless that is the language), or any other language."
+)
+
 # 翻訳辞書 (キーはドメインプレフィックス方式: "<domain>.<key>")
 _TRANSLATIONS: Dict[str, Dict[str, str]] = {
     "ja": {
@@ -74,6 +87,24 @@ def get_language() -> str:
     """現在言語コードを返す。"""
     with _lang_lock:
         return _current_language
+
+
+def get_language_name() -> str:
+    """現在言語の正式名を返す (LLMプロンプト用)。
+
+    Returns:
+        str: 例 "日本語"。未対応言語コードは既定の日本語を返す。
+    """
+    return LANGUAGE_NAMES.get(get_language(), LANGUAGE_NAMES[DEFAULT_LANGUAGE])
+
+
+def get_no_chinese_instruction() -> str:
+    """中国語禁止の明示文を返す (DeepSeek 等の既定言語対策)。
+
+    Returns:
+        str: LLMプロンプトに追記する禁止指示文。
+    """
+    return _NO_CHINESE_INSTRUCTION
 
 
 def t(key: str, **params: Any) -> str:

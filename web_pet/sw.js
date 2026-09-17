@@ -28,7 +28,15 @@ const ASSETS_TO_CACHE = [
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(ASSETS_TO_CACHE);
+      // P2-1 (2026-09-16): addAll は1件でも404でinstallが全滅するため、
+      // 個別 add + 失敗ログで1件ずつ耐性を持たせる。
+      return Promise.all(
+        ASSETS_TO_CACHE.map((url) =>
+          cache.add(url).catch((err) =>
+            console.warn('[SW] pre-cache failed (non-fatal):', url, err)
+          )
+        )
+      );
     })
   );
   self.skipWaiting();

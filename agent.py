@@ -164,6 +164,7 @@ def planner_node(state: AgentState):
         sys_prompt = (
             f"あなたは有能な専属秘書アシスタント「ネオ秘書くん」です。\n"
             f"現在時刻は {current_time} です。\n\n"
+            f"【言語規則】必ず日本語で応答してください。中国語・英語・その他の言語は絶対に使用しないでください。\n"
             f"{character_prompt}\n"
             f"{insights_text}"
             f"【行動指針】\n"

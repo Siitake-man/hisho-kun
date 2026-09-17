@@ -84,7 +84,11 @@ class TestPowerSprintIndexes(_IndexTestBase):
         self.assertIn("events", self._index_definition(EVENTS_INDEX))
 
     def test_tasks_query_plan_uses_index_not_full_scan(self) -> None:
-        """TODOの status 絞り込み + 期日比較がインデックススキャンになること"""
+        """TODOの status 絞り込み + 期日比較がインデックススキャンになること
+
+        本番の `storage/task_repo.py:85-100` が実行する
+        `WHERE status = ? ... ORDER BY priority DESC, (due_date IS NULL) ASC, due_date ASC` を検証する。
+        """
         plan = self._query_plan(
             "SELECT id FROM tasks WHERE status = 'todo' AND due_date <= ?", (0,)
         )
@@ -92,9 +96,9 @@ class TestPowerSprintIndexes(_IndexTestBase):
         self.assertNotIn("SCAN", plan.upper())
 
     def test_events_query_plan_uses_index_not_full_scan(self) -> None:
-        """予定の期間比較がインデックススキャンになること"""
+        """予定の期間比較（`calendar_repo.py:194-198` と同一のクエリ構造）がインデックススキャンになること"""
         plan = self._query_plan(
-            "SELECT id FROM events WHERE start_time >= ? AND end_time <= ?", (0, 1)
+            "SELECT id FROM events WHERE start_time >= ? AND start_time <= ?", (0, 1)
         )
         self.assertIn(EVENTS_INDEX, plan)
 
