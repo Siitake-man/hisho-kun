@@ -228,7 +228,7 @@ MiniCPM-Petの秀逸な着眼点をネオ秘書くんのクリーンアーキテ
   - **双方向リンク死活監視 ＆ 呼び出しテスト**:
     - リアルタイムPing表示（`LINKED 15ms`）、PCからの遠隔呼び出し（Buzz振動）、スマホからのPingテスト。
 - **PC側 ローカル同期サーバー (`local_sync_server.py`)**:
-  - ポート `8765` で静的ファイル配信 ＆ `/api/status`, `/api/action`, `/api/link_status`, `/api/test_buzz` を提供。
+  - 待受ポート `SERVER_PORT`（`sync_config.py` が唯一の情報源・既定8765）で静的ファイル配信 ＆ `/api/status`, `/api/action`, `/api/link_status`, `/api/test_buzz` を提供。
   - **ローカル完結・最小権限・承認必須の3層防衛アーキテクチャ [✅ 実装済み ＆ 堅牢化]**:
     - **層1 (暗号認証・端末台帳)**: 起動時に256bit乱数トークンを生成し、`database.py` の `devices` テーブルで SHA-256 ハッシュ照合・個別失効・`last_seen` 更新。全APIで Bearer認証を強制（401拒否・定数時間比較）。同一LANであっても未認証GETは401拒否。
     - **層2 (ペアリング Fail-Closed)**: トークン配布API (`/api/auth/token`) は QR接続ダイアログ表示中（10分）かつループバック/LANのみ応答。
@@ -293,7 +293,7 @@ MiniCPM-Petの秀逸な着眼点をネオ秘書くんのクリーンアーキテ
 ### 6.4 外出先接続（Tailscale VPN）対応 [✅ 実装済み 2026-08-25]
 - **設定画面**: 外部ツールタブに「外出先接続 (Tailscale VPN)」カード追加。ホスト名入力＋保存ボタン
 - **QRダイアログ**: `TAILSCALE_HOSTNAME` が設定済みの場合、LAN QRコードの下に「🌐 外出先接続 (Tailscale)」URL分を追加表示。コピーボタン付き
-- **ガイド**: `docs/guides/TAILSCALE_SETUP.md` 新設（Tailscaleインストール→`tailscale serve 8765`→ホスト名登録までの手順を記載）
+- **ガイド**: `docs/guides/TAILSCALE_SETUP.md` 新設（Tailscaleインストール→`tailscale serve <SERVER_PORT>`→ホスト名登録までの手順を記載）
 - 実機確認は「カフェ環境でのE2Eテスト」として後工程に記録
 
 ## 7. Google Workspace (Googleカレンダー ＆ Gmail) ダイレクト連携 🌟
@@ -783,3 +783,26 @@ web_pet/
   `.env` の値は `os.environ` に載っていない。そこで `read_port_from_env_file()` が
   アプリデータルート（`app_paths.get_app_root()`）の `.env` を直接読む（`os.environ` は汚染しない）。
 - 不正値は例外を出さず既定ポートへ退避する（`resolve_server_port` の入力検証）。
+
+### 20.8 端末管理パネルの非同期化 ＆ Revoke 監査 (P1-3 / P1-4・2026-09-16)
+1. **UIブロックの根絶**: `ui/device_manager_panel.py` の台帳読み出しは `fetch_device_rows()`（失敗を空リストへ
+   潰さず `DeviceFetchResult(rows, error)` を返す Seam）へ集約し、`refresh_async()` が
+   **ワーカースレッドで読み出し → `dispatch`（本番: `parent_gui.post_action`）経由でメインスレッドへ反映**する。
+   Tk ウィジェットへはメインスレッドからしか触らない（`refresh()` は他スレッドから呼ばれた場合に警告して退避）。
+   - 多重発行は `_refresh_in_flight` で抑止し、実行中の要求は**破棄せず延期**（`_refresh_pending`）して
+     完了直後に再実行する。破棄すると「失効直後の再読込が失効前スナップショットで上書きされる」＝
+     **DBは失効済み・UIは有効**という嘘が固定表示される（2026-09-16 独立査読で実測）。
+   - 失効成功時は `mark_row_revoked()` による**楽観反映**で即座に「🚫 拒否済み」を表示し、
+     バックグラウンド再読込で整合を取る。
+   - 取得失敗時は「端末ゼロ」と区別できるよう「⚠️ 読み出し失敗」を表示し、既存一覧がある場合は
+     それを消さずに（stale-but-visible）状態行へ失敗理由を出す。
+2. **Revoke の監査 (P1-4)**: `api_devices.record_device_revoke()` が `approval_audit_logs` へ
+   **agent_type=device_management / command=revoke device_id=N (端末名) /
+   decision_by=操作主体（`pc_settings_ui` または接続元IP）/ decision_message=source=ui|api** を記録する。
+   - 本経路は**同期書き込み**とする。非同期ロガー（`AsyncAuditLogger`）は終了時にキューがフラッシュされず
+     「失効成功・監査0件」が成立することを査読が実測したため。失効本体（同期DB書き込み）と
+     同じブロッキング特性であり、追加の遅延要因にならない。
+   - 承認履歴（非同期側）は `main.py` の終了処理で `get_global_audit_logger().stop()` によりフラッシュする。
+3. **API ハンドラの Seam 化**: `POST /api/devices/revoke` の処理本体は
+   `api_devices.handle_post_devices_revoke(ctx)` へ抽出（ループバック限定チェックは呼び出し元に残置）。
+   400/404/200/500・CORS ヘッダーの挙動は従来踏襲（不正JSONのみ 500→400 へ明示化）。

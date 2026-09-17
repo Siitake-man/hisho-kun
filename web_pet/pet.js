@@ -1248,7 +1248,7 @@ let nosleepActive = false;
 /**
  * 常時画面ON トグル (NoSleep captureStream 方式)
  *
- * HTTP環境 (http://192.168.x.x:8765) では navigator.wakeLock が
+ * HTTP環境 (http://<PC-IP>:<PORT>) では navigator.wakeLock が
  * セキュリティ制限で動作しないため、Canvasの再描画フレームを
  * captureStream() で不可視videoへ流し込み「永遠に終わらない生配信」として
  * 再生し続けることで、OSのスリープタイマーをバイパスする（2026-08-16 第一原理の再実装）。

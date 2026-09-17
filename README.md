@@ -242,7 +242,7 @@ python tools/setup_local_model.py --model 1.2b # 高品質モードを直接指�
 
 1. PCとスマホに **Tailscale** をインストール
 2. 同じアカウントでサインイン
-3. PC側で管理者PowerShellから `tailscale serve 8765` を実行（初回のみ）
+3. PC側で管理者PowerShellから `tailscale serve 8765` を実行（初回のみ。`8765` は既定ポートで、`NEO_HISHO_PORT` で変更した場合はその値に読み替え）
 4. `main.py` を起動 → QR接続ダイアログ →「Tailscale VPN経由」のQRをスマホで読取
 
 > 設定画面の「外部ツール」タブでホスト名を保存すると、次回から自動設定されます。

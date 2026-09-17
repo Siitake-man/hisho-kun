@@ -20,7 +20,7 @@
 1. **管理者として PowerShell を開く**（Windowsキー → "PowerShell" → 右クリック → 管理者として実行）
 2. 以下のコマンドを実行：
    ```powershell
-   tailscale serve 8765
+   tailscale serve 8765   # 8765 は既定ポート。NEO_HISHO_PORT で変更している場合はその値に読み替えてください
    ```
 3. 出力例：
    ```

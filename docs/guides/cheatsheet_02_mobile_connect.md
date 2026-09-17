@@ -36,7 +36,7 @@ PCとスマホが同じWi-Fiに接続されている場合の接続手順です�
    - 同じアカウントでログインし、VPNをオンにします。
 2. **PCのターミナルで転送コマンドを実行**
    ```powershell
-   tailscale serve 8765
+   tailscale serve 8765   # 8765 は既定ポート（NEO_HISHO_PORT で変更した場合は読み替え）
    ```
 3. **ネオ秘書くんの設定画面でホスト名を保存**
    - 設定画面（⚙️）➔「📅 外部ツール」タブ ➔「🌐 外出先接続 (Tailscale VPN)」欄に、PCのTailscaleホスト名（例: `my-pc.tailXXXX.ts.net`）を入力して「💾 保存」。

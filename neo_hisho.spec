@@ -20,11 +20,19 @@
 
 from PyInstaller.utils.hooks import collect_data_files, collect_dynamic_libs
 from pathlib import Path
+import sys
 
 # プロジェクトルート: PyInstaller は spec 実行時に SPECPATH (spec のあるフォルダ) を
 # 注入する。単体テスト等で exec される場合に備え、未定義なら CWD へフォールバックする。
 _SPEC_DIR = globals().get("SPECPATH")
 PROJECT_ROOT = Path(_SPEC_DIR).resolve() if _SPEC_DIR else Path.cwd().resolve()
+
+# spec 実行時はプロジェクトルートが sys.path に無い場合があるため明示追加
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+# 同梱リソースの列挙（*.bak 等のバックアップ除外）は Deep Module へ集約し、テスト可能にする
+from build_resources import iter_bundle_sources
 
 # EXE/タスクバー用アイコン (初代秘書くん 256x256 .ico)
 ICON_PATH = PROJECT_ROOT / "assets" / "icon.ico"
@@ -38,7 +46,9 @@ a = Analysis(
     datas=[
         ('web_pet', 'web_pet'),
         ('assets', 'assets'),
-        ('docs/guides', 'docs/guides'),
+        # docs/guides は *.bak 等のバックアップを除いて同梱する（P1 / 2026-09-16 独立査読:
+        # 旧バックアップ HTML が配布物へ混入していた）。判断は build_resources へ集約。
+        *iter_bundle_sources(PROJECT_ROOT / 'docs' / 'guides', 'docs/guides'),
         ('.env.example', '.'),
         # customtkinter のテーマJSON等データファイル (未同梱だと起動時クラッシュする)
     ] + collect_data_files('customtkinter') + collect_data_files('llama_cpp'),
@@ -69,12 +79,14 @@ a = Analysis(
         'proactive_engine',
         'reminder_engine',
         'suggest_engine',
+        'sync_config',
         'task_narrator',
         'tour_engine',
         'update_checker',
         'version',
         'vision_tools',
         'weather_tools',
+        'web_assets',
         'webhook_tools',
         'web_tools',
         'whisper_transcriber',

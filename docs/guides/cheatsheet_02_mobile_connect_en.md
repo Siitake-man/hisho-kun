@@ -32,7 +32,7 @@ When your PC and smartphone are connected to the exact same home or office Wi-Fi
 To connect from coffee shops, cellular LTE/5G, or guest networks with AP client isolation:
 
 ```
-[Prerequisite: Install Tailscale on PC & Phone] ➔ [Run `tailscale serve 8765` on PC] ➔ [Access remotely anywhere!]
+[Prerequisite: Install Tailscale on PC & Phone] ➔ [Run `tailscale serve 8765` on PC (default port — use NEO_HISHO_PORT if customized)] ➔ [Access remotely anywhere!]
 ```
 
 ### 3-Step Tailscale Setup

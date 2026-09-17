@@ -42,9 +42,10 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 import database
+from sync_config import SERVER_PORT
 
 BASE_HOST = "127.0.0.1"
-BASE_PORT = 8765
+BASE_PORT = SERVER_PORT
 
 _results: list = []
 

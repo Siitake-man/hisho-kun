@@ -28,6 +28,9 @@ logging.basicConfig(
     handlers=[logging.StreamHandler(sys.stderr)]
 )
 
+# ハブの待受ポートは sync_config を唯一の情報源とする（P1-2: ベタ書き禁止）
+from sync_config import SERVER_PORT
+
 # ローカル同期サーバーのBearer認証トークン (.sync_token)
 import app_paths
 
@@ -58,7 +61,27 @@ def get_sync_token() -> str:
             return ""
     return ""
 
-def _post_to_hub(path: str, payload: Dict[str, Any], timeout: int = 185, port: int = 8765) -> Dict[str, Any]:
+def resolve_hub_port(explicit: Optional[int] = None) -> int:
+    """Agent Bridge Hub の待受ポートを解決する。
+
+    Args:
+        explicit: 呼び出し元が明示指定したポート。
+            未指定(None)／0以下／65535超／数値でない値は無視し、sync_config の値を使う。
+
+    Returns:
+        int: 使用するポート番号（`sync_config.SERVER_PORT` が唯一の情報源）。
+
+    Notes:
+        P1-2 (2026-09-16): 旧実装は既定ポートをベタ書きしていたため、
+        待受ポートを変更すると Agent Bridge 連携（承認要請・質問・通知）が
+        全滅していた。設定は sync_config へ一元化する。
+    """
+    if isinstance(explicit, int) and not isinstance(explicit, bool) and 1 <= explicit <= 65535:
+        return explicit
+    return SERVER_PORT
+
+
+def _post_to_hub(path: str, payload: Dict[str, Any], timeout: int = 185, port: Optional[int] = None) -> Dict[str, Any]:
     """ネオ秘書くんローカル同期サーバーのAPIエンドポイントにJSON POSTリクエストを送信する共通ヘルパー。
 
     全API呼び出し（承認要請・質問・通知）はこの関数を経由することで、
@@ -68,11 +91,12 @@ def _post_to_hub(path: str, payload: Dict[str, Any], timeout: int = 185, port: i
         path (str): APIパス（例: '/api/agent/ask', '/api/agent/notify'）。
         payload (Dict[str, Any]): POSTするJSONペイロード。
         timeout (int, optional): タイムアウト秒数。 Defaults to 185（180+5バッファ）。
-        port (int, optional): サーバーポート番号。 Defaults to 8765。
+        port (Optional[int]): サーバーポート番号。省略時は sync_config.SERVER_PORT。
 
     Returns:
         Dict[str, Any]: レスポンスJSON辞書。エラー時は status=error を含む。
     """
+    port = resolve_hub_port(port)
     url = f"http://localhost:{port}{path}"
     req = urllib.request.Request(
         url,
@@ -94,7 +118,7 @@ def _post_to_hub(path: str, payload: Dict[str, Any], timeout: int = 185, port: i
         return {"status": "error", "decision": "error", "message": str(e)}
 
 
-def ask_approval(agent_name: str, command: str, summary: str, details: str = "", timeout: int = 180, port: int = 8765) -> dict:
+def ask_approval(agent_name: str, command: str, summary: str, details: str = "", timeout: int = 180, port: Optional[int] = None) -> dict:
     payload = {
         "agent_name": agent_name,
         "command": command,
@@ -111,7 +135,7 @@ def ask_approval(agent_name: str, command: str, summary: str, details: str = "",
 
     return _post_to_hub("/api/agent/ask", payload, timeout=timeout + 5, port=port)
 
-def ask_question_api(agent_name: str, question: str, choices: Optional[List[str]] = None, details: str = "", timeout: int = 180, port: int = 8765) -> dict:
+def ask_question_api(agent_name: str, question: str, choices: Optional[List[str]] = None, details: str = "", timeout: int = 180, port: Optional[int] = None) -> dict:
     payload = {
         "agent_name": agent_name,
         "question": question,
@@ -129,7 +153,7 @@ def ask_question_api(agent_name: str, question: str, choices: Optional[List[str]
 
     return _post_to_hub("/api/agent/ask_input", payload, timeout=timeout + 5, port=port)
 
-def notify_event(agent_name: str, title: str, message: str = "", details: str = "", reaction: str = "celebrate", port: int = 8765) -> dict:
+def notify_event(agent_name: str, title: str, message: str = "", details: str = "", reaction: str = "celebrate", port: Optional[int] = None) -> dict:
     payload = {
         "agent_name": agent_name,
         "title": title,
@@ -151,7 +175,7 @@ def main():
     parser.add_argument("--summary", default="", help="コマンドの目的・概要")
     parser.add_argument("--details", default="", help="詳細な説明やリスク・成果物サマリ")
     parser.add_argument("--timeout", type=int, default=180, help="タイムアウト秒数")
-    parser.add_argument("--port", type=int, default=8765, help="Agent Bridge Hub ポート番号")
+    parser.add_argument("--port", type=int, default=None, help="Agent Bridge Hub ポート番号（省略時は sync_config.SERVER_PORT）")
     
     args = parser.parse_args()
     

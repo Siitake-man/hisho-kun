@@ -120,7 +120,11 @@ def _auto_tailscale_serve() -> None:
             logger.info("🌐 Tailscale serve を自動起動しました (https://node.tail08a991.ts.net/)")
         else:
             if "already" not in result.stderr.lower():
-                logger.debug(f"Tailscale serve 自動起動スキップ: {result.stderr.strip()}")
+                # ポート変更後の初回起動では既存マッピングとの競合が起こり得るため、
+                # 失敗を黙殺せず警告として残す (P2 / 2026-09-16 ruthless-code-evaluation)
+                logger.warning(
+                    f"⚠️ Tailscale serve の自動起動に失敗しました（設定画面で手動実行を案内してください）: {result.stderr.strip()}"
+                )
     except FileNotFoundError:
         logger.debug("Tailscale 未インストール — serve 自動起動をスキップ")
     except Exception as e:
@@ -640,6 +644,15 @@ def main():
             stop_ctk_background_trackers()
         except Exception as e:
             logger.debug(f"tk_teardown の停止処理をスキップ: {e}")
+
+        # 🛡️ 監査ログ（承認履歴）のキューをフラッシュしてからプロセスを終了する。
+        #    非同期ロガーはバッファを持つため、終了時に落とすと「操作はあったが証跡が無い」
+        #    状態になる (P1-2 / 2026-09-16 独立査読: 失効成功・監査0件を実測)。
+        try:
+            from audit_logger import get_global_audit_logger
+            get_global_audit_logger().stop()
+        except Exception as e:
+            logger.debug(f"監査ロガーのフラッシュをスキップ: {e}")
 
 if __name__ == "__main__":
     main()

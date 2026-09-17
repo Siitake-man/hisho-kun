@@ -16,6 +16,7 @@ TDD: sync_config モジュールと build_loopback_api_url が無い状態では
 import ast
 import inspect
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -31,6 +32,19 @@ import main  # noqa: E402
 import local_sync_server  # noqa: E402
 import sync_config  # noqa: E402
 from ui import qr_dialog  # noqa: E402
+
+
+def _port_pattern(port: int = sync_config.DEFAULT_SERVER_PORT) -> "re.Pattern[str]":
+    """ポート番号リテラル検出用の語境界つきパターンを返す（テスト内ヘルパー）。
+
+    Args:
+        port: 検出対象のポート番号（既定は既定ポート）。
+
+    Returns:
+        re.Pattern[str]: 直前/直後が数字・ピリオドでない場合のみ一致するパターン。
+            `18765` や `202609168765` のような別の数値を誤検知しない。
+    """
+    return re.compile(rf"(?<![\d.]){re.escape(str(port))}(?![\d.])")
 
 
 class TestPortSingleSource(unittest.TestCase):
@@ -71,6 +85,40 @@ class TestPortSingleSource(unittest.TestCase):
         """ui/qr_dialog.py 内に既定ポート番号のベタ書きが残っていないこと"""
         source = (PROJECT_ROOT / "ui" / "qr_dialog.py").read_text(encoding="utf-8")
         self.assertNotIn(str(sync_config.DEFAULT_SERVER_PORT), source)
+
+    def test_production_code_has_no_default_port_literal(self) -> None:
+        """出荷コード（Python / PWA JS）に既定ポート番号のベタ書きが残っていないこと
+
+        Notes:
+            P1-2 (ruthless-code-evaluation 2026-09-16): ポートを変更した瞬間に
+            設定画面のガイド・webhook URL・Agent Bridge CLI が 8765 を指し続けて
+            連携が全滅する事故を、構造的に防ぐ。
+            `sync_config.py`（既定値の定義元）とテストコードは対象外。
+            判定は語境界つき正規表現（`18765` や `202609168765` を誤検知しない）。
+            出荷対象の**ドキュメント**は別テスト（`TestShippedDocsPortGuidance`）が担当。
+        """
+        literal = str(sync_config.DEFAULT_SERVER_PORT)
+        pattern = _port_pattern()
+        targets = [
+            *PROJECT_ROOT.glob("*.py"),
+            *PROJECT_ROOT.glob("ui/*.py"),
+            *PROJECT_ROOT.glob("storage/*.py"),
+            *PROJECT_ROOT.glob("tools/*.py"),
+            *PROJECT_ROOT.glob("web_pet/*.js"),
+        ]
+
+        offenders = []
+        for path in sorted(targets):
+            if path.name == "sync_config.py":
+                continue
+            text = path.read_text(encoding="utf-8-sig", errors="replace")
+            for lineno, line in enumerate(text.splitlines(), start=1):
+                if pattern.search(line):
+                    offenders.append(f"{path.relative_to(PROJECT_ROOT).as_posix()}:{lineno}")
+
+        self.assertEqual(
+            offenders, [], f"既定ポート番号のベタ書きが残っています: {offenders}"
+        )
 
     def test_main_tailscale_serve_uses_shared_port(self) -> None:
         """main の自動 Tailscale serve 起動がポート定数を参照していること"""
@@ -206,6 +254,120 @@ class TestEnvFileFallback(unittest.TestCase):
                     sync_config, "read_port_from_env_file", return_value="9011"
                 ):
             self.assertEqual(sync_config._read_env_port(), "9012")
+
+
+class TestAgentBridgePortResolution(unittest.TestCase):
+    """Agent Bridge CLI のポート解決契約 (P1-2)
+
+    外部エージェント（Codex / Claude Code / Antigravity 等）から叩かれる CLI が
+    `8765` をベタ書きしていると、ポート変更時に**連携が全滅**する。
+    ポートは sync_config（唯一の情報源）から解決し、明示指定があればそれを優先する。
+    """
+
+    def test_explicit_port_wins(self) -> None:
+        """明示指定されたポートはそのまま採用されること"""
+        import agent_bridge_client
+
+        self.assertEqual(agent_bridge_client.resolve_hub_port(9300), 9300)
+
+    def test_missing_or_invalid_port_falls_back_to_sync_config(self) -> None:
+        """未指定・不正値は sync_config.SERVER_PORT へ安全退避すること"""
+        import agent_bridge_client
+
+        for value in (None, 0, -1, "not-a-port", 70000):
+            with self.subTest(value=value):
+                self.assertEqual(
+                    agent_bridge_client.resolve_hub_port(value), sync_config.SERVER_PORT
+                )
+
+    def test_cli_source_has_no_default_port_literal(self) -> None:
+        """CLI 実装（docstring含む）に既定ポート番号のベタ書きが無いこと"""
+        import agent_bridge_client
+
+        source = inspect.getsource(agent_bridge_client)
+
+        self.assertNotIn(str(sync_config.DEFAULT_SERVER_PORT), source)
+
+
+class TestPortLiteralScanner(unittest.TestCase):
+    """走査ロジック自体の契約（偽陽性・偽陰性の既知例を明示する）
+
+    独立査読（2026-09-16）で「テスト緑＝漏れなし、ではない」と指摘されたため、
+    検出できる形/できない形をテストで固定し、限界を可視化する。
+    """
+
+    def test_detects_direct_and_inline_literals(self) -> None:
+        """直接代入・f-string・URL 文字列中のリテラルは検出できること"""
+        pattern = _port_pattern()
+
+        for payload in (
+            "PORT = 8765",
+            'url = f"http://localhost:8765/api/x"',
+            '"tailscale serve 8765"',
+            "text=\"http://<PCのIP>:8765/api/webhook\"",
+        ):
+            with self.subTest(payload=payload):
+                self.assertIsNotNone(pattern.search(payload))
+
+    def test_ignores_unrelated_numbers(self) -> None:
+        """別の数値（上位桁・タイムスタンプ）を誤検知しないこと"""
+        pattern = _port_pattern()
+
+        for payload in ("PORT = 18765", "b = 202609168765", "v = 0.8765", "id = 87650"):
+            with self.subTest(payload=payload):
+                self.assertIsNone(pattern.search(payload))
+
+    def test_documents_known_blind_spots(self) -> None:
+        """既知の検出限界（難読化・演算生成・16進）を明示する
+
+        Notes:
+            これらは本走査では検出できない。コードレビューと独立査読で補う前提であり、
+            「テストが緑だから安全」と誤解しないための記録である。
+        """
+        pattern = _port_pattern()
+
+        for payload in ('P = "87" + "65"', "P = 0x22DD", "P = 8000 + 765"):
+            with self.subTest(payload=payload):
+                self.assertIsNone(pattern.search(payload))
+
+    def test_scan_uses_current_default_port(self) -> None:
+        """走査対象ポートは sync_config の既定値から導出されること（ベタ書き禁止）"""
+        self.assertEqual(_port_pattern().pattern, _port_pattern(sync_config.DEFAULT_SERVER_PORT).pattern)
+        self.assertIn(str(sync_config.DEFAULT_SERVER_PORT), _port_pattern().pattern)
+
+
+class TestShippedDocsPortGuidance(unittest.TestCase):
+    """出荷・利用者向けドキュメントのポート案内契約（P1-2 の残穴対策）
+
+    exe には `docs/guides/` と `.env.example` が同梱される（`neo_hisho.spec` の datas）。
+    既定ポート番号を記載する文書は、必ず「変更方法（`NEO_HISHO_PORT`）」も併記すること。
+    """
+
+    def _doc_targets(self) -> list:
+        guides = PROJECT_ROOT / "docs" / "guides"
+        return [
+            *sorted(guides.glob("*.md")),
+            *sorted(guides.glob("*.html")),
+            PROJECT_ROOT / "README.md",
+            PROJECT_ROOT / ".env.example",
+        ]
+
+    def test_docs_mentioning_default_port_also_document_override(self) -> None:
+        """ポート記載がある文書は NEO_HISHO_PORT による変更方法も併記していること"""
+        pattern = _port_pattern()
+        offenders = []
+        for path in self._doc_targets():
+            if not path.is_file():
+                continue
+            text = path.read_text(encoding="utf-8-sig", errors="replace")
+            if pattern.search(text) and "NEO_HISHO_PORT" not in text:
+                offenders.append(path.relative_to(PROJECT_ROOT).as_posix())
+
+        self.assertEqual(
+            offenders,
+            [],
+            f"ポート記載があるのに変更方法（NEO_HISHO_PORT）が無い出荷ドキュメント: {offenders}",
+        )
 
 
 if __name__ == "__main__":

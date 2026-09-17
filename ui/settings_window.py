@@ -14,6 +14,7 @@ import customtkinter as ctk
 from dotenv import load_dotenv
 
 from ui.window_icon import apply_window_icon
+from sync_config import SERVER_PORT
 
 logger = logging.getLogger(__name__)
 
@@ -766,7 +767,7 @@ class SettingsWindow(ctk.CTkToplevel):
                 "カフェ等の外出先Wi-Fi（端末間通信が禁止されたネットワーク）からでも\n"
                 "スマホDesk Petへ接続できるようにします。\n"
                 "【手順】1. PCとスマホ両方に Tailscale を入れ、同じアカウントでログイン\n"
-                "　 　 2. PC側でコマンド実行: tailscale serve 8765\n"
+                f"　 　 2. PC側でコマンド実行: tailscale serve {SERVER_PORT}\n"
                 "　 　 3. 下の欄にPCのTailscaleホスト名（例: hisyo-pc.tailXXXX.ts.net）を保存\n"
                 "詳細は docs/guides/TAILSCALE_SETUP.md を参照"
             ),
@@ -884,7 +885,7 @@ class SettingsWindow(ctk.CTkToplevel):
         wh_info_frame = ctk.CTkFrame(card_webhook, fg_color="#F5F5F5", corner_radius=4)
         wh_info_frame.pack(fill="x", padx=8, pady=(2, 6))
         ctk.CTkLabel(wh_info_frame, text="📥 秘書くん受信用 URL (外部からPOST送信):", font=("Meiryo UI", 8, "bold"), text_color="#5D4037", anchor="w").pack(anchor="w", padx=6, pady=(4, 1))
-        ctk.CTkLabel(wh_info_frame, text="予定: http://<PCのIP>:8765/api/webhook/calendar\nタスク: http://<PCのIP>:8765/api/webhook/task", font=("Consolas", 8), text_color="#424242", justify="left", anchor="w").pack(anchor="w", padx=6, pady=(0, 4))
+        ctk.CTkLabel(wh_info_frame, text=f"予定: http://<PCのIP>:{SERVER_PORT}/api/webhook/calendar\nタスク: http://<PCのIP>:{SERVER_PORT}/api/webhook/task", font=("Consolas", 8), text_color="#424242", justify="left", anchor="w").pack(anchor="w", padx=6, pady=(0, 4))
 
         # 4. 外部MCPプラグイン一覧
         card_mcp_list = ctk.CTkFrame(content_tools, fg_color="#FFFFFF", border_width=1, border_color="#E0D8C8", corner_radius=6)
@@ -974,7 +975,11 @@ class SettingsWindow(ctk.CTkToplevel):
         # =====================================================================
         from ui.device_manager_panel import DeviceManagerSection
 
-        self.device_manager_section = DeviceManagerSection(tab_devices)
+        # dispatch=parent_gui.post_action により、台帳読み出しはワーカースレッドで実行され
+        # 結果だけがメインスレッドで反映される（設定画面が固まらない / P1-3）
+        self.device_manager_section = DeviceManagerSection(
+            tab_devices, dispatch=getattr(self.parent_gui, "post_action", None)
+        )
         self.device_manager_section.pack(fill="both", expand=True, padx=8, pady=6)
 
 
@@ -1309,7 +1314,7 @@ class SettingsWindow(ctk.CTkToplevel):
             "保存完了",
             "Tailscale ホスト名を保存しました。\n"
             "QR接続ダイアログに「🌐 外出先接続」URLが表示されます。\n"
-            "（PC側で `tailscale serve 8765` の実行が必要です）"
+            f"（PC側で `tailscale serve {SERVER_PORT}` の実行が必要です）"
         )
 
     def _revoke_sync_token(self):
