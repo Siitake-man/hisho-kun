@@ -16,6 +16,8 @@ TDD: ui/device_manager_panel.py が無い状態では Red で落ちる。
 """
 
 import sys
+import threading
+import time
 import tkinter as tk
 import unittest
 from pathlib import Path
@@ -241,7 +243,7 @@ class TestDeviceManagerSectionGui(unittest.TestCase):
             panel.database, "revoke_device", return_value=True
         ) as revoke_mock, mock.patch.object(
             panel.database, "get_all_devices", return_value=[revoked_device, _device(2)]
-        ):
+        ), mock.patch.object(panel, "record_device_revoke"):
             result = section.revoke(section.rows[0])
 
         self.assertTrue(result)
@@ -260,6 +262,357 @@ class TestDeviceManagerSectionGui(unittest.TestCase):
 
         self.assertFalse(result)
         self.assertFalse(revoke_mock.called)
+
+    def test_revoke_records_audit_log_with_source(self) -> None:
+        """接続解除が監査ログ（source=ui, actor=pc_settings_ui）へ記録されること (P1-4)"""
+        section = self._make_section([_device(1, name="Pixel Desk Pet")])
+
+        with mock.patch.object(panel.database, "revoke_device", return_value=True), \
+                mock.patch.object(
+                    panel.database, "get_all_devices", return_value=[_device(1, is_revoked=1)]
+                ), \
+                mock.patch.object(panel, "record_device_revoke") as audit_mock:
+            section.revoke(section.rows[0])
+
+        audit_mock.assert_called_once()
+        args, kwargs = audit_mock.call_args
+        self.assertEqual(args[0], 1)
+        self.assertEqual(kwargs.get("source"), "ui")
+        self.assertEqual(kwargs.get("actor"), "pc_settings_ui")
+        self.assertEqual(kwargs.get("device_name"), "Pixel Desk Pet")
+
+    def test_failed_revoke_is_not_audited(self) -> None:
+        """失効に失敗した場合は監査ログへ記録しないこと（記録は成功時のみ）"""
+        section = self._make_section([_device(1)])
+
+        with mock.patch.object(panel.database, "revoke_device", return_value=False), \
+                mock.patch.object(panel.database, "get_all_devices", return_value=[_device(1)]), \
+                mock.patch.object(panel, "record_device_revoke") as audit_mock:
+            result = section.revoke(section.rows[0])
+
+        self.assertFalse(result)
+        self.assertFalse(audit_mock.called)
+
+
+class TestDevicePanelAsyncRefresh(unittest.TestCase):
+    """P1-3: 台帳読み出しの非同期化 ＆ 失敗の可視化の契約
+
+    DBがロックされていると `busy_timeout` (30秒) まで待つため、Tkメインスレッドで
+    読み出すと設定画面が固まる。読み出しはワーカースレッド、画面反映は
+    `dispatch`（本番: `parent_gui.post_action`）経由でメインスレッドに限定する。
+    """
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        try:
+            cls.root = tk.Tk()
+        except tk.TclError:
+            cls.root = None
+        else:
+            cls.root.withdraw()
+
+    @classmethod
+    def tearDownClass(cls) -> None:
+        if getattr(cls, "root", None) is not None:
+            try:
+                cls.root.destroy()
+            except tk.TclError:
+                pass
+            cls.root = None
+
+    def setUp(self) -> None:
+        if self.__class__.root is None:
+            self.skipTest("Tk を初期化できない環境のためスキップします")
+
+    def test_fetch_result_reports_error_instead_of_empty(self) -> None:
+        """取得失敗がエラーメッセージとして返ること（端末ゼロと区別できる）"""
+        with mock.patch.object(
+            panel.database, "get_all_devices", side_effect=RuntimeError("database is locked")
+        ):
+            result = panel.fetch_device_rows()
+
+        self.assertEqual(result.rows, [])
+        self.assertIsNotNone(result.error)
+        self.assertIn("database is locked", result.error or "")
+
+    def test_constructor_does_not_block_on_slow_registry(self) -> None:
+        """読み出しが遅くてもコンストラクタ（＝設定画面表示）がブロックしないこと"""
+        captured: list = []
+
+        def slow_registry():
+            time.sleep(0.4)
+            return [_device(1)]
+
+        with mock.patch.object(panel.database, "get_all_devices", side_effect=slow_registry):
+            start = time.perf_counter()
+            section = panel.DeviceManagerSection(
+                self.root,
+                confirm_callback=lambda _row: True,
+                dispatch=lambda callback: captured.append(callback),
+            )
+            elapsed = time.perf_counter() - start
+
+            self.assertLess(elapsed, 0.3, "読み出し中にコンストラクタがブロックしています")
+            self.assertEqual(section.rows, [], "ワーカー完了前にメインスレッドで反映されています")
+
+            for _ in range(60):
+                if captured:
+                    break
+                time.sleep(0.05)
+
+        self.assertEqual(len(captured), 1, "反映依頼が1回だけ発行されること")
+        captured[0]()
+        self.assertEqual(len(section.rows), 1, "dispatch 経由の反映が行われていません")
+
+    def test_in_flight_requests_are_deduplicated(self) -> None:
+        """読み出し実行中の連打（再読込）は1本に統合されること"""
+        captured: list = []
+        gate = threading.Event()
+
+        def blocking_registry():
+            gate.wait(timeout=3.0)
+            return [_device(1)]
+
+        with mock.patch.object(panel.database, "get_all_devices", side_effect=blocking_registry):
+            section = panel.DeviceManagerSection(
+                self.root,
+                confirm_callback=lambda _row: True,
+                dispatch=lambda callback: captured.append(callback),
+            )
+            section.refresh_async()
+            section.refresh_async()
+            gate.set()
+            for _ in range(60):
+                if captured:
+                    break
+                time.sleep(0.05)
+
+        self.assertEqual(len(captured), 1, "多重発行が抑止されていません")
+
+    def test_db_error_is_shown_not_silently_empty(self) -> None:
+        """DB障害時は「端末ゼロ」ではなく読み出し失敗として表示されること"""
+        with mock.patch.object(
+            panel.database, "get_all_devices", side_effect=RuntimeError("database is locked")
+        ):
+            section = panel.DeviceManagerSection(self.root, confirm_callback=lambda _row: True)
+
+        texts = [
+            child.cget("text")
+            for child in section.rows_container.winfo_children()
+            if hasattr(child, "cget")
+        ]
+        self.assertTrue(any("失敗" in text for text in texts), f"失敗表示がありません: {texts}")
+        self.assertNotIn(panel.EMPTY_PLACEHOLDER, texts)
+        self.assertIn("失敗", section.status_label.cget("text"))
+        self.assertIsNotNone(section.fetch_error)
+
+    def test_fetch_runs_off_main_thread(self) -> None:
+        """台帳読み出しがメインスレッド以外で実行されること（UIブロック根絶の根拠）"""
+        observed: list = []
+        captured: list = []
+
+        def recording_registry():
+            observed.append(threading.current_thread() is threading.main_thread())
+            return [_device(1)]
+
+        with mock.patch.object(panel.database, "get_all_devices", side_effect=recording_registry):
+            section = panel.DeviceManagerSection(
+                self.root,
+                confirm_callback=lambda _row: True,
+                dispatch=lambda callback: captured.append(callback),
+            )
+            for _ in range(60):
+                if captured:
+                    break
+                time.sleep(0.05)
+
+        self.assertEqual(observed, [False], "台帳読み出しがメインスレッドで実行されています")
+        self.assertEqual(len(captured), 1)
+
+    def test_ui_thread_stays_responsive_while_fetch_blocked(self) -> None:
+        """読み出しが返らない間もメインスレッドが操作可能であること（デッドロック検出）"""
+        gate = threading.Event()
+        captured: list = []
+
+        def blocking_registry():
+            gate.wait(timeout=3.0)
+            return [_device(1)]
+
+        try:
+            with mock.patch.object(panel.database, "get_all_devices", side_effect=blocking_registry):
+                section = panel.DeviceManagerSection(
+                    self.root,
+                    confirm_callback=lambda _row: True,
+                    dispatch=lambda callback: captured.append(callback),
+                )
+                self.assertEqual(section.rows, [])
+
+                # 読み出し中にメインスレッドで Tk 操作（描画・ウィジェット生成）を行う
+                marker = tk.Label(self.root, text="responsive")
+                marker.pack()
+                self.root.update()
+                self.assertTrue(marker.winfo_exists())
+                marker.destroy()
+
+                gate.set()
+                for _ in range(60):
+                    if captured:
+                        break
+                    time.sleep(0.05)
+        finally:
+            gate.set()
+
+        self.assertEqual(len(captured), 1)
+        captured[0]()
+        self.assertEqual(len(section.rows), 1)
+
+    def test_refresh_flag_is_reset_and_next_refresh_runs(self) -> None:
+        """読み出し完了後にフラグが戻り、次の再読込が実行されること（恒久True化の回帰防止）"""
+        calls: list = []
+        captured: list = []
+
+        def counting_registry():
+            calls.append(1)
+            return [_device(1)]
+
+        with mock.patch.object(panel.database, "get_all_devices", side_effect=counting_registry):
+            section = panel.DeviceManagerSection(
+                self.root,
+                confirm_callback=lambda _row: True,
+                dispatch=lambda callback: captured.append(callback),
+            )
+            for _ in range(60):
+                if captured:
+                    break
+                time.sleep(0.05)
+            captured.pop(0)()
+            self.assertFalse(section._refresh_in_flight, "フラグがリセットされていません")
+
+            section.refresh_async()
+            for _ in range(60):
+                if captured:
+                    break
+                time.sleep(0.05)
+
+        self.assertEqual(len(calls), 2, "2回目の再読込が実行されていません（フラグ恒久True疑い）")
+        self.assertEqual(len(captured), 1)
+
+    def test_error_after_successful_render_keeps_previous_rows(self) -> None:
+        """更新失敗時は前回の一覧を消さずに失敗を明示すること（stale-but-visible）"""
+        with mock.patch.object(panel.database, "get_all_devices", return_value=[_device(1)]):
+            section = panel.DeviceManagerSection(self.root, confirm_callback=lambda _row: True)
+        children_before = list(section.rows_container.winfo_children())
+
+        with mock.patch.object(
+            panel.database, "get_all_devices", side_effect=RuntimeError("database is locked")
+        ):
+            section.refresh()
+
+        self.assertEqual(
+            section.rows_container.winfo_children(),
+            children_before,
+            "更新失敗で表示中の一覧が消えています",
+        )
+        self.assertEqual(len(section.rows), 1)
+        self.assertIn("更新失敗", section.status_label.cget("text"))
+
+    def test_failed_revoke_is_reported_in_status(self) -> None:
+        """接続解除に失敗した場合は状態行で明示すること（無言の失敗を防ぐ）"""
+        with mock.patch.object(panel.database, "get_all_devices", return_value=[_device(1)]):
+            section = panel.DeviceManagerSection(self.root, confirm_callback=lambda _row: True)
+
+        with mock.patch.object(panel.database, "revoke_device", return_value=False), \
+                mock.patch.object(panel, "record_device_revoke") as audit_mock:
+            result = section.revoke(section.rows[0])
+
+        self.assertFalse(result)
+        self.assertFalse(audit_mock.called)
+        self.assertIn("失敗", section.status_label.cget("text"))
+
+    def test_revoke_during_inflight_fetch_converges_to_truth(self) -> None:
+        """読み出し実行中に解除しても、最終表示が「拒否済み」へ収束すること (P1-1 回帰防止)
+
+        旧実装は in-flight 中の再読込要求を捨てていたため、失効前スナップショットが
+        表示されたまま「DBは失効済み・UIは有効」という嘘が固定された（独立査読で実測）。
+        """
+        state = {"rows": [_device(1)], "block": False}
+        gate = threading.Event()
+        captured: list = []
+
+        def controlled_registry():
+            snapshot = list(state["rows"])
+            if state["block"]:
+                gate.wait(timeout=3.0)
+            return snapshot
+
+        with mock.patch.object(panel.database, "get_all_devices", side_effect=controlled_registry):
+            section = panel.DeviceManagerSection(
+                self.root,
+                confirm_callback=lambda _row: True,
+                dispatch=lambda callback: captured.append(callback),
+            )
+            for _ in range(60):
+                if captured:
+                    break
+                time.sleep(0.05)
+            captured.pop(0)()
+            self.assertEqual(len(section.rows), 1)
+
+            # 読み出しをブロックし、その最中に revoke を実行する
+            state["block"] = True
+            section.refresh_async()
+            self.assertTrue(section._refresh_in_flight)
+
+            state["rows"] = [_device(1, is_revoked=1)]
+            with mock.patch.object(panel.database, "revoke_device", return_value=True), \
+                    mock.patch.object(panel, "record_device_revoke"):
+                self.assertTrue(section.revoke(section.rows[0]))
+
+            # 古いスナップショットを配送 → 延期された再読込が走り最新状態へ収束する
+            state["block"] = False
+            gate.set()
+            # 楽観更新で先に is_revoked が立つため、フラグ解放（＝再読込完了）まで待つ
+            for _ in range(80):
+                while captured:
+                    captured.pop(0)()
+                if not section._refresh_in_flight and section.rows and section.rows[0].is_revoked:
+                    break
+                time.sleep(0.05)
+
+        self.assertTrue(section.rows[0].is_revoked, "UIが失効前状態のまま収束していません")
+        self.assertEqual(
+            section.rows[0].status_label, panel.DEVICE_STATUS_REVOKED_LABEL
+        )
+        self.assertFalse(section._refresh_in_flight)
+
+    def test_identical_rows_do_not_rebuild_widgets(self) -> None:
+        """同一内容の再読込ではウィジェットを再生成しないこと（連打での肥大化防止）"""
+        with mock.patch.object(panel.database, "get_all_devices", return_value=[_device(1)]):
+            section = panel.DeviceManagerSection(self.root, confirm_callback=lambda _row: True)
+            before = list(section.rows_container.winfo_children())
+            section.refresh()
+            after = list(section.rows_container.winfo_children())
+
+        self.assertEqual(len(before), len(after))
+        self.assertTrue(
+            all(b is a for b, a in zip(before, after)),
+            "同一内容にもかかわらずウィジェットが再生成されています",
+        )
+
+    def test_changed_rows_rebuild_widgets(self) -> None:
+        """内容が変化した場合は再描画されること"""
+        with mock.patch.object(panel.database, "get_all_devices", return_value=[_device(1)]):
+            section = panel.DeviceManagerSection(self.root, confirm_callback=lambda _row: True)
+        before = {id(child) for child in section.rows_container.winfo_children()}
+
+        with mock.patch.object(
+            panel.database, "get_all_devices", return_value=[_device(1), _device(2)]
+        ):
+            section.refresh()
+
+        after = list(section.rows_container.winfo_children())
+        self.assertEqual(len(after), 2)
+        self.assertNotEqual(before, {id(child) for child in after})
 
 
 class TestSettingsWindowIntegration(unittest.TestCase):

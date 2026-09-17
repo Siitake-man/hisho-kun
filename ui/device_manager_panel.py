@@ -15,12 +15,14 @@ POST /api/devices/revoke) を、PC設定画面から視覚確認・Revoke でき
 
 import datetime
 import logging
+import threading
 from dataclasses import dataclass
-from typing import Any, Callable, Iterable, List, Optional
+from typing import Any, Callable, Iterable, List, Optional, Tuple
 
 import customtkinter as ctk
 
 import database
+from api_devices import record_device_revoke
 
 logger = logging.getLogger(__name__)
 
@@ -147,6 +149,63 @@ def list_device_rows() -> List[DeviceRow]:
         return []
 
 
+def mark_row_revoked(row: DeviceRow) -> DeviceRow:
+    """失効直後の楽観表示用に、行DTOを「拒否済み」へ差し替える（純粋関数）。
+
+    Args:
+        row: 失効対象の表示DTO。
+
+    Returns:
+        DeviceRow: is_revoked=True / ステータス=拒否済み へ差し替えた新しいDTO。
+
+    Notes:
+        P1-1 (2026-09-16 独立査読): 再読込の完了前に古いスナップショットが表示されると
+        「DBは失効済み・UIは有効」という嘘が固定表示される。楽観更新で即座に反映し、
+        バックグラウンドの再読込で整合を取る。
+    """
+    return DeviceRow(
+        device_id=row.device_id,
+        title=row.title,
+        subtitle=row.subtitle,
+        status_label=DEVICE_STATUS_REVOKED_LABEL,
+        status_color=STATUS_COLOR_REVOKED,
+        created_label=row.created_label,
+        last_seen_label=row.last_seen_label,
+        is_revoked=True,
+    )
+
+
+@dataclass(frozen=True)
+class DeviceFetchResult:
+    """台帳取得の結果（行DTO ＋ エラー情報）。
+
+    Attributes:
+        rows: 表示用DTOのリスト（失敗時は空）。
+        error: 失敗時のメッセージ（成功時は None）。
+    """
+
+    rows: List[DeviceRow]
+    error: Optional[str] = None
+
+
+def fetch_device_rows() -> DeviceFetchResult:
+    """台帳を読み、行DTOとエラー情報を返す Seam。
+
+    Returns:
+        DeviceFetchResult: 成功時は (rows, None)、失敗時は ([], エラーメッセージ)。
+
+    Notes:
+        P1-3 (2026-09-16 ruthless-code-evaluation): 旧実装は失敗を空リストへ
+        潰していたため、DB障害が「端末ゼロ（登録なし）」と見分けられなかった。
+        エラーを明示的に返すことで、UI が「読み出し失敗」を表示できる。
+    """
+    try:
+        return DeviceFetchResult(build_device_rows(database.get_all_devices()))
+    except Exception as e:
+        logger.error(f"接続端末一覧の取得に失敗しました: {e}")
+        return DeviceFetchResult([], f"台帳の読み出しに失敗しました: {e}")
+
+
 def revoke_device_entry(device_id: Any) -> bool:
     """端末を失効 (Revoke) させ、次回リクエストを 401/403 で遮断させる Seam。
 
@@ -174,22 +233,31 @@ class DeviceManagerSection(ctk.CTkFrame):
         master: 親ウィジェット (設定画面のタブなど)。
         confirm_callback: 解除前の確認処理 (省略時は messagebox の Yes/No)。
             テスト時にダイアログを出さずに検証するための注入 Seam。
+        dispatch: ワーカースレッド → Tkメインスレッドへの受け渡し関数
+            (例: `parent_gui.post_action`)。省略時は同期実行へ退避するため、
+            テストでは未指定のまま決定的に検証できる。
     """
 
     def __init__(
         self,
         master: Any,
         confirm_callback: Optional[Callable[[DeviceRow], bool]] = None,
+        dispatch: Optional[Callable[[Callable[[], None]], Any]] = None,
         **kwargs: Any,
     ) -> None:
         super().__init__(master, fg_color="transparent", **kwargs)
         self._confirm_callback = confirm_callback
+        self._dispatch = dispatch
+        self._refresh_in_flight = False
+        self._refresh_pending = False
         self.rows: List[DeviceRow] = []
+        self.fetch_error: Optional[str] = None
 
         self._build_header()
         self.rows_container = ctk.CTkScrollableFrame(self, fg_color="transparent")
         self.rows_container.pack(fill="both", expand=True, padx=2, pady=(0, 4))
-        self.refresh()
+        # 初期表示も非同期で行い、台帳読み出し中に設定画面が固まらないようにする (P1-3)
+        self.refresh_async()
 
     # ------------------------------------------------------------------ 構築
     def _build_header(self) -> None:
@@ -214,7 +282,7 @@ class DeviceManagerSection(ctk.CTkFrame):
             hover_color="#4E342E",
             width=80,
             height=24,
-            command=self.refresh,
+            command=self.refresh_async,
         ).pack(side="right")
 
         ctk.CTkLabel(
@@ -229,6 +297,26 @@ class DeviceManagerSection(ctk.CTkFrame):
             justify="left",
             wraplength=400,
         ).pack(fill="x", padx=8, pady=(2, 6))
+
+        # 読み込み状態・件数・失敗を表示する行 (P1-3: 失敗を「端末ゼロ」と区別する)
+        self.status_label = ctk.CTkLabel(
+            card,
+            text="",
+            font=("Meiryo UI", 9),
+            text_color="#757575",
+            anchor="w",
+        )
+        self.status_label.pack(fill="x", padx=8, pady=(0, 6))
+
+    def _set_status(self, text: str) -> None:
+        """ヘッダーの状態表示を更新する (ウィジェット破棄済みなら何もしない)。"""
+        label = getattr(self, "status_label", None)
+        if label is None:
+            return
+        try:
+            label.configure(text=text)
+        except Exception as e:  # 破棄後アクセスは無視（終了時のノイズ防止）
+            logger.debug(f"状態表示の更新をスキップ: {e}")
 
     def _render_row(self, row: DeviceRow) -> None:
         """端末1件分のカードを描画する。"""
@@ -279,11 +367,107 @@ class DeviceManagerSection(ctk.CTkFrame):
 
     # ------------------------------------------------------------- 再描画/解除
     def refresh(self) -> None:
-        """台帳を読み直して端末カードを再描画する (Seam 経由・GUI 非依存の取得)。"""
+        """台帳を同期で読み直して表示を更新する (テスト・後方互換用)。
+
+        Notes:
+            本番経路 (設定画面) は `refresh_async()` を使う。DBがロックされていると
+            `busy_timeout` (30秒) まで待つため、Tkメインスレッドから呼ぶと
+            最悪30秒UIが固まる (P1-3 / 2026-09-16 ruthless-code-evaluation)。
+            本メソッドは Tk を直接操作するためメインスレッド専用であり、
+            他スレッドからの呼び出しは安全側に倒して無視する (P2-5)。
+        """
+        if threading.current_thread() is not threading.main_thread():
+            logger.warning(
+                "端末一覧の同期更新はメインスレッド専用です。refresh_async() を使用してください"
+            )
+            return
+        self._apply_result(fetch_device_rows())
+
+    def refresh_async(self) -> None:
+        """台帳をワーカースレッドで読み、Tkメインスレッドへ安全に反映する (P1-3)。
+
+        Notes:
+            `dispatch` (例: `parent_gui.post_action`) が注入されている場合は
+            ワーカー→メインスレッドの受け渡しを行い、**読み出し中もUIを一切ブロックしない**。
+            未注入 (テスト・単体利用) の場合は同期実行へ退避する。
+            多重発行は `_refresh_in_flight` で抑止する (連打しても読み出しは1本)。
+        """
+        if self._dispatch is None:
+            self.refresh()
+            return
+        if self._refresh_in_flight:
+            # 破棄せず「延期」する: revoke 直後の再読込を取りこぼすと
+            #   失効前スナップショットが表示され UI が嘘をつく (P1-1 / 2026-09-16 独立査読)
+            self._refresh_pending = True
+            logger.debug("端末一覧の読み出しが実行中のため、再読込を延期します")
+            return
+        self._refresh_in_flight = True
+        self._refresh_pending = False
+        self._set_status("🔄 読み込み中…")
+        threading.Thread(
+            target=self._fetch_then_dispatch,
+            daemon=True,
+            name="DeviceRegistryFetch",
+        ).start()
+
+    def _fetch_then_dispatch(self) -> None:
+        """ワーカースレッド側: 台帳を読み、結果を `dispatch` 経由でメインスレッドへ渡す。"""
+        result = fetch_device_rows()
+
+        def _apply() -> None:
+            self._refresh_in_flight = False
+            self._apply_result(result)
+            if self._refresh_pending:
+                # 延期していた再読込をここで実行し、最新状態へ収束させる (P1-1)
+                self._refresh_pending = False
+                self.refresh_async()
+
+        try:
+            self._dispatch(_apply)
+        except Exception as e:
+            # ウィンドウ破棄済み等による反映依頼の失敗でアプリを落とさない
+            logger.debug(f"端末一覧の反映依頼に失敗しました: {e}")
+            self._refresh_in_flight = False
+
+    def _apply_result(self, result: DeviceFetchResult) -> None:
+        """取得結果を画面へ反映する (Tkメインスレッド専用)。
+
+        Notes:
+            内容 (行・エラー) が前回と同一の場合はウィジェットを再生成しない。
+            連打・定期更新でのウィジェット爆発と描画チラつきを防ぐ。
+        """
+        unchanged = (result.rows == self.rows) and (result.error == self.fetch_error)
+        had_rows = bool(self.rows)
+        self.fetch_error = result.error
+
+        if result.error and had_rows:
+            # stale-but-visible: 直前まで表示していた一覧を消さずに失敗を明示する (P2-4)
+            logger.debug("端末一覧の更新に失敗したため、前回内容を保持して表示します")
+            self._set_status(f"⚠️ 更新失敗（前回の内容を表示中）: {result.error}")
+            return
+
+        self.rows = list(result.rows)
+
+        if unchanged and self.rows_container.winfo_children():
+            return
+
         for child in self.rows_container.winfo_children():
             child.destroy()
 
-        self.rows = list_device_rows()
+        if self.fetch_error:
+            ctk.CTkLabel(
+                self.rows_container,
+                text=(
+                    f"⚠️ {self.fetch_error}\n"
+                    "（DBロック等の一時障害の可能性があります。少し待って「🔄 再読込」を押してください）"
+                ),
+                font=("Meiryo UI", 10),
+                text_color=STATUS_COLOR_REVOKED,
+                justify="left",
+                wraplength=400,
+            ).pack(anchor="w", padx=6, pady=8)
+            self._set_status("⚠️ 読み出し失敗")
+            return
 
         if not self.rows:
             ctk.CTkLabel(
@@ -294,10 +478,12 @@ class DeviceManagerSection(ctk.CTkFrame):
                 justify="left",
                 wraplength=400,
             ).pack(anchor="w", padx=6, pady=8)
+            self._set_status("登録端末: 0件")
             return
 
         for row in self.rows:
             self._render_row(row)
+        self._set_status(f"登録端末: {len(self.rows)}件")
 
     def revoke(self, row: DeviceRow) -> bool:
         """確認のうえ端末を失効させ、一覧を即座に再描画する。
@@ -317,7 +503,27 @@ class DeviceManagerSection(ctk.CTkFrame):
         ok = revoke_device_entry(row.device_id)
         if ok:
             logger.warning(f"端末の接続を解除しました (id={row.device_id})")
-        self.refresh()
+            # ゼロトラスト監査: 誰がいつどの端末を切ったかを記録する (P1-4)
+            record_device_revoke(
+                row.device_id,
+                actor="pc_settings_ui",
+                source="ui",
+                device_name=row.title,
+            )
+            # 楽観反映: 再読込の完了前に「有効」のまま見える嘘を防ぐ (P1-1)
+            self._apply_result(
+                DeviceFetchResult(
+                    [
+                        mark_row_revoked(item) if item.device_id == row.device_id else item
+                        for item in self.rows
+                    ]
+                )
+            )
+            self.refresh_async()
+        else:
+            self._set_status(
+                "⚠️ 接続解除に失敗しました（DBロック等の可能性があります。再試行してください）"
+            )
         return ok
 
     def _request_confirmation(self, row: DeviceRow) -> bool:

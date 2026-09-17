@@ -1353,6 +1353,7 @@ class DeskPetSyncHandler(SimpleHTTPRequestHandler):
             path_handler(ApiContext(self, body, client_ip, user_agent))
 
         # 3.5 デバイス個別失効API (POST /api/devices/revoke) — 管理者/同一PC操作に限定
+        #     処理本体（監査ログ記録を含む）は api_devices.handle_post_devices_revoke へ委譲 (P1-4)
         elif self.path == "/api/devices/revoke":
             if not self._is_loopback(client_ip):
                 logger.warning(f"🚫 [Security] 非ループバック({client_ip})からのデバイス失効要求を拒否")
@@ -1362,29 +1363,7 @@ class DeskPetSyncHandler(SimpleHTTPRequestHandler):
                 self.end_headers()
                 self.wfile.write(json.dumps({"status": "error", "message": "Device revoke is restricted to localhost."}, ensure_ascii=False).encode("utf-8"))
                 return
-            try:
-                data = json.loads(body.decode("utf-8")) if body else {}
-                device_id = data.get("device_id")
-                if not device_id:
-                    self.send_response(400)
-                    self.send_header("Content-Type", "application/json; charset=utf-8")
-                    self._set_cors_headers()
-                    self.end_headers()
-                    self.wfile.write(json.dumps({"status": "error", "message": "device_id is required"}, ensure_ascii=False).encode("utf-8"))
-                    return
-                ok = database.revoke_device(int(device_id))
-                self.send_response(200 if ok else 404)
-                self.send_header("Content-Type", "application/json; charset=utf-8")
-                self._set_cors_headers()
-                self.end_headers()
-                self.wfile.write(json.dumps({"status": "ok" if ok else "not_found", "revoked": ok}, ensure_ascii=False).encode("utf-8"))
-            except Exception as e:
-                logger.error(f"デバイス失効エラー: {e}")
-                self.send_response(500)
-                self.send_header("Content-Type", "application/json; charset=utf-8")
-                self._set_cors_headers()
-                self.end_headers()
-                self.wfile.write(json.dumps({"status": "error", "message": str(e)}, ensure_ascii=False).encode("utf-8"))
+            api_devices.handle_post_devices_revoke(ApiContext(self, body, client_ip, user_agent))
             return
 
         # 3.6 AIエージェント稼働状態更新 (POST /api/agent/activity) — Phase H
