@@ -103,8 +103,8 @@ async function authFetch(url, options = {}) {
     throw err;
   }
 
-  // 401 Unauthorized かつ未再試行の場合、トークン再取得を試行
-  if (res.status === 401 && !options._retried) {
+  // 401 Unauthorized または 403 Forbidden（失効済み・不整合）かつ未再試行の場合、トークン再取得を試行
+  if ((res.status === 401 || res.status === 403) && !options._retried) {
     try {
       const tokenRes = await fetch('/api/auth/token');
       if (tokenRes.ok) {
@@ -113,6 +113,9 @@ async function authFetch(url, options = {}) {
           setSyncToken(tokenData.token);
           return authFetch(url, Object.assign({}, options, { _retried: true }));
         }
+      } else {
+        // トークン取得に失敗（ペアリング未開放等）した場合は古い無効トークンをクリア
+        setSyncToken('');
       }
     } catch (e) {
       console.debug('[pet_auth] Token refresh error:', e);

@@ -115,10 +115,13 @@ def build_device_rows(devices: Optional[Iterable[Any]]) -> List[DeviceRow]:
     """
     rows: List[DeviceRow] = []
     for device in devices or []:
+        ip = str(getattr(device, "ip_address", "") or "").strip() or IP_PLACEHOLDER
+        # 🛡️ ループバック (PC自身) は端末台帳の表示対象外 (外部スマホ専用)
+        if ip in ("127.0.0.1", "::1", "localhost") or ip.startswith("127."):
+            continue
         is_revoked = bool(getattr(device, "is_revoked", 0))
         ua_label = summarize_user_agent(getattr(device, "user_agent", None))
         name = str(getattr(device, "device_name", "") or "").strip() or ua_label
-        ip = str(getattr(device, "ip_address", "") or "").strip() or IP_PLACEHOLDER
         rows.append(
             DeviceRow(
                 device_id=int(getattr(device, "id", 0) or 0),
@@ -143,6 +146,10 @@ def list_device_rows() -> List[DeviceRow]:
         List[DeviceRow]: 最終接続が新しい順の端末一覧 (取得失敗時は空リスト)。
     """
     try:
+        try:
+            database.cleanup_loopback_devices()
+        except Exception:
+            pass
         return build_device_rows(database.get_all_devices())
     except Exception as e:
         logger.error(f"接続端末一覧の取得に失敗しました: {e}")

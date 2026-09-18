@@ -65,6 +65,7 @@ from storage import (
     restore_device,
     issue_device_token,
     verify_device_token,
+    cleanup_loopback_devices,
     # カレンダー・カテゴリ
     create_category,
     get_category,
@@ -156,6 +157,7 @@ __all__ = [
     "restore_device",
     "issue_device_token",
     "verify_device_token",
+    "cleanup_loopback_devices",
     # カレンダー・カテゴリ
     "create_category",
     "get_category",

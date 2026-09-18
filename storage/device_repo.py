@@ -357,3 +357,26 @@ def verify_device_token(bearer: str, db_path: str = "neo_secretary.db") -> Optio
         return None
     token_hash = hashlib.sha256(bearer.encode("utf-8")).hexdigest()
     return get_device_by_token_hash(token_hash, db_path=db_path)
+
+
+def cleanup_loopback_devices(db_path: str = "neo_secretary.db") -> int:
+    """ループバックアドレス (127.0.0.1 / ::1 / localhost) の不要な端末レコードを台帳から一括削除する。
+
+    PC内部通信やテスト実行によって誤って登録されたゴミレコードを一掃し、
+    端末台帳を純粋に外部スマホ・タブレット専用に保つ。
+
+    Args:
+        db_path: データベースファイルのパス
+
+    Returns:
+        削除されたレコード件数
+    """
+    with get_db_connection(db_path) as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            DELETE FROM devices
+            WHERE ip_address IN ('127.0.0.1', '::1', 'localhost')
+               OR ip_address LIKE '127.%'
+        """)
+        conn.commit()
+        return cursor.rowcount

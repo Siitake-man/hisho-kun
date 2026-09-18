@@ -35,6 +35,7 @@ from storage.device_repo import (
     revoke_all_devices,
     revoke_device,
     verify_device_token,
+    cleanup_loopback_devices,
 )
 import api_devices
 
@@ -58,6 +59,15 @@ class _FakeHttpHandler:
     def _set_cors_headers(self) -> None:
         pass
 
+    @staticmethod
+    def _is_loopback(client_ip: str) -> bool:
+        return client_ip in ("127.0.0.1", "::1", "localhost")
+
+    @staticmethod
+    def _infer_device_name(user_agent: str) -> str:
+        from local_sync_server import DeskPetSyncHandler
+        return DeskPetSyncHandler._infer_device_name(user_agent)
+
 
 def _decode_body(handler: _FakeHttpHandler) -> dict:
     return json.loads(handler.wfile.getvalue().decode("utf-8"))
@@ -70,7 +80,31 @@ class TestDeviceIndividualTokens(unittest.TestCase):
         self.temp_db.close()
         init_db(self.db_path)
 
+        # 🛡️ 実環境の .sync_token を保護するためテンポラリファイルへパッチ
+        import local_sync_server
+        self.temp_token_file = Path(tempfile.NamedTemporaryFile(suffix=".sync_token", delete=False).name)
+        self.token_file_patcher = mock.patch.object(local_sync_server, "TOKEN_FILE", self.temp_token_file)
+        self.token_file_patcher.start()
+
+        # シングルトンの状態退避
+        tm = local_sync_server.get_sync_token_manager()
+        self._orig_tm_token = tm._token
+        self._orig_tm_pairing = tm._pairing_unlocked_until
+
     def tearDown(self):
+        # シングルトンの状態復元
+        import local_sync_server
+        tm = local_sync_server.get_sync_token_manager()
+        tm._token = self._orig_tm_token
+        tm._pairing_unlocked_until = self._orig_tm_pairing
+
+        self.token_file_patcher.stop()
+        if self.temp_token_file.exists():
+            try:
+                self.temp_token_file.unlink()
+            except OSError:
+                pass
+
         if os.path.exists(self.db_path):
             try:
                 os.remove(self.db_path)
@@ -347,10 +381,11 @@ class TestDeviceIndividualTokens(unittest.TestCase):
                 self.assertEqual(data1.get("status"), "ok")
                 self.assertIn("token", data1)
 
-                # 🔐 ワンタイム化確認: 1回目の発行で pairing_open が即座に False になっていること
-                self.assertFalse(tm.pairing_open, "1回発行したらペアリングモードが自動で閉じること")
+                # 🔐 ダイアログクローズ時（または明示的close時）にペアリングモードが閉じること
+                tm.close_pairing()
+                self.assertFalse(tm.pairing_open, "ペアリングクローズ後はFalseになること")
 
-                # 2回目の呼び出しは 403 で拒絶される
+                # クローズ後の2回目の呼び出しは 403 で拒絶される
                 handler2 = _FakeHttpHandler()
                 handler2.path = "/api/auth/token"
                 handler2.headers = {"User-Agent": "TestPhone2"}
@@ -358,6 +393,19 @@ class TestDeviceIndividualTokens(unittest.TestCase):
                 self.assertEqual(handler2.status_codes, [403])
                 data2 = _decode_body(handler2)
                 self.assertEqual(data2.get("status"), "forbidden")
+
+    def test_cleanup_loopback_devices(self):
+        """ループバック端末 (127.0.0.1) のみが台帳から削除され、実スマホは残る。"""
+        issue_device_token("Local Test 1", ip_address="127.0.0.1", db_path=self.db_path)
+        issue_device_token("Local Test 2", ip_address="::1", db_path=self.db_path)
+        issue_device_token("Boss Real iPhone", ip_address="192.168.1.50", db_path=self.db_path)
+
+        count = cleanup_loopback_devices(db_path=self.db_path)
+        self.assertEqual(count, 2, "127.0.0.1 と ::1 の2件が削除されること")
+
+        remaining = get_all_devices(db_path=self.db_path)
+        self.assertEqual(len(remaining), 1)
+        self.assertEqual(remaining[0].device_name, "Boss Real iPhone")
 
     def test_pairing_error_fails_closed_without_leaking_global_token(self):
         """個別トークン発行でDBエラー等の例外が起きた際、グローバルトークンを返さず500を返す (P1-2)。"""

@@ -721,7 +721,7 @@ class DeskPetSyncHandler(SimpleHTTPRequestHandler):
         - 個別トークン発行失敗時はグローバルトークンを返さず HTTP 500 で遮断する (P1-2 Fail-Closed)。
         """
         tm = get_sync_token_manager()
-        if not (tm.pairing_open or self._is_loopback(client_ip)):
+        if not (tm.pairing_open or DeskPetSyncHandler._is_loopback(client_ip)):
             logger.warning(f"🚫 [SyncAuth] 外部IPからのトークン要求を拒否 (IP: {client_ip})")
             self.send_response(403)
             self.send_header("Content-Type", "application/json; charset=utf-8")
@@ -733,18 +733,13 @@ class DeskPetSyncHandler(SimpleHTTPRequestHandler):
             ).encode("utf-8"))
             return
 
-        dev_name = self._infer_device_name(user_agent)
-        if self._is_loopback(client_ip) and not tm.pairing_open:
+        dev_name = DeskPetSyncHandler._infer_device_name(user_agent)
+        if DeskPetSyncHandler._is_loopback(client_ip):
+            # 🛡️ ループバック（PC自身）は端末台帳に登録しない（マスタトークン返却）
             token = tm.token
-            try:
-                database.register_device_from_bearer(dev_name, token, ip_address=client_ip, user_agent=user_agent)
-            except Exception as e:
-                logger.warning(f"デバイス台帳登録エラー (無視してトークン返却継続): {e}")
         else:
             try:
                 token = database.issue_device_token(dev_name, ip_address=client_ip, user_agent=user_agent)
-                # 🔐 P0-2: 正常発行したらペアリング待機を即座に終了（ワンタイム化）
-                tm.close_pairing()
             except Exception as e:
                 logger.error(f"個別トークン発行エラー (Fail-Closed: 500返却): {e}")
                 self.send_response(500)
@@ -765,7 +760,7 @@ class DeskPetSyncHandler(SimpleHTTPRequestHandler):
 
     def _dispatch_get_devices(self, client_ip: str) -> bool:
         """GET /api/devices をディスパッチする Seam。PC同一マシン（ループバック）のみ許可する (P1-3)。"""
-        if not self._is_loopback(client_ip):
+        if not DeskPetSyncHandler._is_loopback(client_ip):
             logger.warning(f"🚫 [Security] 非ループバック({client_ip})からのデバイス一覧閲覧要求を拒否")
             self.send_response(403)
             self.send_header("Content-Type", "application/json; charset=utf-8")
@@ -870,16 +865,18 @@ class DeskPetSyncHandler(SimpleHTTPRequestHandler):
             is_valid_token = False
             if token_mgr.verify(bearer):
                 is_valid_token = True
-                try:
-                    dev = database.sync_device_session(
-                        device_name=self._infer_device_name(user_agent),
-                        bearer=bearer,
-                        ip_address=client_ip,
-                        user_agent=user_agent,
-                    )
-                except Exception as e:
-                    logger.debug(f"デバイス台帳同期エラー (Fail-Safe で認証継続): {e}")
-                    dev = None
+                # 🛡️ ループバック（PC自身）は端末台帳に登録・同期しない (外部スマホ専用)
+                if not DeskPetSyncHandler._is_loopback(client_ip):
+                    try:
+                        dev = database.sync_device_session(
+                            device_name=DeskPetSyncHandler._infer_device_name(user_agent),
+                            bearer=bearer,
+                            ip_address=client_ip,
+                            user_agent=user_agent,
+                        )
+                    except Exception as e:
+                        logger.debug(f"デバイス台帳同期エラー (Fail-Safe で認証継続): {e}")
+                        dev = None
             else:
                 try:
                     dev = database.verify_device_token(bearer)

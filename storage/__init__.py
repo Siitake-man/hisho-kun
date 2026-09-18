@@ -42,6 +42,7 @@ from storage.device_repo import (
     restore_device,
     issue_device_token,
     verify_device_token,
+    cleanup_loopback_devices,
 )
 from storage.calendar_repo import (
     create_category,
@@ -139,6 +140,7 @@ __all__ = [
     "restore_device",
     "issue_device_token",
     "verify_device_token",
+    "cleanup_loopback_devices",
     # Calendar Repo
     "create_category",
     "get_category",

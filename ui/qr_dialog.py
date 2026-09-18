@@ -1,4 +1,4 @@
-﻿"""
+"""
 ネオ秘書くん - QRコード接続ダイアログ (ui/qr_dialog.py)
 スマホ専用Desk Pet ＆ 承認コクピットへ接続するためのQRコード生成ダイアログ。
 
@@ -461,3 +461,12 @@ class QRCodeConnectionDialog(ctk.CTkToplevel):
             pass
             
         self.after(1500, self._poll_link_status)
+
+    def destroy(self):
+        """ダイアログを閉じる際、ペアリング待機を即座に終了する (Fail-Closed)。"""
+        try:
+            from local_sync_server import get_sync_token_manager
+            get_sync_token_manager().close_pairing()
+        except Exception:
+            pass
+        super().destroy()
