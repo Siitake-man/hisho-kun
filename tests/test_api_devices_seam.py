@@ -264,5 +264,27 @@ class TestDeviceRevokeAuditEntry(unittest.TestCase):
             api_devices.record_device_revoke(1, actor="x", source="ui")  # 例外を漏らさない
 
 
+class TestDeviceRestoreAuditEntry(unittest.TestCase):
+    """record_device_restore が復帰操作を監査ログへ残す契約"""
+
+    def test_restore_entry_contains_actor_operation_and_source(self) -> None:
+        """復帰の操作主体・対象端末・経路がエントリへ記録されること"""
+        import api_devices
+
+        with mock.patch("storage.audit_repo.record_audit_log") as record_mock:
+            api_devices.record_device_restore(
+                3, actor="pc_settings_ui", source="ui", device_name="Pixel Desk Pet"
+            )
+
+        entry = record_mock.call_args[0][0]
+        self.assertEqual(entry.agent_type, "device_management")
+        self.assertIn("device_id=3", entry.command)
+        self.assertIn("Pixel Desk Pet", entry.command)
+        self.assertIn("restore", entry.command)
+        self.assertEqual(entry.decision_by, "pc_settings_ui")
+        self.assertIn("ui", entry.decision_message)
+        self.assertEqual(entry.decision, "approved")
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

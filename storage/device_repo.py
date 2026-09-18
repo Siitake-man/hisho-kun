@@ -7,6 +7,7 @@ Neo-Secretary ストレージ層 - 端末台帳リポジトリ (storage/device_r
 
 import hashlib
 import logging
+import secrets
 from datetime import datetime
 from typing import List, Optional
 
@@ -259,3 +260,75 @@ def touch_device_last_seen(
             WHERE token_hash = ?
         """, (now, ip_address, user_agent, token_hash))
         return cursor.rowcount > 0
+
+
+def restore_device(device_id: int, db_path: str = "neo_secretary.db") -> bool:
+    """失効（Revoked）状態のデバイスを再有効化（復帰）します。
+
+    Args:
+        device_id: デバイスID
+        db_path: データベースファイルのパス
+
+    Returns:
+        更新成功時は True
+    """
+    with get_db_connection(db_path) as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            UPDATE devices
+            SET is_revoked = 0
+            WHERE id = ?
+        """, (device_id,))
+        success = cursor.rowcount > 0
+        if success:
+            logger.info(f"デバイスID={device_id} の失効を解除 (Restored) しました")
+        return success
+
+
+def issue_device_token(
+    device_name: str,
+    ip_address: Optional[str] = None,
+    user_agent: Optional[str] = None,
+    db_path: str = "neo_secretary.db"
+) -> str:
+    """新規の暗号論的乱数トークン（64文字hex）を発行し、デバイス台帳に登録します。
+
+    QRペアリング単位で端末固有のトークンを発行することで、端末ごとの個別台帳管理と
+    個別失効（Revoke）を実現します。平文トークンは返却のみ行い、DBにはSHA-256ハッシュのみ永続化します。
+
+    Args:
+        device_name: デバイス表示名
+        ip_address: 接続元IP
+        user_agent: 接続元User-Agent
+        db_path: データベースファイルのパス
+
+    Returns:
+        発行された平文トークン文字列 (64文字hex)
+    """
+    raw_token = secrets.token_hex(32)
+    token_hash = hashlib.sha256(raw_token.encode("utf-8")).hexdigest()
+    register_device(
+        device_name=device_name,
+        token_hash=token_hash,
+        ip_address=ip_address,
+        user_agent=user_agent,
+        db_path=db_path,
+    )
+    logger.info(f"🔐 [DeviceAuth] 端末固有トークンを発行・登録しました: {device_name}")
+    return raw_token
+
+
+def verify_device_token(bearer: str, db_path: str = "neo_secretary.db") -> Optional[Device]:
+    """提示されたBearerトークンに対応するデバイス情報を台帳から照会します。
+
+    Args:
+        bearer: 平文のBearerトークン文字列
+        db_path: データベースファイルのパス
+
+    Returns:
+        合致する Device モデル（未登録の場合は None）
+    """
+    if not bearer:
+        return None
+    token_hash = hashlib.sha256(bearer.encode("utf-8")).hexdigest()
+    return get_device_by_token_hash(token_hash, db_path=db_path)

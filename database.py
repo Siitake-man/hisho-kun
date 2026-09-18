@@ -61,6 +61,9 @@ from storage import (
     get_all_devices,
     revoke_device,
     touch_device_last_seen,
+    restore_device,
+    issue_device_token,
+    verify_device_token,
     # カレンダー・カテゴリ
     create_category,
     get_category,
@@ -147,6 +150,9 @@ __all__ = [
     "get_all_devices",
     "revoke_device",
     "touch_device_last_seen",
+    "restore_device",
+    "issue_device_token",
+    "verify_device_token",
     # カレンダー・カテゴリ
     "create_category",
     "get_category",

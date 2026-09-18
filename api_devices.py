@@ -125,6 +125,98 @@ def handle_post_devices_revoke(ctx: ApiContext) -> bool:
     return True
 
 
+def record_device_restore(
+    device_id: int, *, actor: str, source: str, device_name: str = ""
+) -> None:
+    """端末復帰（Restore）を監査ログへ記録する（ゼロトラスト監査: who / when / what）。
+
+    Args:
+        device_id: 復帰させたデバイスID。
+        actor: 操作主体（例: "pc_settings_ui" / 接続元IP / "localhost"）。
+        source: 操作経路（"ui" = PC設定画面 / "api" = ローカルAPI）。
+        device_name: 端末名（表示用・不明なら空）。
+    """
+    try:
+        from storage.audit_repo import record_audit_log
+        from storage.models import AuditLogEntry
+
+        entry = AuditLogEntry(
+            request_id=f"device-restore-{device_id}-{int(datetime.now().timestamp() * 1000)}",
+            agent_type="device_management",
+            agent_name=actor,
+            command=f"restore device_id={device_id} ({device_name or 'unknown'})",
+            summary=f"端末の接続復帰（{source}）",
+            risk_level="medium",
+            decision="approved",
+            decision_by=actor,
+            decision_message=f"source={source}",
+            requester_ip=None,
+            client_ip=actor if source == "api" else None,
+        )
+        record_audit_log(entry)
+        logger.info(
+            f"🛡️ [Audit Log] 端末復帰を記録: device_id={device_id} source={source} actor={actor}"
+        )
+    except Exception as e:
+        logger.error(f"端末復帰の監査ログ記録に失敗しました (device_id={device_id}): {e}")
+
+
+def handle_post_devices_restore(ctx: ApiContext) -> bool:
+    """端末個別復帰 (POST /api/devices/restore) を処理し、監査ログへ記録する。
+
+    Notes:
+        呼び出し元 (local_sync_server.do_POST) でループバック限定チェックを済ませている前提。
+        レスポンスは常に書き込む。
+
+    Args:
+        ctx: リクエストコンテキスト (body / client_ip を使用)。
+
+    Returns:
+        bool: レスポンス書き込み済みのため常に True。
+    """
+    try:
+        data = json.loads(ctx.body.decode("utf-8")) if ctx.body else {}
+    except Exception as e:
+        logger.error(f"デバイス復帰リクエストのJSON解析に失敗: {e}")
+        ctx.write_json(
+            {"status": "error", "message": "invalid JSON body"},
+            ensure_ascii=False,
+            status_code=400,
+        )
+        return True
+
+    device_id = data.get("device_id") if isinstance(data, dict) else None
+    if not device_id:
+        ctx.write_json(
+            {"status": "error", "message": "device_id is required"},
+            ensure_ascii=False,
+            status_code=400,
+        )
+        return True
+
+    try:
+        device_id_int = int(device_id)
+        ok = bool(database.restore_device(device_id_int))
+        if ok:
+            record_device_restore(
+                device_id_int, actor=ctx.client_ip or "localhost", source="api"
+            )
+        ctx.write_json(
+            {"status": "ok" if ok else "not_found", "restored": ok},
+            ensure_ascii=False,
+            status_code=200 if ok else 404,
+        )
+    except Exception as e:
+        logger.error(f"デバイス復帰エラー: {e}")
+        ctx.write_json(
+            {"status": "error", "message": str(e)},
+            ensure_ascii=False,
+            status_code=500,
+        )
+    return True
+
+
+
 def handle_get_devices(ctx: ApiContext) -> bool:
     """登録デバイス一覧 (GET /api/devices) を JSON で返却する。
 

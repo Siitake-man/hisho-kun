@@ -182,6 +182,53 @@ class TestDeviceSeams(unittest.TestCase):
         ):
             self.assertFalse(panel.revoke_device_entry(1))
 
+    def test_restore_device_entry_delegates_to_repository(self) -> None:
+        """Restore Seam が device_repo へ委譲し、成功可否を bool で返すこと"""
+        with mock.patch.object(
+            panel.database, "restore_device", return_value=True
+        ) as mocked:
+            self.assertTrue(panel.restore_device_entry(3))
+
+        mocked.assert_called_once_with(3)
+
+    def test_restore_device_entry_accepts_string_id(self) -> None:
+        """GUI/JSON 由来の文字列IDでも int へ正規化して委譲すること"""
+        with mock.patch.object(
+            panel.database, "restore_device", return_value=True
+        ) as mocked:
+            self.assertTrue(panel.restore_device_entry("3"))
+
+        mocked.assert_called_once_with(3)
+
+    def test_restore_device_entry_returns_false_on_failure(self) -> None:
+        """対象が存在しない場合は False を返すこと"""
+        with mock.patch.object(panel.database, "restore_device", return_value=False):
+            self.assertFalse(panel.restore_device_entry(999))
+
+    def test_restore_device_entry_is_exception_safe(self) -> None:
+        """DB 異常時も例外を漏らさず False を返すこと"""
+        with mock.patch.object(
+            panel.database, "restore_device", side_effect=RuntimeError("database is locked")
+        ):
+            self.assertFalse(panel.restore_device_entry(1))
+
+    def test_mark_row_restored(self) -> None:
+        """mark_row_restored が有効ステータスへ差し替えること"""
+        row = panel.DeviceRow(
+            device_id=1,
+            title="Device",
+            subtitle="UA",
+            status_label="🚫 拒否済み",
+            status_color="#C62828",
+            created_label="now",
+            last_seen_label="now",
+            is_revoked=True,
+        )
+        restored = panel.mark_row_restored(row)
+        self.assertFalse(restored.is_revoked)
+        self.assertEqual(restored.status_label, panel.DEVICE_STATUS_ACTIVE_LABEL)
+        self.assertEqual(restored.status_color, panel.STATUS_COLOR_ACTIVE)
+
 
 
 class TestDeviceManagerSectionGui(unittest.TestCase):
@@ -251,6 +298,29 @@ class TestDeviceManagerSectionGui(unittest.TestCase):
         self.assertTrue(section.rows[0].is_revoked)
         self.assertEqual(
             section.rows[0].status_label, panel.DEVICE_STATUS_REVOKED_LABEL
+        )
+
+    def test_restore_calls_seam_and_refreshes_rows(self) -> None:
+        """失効済み端末に対して restore が実行され、一覧が再描画されること"""
+        revoked_device = _device(1, is_revoked=1)
+        active_device = _device(1, is_revoked=0)
+        section = self._make_section([revoked_device])
+
+        with mock.patch.object(
+            panel.database, "restore_device", return_value=True
+        ) as restore_mock, mock.patch.object(
+            panel.database, "get_all_devices", return_value=[active_device]
+        ), mock.patch.object(panel, "record_device_restore") as audit_mock:
+            result = section.restore(section.rows[0])
+
+        self.assertTrue(result)
+        restore_mock.assert_called_once_with(1)
+        self.assertFalse(section.rows[0].is_revoked)
+        self.assertEqual(
+            section.rows[0].status_label, panel.DEVICE_STATUS_ACTIVE_LABEL
+        )
+        audit_mock.assert_called_once_with(
+            1, actor="pc_settings_ui", source="ui", device_name=section.rows[0].title
         )
 
     def test_cancelled_revoke_does_not_touch_registry(self) -> None:

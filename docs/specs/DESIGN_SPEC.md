@@ -1,7 +1,7 @@
 # ネオ秘書くん システム設計書 (DESIGN_SPEC.md)
 
-- **バージョン**: 1.1.8 (🧠 LLM出力言語ガード(P0中国語化修正)・アセット解決一本化・Tailscaleコマンド統一・P1〜P3負債返済)
-- **最終更新日時**: 2026-09-17 18:56
+- **バージョン**: 1.1.9 (🛡️ 端末台帳のゼロトラスト個別トークン化 ＆ 端末単位 un-revoke API・復帰UI・監査ログ同期)
+- **最終更新日時**: 2026-09-18 12:18
 - **アーキテクチャ方針**: 完全ローカル完結型 非ブロッキング並行システム (Tkinter Desktop Overlay × Mobile PWA × LangGraph Agent × Zero-Trust Local Bridge)
 
 ---
@@ -835,3 +835,28 @@ web_pet/
 | **起動時DB初期化の可視化** | `init_db` の実行時間を計測し `DB_INIT_SLOW_THRESHOLD_MS`（2秒）超で警告。バックグラウンド化は起動直後の書き込みロック競合リスクが高く、本アプリのDB規模では不要と判断（理由を docstring に明記） |
 | **命名・整合の是正** | 「適応型スリープ」→「**アイドル待機の30Hz化（固定レート）**」へ是正（遅延上限=1ティック処理時間+30ms を明記）。`tools/build_pwa_icons.py --check`（生成仕様とのドリフト検出・終了コード1）を追加し、コミット済みアイコンが仕様と一致することをテストで凍結 |
 | **機密スキャナの実行不能バグ** | `tools/scan_git_secrets.py` が Windows コンソール（cp932）で絵文字により `UnicodeEncodeError` で落ちていたため、出力を ASCII（`[OK]`/`[NG]`/`[SCAN]`）へ変更 |
+
+### 20.11 端末台帳のゼロトラスト個別トークン化 ＆ 端末単位 un-revoke API (2026-09-18)
+1. **背景と課題**:
+   旧実装は全端末で共通のグローバルトークン（`.sync_token`）1本を配布しており、`devices.token_hash` が実質1行のみで運用されていた。
+   そのため「複数端末の一覧」や「端末ごとの個別失効（Revoke）」が実質不能であり、1台解除すると全端末が拒絶される問題があった。
+2. **設計・アーキテクチャ**:
+   - **QRペアリング単位での個別トークン発行 (`issue_device_token`)**:
+     - 256bit 暗号論的乱数 (`secrets.token_hex(32)`) を生成。
+     - DBへは平文を保存せず、SHA-256 ハッシュのみを永続化（ゼロトラスト徹底）。
+     - `/api/auth/token` はループバック（同一PC内）からの通常要求には既存互換のグローバルトークンを返し、ペアリング開放時または外部/スマホ端末接続時は端末固有トークンを発行・返却。
+   - **2層 Bearer 認証 (`local_sync_server._check_auth`)**:
+     - Step 1: グローバルトークン一致（PC内部・Agent Bridge・CLI・既存テストのマスターキーとして100%後方互換維持）。
+     - Step 2: 個別端末トークン照会（`verify_device_token`）。
+       - `is_revoked == 0` ➔ 認証成功（`dev.token_hash` を再利用し `last_seen` 更新）。
+       - `is_revoked == 1` ➔ 403 Forbidden（対象端末のみ遮断、他端末は通信継続）。
+       - 未登録 ➔ 401 Unauthorized。
+   - **端末単位の復帰（un-revoke）API ＆ UI**:
+     - `POST /api/devices/restore`: ループバック限定・二重防御ハンドラ新設（`api_devices.handle_post_devices_restore`）。
+     - `storage.device_repo.restore_device(device_id)`: `UPDATE devices SET is_revoked = 0 WHERE id = ?`
+     - `record_device_restore`: 復帰操作を `approval_audit_logs` へ同期記録（who/when/which device）。
+     - 設定画面UI (`ui/device_manager_panel.py`): 失効済み端末カードに「♻️ 接続復帰」ボタンを配備。楽観反映と非同期再描画を完備。
+3. **検証と品質ゲート**:
+   - `tests/test_device_individual_tokens.py`（新規TDDテスト）、`tests/test_api_devices_seam.py`、`tests/test_device_ui_seam.py`。
+   - 独立査読エージェント（`quality-reviewer`）多角査読により APPROVED 判定。
+

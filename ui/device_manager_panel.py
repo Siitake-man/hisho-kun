@@ -22,7 +22,7 @@ from typing import Any, Callable, Iterable, List, Optional, Tuple
 import customtkinter as ctk
 
 import database
-from api_devices import record_device_revoke
+from api_devices import record_device_revoke, record_device_restore
 
 logger = logging.getLogger(__name__)
 
@@ -175,6 +175,27 @@ def mark_row_revoked(row: DeviceRow) -> DeviceRow:
     )
 
 
+def mark_row_restored(row: DeviceRow) -> DeviceRow:
+    """復帰直後の楽観表示用に、行DTOを「有効」へ差し替える（純粋関数）。
+
+    Args:
+        row: 復帰対象の表示DTO。
+
+    Returns:
+        DeviceRow: is_revoked=False / ステータス=有効 へ差し替えた新しいDTO。
+    """
+    return DeviceRow(
+        device_id=row.device_id,
+        title=row.title,
+        subtitle=row.subtitle,
+        status_label=DEVICE_STATUS_ACTIVE_LABEL,
+        status_color=STATUS_COLOR_ACTIVE,
+        created_label=row.created_label,
+        last_seen_label=row.last_seen_label,
+        is_revoked=False,
+    )
+
+
 @dataclass(frozen=True)
 class DeviceFetchResult:
     """台帳取得の結果（行DTO ＋ エラー情報）。
@@ -219,6 +240,22 @@ def revoke_device_entry(device_id: Any) -> bool:
         return bool(database.revoke_device(int(device_id)))
     except Exception as e:
         logger.error(f"端末の接続解除に失敗しました (id={device_id}): {e}")
+        return False
+
+
+def restore_device_entry(device_id: Any) -> bool:
+    """端末の失効を解除 (Restore) させ、通信を再開させる Seam。
+
+    Args:
+        device_id: 対象デバイスID (文字列も許容)。
+
+    Returns:
+        bool: 復帰に成功した場合 True。対象不在/DB異常時は False (例外を漏らさない)。
+    """
+    try:
+        return bool(database.restore_device(int(device_id)))
+    except Exception as e:
+        logger.error(f"端末の接続復帰に失敗しました (id={device_id}): {e}")
         return False
 
 
@@ -288,10 +325,9 @@ class DeviceManagerSection(ctk.CTkFrame):
         ctk.CTkLabel(
             card,
             text=(
-                "このPCに接続を許可したスマホ/端末の台帳です。\n"
-                "「🔒 接続解除」すると、その端末からの次の通信は即座に拒否（401/403）されます。\n"
-                "※ 現在のトークンは全端末で共通のため、台帳は通常1件のみ登録されます"
-                "（個別トークン化は今後の課題）。"
+                "このPCに接続を許可したスマホ/端末のゼロトラスト台帳です。\n"
+                "端末ごとに固有トークンが発行され、個別の接続解除（失効）や復帰が可能です。\n"
+                "「🔒 接続解除」すると次の通信は即座に拒否され、「♻️ 接続復帰」でいつでも再開できます。"
             ),
             font=("Meiryo UI", 9),
             text_color="#616161",
@@ -355,17 +391,28 @@ class DeviceManagerSection(ctk.CTkFrame):
             font=("Meiryo UI", 9, "bold"),
             text_color=row.status_color,
         ).pack(anchor="e", pady=(0, 2))
-        ctk.CTkButton(
-            action,
-            text="🔒 接続解除",
-            font=("Meiryo UI", 9),
-            fg_color=STATUS_COLOR_REVOKED,
-            hover_color="#8E1B1B",
-            width=92,
-            height=24,
-            state="disabled" if row.is_revoked else "normal",
-            command=lambda r=row: self.revoke(r),
-        ).pack(anchor="e")
+        if row.is_revoked:
+            ctk.CTkButton(
+                action,
+                text="♻️ 接続復帰",
+                font=("Meiryo UI", 9),
+                fg_color=STATUS_COLOR_ACTIVE,
+                hover_color="#1B5E20",
+                width=92,
+                height=24,
+                command=lambda r=row: self.restore(r),
+            ).pack(anchor="e")
+        else:
+            ctk.CTkButton(
+                action,
+                text="🔒 接続解除",
+                font=("Meiryo UI", 9),
+                fg_color=STATUS_COLOR_REVOKED,
+                hover_color="#8E1B1B",
+                width=92,
+                height=24,
+                command=lambda r=row: self.revoke(r),
+            ).pack(anchor="e")
 
     # ------------------------------------------------------------- 再描画/解除
     def refresh(self) -> None:
@@ -528,6 +575,44 @@ class DeviceManagerSection(ctk.CTkFrame):
             )
         return ok
 
+    def restore(self, row: DeviceRow) -> bool:
+        """端末の失効を解除（復帰）させ、一覧を即座に再描画する。
+
+        Args:
+            row: 対象端末の表示DTO。
+
+        Returns:
+            bool: 復帰に成功した場合 True (失敗時は False)。
+        """
+        if not row.is_revoked:
+            return False
+
+        ok = restore_device_entry(row.device_id)
+        if ok:
+            logger.info(f"端末の接続を復帰しました (id={row.device_id})")
+            # ゼロトラスト監査: 誰がいつどの端末を復帰させたかを記録する
+            record_device_restore(
+                row.device_id,
+                actor="pc_settings_ui",
+                source="ui",
+                device_name=row.title,
+            )
+            # 楽観反映
+            self._apply_result(
+                DeviceFetchResult(
+                    [
+                        mark_row_restored(item) if item.device_id == row.device_id else item
+                        for item in self.rows
+                    ]
+                )
+            )
+            self.refresh_async()
+        else:
+            self._set_status(
+                "⚠️ 接続復帰に失敗しました（DBロック等の可能性があります。再試行してください）"
+            )
+        return ok
+
     def _request_confirmation(self, row: DeviceRow) -> bool:
         """接続解除の確認を取る (注入されたコールバック優先)。"""
         if self._confirm_callback is not None:
@@ -539,9 +624,9 @@ class DeviceManagerSection(ctk.CTkFrame):
             messagebox.askyesno(
                 "接続解除の確認",
                 f"「{row.title}」の接続を解除しますか？\n\n"
-                "この端末からの今後の通信はすべて拒否されます。\n"
-                "（再び接続するには、PC側の設定画面で『🚫 スマホ連携をすべて解除（トークン再生成）』を\n"
-                "　実行し、新しいQRコードを読み直してください）",
+                "この端末からの今後の通信はすべて拒否（403）されます。\n"
+                "（再び接続を許可したい場合は、この一覧で『♻️ 接続復帰』をクリックするか、\n"
+                "　スマホ側でQRコードを再ペアリングしてください）",
             )
         )
 

@@ -782,36 +782,51 @@ class DeskPetSyncHandler(SimpleHTTPRequestHandler):
         bearer = self._get_bearer_token()
 
         # 2. 有効なBearerトークンがあれば認証OK（デバイス台帳で失効状態を検査）。
-        #    SHA-256 ハッシュ化・last_seen 更新・未登録端末の自動登録は
-        #    データベース層 (sync_device_session) に隠蔽した Deep Module 契約。
-        if bearer and token_mgr.verify(bearer):
-            try:
-                dev = database.sync_device_session(
-                    device_name=self._infer_device_name(user_agent),
-                    bearer=bearer,
-                    ip_address=client_ip,
-                    user_agent=user_agent,
-                )
-            except Exception as e:
-                logger.debug(f"デバイス台帳同期エラー (Fail-Safe で認証継続): {e}")
-                dev = None
-            if dev is not None and dev.is_revoked == 1:
-                logger.warning(
-                    f"🚫 [SyncAuth] 失効済みデバイスからのアクセス拒否: ID={dev.id}, name={dev.device_name} (IP: {client_ip})"
-                )
+        #    グローバルトークン（PC内・Agent Bridge用）または端末固有トークン（QRペアリング用）のいずれかを検証。
+        if bearer:
+            dev = None
+            is_valid_token = False
+            if token_mgr.verify(bearer):
+                is_valid_token = True
                 try:
-                    self.send_response(403)
-                    self.send_header("Content-Type", "application/json; charset=utf-8")
-                    self._set_cors_headers()
-                    self.end_headers()
-                    self.wfile.write(json.dumps(
-                        {"status": "forbidden", "message": "この端末の連携は失効しています。"},
-                        ensure_ascii=False
-                    ).encode("utf-8"))
-                except Exception:
-                    pass
-                return False
-            return True
+                    dev = database.sync_device_session(
+                        device_name=self._infer_device_name(user_agent),
+                        bearer=bearer,
+                        ip_address=client_ip,
+                        user_agent=user_agent,
+                    )
+                except Exception as e:
+                    logger.debug(f"デバイス台帳同期エラー (Fail-Safe で認証継続): {e}")
+                    dev = None
+            else:
+                try:
+                    dev = database.verify_device_token(bearer)
+                    if dev is not None:
+                        is_valid_token = True
+                        if dev.is_revoked != 1:
+                            database.touch_device_last_seen(dev.token_hash, ip_address=client_ip, user_agent=user_agent)
+                except Exception as e:
+                    logger.debug(f"個別端末トークン検証エラー: {e}")
+                    dev = None
+
+            if is_valid_token:
+                if dev is not None and dev.is_revoked == 1:
+                    logger.warning(
+                        f"🚫 [SyncAuth] 失効済みデバイスからのアクセス拒否: ID={dev.id}, name={dev.device_name} (IP: {client_ip})"
+                    )
+                    try:
+                        self.send_response(403)
+                        self.send_header("Content-Type", "application/json; charset=utf-8")
+                        self._set_cors_headers()
+                        self.end_headers()
+                        self.wfile.write(json.dumps(
+                            {"status": "forbidden", "message": "この端末の連携は失効しています。"},
+                            ensure_ascii=False
+                        ).encode("utf-8"))
+                    except Exception:
+                        pass
+                    return False
+                return True
 
         # 3. GETリクエストの閲覧許可は「同一PC内 (ループバック)」のみ (ゼロトラスト強化 2026-09-12)
         #    従来は同一LAN (192.168.x.x 等) なら無条件で閲覧できたが、共有Wi-Fi の第三者に
@@ -940,13 +955,19 @@ class DeskPetSyncHandler(SimpleHTTPRequestHandler):
             self.send_header("Content-Type", "application/json; charset=utf-8")
             self._set_cors_headers()
             self.end_headers()
-            token = tm.token
-            try:
-                # トークン配布時にデバイス台帳へ自動登録 (SHA-256 ハッシュ化は DB 層内部に隠蔽)
-                dev_name = self._infer_device_name(user_agent)
-                database.register_device_from_bearer(dev_name, token, ip_address=client_ip, user_agent=user_agent)
-            except Exception as e:
-                logger.warning(f"デバイス台帳登録エラー (無視してトークン返却継続): {e}")
+            dev_name = self._infer_device_name(user_agent)
+            if self._is_loopback(client_ip) and not tm.pairing_open:
+                token = tm.token
+                try:
+                    database.register_device_from_bearer(dev_name, token, ip_address=client_ip, user_agent=user_agent)
+                except Exception as e:
+                    logger.warning(f"デバイス台帳登録エラー (無視してトークン返却継続): {e}")
+            else:
+                try:
+                    token = database.issue_device_token(dev_name, ip_address=client_ip, user_agent=user_agent)
+                except Exception as e:
+                    logger.warning(f"個別トークン発行エラー (グローバルトークンへフォールバック): {e}")
+                    token = tm.token
             self.wfile.write(json.dumps({"status": "ok", "token": token}, ensure_ascii=False).encode("utf-8"))
             return
 
@@ -1364,6 +1385,19 @@ class DeskPetSyncHandler(SimpleHTTPRequestHandler):
                 self.wfile.write(json.dumps({"status": "error", "message": "Device revoke is restricted to localhost."}, ensure_ascii=False).encode("utf-8"))
                 return
             api_devices.handle_post_devices_revoke(ApiContext(self, body, client_ip, user_agent))
+            return
+
+        # 3.5b デバイス個別復帰API (POST /api/devices/restore) — 管理者/同一PC操作に限定
+        elif self.path == "/api/devices/restore":
+            if not self._is_loopback(client_ip):
+                logger.warning(f"🚫 [Security] 非ループバック({client_ip})からのデバイス復帰要求を拒否")
+                self.send_response(403)
+                self.send_header("Content-Type", "application/json; charset=utf-8")
+                self._set_cors_headers()
+                self.end_headers()
+                self.wfile.write(json.dumps({"status": "error", "message": "Device restore is restricted to localhost."}, ensure_ascii=False).encode("utf-8"))
+                return
+            api_devices.handle_post_devices_restore(ApiContext(self, body, client_ip, user_agent))
             return
 
         # 3.6 AIエージェント稼働状態更新 (POST /api/agent/activity) — Phase H
