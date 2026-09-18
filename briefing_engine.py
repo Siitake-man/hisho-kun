@@ -228,10 +228,10 @@ def generate_briefing(force_mode: Optional[str] = None) -> BriefingReport:
         logger.warning(f"タスクデータ取得スキップ: {e}")
         active_tasks = []
 
-    # 完了タスク（終礼用）
+    # 完了タスク（終礼用: 本日完了したタスクのみ抽出・P1-1対策）
     completed_tasks_today = []
     try:
-        comp_tasks_raw = database.get_tasks(status="completed", limit=10)
+        comp_tasks_raw = database.get_tasks_completed_today(limit=10)
         for t in comp_tasks_raw:
             completed_tasks_today.append({
                 "id": t.id,

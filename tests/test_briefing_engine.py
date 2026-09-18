@@ -63,6 +63,22 @@ class TestBriefingEngine(unittest.TestCase):
         weather_tools.set_location("")
         self.assertEqual(weather_tools.get_current_location_setting(), "")
 
+    def test_evening_briefing_only_includes_tasks_completed_today(self):
+        """終礼日報で過去完了タスクが除外され、本日完了タスクのみが含まれること (P1-1)。"""
+        import database
+        from unittest import mock
+        from storage.models import Task
+
+        today_task = Task(id=101, title="今日終わったタスク", status="completed")
+        yesterday_task = Task(id=102, title="先週終わったタスク", status="completed")
+
+        with mock.patch("database.get_tasks_completed_today", return_value=[today_task]) as mock_get_today:
+            report = generate_briefing(force_mode="evening")
+            mock_get_today.assert_called_once_with(limit=10)
+            titles = [t["title"] for t in report.completed_tasks_today]
+            self.assertIn("今日終わったタスク", titles)
+            self.assertNotIn("先週終わったタスク", titles)
+
 
 if __name__ == '__main__':
     unittest.main()

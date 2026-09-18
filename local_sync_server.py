@@ -143,6 +143,12 @@ class SyncTokenManager:
             )
         logger.info(f"🔐 [SyncAuth] ペアリングモードを {duration_sec} 秒間開放しました")
 
+    def close_pairing(self) -> None:
+        """QRペアリング待機を即座に終了する (ワンタイム化・P0-2対策)。"""
+        with self._lock:
+            self._pairing_unlocked_until = 0.0
+        logger.info("🔐 [SyncAuth] ペアリングモードを終了（クローズ）しました")
+
     def _save_token(self) -> None:
         """トークンを .sync_token へアトミックに書き込む。
 
@@ -191,7 +197,8 @@ class SyncTokenManager:
         設定画面の「スマホ連携 全解除（トークン再生成）」ボタンから呼び出される
         ワンクリック操作。トークンを差し替えることで、スマホ側に保存された旧
         トークンによる全セッションを即座に無効化する（セッション全破棄 /
-        紛失・売却・リセット時のセキュリティ対処 / 2026-09-01 3周レビュー P1対応）。
+        紛失・売却・リセット時のセキュリティ対処）。
+        さらに、ゼロトラスト端末台帳（devices テーブル）の全個別端末も一括失効させる (P0-1 対策)。
 
         Returns:
             str: 新しく生成された同期トークン (64文字hex)。
@@ -199,8 +206,12 @@ class SyncTokenManager:
         with self._lock:
             self._token = secrets.token_hex(32)
             self._save_token()
+        try:
+            database.revoke_all_devices()
+        except Exception as e:
+            logger.error(f"全端末一括失効エラー (グローバルトークン再生成は完了): {e}")
         logger.warning(
-            "🔐 [SyncAuth] 同期トークンを再生成しました。"
+            "🔐 [SyncAuth] 同期トークンを再生成し、全接続端末を一括失効しました。"
             "既存のスマホ接続セッションはすべて無効になります"
         )
         return self._token
@@ -665,6 +676,9 @@ GET_PATH_HANDLERS = {
 class DeskPetSyncHandler(SimpleHTTPRequestHandler):
     """Desk Pet PWA用の静的ファイル配信 ＆ JSON APIハンドラ"""
     
+    # 🛡️ P0-3 (Slowloris対策): ソケット受信タイムアウトを10秒に明示設定し、スレッド枯渇を防止
+    timeout = 10.0
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=str(WEB_PET_DIR), **kwargs)
 
@@ -698,6 +712,74 @@ class DeskPetSyncHandler(SimpleHTTPRequestHandler):
         self.send_response(200)
         self._set_cors_headers()
         self.end_headers()
+
+    def _handle_auth_token(self, client_ip: str, user_agent: str) -> None:
+        """トークン配布 (GET /api/auth/token) を処理する Seam。
+
+        - ペアリング開放中 or 同一PC内（ループバック）のみ許可。
+        - 個別トークンを1度正常発行したら即座にペアリング待機を終了する (P0-2 ワンタイム化・Single-Use Fail-Closed)。
+        - 個別トークン発行失敗時はグローバルトークンを返さず HTTP 500 で遮断する (P1-2 Fail-Closed)。
+        """
+        tm = get_sync_token_manager()
+        if not (tm.pairing_open or self._is_loopback(client_ip)):
+            logger.warning(f"🚫 [SyncAuth] 外部IPからのトークン要求を拒否 (IP: {client_ip})")
+            self.send_response(403)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self._set_cors_headers()
+            self.end_headers()
+            self.wfile.write(json.dumps(
+                {"status": "forbidden", "message": "同一LAN外からのアクセス、またはペアリング期間外です。"},
+                ensure_ascii=False
+            ).encode("utf-8"))
+            return
+
+        dev_name = self._infer_device_name(user_agent)
+        if self._is_loopback(client_ip) and not tm.pairing_open:
+            token = tm.token
+            try:
+                database.register_device_from_bearer(dev_name, token, ip_address=client_ip, user_agent=user_agent)
+            except Exception as e:
+                logger.warning(f"デバイス台帳登録エラー (無視してトークン返却継続): {e}")
+        else:
+            try:
+                token = database.issue_device_token(dev_name, ip_address=client_ip, user_agent=user_agent)
+                # 🔐 P0-2: 正常発行したらペアリング待機を即座に終了（ワンタイム化）
+                tm.close_pairing()
+            except Exception as e:
+                logger.error(f"個別トークン発行エラー (Fail-Closed: 500返却): {e}")
+                self.send_response(500)
+                self.send_header("Content-Type", "application/json; charset=utf-8")
+                self._set_cors_headers()
+                self.end_headers()
+                self.wfile.write(json.dumps(
+                    {"status": "error", "message": "Failed to issue device token."},
+                    ensure_ascii=False
+                ).encode("utf-8"))
+                return
+
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self._set_cors_headers()
+        self.end_headers()
+        self.wfile.write(json.dumps({"status": "ok", "token": token}, ensure_ascii=False).encode("utf-8"))
+
+    def _dispatch_get_devices(self, client_ip: str) -> bool:
+        """GET /api/devices をディスパッチする Seam。PC同一マシン（ループバック）のみ許可する (P1-3)。"""
+        if not self._is_loopback(client_ip):
+            logger.warning(f"🚫 [Security] 非ループバック({client_ip})からのデバイス一覧閲覧要求を拒否")
+            self.send_response(403)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self._set_cors_headers()
+            self.end_headers()
+            self.wfile.write(json.dumps(
+                {"status": "forbidden", "message": "Device listing is restricted to localhost."},
+                ensure_ascii=False
+            ).encode("utf-8"))
+            return True
+        if not self._check_auth():
+            return True
+        user_agent = self.headers.get("User-Agent", "") if hasattr(self, "headers") and self.headers else ""
+        return api_devices.handle_get_devices(ApiContext(self, b"", client_ip, user_agent))
 
     def _get_bearer_token(self) -> str:
         """AuthorizationヘッダーからBearerトークンを抽出する。"""
@@ -934,45 +1016,15 @@ class DeskPetSyncHandler(SimpleHTTPRequestHandler):
             return
 
         # 0. トークン配布 (GET /api/auth/token) — ペアリング開放中 or 同一PC内 (ループバック) のみ
-        #    ゼロトラスト強化 (2026-09-12): 従来は同一LAN (192.168.x.x 等) からの要求を
-        #    無条件で通していたが、共有 Wi-Fi (カフェ・コワーキング等) では第三者が
-        #    トークンを取得できてしまうホール。スマホの再接続は原則トークン保持で
-        #    成立するため、トークン再取得は QR 再ペアリングで行う設計に変更。
         if self.path == "/api/auth/token":
-            tm = get_sync_token_manager()
-            if not (tm.pairing_open or self._is_loopback(client_ip)):
-                logger.warning(f"🚫 [SyncAuth] 外部IPからのトークン要求を拒否 (IP: {client_ip})")
-                self.send_response(403)
-                self.send_header("Content-Type", "application/json; charset=utf-8")
-                self._set_cors_headers()
-                self.end_headers()
-                self.wfile.write(json.dumps(
-                    {"status": "forbidden", "message": "同一LAN外からのアクセスです。"},
-                    ensure_ascii=False
-                ).encode("utf-8"))
-                return
-            self.send_response(200)
-            self.send_header("Content-Type", "application/json; charset=utf-8")
-            self._set_cors_headers()
-            self.end_headers()
-            dev_name = self._infer_device_name(user_agent)
-            if self._is_loopback(client_ip) and not tm.pairing_open:
-                token = tm.token
-                try:
-                    database.register_device_from_bearer(dev_name, token, ip_address=client_ip, user_agent=user_agent)
-                except Exception as e:
-                    logger.warning(f"デバイス台帳登録エラー (無視してトークン返却継続): {e}")
-            else:
-                try:
-                    token = database.issue_device_token(dev_name, ip_address=client_ip, user_agent=user_agent)
-                except Exception as e:
-                    logger.warning(f"個別トークン発行エラー (グローバルトークンへフォールバック): {e}")
-                    token = tm.token
-            self.wfile.write(json.dumps({"status": "ok", "token": token}, ensure_ascii=False).encode("utf-8"))
+            self._handle_auth_token(client_ip, user_agent)
             return
 
         # 0.4 GET パス系APIのディスパッチ (P1-B 第一歩: api_devices モジュールへ委譲)
-        # ゼロトラスト台帳 (GET /api/devices) — Bearer 認証はディスパッチ前に適用
+        # ゼロトラスト台帳 (GET /api/devices) — ループバック限定 (P1-3) ＆ Bearer 認証
+        if self.path == "/api/devices":
+            self._dispatch_get_devices(client_ip)
+            return
         get_path_handler = GET_PATH_HANDLERS.get(self.path)
         if get_path_handler:
             if not self._check_auth():

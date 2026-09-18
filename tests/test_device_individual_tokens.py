@@ -32,6 +32,7 @@ from storage.device_repo import (
     get_device_by_token_hash,
     issue_device_token,
     restore_device,
+    revoke_all_devices,
     revoke_device,
     verify_device_token,
 )
@@ -290,6 +291,109 @@ class TestDeviceIndividualTokens(unittest.TestCase):
                         h_unknown = DummyHandler("completely_unknown_token")
                         self.assertFalse(DeskPetSyncHandler._check_auth(h_unknown))
                         self.assertEqual(h_unknown.status_codes, [401])
+
+    def test_revoke_all_devices_invalidates_all_individual_tokens(self):
+        """revoke_all_devices() を呼ぶと台帳内の全端末が一括で失効（is_revoked = 1）になる。"""
+        token_a = issue_device_token("Phone A", db_path=self.db_path)
+        token_b = issue_device_token("Phone B", db_path=self.db_path)
+
+        dev_a = verify_device_token(token_a, db_path=self.db_path)
+        dev_b = verify_device_token(token_b, db_path=self.db_path)
+        self.assertEqual(dev_a.is_revoked, 0)
+        self.assertEqual(dev_b.is_revoked, 0)
+
+        count = revoke_all_devices(db_path=self.db_path)
+        self.assertEqual(count, 2)
+
+        dev_a_after = verify_device_token(token_a, db_path=self.db_path)
+        dev_b_after = verify_device_token(token_b, db_path=self.db_path)
+        self.assertEqual(dev_a_after.is_revoked, 1)
+        self.assertEqual(dev_b_after.is_revoked, 1)
+
+    def test_regenerate_token_revokes_all_devices(self):
+        """SyncTokenManager.regenerate() を呼ぶとグローバルトークンだけでなく全個別端末も失効する (P0-1)。"""
+        import local_sync_server
+        from local_sync_server import get_sync_token_manager
+
+        token_a = issue_device_token("Phone A", db_path=self.db_path)
+        tm = get_sync_token_manager()
+
+        with mock.patch("storage.device_repo.get_db_connection", side_effect=lambda *args, **kwargs: storage.connection.get_db_connection(self.db_path)):
+            with mock.patch("database.revoke_all_devices", side_effect=lambda **kw: revoke_all_devices(db_path=self.db_path)):
+                tm.regenerate()
+
+                dev_a = verify_device_token(token_a, db_path=self.db_path)
+                self.assertEqual(dev_a.is_revoked, 1, "全解除実行後に個別端末が失効していること")
+
+    def test_pairing_token_issue_is_one_time_and_fails_closed(self):
+        """QRペアリング開放時、1回発行するとペアリング待機が自動終了し、2回目は拒絶される (P0-2)。"""
+        import local_sync_server
+        from local_sync_server import get_sync_token_manager, DeskPetSyncHandler
+
+        tm = get_sync_token_manager()
+        tm.unlock_pairing(duration_sec=600)
+        self.assertTrue(tm.pairing_open)
+
+        # 1回目の発行シミュレーション
+        handler1 = _FakeHttpHandler()
+        handler1.path = "/api/auth/token"
+        handler1.headers = {"User-Agent": "TestPhone"}
+
+        with mock.patch("storage.device_repo.get_db_connection", side_effect=lambda *args, **kwargs: storage.connection.get_db_connection(self.db_path)):
+            with mock.patch("database.issue_device_token", side_effect=lambda *a, **kw: issue_device_token(*a, db_path=self.db_path, **kw)):
+                DeskPetSyncHandler._handle_auth_token(handler1, "192.168.1.100", "TestPhone")
+                self.assertEqual(handler1.status_codes, [200])
+                data1 = _decode_body(handler1)
+                self.assertEqual(data1.get("status"), "ok")
+                self.assertIn("token", data1)
+
+                # 🔐 ワンタイム化確認: 1回目の発行で pairing_open が即座に False になっていること
+                self.assertFalse(tm.pairing_open, "1回発行したらペアリングモードが自動で閉じること")
+
+                # 2回目の呼び出しは 403 で拒絶される
+                handler2 = _FakeHttpHandler()
+                handler2.path = "/api/auth/token"
+                handler2.headers = {"User-Agent": "TestPhone2"}
+                DeskPetSyncHandler._handle_auth_token(handler2, "192.168.1.101", "TestPhone2")
+                self.assertEqual(handler2.status_codes, [403])
+                data2 = _decode_body(handler2)
+                self.assertEqual(data2.get("status"), "forbidden")
+
+    def test_pairing_error_fails_closed_without_leaking_global_token(self):
+        """個別トークン発行でDBエラー等の例外が起きた際、グローバルトークンを返さず500を返す (P1-2)。"""
+        from local_sync_server import get_sync_token_manager, DeskPetSyncHandler
+
+        tm = get_sync_token_manager()
+        tm.unlock_pairing(duration_sec=600)
+
+        handler = _FakeHttpHandler()
+        handler.path = "/api/auth/token"
+        handler.headers = {"User-Agent": "ErrorPhone"}
+
+        with mock.patch("database.issue_device_token", side_effect=RuntimeError("DB is locked")):
+            DeskPetSyncHandler._handle_auth_token(handler, "192.168.1.100", "ErrorPhone")
+            self.assertEqual(handler.status_codes, [500])
+            data = _decode_body(handler)
+            self.assertEqual(data.get("status"), "error")
+            self.assertNotIn("token", data)
+            # グローバルトークンが漏洩していないこと
+            self.assertNotEqual(data.get("token"), tm.token)
+
+    def test_get_devices_restricted_to_loopback(self):
+        """GET /api/devices はループバック（同一PC内）以外からのアクセスを 403 で拒絶する (P1-3)。"""
+        from local_sync_server import DeskPetSyncHandler
+
+        # 非ループバックIP (同一LAN) からのリクエスト
+        handler_lan = _FakeHttpHandler()
+        handler_lan.path = "/api/devices"
+        handler_lan.headers = {"Authorization": "Bearer some_valid_token"}
+
+        # ループバック判定モック
+        with mock.patch.object(DeskPetSyncHandler, "_check_auth", return_value=True):
+            DeskPetSyncHandler._dispatch_get_devices(handler_lan, "192.168.1.50")
+            self.assertEqual(handler_lan.status_codes, [403])
+            data = _decode_body(handler_lan)
+            self.assertEqual(data.get("status"), "forbidden")
 
 
 if __name__ == "__main__":

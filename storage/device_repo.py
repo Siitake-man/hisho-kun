@@ -231,6 +231,31 @@ def revoke_device(device_id: int, db_path: str = "neo_secretary.db") -> bool:
         return success
 
 
+def revoke_all_devices(db_path: str = "neo_secretary.db") -> int:
+    """すべての登録デバイスを一括で失効（Revoke）状態にします。
+
+    「スマホ連携 全解除（トークン再生成）」時に呼び出され、グローバルトークンだけでなく
+    台帳に記録された全端末の個別トークンを一括失効させます (P0-1 対策)。
+
+    Args:
+        db_path: データベースファイルのパス
+
+    Returns:
+        int: 失効状態に更新された端末数
+    """
+    with get_db_connection(db_path) as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            UPDATE devices
+            SET is_revoked = 1
+            WHERE is_revoked = 0
+        """)
+        count = cursor.rowcount
+        if count > 0:
+            logger.warning(f"🔐 [DeviceAuth] 全 {count} 台のデバイスを一括失効 (Revoked) に設定しました")
+        return count
+
+
 def touch_device_last_seen(
     token_hash: str,
     ip_address: Optional[str] = None,

@@ -61,6 +61,31 @@ class TestReopenTask(unittest.TestCase):
         self.assertFalse(database.reopen_task(task, db_path=self.db_path))
         self.assertFalse(database.reopen_task(99999, db_path=self.db_path))
 
+    def test_get_tasks_completed_today_filters_old_completed_tasks(self):
+        """get_tasks_completed_today は過去日時の完了タスクを除外し、本日分のみ返す (P1-1)。"""
+        from datetime import datetime, timedelta
+        import storage.connection
+
+        # 1. 本日完了タスクを作成
+        t_today = database.create_task(database.Task(title="今日完了タスク"), db_path=self.db_path)
+        database.complete_task(t_today, db_path=self.db_path)
+
+        # 2. 3日前に完了した古いタスクを作成し、updated_at を3日前に偽装
+        t_old = database.create_task(database.Task(title="3日前完了タスク"), db_path=self.db_path)
+        database.complete_task(t_old, db_path=self.db_path)
+        old_ms = int((datetime.now() - timedelta(days=3)).timestamp() * 1000)
+        with storage.connection.get_db_connection(self.db_path) as conn:
+            conn.execute("UPDATE tasks SET updated_at = ? WHERE id = ?", (old_ms, t_old))
+
+        # 3. get_tasks(status="completed") だと両方取れてしまう（従来のバグ）
+        all_completed = database.get_tasks(status="completed", db_path=self.db_path)
+        self.assertEqual(len(all_completed), 2)
+
+        # 4. get_tasks_completed_today() だと本日分のみ取れる（新設 Seam の成果）
+        today_completed = database.get_tasks_completed_today(db_path=self.db_path)
+        self.assertEqual(len(today_completed), 1)
+        self.assertEqual(today_completed[0].title, "今日完了タスク")
+
 
 if __name__ == "__main__":
     unittest.main()

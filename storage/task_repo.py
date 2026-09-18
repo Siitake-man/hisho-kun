@@ -331,6 +331,64 @@ def reopen_task(task_id: int, db_path: str = "neo_secretary.db") -> bool:
         return success
 
 
+def get_tasks_completed_today(
+    now_ms: Optional[int] = None,
+    limit: int = 10,
+    db_path: str = "neo_secretary.db"
+) -> List[Task]:
+    """本日（00:00:00以降）完了したタスク一覧を取得する Seam (P1-1 対策)。
+
+    終礼日報（eveningモード）で、過去数ヶ月前の完了タスクが誤って本日分として
+    報告されるバグを根本治療します。
+
+    Args:
+        now_ms: 基準時刻（Unixミリ秒）。Noneの場合は現在時刻
+        limit: 最大取得件数
+        db_path: データベースファイルのパス
+
+    Returns:
+        本日完了したTaskオブジェクトのリスト（直近完了順）
+    """
+    if now_ms is None:
+        now_dt = datetime.now()
+    else:
+        now_dt = datetime.fromtimestamp(now_ms / 1000.0)
+
+    start_of_today = datetime(now_dt.year, now_dt.month, now_dt.day, 0, 0, 0)
+    start_of_today_ms = int(start_of_today.timestamp() * 1000)
+
+    with get_db_connection(db_path) as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT id, title, description, due_date, priority, status, parent_id, list_id, tags, importance_flag, urgency_flag, recurrence, created_at, updated_at
+            FROM tasks
+            WHERE status = 'completed' AND updated_at >= ?
+            ORDER BY updated_at DESC, priority DESC
+            LIMIT ?
+        """, (start_of_today_ms, limit))
+
+        rows = cursor.fetchall()
+        tasks = []
+        for r in rows:
+            tasks.append(Task(
+                id=r[0],
+                title=r[1],
+                description=r[2],
+                due_date=r[3],
+                priority=r[4],
+                status=r[5],
+                parent_id=r[6],
+                list_id=r[7],
+                tags=r[8],
+                importance_flag=None if r[9] is None else bool(r[9]),
+                urgency_flag=None if r[10] is None else bool(r[10]),
+                recurrence=r[11],
+                created_at=r[12],
+                updated_at=r[13]
+            ))
+        return tasks
+
+
 def update_task(task_id: int, updates: dict, db_path: str = "neo_secretary.db") -> bool:
     """タスクの指定フィールドを更新します (スマホ編集シート・PC手帳共通)。
 

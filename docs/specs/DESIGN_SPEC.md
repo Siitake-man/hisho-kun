@@ -1,7 +1,7 @@
 # ネオ秘書くん システム設計書 (DESIGN_SPEC.md)
 
-- **バージョン**: 1.1.9 (🛡️ 端末台帳のゼロトラスト個別トークン化 ＆ 端末単位 un-revoke API・復帰UI・監査ログ同期)
-- **最終更新日時**: 2026-09-18 12:18
+- **バージョン**: 1.2.0 (🛡️ ゼロトラストP0脆弱性3件封鎖 ＆ 品質官P1日報集計バグ是正 ＆ 独立査読APPROVED完了)
+- **最終更新日時**: 2026-09-18 12:45
 - **アーキテクチャ方針**: 完全ローカル完結型 非ブロッキング並行システム (Tkinter Desktop Overlay × Mobile PWA × LangGraph Agent × Zero-Trust Local Bridge)
 
 ---
@@ -441,6 +441,21 @@ MiniCPM-Petの秀逸な着眼点をネオ秘書くんのクリーンアーキテ
 - **PC音声読み上げの環境変数制御**:
   - `VOICE_NARRATION_ENABLED` を `.env` で永続管理し、設定画面 Tab 2 からワンタップでトグル可能。
   - オフィスや家族環境での意図しない発話事故を完全に防止。
+
+### 10.6 ゼロトラスト脆弱性P0即時封鎖 ＆ 終礼日報P1バグ是正（2026-09-18 実装反映）
+- **P0-1 スマホ全解除時の一括失効 (`storage/device_repo.py`, `local_sync_server.py`)**:
+  - `SyncTokenManager.regenerate()` 実行時に `database.revoke_all_devices()` を自律的に同期実行。
+  - これにより、マスタトークン再生成（全解除）と同時にDB上の個別端末レコードも一括で `is_revoked = 1` に失効され、旧個別トークンによる不正通信を完全遮断。
+- **P0-2 QRペアリングのワンタイム・Fail-Closed化 (`local_sync_server.py`)**:
+  - `_handle_auth_token()` において、正常に個別トークンを発行した直後に `tm.close_pairing()` を呼び出し、ペアリング受付フラグを即時クローズ。同一Wi-Fi上の不正端末による連続発行DoSを遮断。
+  - トークン発行例外時は、グローバルトークンへのフォールバック（マスターキー漏洩）を廃止し、HTTP 500 で通信を遮断する Fail-Closed 規律を徹底（P1-2）。
+- **P0-3 ソケットタイムアウト設定によるSlowlorisスレッド枯渇防御 (`local_sync_server.py`)**:
+  - `DeskPetSyncHandler.timeout = 10.0` を設定。低速送信や切断放置によるHTTPワーカースレッドの永久ハング・リソース枯渇を防止。
+- **P1-1 終礼日報の当日完了タスク集計是正 (`storage/task_repo.py`, `briefing_engine.py`)**:
+  - `get_tasks_completed_today(now_ms=None, limit=10)` Seam を新設。
+  - 本日00:00:00のミリ秒タイムスタンプ以降に `updated_at` が記録され、かつ `status='completed'` のタスクのみを厳格に抽出。過去全期間の完了タスクが毎晩日報に誤出力されるバグを根治。
+- **P1-3 端末台帳覗き見防止のループバック制限 (`local_sync_server.py`)**:
+  - `_dispatch_get_devices()` において、クライアントIPがループバック（`127.0.0.1` / `::1`）以外からの `GET /api/devices` 要求を HTTP 403 で拒絶。同一LAN上のスマホや第三者端末からの端末台帳覗き見を構造的に遮断。
 
 ---
 
