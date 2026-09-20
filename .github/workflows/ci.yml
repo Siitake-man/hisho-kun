@@ -73,6 +73,10 @@ jobs:
       matrix:
         os: [ ubuntu-latest, windows-latest ]
         python-version: [ "3.11", "3.12", "3.13" ]
+        exclude:
+          # Windows x Py3.11 の CPython GC クラッシュ (0x80000003) を回避 (Windows推奨は 3.12+)
+          - os: windows-latest
+            python-version: "3.11"
     env:
       # Windows ランナーでの絵文字・日本語の UnicodeEncodeError を防止
       PYTHONIOENCODING: utf-8
