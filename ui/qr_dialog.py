@@ -144,9 +144,10 @@ class QRCodeConnectionDialog(ctk.CTkToplevel):
     QRコード生成 ＆ 社内ユーザー向け接続ガイドダイアログ。
     """
     def __init__(self, parent_gui, *args, **kwargs):
+        from i18n import t
         super().__init__(parent_gui.root, *args, **kwargs)
         self.parent_gui = parent_gui
-        self.title("📱 スマホDesk Pet ＆ 承認コクピット接続")
+        self.title(t("ui.qr.title"))
         self.geometry("480x660")
         self.resizable(False, False)
         
@@ -224,10 +225,11 @@ class QRCodeConnectionDialog(ctk.CTkToplevel):
         return candidates
 
     def _build_ui(self):
+        from i18n import t
         pad = 12
         # ヘッダー
-        ctk.CTkLabel(self, text="📱 スマホを机上のペット端末にする", font=self.font_title, text_color=self.primary_color).pack(pady=(12, 4))
-        ctk.CTkLabel(self, text="カメラでQRコードをかざすだけで、スマホが承認コクピットになります！", font=self.font_small, text_color="#7A6B62").pack()
+        ctk.CTkLabel(self, text=t("ui.qr.header"), font=self.font_title, text_color=self.primary_color).pack(pady=(12, 4))
+        ctk.CTkLabel(self, text=t("ui.qr.desc"), font=self.font_small, text_color="#7A6B62").pack()
         
         # 接続先セレクタ（LAN IP ＋ Tailscale HTTPS/HTTP 両対応）
         self.ips = self._get_local_ips()
@@ -239,7 +241,7 @@ class QRCodeConnectionDialog(ctk.CTkToplevel):
         
         ip_frame = ctk.CTkFrame(self, fg_color="transparent")
         ip_frame.pack(fill="x", padx=pad, pady=(8, 4))
-        ctk.CTkLabel(ip_frame, text="接続先:", font=self.font_body, text_color=self.text_color).pack(side="left", padx=(0, 6))
+        ctk.CTkLabel(ip_frame, text=t("ui.qr.target"), font=self.font_body, text_color=self.text_color).pack(side="left", padx=(0, 6))
         
         ip_menu = ctk.CTkOptionMenu(
             ip_frame,

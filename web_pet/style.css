@@ -1,0 +1,131 @@
+/**
+ * ネオ秘書くん Desk Pet PWA - レトロモダンUI & Microcopy防御スタイル (style.css)
+ * 
+ * 【DESIGN_SPEC 20.14節 UIレイアウト耐性設計】
+ * 1. 言語トグルボタン: レトロモダン・ドット絵液晶ガジェット調のコンパクトデザイン
+ * 2. ボトムドック耐性: clamp() と ellipsis による多言語ラベルの幅突き抜け防止 (80px枠死守)
+ * 3. アクションボタン耐性: min-width: 0 と nowrap による狭小画面 (360px〜390px) 2ボタン並列死守
+ */
+
+/* =============================================================================
+   1. 言語トグルボタン (.lang-toggle-btn)
+   ============================================================================= */
+.lang-toggle-btn {
+  background: rgba(255, 184, 0, 0.16);
+  border: 1px solid var(--accent-amber, #FFB800);
+  color: var(--accent-amber, #FFB800);
+  font-family: 'Space Mono', 'DotGothic16', monospace;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  padding: 2px 6px;
+  min-width: 28px;
+  height: 22px;
+  border-radius: 4px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4), inset 0 0 4px rgba(255, 184, 0, 0.2);
+  transition: all 0.15s cubic-bezier(0.34, 1.56, 0.64, 1);
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.lang-toggle-btn:hover {
+  background: rgba(255, 184, 0, 0.25);
+  box-shadow: 0 0 8px rgba(255, 184, 0, 0.4);
+}
+
+.lang-toggle-btn:active {
+  transform: scale(0.92);
+  background: var(--accent-amber, #FFB800);
+  color: #1A120B;
+}
+
+/* =============================================================================
+   2. ボトムドックのラベル幅・文字崩れ防御 (Character Budget Protection)
+   ============================================================================= */
+.bottom-dock {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 4px;
+  flex: 0 0 42px;
+  height: 42px;
+  width: 100%;
+  box-sizing: border-box;
+  margin-top: auto;
+  position: relative;
+  z-index: 10;
+}
+
+.dock-btn {
+  min-width: 0;
+  overflow: hidden;
+  padding: 2px 4px;
+  box-sizing: border-box;
+}
+
+.dock-btn .dock-label,
+.dock-btn span:not(.icon) {
+  font-size: clamp(0.7rem, 2.2vw, 0.85rem);
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+  display: block;
+  text-align: center;
+}
+
+/* =============================================================================
+   3. アクションボタン（承認 / 却下）の狭小画面並列死守 (2-Button Parallel Guard)
+   ============================================================================= */
+.banner-actions,
+.approval-sheet-actions {
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  gap: 8px;
+  width: 100%;
+  box-sizing: border-box;
+  position: sticky;
+  bottom: 0;
+  background: rgba(26, 18, 11, 0.95);
+  padding: 8px 0;
+  z-index: 10;
+  backdrop-filter: blur(4px);
+}
+
+.banner-actions button,
+.approval-sheet-actions button,
+.approval-sheet-actions .btn-approve,
+.approval-sheet-actions .btn-deny {
+  flex: 1 1 0;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  box-sizing: border-box;
+}
+
+/* =============================================================================
+   4. Jev安全審査バッジの1行完結耐性
+   ============================================================================= */
+.jev-safety-badge {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* =============================================================================
+   5. PWA吹き出しの縦無限伸長防止 (Max-Height & Word-Break Guard)
+   ============================================================================= */
+.speech-bubble {
+  max-height: 120px !important;
+  overflow-y: auto !important;
+  word-break: break-word !important;
+  overflow-wrap: break-word !important;
+}
+

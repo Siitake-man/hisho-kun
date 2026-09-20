@@ -499,7 +499,7 @@
     var req = window.currentApprovalRequest;
     if (!req) return;
 
-    // ---- Jev 安全審査スコア バッジ (OpenCode GO 実機設計) ----
+    // ---- Jev 安全審査スコア バッジ (OpenCode GO 実機設計 ＆ DESIGN_SPEC 20.14多言語対応) ----
     function buildJevBadge() {
       var level = null;
       var meta = null;
@@ -528,7 +528,10 @@
       }[level] || '#00E676';
 
       var dot = { allow: '🟢', confirm: '🟡', deny: '🛑' }[level] || '🟢';
-      var label = 'Jev安全審査: ' + level.toUpperCase();
+      var t = window.NeoLang ? window.NeoLang.t.bind(window.NeoLang) : function(k, f) { return f; };
+      var rawPrefix = t('badge.jev_prefix', '🟢 Jev安全審査: ');
+      var prefixClean = rawPrefix.replace(/^[🟢🟡🛑]\s*/, '');
+      var label = prefixClean + level.toUpperCase();
       var metaHtml = meta
         ? '<span style="opacity:.85;margin-left:6px;font-size:12px;">(' + escapeHtml(meta) + ')</span>'
         : '';
@@ -557,6 +560,10 @@
 
     var jevBadgeHtml = buildJevBadge();
 
+    var t = window.NeoLang ? window.NeoLang.t.bind(window.NeoLang) : function(k, f) { return f; };
+    var approveLabel = t('btn.approve', '承認する');
+    var denyLabel = t('btn.deny', '却下する');
+
     var isStrict = (req.risk_level === 'strict');
     var warningHtml = isStrict
       ? '<div class="note-item" style="border-left: 3px solid #FF5252; background: rgba(255, 82, 82, 0.15);"><div class="note-title" style="color:#FF5252;">🚨 破壊的変更の警告</div><div class="note-desc">git reset / rm / drop table などの重大操作が含まれる可能性があります。コマンド内容を必ず確認してください。</div></div>'
@@ -567,8 +574,8 @@
     var html = warningHtml + jevBadgeHtml + commandHtml +
       '<div class="note-item"><div class="note-title">🛡️ このコマンドの実行を許可しますか？</div><div class="note-desc">イヤホンの再生ボタンでも承認できます</div></div>' +
       '<div class="approval-sheet-actions">' +
-      '<button class="btn-approve" onclick="closeBottomSheet(); respondApproval(\'approve\')">✅ 承認する</button>' +
-      '<button class="btn-deny" onclick="closeBottomSheet(); respondApproval(\'deny\')">🛑 却下する</button>' +
+      '<button class="btn-approve" onclick="closeBottomSheet(); respondApproval(\'approve\')">✅ ' + escapeHtml(approveLabel) + '</button>' +
+      '<button class="btn-deny" onclick="closeBottomSheet(); respondApproval(\'deny\')">🛑 ' + escapeHtml(denyLabel) + '</button>' +
       '</div>';
     var sheetIcon = isStrict ? '🚨' : '🛡️';
     var sheetTag = isStrict ? '高リスク承認' : '承認要請';
@@ -810,6 +817,78 @@
   window.setupBannerSwipe = setupBannerSwipe;
   window.dismissCompleted = dismissCompleted;
   window.isCompletedDismissed = isCompletedDismissed;
+  // =============================================================================
+  // 9. 多言語化UI同期 (DESIGN_SPEC 20.14節 引き算のMicrocopy規約 ＆ neolang)
+  // =============================================================================
+  function renderBottomDock() {
+    try {
+      var t = window.NeoLang ? window.NeoLang.t.bind(window.NeoLang) : function (k, f) { return f; };
+      var lblCal = document.getElementById('dock-label-cal');
+      var lblTasks = document.getElementById('dock-label-tasks');
+      var lblDaily = document.getElementById('dock-label-daily');
+      var lblSettings = document.getElementById('dock-label-settings');
+
+      if (lblCal) lblCal.textContent = t('dock.cal', 'カレンダー');
+      if (lblTasks) lblTasks.textContent = t('dock.tasks', 'タスク');
+      if (lblDaily) lblDaily.textContent = t('dock.daily', '日報');
+      if (lblSettings) lblSettings.textContent = t('dock.settings', '設定');
+    } catch (e) {
+      console.warn('[pet_ui] renderBottomDock failed:', e);
+    }
+  }
+
+  function updateBannerLabels() {
+    try {
+      var t = window.NeoLang ? window.NeoLang.t.bind(window.NeoLang) : function (k, f) { return f; };
+      var bannerApprove = document.getElementById('banner-approve');
+      var bannerDeny = document.getElementById('banner-deny');
+      var bannerHint = document.getElementById('banner-hint');
+      if (bannerApprove) bannerApprove.textContent = '✅ ' + t('btn.approve', '承認');
+      if (bannerDeny) bannerDeny.textContent = '🛑 ' + t('btn.deny', '却下');
+      if (bannerHint) bannerHint.textContent = t('banner.tap_details', 'タップで詳細');
+
+      var evBadge = document.getElementById('event-type-badge');
+      if (evBadge && window.currentApprovalRequest) {
+        evBadge.textContent = t('banner.approval_wait', '⚠️ 外部AI 承認待ち');
+      }
+    } catch (e) {
+      console.warn('[pet_ui] updateBannerLabels failed:', e);
+    }
+  }
+
+  // neolang:changed イベントリスナー登録 (即時UI再描画)
+  window.addEventListener('neolang:changed', function (ev) {
+    renderBottomDock();
+    updateBannerLabels();
+
+    // 承認シートが開いていれば即座に再レンダリング
+    if (window.currentApprovalRequest) {
+      var sheet = document.getElementById('bottom-sheet');
+      if (sheet && sheet.classList.contains('open')) {
+        openApprovalSheet();
+      }
+    }
+
+    // サジェストカードを再描画
+    if (typeof renderSuggestionCard === 'function') {
+      renderSuggestionCard();
+    }
+  });
+
+  // DOMContentLoaded または初期実行
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', function () {
+      renderBottomDock();
+      updateBannerLabels();
+    });
+  } else {
+    renderBottomDock();
+    updateBannerLabels();
+  }
+
+  // =============================================================================
+  // 10. グローバル公開
+  // =============================================================================
   window._hideBanner = _hideBanner;
   window.openApprovalSheet = openApprovalSheet;
   window.openQuestionSheet = openQuestionSheet;
@@ -820,6 +899,8 @@
   window.togglePomodoro = togglePomodoro;
   window.AGENT_BADGE_STYLES = AGENT_BADGE_STYLES;
   window.updateAgentActivityBadge = updateAgentActivityBadge;
+  window.renderBottomDock = renderBottomDock;
+  window.updateBannerLabels = updateBannerLabels;
   window.updateBriefingBannerText = updateBriefingBannerText;
 
 })();
@@ -851,3 +932,5 @@ var togglePomodoro = window.togglePomodoro;
 var AGENT_BADGE_STYLES = window.AGENT_BADGE_STYLES;
 var updateAgentActivityBadge = window.updateAgentActivityBadge;
 var updateBriefingBannerText = window.updateBriefingBannerText;
+var renderBottomDock = window.renderBottomDock;
+var updateBannerLabels = window.updateBannerLabels;

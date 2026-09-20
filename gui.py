@@ -39,8 +39,9 @@ ctk.set_default_color_theme("green") # デフォルトテーマ
 class NeoSecretaryGUI(PomodoroMixin, RadialMenuMixin, TourOverlayMixin):
     def __init__(self):
         # 1. メインウィンドウの設定 (スマートコックピット 2.0)
+        from i18n import t, subscribe_language_change
         self.root = ctk.CTk()
-        self.root.title("ネオ秘書くん")
+        self.root.title(t("ui.gui.title"))
         
         # ウィンドウサイズと位置の設定（画面右下付近）
         window_width = 340
@@ -148,7 +149,7 @@ class NeoSecretaryGUI(PomodoroMixin, RadialMenuMixin, TourOverlayMixin):
         header_font = ("DotGothic16", 12, "bold") if "DotGothic16" in tk.font.families() else ("Meiryo UI", 10, "bold")
         self.header_title = ctk.CTkLabel(
             self.bubble_header,
-            text="🤖 ネオ秘書くん",
+            text=t("ui.gui.header_name"),
             font=header_font,
             text_color="#A67B5B"
         )
@@ -170,7 +171,7 @@ class NeoSecretaryGUI(PomodoroMixin, RadialMenuMixin, TourOverlayMixin):
 
         self.btn_open_calendar = ctk.CTkButton(
             self.bubble_header,
-            text="📔 手帳",
+            text=t("ui.gui.header_cal"),
             width=50,
             height=20,
             font=("DotGothic16", 9, "bold") if "DotGothic16" in tk.font.families() else ("Meiryo UI", 9, "bold"),
@@ -196,14 +197,14 @@ class NeoSecretaryGUI(PomodoroMixin, RadialMenuMixin, TourOverlayMixin):
             activate_scrollbars=True
         )
         self.message_box.pack(pady=(4, 2), padx=8, fill=tk.BOTH, expand=True)
-        self.message_box.insert("1.0", "おはようございます！\n本日のご予定はいかがなさいますか？")
+        self.message_box.insert("1.0", t("ui.gui.initial_greeting"))
         self.message_box.configure(state="disabled")
 
         # URLリンクがある場合に動的表示するアクションボタン
         self.current_link_url = ""
         self.link_btn = ctk.CTkButton(
             self.bubble_frame,
-            text="🌐 リンクをブラウザで開く",
+            text=t("ui.gui.open_link"),
             font=("Meiryo UI", 9.5, "bold"),
             fg_color="#1565C0",
             hover_color="#0D47A1",
@@ -223,7 +224,7 @@ class NeoSecretaryGUI(PomodoroMixin, RadialMenuMixin, TourOverlayMixin):
         self.input_entry = ctk.CTkEntry(
             self.input_frame, 
             textvariable=self.entry_var,
-            placeholder_text="秘書くんに指示する...",
+            placeholder_text=t("ui.gui.input_placeholder"),
             font=font_style,
             text_color="#4A3B32",
             fg_color="#F5F5DC",
@@ -231,6 +232,9 @@ class NeoSecretaryGUI(PomodoroMixin, RadialMenuMixin, TourOverlayMixin):
             height=32
         )
         self.input_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 5))
+
+        # 言語切り替えイベントの動的反映ハンドラを登録
+        subscribe_language_change(self._on_gui_language_changed)
 
         # -------------------------------------------------------------
         # 6. キャラクター画像 ＆ サークルメニュー (Radial Action Menu)
@@ -671,6 +675,7 @@ class NeoSecretaryGUI(PomodoroMixin, RadialMenuMixin, TourOverlayMixin):
     def _build_context_menu(self):
         """最新のプロバイダ・モデル選択状態を反映したメニューを動的に生成"""
         from llm_factory import get_llm_factory
+        from i18n import t
         factory = get_llm_factory()
         
         menu = tk.Menu(self.root, tearoff=0, bg="#F5F5DC", fg="#4A3B32", font=("Meiryo UI", 10))
@@ -678,22 +683,22 @@ class NeoSecretaryGUI(PomodoroMixin, RadialMenuMixin, TourOverlayMixin):
         # ☀️ 朝会/終礼ブリーフィング（Phase L3）
         import briefing_engine
         current_mode = briefing_engine.get_current_briefing_mode()
-        b_label = "☀️ 今日の朝会ブリーフィング" if current_mode in ("morning", "day") else "🌙 本日の終礼日報まとめ"
+        b_label = t("ui.menu.briefing_morning") if current_mode in ("morning", "day") else t("ui.menu.briefing_evening")
         menu.add_command(label=b_label, command=self._show_briefing)
         
-        menu.add_command(label="📔 統合手帳（予定・TODO・知見）", command=self._open_calendar)
-        menu.add_command(label="📌 新しい付箋を貼る", command=self._on_create_quick_sticky)
-        menu.add_command(label="📱 スマホDesk Pet接続 (QRコード)", command=self._open_qr_connection)
+        menu.add_command(label=t("ui.menu.calendar"), command=self._open_calendar)
+        menu.add_command(label=t("ui.menu.sticky"), command=self._on_create_quick_sticky)
+        menu.add_command(label=t("ui.menu.qr"), command=self._open_qr_connection)
         
         auto_min = getattr(self, 'auto_minimize_on_link', False)
         min_prefix = "☑ " if auto_min else "☐ "
-        menu.add_command(label=f"{min_prefix}スマホ接続時にPCペットを自動最小化", command=self.toggle_auto_minimize)
+        menu.add_command(label=f"{min_prefix}{t('ui.menu.auto_min')}", command=self.toggle_auto_minimize)
         
         # ポモドーロ開始/停止
         if not self.pomodoro_active:
-            menu.add_command(label="🍅 ポモドーロ集中開始 (25分)", command=lambda: self.start_pomodoro(25))
+            menu.add_command(label=t("ui.menu.pomo_start"), command=lambda: self.start_pomodoro(25))
         else:
-            menu.add_command(label="⏹ ポモドーロタイマー停止", command=self.stop_pomodoro)
+            menu.add_command(label=t("ui.menu.pomo_stop"), command=self.stop_pomodoro)
             
         menu.add_separator()
         
@@ -718,8 +723,8 @@ class NeoSecretaryGUI(PomodoroMixin, RadialMenuMixin, TourOverlayMixin):
             llm_menu.add_cascade(label=f"{prov_prefix}{p_info['name']}", menu=p_sub)
             
         llm_menu.add_separator()
-        llm_menu.add_command(label="⚙ 新しいLLMを追加・設定...", command=self._open_settings)
-        menu.add_cascade(label="🧠 LLMモデル切り替え", menu=llm_menu)
+        llm_menu.add_command(label=t("ui.menu.llm_add"), command=self._open_settings)
+        menu.add_cascade(label=t("ui.menu.llm_switch"), menu=llm_menu)
             
         # キャラクタースキン切り替えサブメニュー
         from character_manager import get_character_manager
@@ -735,19 +740,38 @@ class NeoSecretaryGUI(PomodoroMixin, RadialMenuMixin, TourOverlayMixin):
                 label=f"{prefix}{char_info['emoji']} {char_info['name']} ({char_info['title']})",
                 command=lambda c=cid: self.switch_character_skin(c)
             )
-        menu.add_cascade(label="🎭 キャラクタースキン変更", menu=skin_menu)
+        menu.add_cascade(label=t("ui.menu.skin_change"), menu=skin_menu)
         self.wandering_var = tk.BooleanVar(value=getattr(char_mgr, "wandering_enabled", False))
         menu.add_checkbutton(
-            label="🚶 徘徊モード（デスクトップ散歩）",
+            label=t("ui.menu.wandering"),
             variable=self.wandering_var,
             command=self._toggle_wandering
         )
-        menu.add_command(label="🎓 使い方ツアー", command=self._start_tour)
-        menu.add_command(label="💡 サジェストソース設定", command=lambda: SuggestSettingsDialog(self))
-        menu.add_command(label="⚙ API・MCP設定", command=self._open_settings)
+        menu.add_command(label=t("ui.menu.tour"), command=self._start_tour)
+        menu.add_command(label=t("ui.menu.suggest"), command=lambda: SuggestSettingsDialog(self))
+        menu.add_command(label=t("ui.menu.settings"), command=self._open_settings)
         menu.add_separator()
-        menu.add_command(label="❌ 終了", command=self.quit_app)
+        menu.add_command(label=t("ui.menu.exit"), command=self.quit_app)
         return menu
+
+    def _on_gui_language_changed(self, lang: str) -> None:
+        """言語変更イベントを受信し、メインGUI要素をリアルタイム更新する"""
+        def _update():
+            from i18n import t
+            try:
+                self.root.title(t("ui.gui.title"))
+                if hasattr(self, "header_title") and self.header_title.winfo_exists():
+                    self.header_title.configure(text=t("ui.gui.header_name"))
+                if hasattr(self, "btn_open_calendar") and self.btn_open_calendar.winfo_exists():
+                    self.btn_open_calendar.configure(text=t("ui.gui.header_cal"))
+                if hasattr(self, "input_entry") and self.input_entry.winfo_exists():
+                    self.input_entry.configure(placeholder_text=t("ui.gui.input_placeholder"))
+                if hasattr(self, "link_btn") and self.link_btn.winfo_exists():
+                    self.link_btn.configure(text=t("ui.gui.open_link"))
+                logger.info("🖥️ [GUI] メインウィンドウを言語 '%s' に動的更新しました", lang)
+            except Exception as e:
+                logger.warning("GUI言語更新エラー: %s", e)
+        self.post_action(_update)
 
     def _toggle_wandering(self) -> None:
         """徘徊モード（デスクトップ散歩）の ON/OFF を切り替え、設定を永続化します。"""
@@ -1058,31 +1082,33 @@ class NeoSecretaryGUI(PomodoroMixin, RadialMenuMixin, TourOverlayMixin):
         agent_name = payload.get("agent_name", "AI Agent")
         detail = payload.get("detail", "")
 
+        from i18n import t
+
         if state == "coding":
             if hasattr(self, "animator"):
                 self.animator.set_state("focus")
-            msg = f"🤖 [{agent_name}] 猛烈にコード書き込み中！🔥"
+            msg = t("ui.gui.fsm_coding", agent_name=agent_name)
             if detail:
                 msg += f"\n{detail}"
             self.update_message(msg)
         elif state == "thinking":
             if hasattr(self, "animator"):
                 self.animator.set_state("think")
-            msg = f"🤔 [{agent_name}] 作戦を考えています…"
+            msg = t("ui.gui.fsm_thinking", agent_name=agent_name)
             if detail:
                 msg += f"\n{detail}"
             self.update_message(msg)
         elif state == "waiting_approval":
             if hasattr(self, "animator"):
                 self.animator.set_state("alarm_ask")
-            msg = f"🚨 [{agent_name}] ご主人様の承認をお待ちしています！"
+            msg = t("ui.gui.fsm_waiting_approval", agent_name=agent_name)
             if detail:
                 msg += f"\n{detail}"
             self.update_message(msg)
         elif state == "success":
             if hasattr(self, "animator"):
                 self.animator.set_state("celebrate")
-            msg = f"✨ [{agent_name}] タスク完了！お疲れ様でした！🎉"
+            msg = t("ui.gui.fsm_success", agent_name=agent_name)
             if detail:
                 msg += f"\n{detail}"
             self.update_message(msg)

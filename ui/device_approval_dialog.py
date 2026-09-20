@@ -35,7 +35,8 @@ class DeviceApprovalDialog(ctk.CTkToplevel):
         self.remaining_sec = timeout_sec
         self.result: Optional[bool] = None
 
-        self.title("📱 端末接続承認要請 - ネオ秘書くん")
+        from i18n import t
+        self.title(t("ui.dev.req_title"))
         self.geometry("460x340")
         self.resizable(False, False)
         self.attributes("-topmost", True)
@@ -48,13 +49,14 @@ class DeviceApprovalDialog(ctk.CTkToplevel):
         self._countdown()
 
     def _build_ui(self, jev_score_text: str) -> None:
+        from i18n import t
         main_frame = ctk.CTkFrame(self, corner_radius=12)
         main_frame.pack(fill="both", expand=True, padx=16, pady=16)
 
         # ヘッダー
         title_label = ctk.CTkLabel(
             main_frame,
-            text="📱 新しい端末からの接続要求",
+            text=t("ui.dev.new_req"),
             font=ctk.CTkFont(family="M PLUS 1p", size=18, weight="bold"),
             text_color="#38bdf8",
         )
@@ -62,7 +64,7 @@ class DeviceApprovalDialog(ctk.CTkToplevel):
 
         desc_label = ctk.CTkLabel(
             main_frame,
-            text="Desk Pet への接続を許可しますか？\n心当たりのない接続要求は [拒否] してください。",
+            text=t("ui.dev.confirm"),
             font=ctk.CTkFont(family="M PLUS 1p", size=12),
             text_color="#94a3b8",
             justify="center",
@@ -75,23 +77,23 @@ class DeviceApprovalDialog(ctk.CTkToplevel):
 
         row1 = ctk.CTkFrame(info_card, fg_color="transparent")
         row1.pack(fill="x", padx=12, pady=(8, 4))
-        ctk.CTkLabel(row1, text="端末名:", font=ctk.CTkFont(size=12, weight="bold"), width=80, anchor="w").pack(side="left")
+        ctk.CTkLabel(row1, text=t("ui.dev.name"), font=ctk.CTkFont(size=12, weight="bold"), width=80, anchor="w").pack(side="left")
         ctk.CTkLabel(row1, text=self.device_name, font=ctk.CTkFont(size=12), anchor="w").pack(side="left")
 
         row2 = ctk.CTkFrame(info_card, fg_color="transparent")
         row2.pack(fill="x", padx=12, pady=4)
-        ctk.CTkLabel(row2, text="接続元 IP:", font=ctk.CTkFont(size=12, weight="bold"), width=80, anchor="w").pack(side="left")
+        ctk.CTkLabel(row2, text=t("ui.dev.ip"), font=ctk.CTkFont(size=12, weight="bold"), width=80, anchor="w").pack(side="left")
         ctk.CTkLabel(row2, text=self.client_ip, font=ctk.CTkFont(size=12, family="Consolas"), anchor="w").pack(side="left")
 
         row3 = ctk.CTkFrame(info_card, fg_color="transparent")
         row3.pack(fill="x", padx=12, pady=(4, 8))
-        ctk.CTkLabel(row3, text="安全審査:", font=ctk.CTkFont(size=12, weight="bold"), width=80, anchor="w").pack(side="left")
+        ctk.CTkLabel(row3, text=t("ui.dev.audit"), font=ctk.CTkFont(size=12, weight="bold"), width=80, anchor="w").pack(side="left")
         ctk.CTkLabel(row3, text=jev_score_text, font=ctk.CTkFont(size=11), text_color="#10b981", anchor="w").pack(side="left")
 
         # カウントダウンラベル
         self.timer_label = ctk.CTkLabel(
             main_frame,
-            text=f"自動拒否まで: {self.remaining_sec} 秒",
+            text=t("ui.dev.auto_deny", sec=self.remaining_sec),
             font=ctk.CTkFont(size=11),
             text_color="#f59e0b",
         )
@@ -103,7 +105,7 @@ class DeviceApprovalDialog(ctk.CTkToplevel):
 
         self.deny_btn = ctk.CTkButton(
             btn_frame,
-            text="🛑 拒否 (Esc)",
+            text=t("ui.dev.btn_deny"),
             fg_color="#ef4444",
             hover_color="#dc2626",
             font=ctk.CTkFont(family="M PLUS 1p", size=13, weight="bold"),
@@ -115,7 +117,7 @@ class DeviceApprovalDialog(ctk.CTkToplevel):
 
         self.allow_btn = ctk.CTkButton(
             btn_frame,
-            text="✅ 許可 (Enter)",
+            text=t("ui.dev.btn_allow"),
             fg_color="#10b981",
             hover_color="#059669",
             font=ctk.CTkFont(family="M PLUS 1p", size=13, weight="bold"),

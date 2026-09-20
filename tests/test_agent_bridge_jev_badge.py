@@ -69,7 +69,8 @@ class TestAgentBridgeJevBadge(unittest.TestCase):
         body_bytes = json.dumps({
             "agent_name": "Antigravity",
             "command": "git push origin main",
-            "summary": "【Jev安全審査: confirm (スコア: 0.72)】プッシュ承認要請"
+            "summary": "【Jev安全審査: confirm (スコア: 0.72)】プッシュ承認要請",
+            "wait_decision": False
         }).encode("utf-8")
 
         ctx = ApiContext(handler=handler, body=body_bytes, client_ip="127.0.0.1")

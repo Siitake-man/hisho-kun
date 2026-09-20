@@ -1,7 +1,7 @@
 # ネオ秘書くん システム設計書 (DESIGN_SPEC.md)
 
-- **バージョン**: 1.3.0 (🚀 ネオ秘書くん v1.1.0 正式リリース策定)
-- **最終更新日時**: 2026-09-20 18:52
+- **バージョン**: 1.3.3 (🌐 デスクトップGUI全域 多言語化 Phase 1-2 完了)
+- **最終更新日時**: 2026-09-20 20:25
 - **アーキテクチャ方針**: 完全ローカル完結型 非ブロッキング並行システム (Tkinter Desktop Overlay × Mobile PWA × LangGraph Agent × Zero-Trust Local Bridge ＆ Cross-Platform Headless CI/CD)
 
 
@@ -922,3 +922,44 @@ web_pet/
    - Jev が選定した Moonshot Kimi（Thinkingモデル）による4000トークンの実機推論により、スレッド競合耐性・Fail-Closed 挙動・キー誤爆リスクの深層検証をクリア。
 4. **テスト**:
    - `tests/test_device_connection_approval.py`（7件全件合格）。
+
+### 20.14 多言語化（i18n）アーキテクチャとUIレイアウト耐性設計（Microcopy ＆ 文字数予算規約） (2026-09-20)
+1. **背景とテキスト長膨張（Text Expansion Ratio）の課題**:
+   - 表意文字（日本語）から表音文字（英語）への展開に伴い、文字数・横幅が平均 **1.3〜1.8倍（場合により2倍以上）** 膨張する。
+   - 画面枠が狭小なスマホDesk Pet（PWA）、デスクトップペット頭上のキャンバス吹き出し、およびTkinter固定幅レイアウトにおいて、直訳を適用するとボタンのはみ出し、改行破綻、ラベル見切れ（Truncation）が不可避となる。
+2. **引き算のMicrocopy規約（文字数予算・Character Budget）**:
+   - **直訳の禁止**: 原文の意味を単に翻訳するのではなく、UI領域ごとに許容される文字数上限（Character Budget）を定め、動詞・名詞1語の短縮語（Microcopy）を厳選する。
+   - **PWAボトムドック (Budget: 最大7文字)**:
+     - 「タスク」➔ `"Tasks"`（5文字）
+     - 「カレンダー」➔ `"Cal"`（3文字、アイコン併用）
+     - 「日報」➔ `"Daily"`（5文字）
+     - 「設定」➔ `"Config"` または `"Settings"`（6〜8文字、clamp縮小）
+   - **承認アクションボタン (Budget: 各単語最大8文字)**:
+     - 「承認する」➔ `"Approve"`
+     - 「却下する」➔ `"Deny"`
+     - 2ボタン並列（flex: 1）を維持し、縦積み崩れを構造防止。
+   - **Jev安全審査バッジ (Budget: 最大14文字)**:
+     - `🟢 Jev安全審査: ALLOW` ➔ `🟢 JEV: ALLOW`
+     - 1行完結（`white-space: nowrap`）を死守。
+3. **UIレイアウト3大領域の防御設計**:
+   - **スマホDesk Pet PWA (`web_pet/`)**:
+     - `lang.js` による辞書駆動レンダリング。
+     - CSS `font-size: clamp(0.75rem, 2.5vw, 0.9rem)` と `min-width: 0` / `flex-shrink: 1` によるコンテナ追従。
+   - **デスクトップ常駐ペット吹き出し (`ui/pet_window.py`)**:
+     - キャンバスバブルの動的スケーリング（幅220px〜320pxの可変伸縮）。
+     - Tkinter Canvas の単語単位自動折り返し（Word Wrapping）。
+     - 長文セリフの2〜3行分割・ページャー化（クリック送り）。
+   - **Tkinter 設定画面 (`ui/settings_window.py`)**:
+     - 固定ピクセル指定（`width=N`）を廃止し、`sticky="ew"` および `grid_columnconfigure(1, weight=1)` によるAuto-fitレイアウト。
+4. **多言語基盤アーキテクチャ (`i18n.py` ＆ `web_pet/lang.js`)**:
+   - デスクトップ側: `i18n.py` の `t(key, **params)` にUIドメイン辞書（`ui.*`, `tray.*`, `dialog.*`）を拡充。
+   - PWA側: `web_pet/lang.js`（`NeoLang.t(key)`）を新設し、ブラウザ設定（`navigator.language`）または手動トグルで言語即時切り替え。
+5. **レッドチーム（devils-advocate）カオス破壊監査と6大防壁 (2026-09-20 適用)**:
+   - **防壁1 (1000文字爆弾＆ペット窒息死防止)**: `ui/pet_window.py` の `draw_speech_bubble` に `max_chars=180`（超過時Truncate）および `max_height=140px`（clamp）を実装。
+   - **防壁2 (スペースなし長大トークン横突き抜け防止)**: `_sanitize_wrap_text` により、25文字以上の空白なし英数字列を強制改行分割し、Tkinter Canvas の Word Wrapping 破壊を遮断。
+   - **防壁3 (承認ボタン深海沈没防止)**: `web_pet/style.css` の `.approval-sheet-actions` に `position: sticky; bottom: 0; backdrop-filter: blur(4px);` を適用し、長文コマンド時でも親指位置に常時固定。
+   - **防壁4 (PWA吹き出し縦貫通防止)**: `web_pet/style.css` の `.speech-bubble` に `max-height: 120px; overflow-y: auto; word-break: break-word;` を強制適用。
+   - **防壁5 (文字数予算自己矛盾是正)**: `web_pet/lang.js` の `dock.settings` を 8文字の "Settings" から 6文字の "Config" へ是正し、iPhone SE (320px) でも `Setting...` と見切れないよう Character Budget を遵守。
+   - **防壁6 (型汚染 ＆ 不正波括弧即死ガード)**: `i18n.py` の `t()` で `ValueError`（`Single '{'`）を捕捉し、`set_language` 冒頭で `isinstance(lang, str)` ガードを敷設。
+
+

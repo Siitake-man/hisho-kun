@@ -205,10 +205,40 @@ class SystemTrayManager:
             logger.warning("⚠️ pystray がインストールされていません。タスクトレイ常駐は無効化されます ('pip install pystray' で有効化)")
             return False
 
-        if self._icon is not None:
-            return True
-
+        from i18n import t
         image = self._load_tray_image()
+
+        self._icon_module = pystray
+        self._build_and_attach_menu(pystray)
+
+        self._icon = pystray.Icon(
+            "neo_hisho_kun",
+            image,
+            t("ui.tray.tooltip"),
+            menu=self._current_menu
+        )
+
+        # 言語切替リスナーを登録
+        try:
+            from i18n import subscribe_language_change
+            subscribe_language_change(self._on_language_changed)
+        except Exception as e:
+            logger.debug("言語リスナー登録スキップ: %s", e)
+
+        def _run_tray():
+            try:
+                logger.info("🖥️ [SystemTray] タスクトレイアイコンを開始しました")
+                self._icon.run()
+            except Exception as e:
+                logger.error(f"タスクトレイ実行エラー: {e}")
+
+        self._thread = threading.Thread(target=_run_tray, daemon=True, name="SystemTrayThread")
+        self._thread.start()
+        return True
+
+    def _build_and_attach_menu(self, pystray_mod) -> None:
+        """多言語辞書に基づいてトレイメニューを構築する"""
+        from i18n import t
 
         def on_show_pet(icon, item):
             self.gui.post_action(self.gui.show_pc_pet)
@@ -235,38 +265,39 @@ class SystemTrayManager:
         def on_quit(icon, item):
             self.request_quit()
 
-        menu = pystray.Menu(
-            pystray.MenuItem("🖥️ ペットを画面に呼び出す", on_show_pet, default=True),
-            pystray.MenuItem("🙈 ペットを隠す (最小化)", on_hide_pet),
-            pystray.MenuItem("📌 デスクトップ付箋 (表示/非表示)", on_toggle_sticky),
-            pystray.Menu.SEPARATOR,
-            pystray.MenuItem("⚙️ 設定を開く", on_open_settings),
-            pystray.MenuItem("📅 手帳 / カレンダー", on_open_calendar),
-            pystray.MenuItem("📱 スマホ接続 (QRコード)", on_open_qr),
-            pystray.Menu.SEPARATOR,
-            pystray.MenuItem("❌ ネオ秘書くんを終了", on_quit),
+        self._current_menu = pystray_mod.Menu(
+            pystray_mod.MenuItem(t("ui.tray.show"), on_show_pet, default=True),
+            pystray_mod.MenuItem(t("ui.tray.hide"), on_hide_pet),
+            pystray_mod.MenuItem(t("ui.tray.sticky"), on_toggle_sticky),
+            pystray_mod.Menu.SEPARATOR,
+            pystray_mod.MenuItem(t("ui.tray.settings"), on_open_settings),
+            pystray_mod.MenuItem(t("ui.tray.calendar"), on_open_calendar),
+            pystray_mod.MenuItem(t("ui.tray.qr"), on_open_qr),
+            pystray_mod.Menu.SEPARATOR,
+            pystray_mod.MenuItem(t("ui.tray.exit"), on_quit),
         )
 
-        self._icon = pystray.Icon(
-            "neo_hisho_kun",
-            image,
-            "ネオ秘書くん",
-            menu=menu
-        )
-
-        def _run_tray():
-            try:
-                logger.info("🖥️ [SystemTray] タスクトレイアイコンを開始しました")
-                self._icon.run()
-            except Exception as e:
-                logger.error(f"タスクトレイ実行エラー: {e}")
-
-        self._thread = threading.Thread(target=_run_tray, daemon=True, name="SystemTrayThread")
-        self._thread.start()
-        return True
+    def _on_language_changed(self, lang: str) -> None:
+        """言語変更通知を受けてトレイメニューとツールチップを更新する"""
+        if not self._icon or not hasattr(self, "_icon_module"):
+            return
+        try:
+            from i18n import t
+            self._build_and_attach_menu(self._icon_module)
+            self._icon.menu = self._current_menu
+            self._icon.title = t("ui.tray.tooltip")
+            logger.info("🖥️ [SystemTray] トレイメニューを言語 '%s' に動的更新しました", lang)
+        except Exception as e:
+            logger.warning("トレイメニューの言語更新エラー: %s", e)
 
     def stop(self) -> None:
         """タスクトレイアイコンを安全に停止・破棄する"""
+        try:
+            from i18n import unsubscribe_language_change
+            unsubscribe_language_change(self._on_language_changed)
+        except Exception:
+            pass
+
         if self._icon is not None:
             try:
                 self._icon.stop()

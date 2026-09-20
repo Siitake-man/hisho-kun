@@ -51,8 +51,8 @@ Claude Code や Cline などの自律AIコーディングを回しながら、**
     <img src="https://img.shields.io/badge/📘_Cheat_Sheets-公式利用ガイド完全版-8b5e3c?style=for-the-badge&logo=readthedocs&logoColor=white" alt="Official Cheat Sheets">
   </a>
   &nbsp;&nbsp;
-  <a href="https://github.com/Siitake-man/hisho-kun/releases/tag/v1.0.0">
-    <img src="https://img.shields.io/badge/📦_Download_v1.0.0-最新ZIPを入手-10b981?style=for-the-badge&logo=windows&logoColor=white" alt="Download Release v1.0.0">
+  <a href="https://github.com/Siitake-man/hisho-kun/releases/tag/v1.1.0">
+    <img src="https://img.shields.io/badge/📦_Download_v1.1.0-最新ZIPを入手-10b981?style=for-the-badge&logo=windows&logoColor=white" alt="Download Release v1.1.0">
   </a>
 </p>
 

@@ -15,6 +15,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DotGothic16&family=Space+Grotesk:wght@500;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css?v=1.1.0">
   <style>
     :root {
       --bg-casing: #2E1C14;
@@ -359,9 +360,13 @@
       line-height: 1.35;
     }
     #event-desc { font-size: 11px; margin-top: 2px; color: #FFEBEE; }
-    .banner-actions { display: none; gap: 8px; margin-top: 9px; }
+    .banner-actions { display: none; gap: 8px; margin-top: 9px; width: 100%; box-sizing: border-box; }
     .banner-actions button {
-      flex: 1;
+      flex: 1 1 0;
+      min-width: 0;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
       font-family: 'DotGothic16', 'Space Grotesk', sans-serif;
       font-size: 15px;
       font-weight: bold;
@@ -370,6 +375,7 @@
       border-radius: 8px;
       cursor: pointer;
       letter-spacing: 1px;
+      box-sizing: border-box;
     }
     .banner-actions button:active { transform: scale(0.96); }
     #banner-approve {
@@ -442,9 +448,13 @@
     }
 
     /* 承認シート（ボトムシート内の大ボタン） */
-    .approval-sheet-actions { display: flex; gap: 10px; margin-top: 12px; }
+    .approval-sheet-actions { display: flex; gap: 10px; margin-top: 12px; width: 100%; box-sizing: border-box; }
     .approval-sheet-actions button {
-      flex: 1;
+      flex: 1 1 0;
+      min-width: 0;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
       font-family: 'DotGothic16', 'Space Grotesk', sans-serif;
       font-size: 16px;
       font-weight: bold;
@@ -452,6 +462,7 @@
       border: none;
       border-radius: 10px;
       cursor: pointer;
+      box-sizing: border-box;
     }
     .approval-sheet-actions .btn-approve { background: #00E676; color: #003300; }
     .approval-sheet-actions .btn-deny { background: #FF5252; color: #FFFFFF; }
@@ -678,6 +689,10 @@
       font-size: 9.5px;
       cursor: pointer;
       transition: all 0.15s;
+      min-width: 0;
+      overflow: hidden;
+      padding: 2px 4px;
+      box-sizing: border-box;
     }
     .dock-btn:active {
       transform: scale(0.94);
@@ -685,6 +700,50 @@
     }
     .dock-btn .icon {
       font-size: 15px;
+    }
+    .dock-btn .dock-label,
+    .dock-btn span:not(.icon) {
+      font-size: clamp(0.7rem, 2.2vw, 0.85rem);
+      line-height: 1.2;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 100%;
+      display: block;
+      text-align: center;
+    }
+
+    /* 🌐 言語トグルボタン */
+    .lang-toggle-btn {
+      background: rgba(255, 184, 0, 0.16);
+      border: 1px solid var(--accent-amber, #FFB800);
+      color: var(--accent-amber, #FFB800);
+      font-family: 'Space Mono', 'DotGothic16', monospace;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      padding: 2px 6px;
+      min-width: 28px;
+      height: 22px;
+      border-radius: 4px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      white-space: nowrap;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4), inset 0 0 4px rgba(255, 184, 0, 0.2);
+      transition: all 0.15s cubic-bezier(0.34, 1.56, 0.64, 1);
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    .lang-toggle-btn:hover {
+      background: rgba(255, 184, 0, 0.25);
+      box-shadow: 0 0 8px rgba(255, 184, 0, 0.4);
+    }
+    .lang-toggle-btn:active {
+      transform: scale(0.92);
+      background: var(--accent-amber, #FFB800);
+      color: #1A120B;
     }
 
     /* =========================================================================
@@ -1465,6 +1524,7 @@
         <button class="btn-header" onclick="toggleFullscreen()" title="⛶ 全画面表示">
           <span>⛶</span>
         </button>
+        <button id="lang-toggle-btn" class="lang-toggle-btn" onclick="if (window.NeoLang) window.NeoLang.toggleLang()" title="言語切り替え / Toggle Language">EN</button>
         <!-- 🎙️ 音声入力ボタンは内部品質検証中のため非表示 (VOICE_INPUT_ENABLED / pet.js)。
              解放時はキャラエリア直下の大型マイクボタンとして復活させる仕様 -->
         <button class="btn-header" id="mic-btn" onclick="startVoiceInput()" title="🎤 音声で質問する" hidden>
@@ -1557,22 +1617,22 @@
     </main>
 
     <!-- 操作ドック (最下部固定) -->
-    <footer class="bottom-dock">
+    <footer class="bottom-dock" id="bottom-dock">
       <button class="dock-btn" onclick="openEventsModal()">
         <span class="icon">📅</span>
-        <span>予定</span>
+        <span class="dock-label" id="dock-label-cal">カレンダー</span>
       </button>
       <button class="dock-btn" onclick="openTodoModal()">
         <span class="icon">📝</span>
-        <span>TODO</span>
+        <span class="dock-label" id="dock-label-tasks">タスク</span>
       </button>
       <button class="dock-btn" onclick="openNotesModal()">
         <span class="icon">🌱</span>
-        <span>習慣</span>
+        <span class="dock-label" id="dock-label-daily">日報</span>
       </button>
       <button class="dock-btn" onclick="openSettingsModal()">
         <span class="icon">⚙️</span>
-        <span>設定</span>
+        <span class="dock-label" id="dock-label-settings">設定</span>
       </button>
     </footer>
   </div>
@@ -1620,6 +1680,7 @@
   <video id="nosleep-video" muted playsinline autoplay style="position:fixed; left:0; bottom:0; width:2px; height:2px; opacity:0.01; pointer-events:none; z-index:-1;"></video>
 
   <script src="version.js?v=1.1.0"></script>
+  <script src="lang.js?v=1.1.0"></script>
   <script src="pet_auth.js?v=1.1.0"></script>
   <script src="pet_audio_se.js?v=1.1.0"></script>
   <script src="pet_particles.js?v=1.1.0"></script>

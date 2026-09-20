@@ -31,8 +31,9 @@ class CalendarWindow(ctk.CTkToplevel):
     """
     def __init__(self, parent_gui, *args, **kwargs):
         super().__init__(parent_gui.root, *args, **kwargs)
+        from i18n import t
         self.parent_gui = parent_gui
-        self.title("ネオ秘書くん - 統合手帳 (Notebook)")
+        self.title(t("ui.cal.title"))
         self.geometry("520x620")
         
         self.bg_color = "#F5F5DC"
@@ -57,14 +58,15 @@ class CalendarWindow(ctk.CTkToplevel):
         self._schedule_auto_refresh()
 
     def _build_ui(self):
-        # 1. ヘッダー領域
-        self.header_frame = ctk.CTkFrame(self, fg_color=self.primary_color, corner_radius=0, height=45)
-        self.header_frame.pack(side="top", fill="x")
+        from i18n import t
+        # 1. ヘッダー
+        self.header_frame = ctk.CTkFrame(self, fg_color=self.primary_color, height=45, corner_radius=0)
+        self.header_frame.pack(fill="x", side="top")
         self.header_frame.pack_propagate(False)
         
         self.title_label = ctk.CTkLabel(
             self.header_frame, 
-            text="📔 秘書くんの統合手帳", 
+            text=t("ui.cal.header"), 
             font=self.font_title, 
             text_color="#FFFFFF"
         )
@@ -82,10 +84,10 @@ class CalendarWindow(ctk.CTkToplevel):
         )
         self.tabview.pack(fill="both", expand=True, padx=12, pady=(5, 10))
         
-        self.tab_events = self.tabview.add("📅 予定")
-        self.tab_tasks = self.tabview.add("📋 TODO")
-        self.tab_habits = self.tabview.add("🌱 習慣 ＆ 草")
-        self.tab_insights = self.tabview.add("🧠 ボスのトリセツ")
+        self.tab_events = self.tabview.add(t("ui.cal.tab_events"))
+        self.tab_tasks = self.tabview.add(t("ui.cal.tab_tasks"))
+        self.tab_habits = self.tabview.add(t("ui.cal.tab_habits"))
+        self.tab_insights = self.tabview.add(t("ui.cal.tab_insights"))
         
         self._build_events_tab()
         self._build_tasks_tab()
@@ -96,12 +98,13 @@ class CalendarWindow(ctk.CTkToplevel):
     # 📅 予定タブ
     # =========================================================================
     def _build_events_tab(self):
+        from i18n import t
         view_bar = ctk.CTkFrame(self.tab_events, fg_color="transparent")
         view_bar.pack(fill="x", padx=5, pady=(2, 4))
 
         self.event_view_seg = ctk.CTkSegmentedButton(
             view_bar,
-            values=["🗓️ 月間", "📅 週間", "☀️ 日間"],
+            values=[t("ui.cal.view_month"), t("ui.cal.view_week"), t("ui.cal.view_day")],
             selected_color=self.primary_color,
             selected_hover_color="#8B634A",
             unselected_color="#E0D8C8",
@@ -110,7 +113,7 @@ class CalendarWindow(ctk.CTkToplevel):
             font=("Meiryo UI", 9.5, "bold"),
             command=self._on_event_view_change
         )
-        self.event_view_seg.set("🗓️ 月間")
+        self.event_view_seg.set(t("ui.cal.view_month"))
         self.event_view_seg.pack(side="left")
 
         # 期間ナビゲーションバー（◀ ラベル ▶ ＆ 今日へ戻る）
@@ -135,7 +138,7 @@ class CalendarWindow(ctk.CTkToplevel):
         btn_next.pack(side="left", padx=(4, 4))
 
         btn_today = ctk.CTkButton(
-            nav_bar, text="今日", width=48, height=26,
+            nav_bar, text=t("ui.cal.today"), width=48, height=26,
             font=self.font_small, fg_color="#8B634A", hover_color="#6E4F3B",
             command=self._on_jump_today
         )
@@ -611,9 +614,10 @@ class CalendarWindow(ctk.CTkToplevel):
             button_color="#8B634A"
         ).pack(side="left", padx=(0, 6))
 
+        from i18n import t
         btn_add = ctk.CTkButton(
             add_bar,
-            text="追加",
+            text=t("ui.cal.add_task"),
             width=60,
             height=32,
             font=self.font_body,

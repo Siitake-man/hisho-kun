@@ -16,6 +16,8 @@ from dotenv import load_dotenv
 
 from ui.window_icon import apply_window_icon
 from sync_config import SERVER_PORT, build_tailscale_serve_command
+import i18n
+from i18n import t
 
 logger = logging.getLogger(__name__)
 
@@ -237,8 +239,8 @@ class SettingsWindow(ctk.CTkToplevel):
     def __init__(self, parent_gui, *args, **kwargs):
         super().__init__(parent_gui.root, *args, **kwargs)
         self.parent_gui = parent_gui
-        self.title("ネオ秘書くん - AIモデル・API設定")
-        self.geometry("480x620")
+        self.title(t("ui.settings.title"))
+        self.geometry("500x640")
         
         self.bg_color = "#F5F5DC"
         self.primary_color = "#A67B5B"
@@ -264,18 +266,93 @@ class SettingsWindow(ctk.CTkToplevel):
         header.pack(side="top", fill="x")
         header.pack_propagate(False)
         
-        title_label = ctk.CTkLabel(header, text="⚙ ネオ秘書くん 統合設定", font=self.font_title, text_color="#FFFFFF")
+        title_label = ctk.CTkLabel(header, text=t("ui.settings.title"), font=self.font_title, text_color="#FFFFFF")
         title_label.pack(pady=8)
         
         # タブビュー領域
         self.tabview = ctk.CTkTabview(self, fg_color=self.bg_color, segmented_button_selected_color=self.primary_color, segmented_button_selected_hover_color="#8B634A")
         self.tabview.pack(side="top", fill="both", expand=True, padx=12, pady=(6, 5))
         
+        tab_general = self.tabview.add(f"⚙️ {t('ui.settings.general')}")
         tab_llm = self.tabview.add("🧠 AIモデル設定")
         tab_mcp = self.tabview.add("🤖 外部AI・MCP連携")
         tab_tools = self.tabview.add("📅 外部ツール・プラグイン")
         tab_devices = self.tabview.add("📱 接続端末管理")
         tab_guide = self.tabview.add("📖 使い方ガイド")
+
+        # =====================================================================
+        # Tab 0: 一般設定 (General Settings) - 言語切替 ＆ Auto-fit
+        # =====================================================================
+        content_general = ctk.CTkScrollableFrame(tab_general, fg_color="transparent")
+        content_general.pack(fill="both", expand=True)
+
+        card_lang = ctk.CTkFrame(content_general, fg_color="#FFFFFF", border_width=1, border_color="#E0D8C8", corner_radius=8)
+        card_lang.pack(fill="x", pady=6, padx=2)
+
+        # 英語長文でも見切れない Auto-fit レイアウト: column 0 は自動幅、column 1 は weight=1 で横伸長
+        card_lang.grid_columnconfigure(0, weight=0)
+        card_lang.grid_columnconfigure(1, weight=1)
+
+        lbl_card_title = ctk.CTkLabel(
+            card_lang,
+            text=f"🌐 {t('ui.settings.language')}",
+            font=("Meiryo UI", 11, "bold"),
+            text_color=self.primary_color,
+            anchor="w"
+        )
+        lbl_card_title.grid(row=0, column=0, columnspan=2, sticky="ew", padx=12, pady=(10, 4))
+
+        lbl_lang_desc = ctk.CTkLabel(
+            card_lang,
+            text="デスクトップペットの吹き出し、通知メッセージ、およびAI推論の応答言語を切り替えます。\n"
+                 "Changes the language for pet speech bubbles, notifications, and AI model responses.",
+            font=self.font_small,
+            text_color="#7A6B62",
+            anchor="w",
+            justify="left"
+        )
+        lbl_lang_desc.grid(row=1, column=0, columnspan=2, sticky="ew", padx=12, pady=(0, 10))
+
+        # 言語選択行
+        lbl_select_lang = ctk.CTkLabel(
+            card_lang,
+            text=f"{t('ui.settings.language')}:",
+            font=self.font_body,
+            text_color=self.text_color,
+            anchor="w"
+        )
+        lbl_select_lang.grid(row=2, column=0, sticky="w", padx=(12, 8), pady=(0, 12))
+
+        # 言語コード・表示名マッピング
+        self._LANG_NAME_TO_CODE = {"日本語": "ja", "English": "en"}
+        self._LANG_CODE_TO_NAME = {"ja": "日本語", "en": "English"}
+
+        curr_lang = i18n.get_language()
+        init_lang_name = self._LANG_CODE_TO_NAME.get(curr_lang, "日本語")
+
+        def _on_language_selected(selected_name: str):
+            code = self._LANG_NAME_TO_CODE.get(selected_name, "ja")
+            i18n.set_language(code)
+            logger.info("設定画面から言語を変更しました: %s (%s)", code, selected_name)
+            # 即時UI反映: ウィンドウタイトル、言語ラベル、保存ボタンを再描画
+            self.title(t("ui.settings.title"))
+            lbl_select_lang.configure(text=f"{t('ui.settings.language')}:")
+            if hasattr(self, "btn_save") and self.btn_save:
+                self.btn_save.configure(text=f"💾 {t('ui.settings.save')}")
+
+        self.combo_language = ctk.CTkOptionMenu(
+            card_lang,
+            values=["日本語", "English"],
+            command=_on_language_selected,
+            fg_color=self.primary_color,
+            button_color="#8B634A",
+            button_hover_color="#6F4E37",
+            font=self.font_body,
+            dropdown_font=self.font_body,
+            dynamic_resizing=True
+        )
+        self.combo_language.set(init_lang_name)
+        self.combo_language.grid(row=2, column=1, sticky="ew", padx=(0, 12), pady=(0, 12))
 
         # =====================================================================
         # Tab 1: AIモデル設定 (LLM Brain)
@@ -987,16 +1064,16 @@ class SettingsWindow(ctk.CTkToplevel):
         # =====================================================================
         # 保存ボタン
         # =====================================================================
-        btn_save = ctk.CTkButton(
+        self.btn_save = ctk.CTkButton(
             self,
-            text="💾 設定を保存して適用",
+            text=f"💾 {t('ui.settings.save')}",
             font=self.font_title,
             fg_color=self.primary_color,
             hover_color="#8B634A",
             height=38,
             command=self._on_save
         )
-        btn_save.pack(side="bottom", fill="x", padx=15, pady=8)
+        self.btn_save.pack(side="bottom", fill="x", padx=15, pady=8)
 
     def _open_add_mcp_dialog(self):
         """MCPサーバー新規追加ダイアログを開く"""
@@ -1452,9 +1529,17 @@ class SettingsWindow(ctk.CTkToplevel):
         from mcp_manager import get_mcp_manager
         factory = get_llm_factory()
         mcp_mgr = get_mcp_manager()
+
+        # 0. 表示言語設定の保存・反映
+        selected_lang_code = "ja"
+        if hasattr(self, "combo_language"):
+            selected_display = self.combo_language.get()
+            selected_lang_code = getattr(self, "_LANG_NAME_TO_CODE", {}).get(selected_display, "ja")
+            i18n.set_language(selected_lang_code)
         
         # 1. LLM設定 ＆ 外部連携の保存
         new_settings = {
+            "APP_LANGUAGE": selected_lang_code,
             "GOOGLE_API_KEY": self.entry_gemini_key.get().strip(),
             "GEMINI_MODEL": self.combo_gemini_model.get().strip(),
             "ANTHROPIC_API_KEY": self.entry_claude_key.get().strip(),
@@ -1493,7 +1578,12 @@ class SettingsWindow(ctk.CTkToplevel):
             cur_wh["webhook_secret"] = self.entry_webhook_secret.get().strip()
             webhook_tools.save_webhook_config(cur_wh)
 
-        self.parent_gui.update_message("⚙ AI設定 ＆ 外部連携（Google/GitHub/Slack/Webhook/MCP）を保存・適用しました！")
+        saved_msg = (
+            "⚙ AI設定 ＆ 外部連携（Google/GitHub/Slack/Webhook/MCP）を保存・適用しました！"
+            if selected_lang_code == "ja"
+            else "⚙ Settings & integrations (Google/GitHub/Slack/Webhook/MCP) saved and applied!"
+        )
+        self.parent_gui.update_message(saved_msg)
         self.destroy()
 
     def _download_local_model_gui(self, model_key: str = "350m"):
