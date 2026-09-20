@@ -1,8 +1,8 @@
 # ネオ秘書くん システム設計書 (DESIGN_SPEC.md)
 
-- **バージョン**: 1.2.5 (📱 P0-2＆P0-3完全完了 ＆ ⚡ Jev System One 2段階選抜・119スキル全量走破)
-- **最終更新日時**: 2026-09-20 16:05
-- **アーキテクチャ方針**: 完全ローカル完結型 非ブロッキング並行システム (Tkinter Desktop Overlay × Mobile PWA × LangGraph Agent × Zero-Trust Local Bridge)
+- **バージョン**: 1.2.6 (🚀 Sprint C: GitHub Actions CI/CD パイプライン完備 ＆ ⚡ Jev System One 選抜実戦投入)
+- **最終更新日時**: 2026-09-20 16:30
+- **アーキテクチャ方針**: 完全ローカル完結型 非ブロッキング並行システム (Tkinter Desktop Overlay × Mobile PWA × LangGraph Agent × Zero-Trust Local Bridge ＆ Cross-Platform Headless CI/CD)
 
 
 ---
