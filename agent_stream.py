@@ -65,7 +65,7 @@ async def run_agent_streaming(
     final_state: Dict[str, Any] = {}
     buffer = ""
     last_sent_text = ""
-    last_update_time = 0.0
+    last_update_time = -1e9
 
     async for event in agent.astream_events(initial_state, config=config, version="v2"):
         kind = event.get("event", "")
