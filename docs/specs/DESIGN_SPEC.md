@@ -1,7 +1,7 @@
 # ネオ秘書くん システム設計書 (DESIGN_SPEC.md)
 
-- **バージョン**: 1.2.6 (🚀 Sprint C: GitHub Actions CI/CD パイプライン完備 ＆ ⚡ Jev System One 選抜実戦投入)
-- **最終更新日時**: 2026-09-20 16:30
+- **バージョン**: 1.2.7 (🎉 Jev 安全審査バッジデータ伝達断絶の根治 ＆ PWA v1.0.4 キャッシュパージ配備)
+- **最終更新日時**: 2026-09-20 18:05
 - **アーキテクチャ方針**: 完全ローカル完結型 非ブロッキング並行システム (Tkinter Desktop Overlay × Mobile PWA × LangGraph Agent × Zero-Trust Local Bridge ＆ Cross-Platform Headless CI/CD)
 
 

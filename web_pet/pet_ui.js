@@ -509,15 +509,14 @@
         level = req.safety_level.toLowerCase();
       }
 
-      // 2. summary からも抽出（信頼度などのメタ情報用）
-      if (req.summary) {
-        var m = req.summary.match(
-          /【Jev安全審査:\s*(allow|confirm|deny)\s*(?:\(([^)]*)\))?\s*】/i
-        );
-        if (m) {
-          if (!level) level = m[1].toLowerCase();
-          if (m[2]) meta = m[2].trim();
-        }
+      // 2. summary / title / content から包括的に抽出（信頼度・スコアなどのメタ情報含む）
+      var textToScan = (req.summary || '') + ' ' + (req.title || '') + ' ' + (req.content || '');
+      var m = textToScan.match(
+        /【Jev安全審査:\s*(allow|confirm|deny)\s*(?:\(([^)]*)\))?\s*】/i
+      );
+      if (m) {
+        if (!level) level = m[1].toLowerCase();
+        if (m[2]) meta = m[2].trim();
       }
 
       if (!level) return '';
@@ -573,7 +572,7 @@
       '</div>';
     var sheetIcon = isStrict ? '🚨' : '🛡️';
     var sheetTag = isStrict ? '高リスク承認' : '承認要請';
-    openBottomSheet({ icon: sheetIcon, tag: sheetTag, title: req.summary || 'コマンド実行の承認' }, html);
+    openBottomSheet({ icon: sheetIcon, tag: sheetTag, title: req.summary || req.title || 'コマンド実行の承認' }, html);
   }
 
   /** 質問シート（選択肢を大ボタンで表示） */

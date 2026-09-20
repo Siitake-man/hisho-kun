@@ -434,13 +434,17 @@ class AgentBridgeRequest:
         timeout_sec: int = 180,
         requester_ip: str = "",
         risk_level: str = "prompt",
-        agent_type: str = "generic"
+        agent_type: str = "generic",
+        summary: str = "",
+        safety_level: Optional[str] = None
     ):
         self.request_id = f"req_{uuid.uuid4().hex[:8]}"
         self.req_type = req_type
         self.agent_name = agent_name
         self.agent_type = agent_type
         self.title = title
+        self.summary = summary or title
+        self.safety_level = safety_level
         self.content = content
         self.command = command
         self.choices = choices or []
@@ -473,6 +477,8 @@ class AgentBridgeRequest:
             "agent_name": self.agent_name,
             "agent_type": self.agent_type,
             "title": self.title,
+            "summary": self.summary,
+            "safety_level": self.safety_level,
             "content": self.content,
             "command": self.command,
             "choices": self.choices,
@@ -501,18 +507,21 @@ class AgentBridgeHub:
         timeout_sec: int = 180,
         requester_ip: str = "",
         risk_level: str = "prompt",
-        agent_type: str = "generic"
+        agent_type: str = "generic",
+        safety_level: Optional[str] = None
     ) -> AgentBridgeRequest:
         req = AgentBridgeRequest(
             req_type="approval",
             agent_name=agent_name,
             title=summary if summary else f"『{command}』の実行許可",
+            summary=summary,
             content=details,
             command=command,
             timeout_sec=timeout_sec,
             requester_ip=requester_ip,
             risk_level=risk_level,
-            agent_type=agent_type
+            agent_type=agent_type,
+            safety_level=safety_level
         )
         with self._lock:
             self.pending_requests[req.request_id] = req

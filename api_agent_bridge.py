@@ -70,6 +70,14 @@ def handle_agent_ask(ctx: ApiContext) -> None:
         decision_policy = policy_engine.evaluate(req_dto.command)
         req_dto.risk_level = decision_policy.risk_level
 
+        # Jev 安全審査レベルの自動抽出 (明示指定または summary から)
+        safety_level = raw_data.get("safety_level")
+        if not safety_level and req_dto.summary:
+            import re
+            m = re.search(r"【Jev安全審査:\s*(allow|confirm|deny)", req_dto.summary, re.IGNORECASE)
+            if m:
+                safety_level = m.group(1).lower()
+
         hub = get_bridge_hub()
         req = hub.create_approval_request(
             agent_name=req_dto.agent_name,
@@ -79,7 +87,8 @@ def handle_agent_ask(ctx: ApiContext) -> None:
             timeout_sec=req_dto.timeout_sec,
             requester_ip=ctx.client_ip,
             risk_level=req_dto.risk_level.value,
-            agent_type=req_dto.agent_type
+            agent_type=req_dto.agent_type,
+            safety_level=safety_level
         )
 
         audit_logger = get_global_audit_logger()
