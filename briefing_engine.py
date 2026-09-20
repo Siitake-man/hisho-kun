@@ -14,6 +14,7 @@ from typing import Dict, Any, List, Optional
 
 import database
 import weather_tools
+from i18n import t, get_language
 from character_manager import get_character_manager
 
 logger = logging.getLogger(__name__)
@@ -58,10 +59,16 @@ def get_current_briefing_mode(hour: Optional[int] = None) -> str:
 
 
 def _format_date_japanese(dt: datetime) -> str:
-    """日付を『YYYY年MM月DD日 (曜日)』形式にフォーマット"""
-    weekdays = ["月", "火", "水", "木", "金", "土", "日"]
-    weekday_str = weekdays[dt.weekday()]
-    return f"{dt.year}年{dt.month}月{dt.day}日 ({weekday_str})"
+    """日付を現在言語に応じてフォーマット"""
+    lang = get_language()
+    if lang == "en":
+        weekdays = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+        months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+        return f"{weekdays[dt.weekday()]}, {months[dt.month - 1]} {dt.day}, {dt.year}"
+    else:
+        weekdays = ["月", "火", "水", "木", "金", "土", "日"]
+        weekday_str = weekdays[dt.weekday()]
+        return f"{dt.year}年{dt.month}月{dt.day}日 ({weekday_str})"
 
 
 def _get_character_lines(char_id: str, mode: str, count_events: int, count_tasks: int, count_habits_done: int) -> Dict[str, str]:
@@ -71,52 +78,18 @@ def _get_character_lines(char_id: str, mode: str, count_events: int, count_tasks
     name = char_info.get("name", "秘書くん")
     emoji = char_info.get("emoji", "🤖")
 
-    if mode == "morning":
-        if char_id == "retro_dolphin":
-            greeting = f"ボス、おはようキュッ！{name}が今日の海路を案内するキュ！"
-            encouragement = "今日も一日、無理せずスイスイ進もうキュ！🐬✨"
-        elif char_id == "kyle":
-            greeting = f"おっ、ボス！おはようさん。{name}が今日のスケジュールをまとめたぜ。"
-            encouragement = "肩の力を抜いて、重要なことから片付けていこうぜ！🔥"
-        elif char_id == "seal":
-            greeting = f"もちもち〜！ボス、おはようございます〜！{name}だよ〜！"
-            encouragement = "今日もボスのペースでがんばってね〜！応援してるよ〜！🦭💖"
-        elif char_id == "kinoko":
-            greeting = f"ボス、朝でござる！{name}、本日の任務書を持参いたした！"
-            encouragement = "いざ出陣！健康第一で励むでござる！🍄✨"
-        elif char_id == "wombat":
-            greeting = f"ボス、おはようございます。{name}が今日の予定をどっしり支えます。"
-            encouragement = "焦らず着実に、一歩ずつ進めていきましょう。🦫"
-        else: # hisho
-            greeting = f"ボス、おはようございます！{name}が本日のブリーフィングをお届けします。"
-            encouragement = "本日もボスの最高のパートナーとして全力でサポートいたします！✨"
+    known_chars = ("retro_dolphin", "kyle", "seal", "kinoko", "wombat", "hisho")
+    cid = char_id if char_id in known_chars else "hisho"
 
-    elif mode == "evening":
-        if char_id == "retro_dolphin":
-            greeting = f"ボス、今日もお疲れ様キュ〜！本日の航海日誌だキュ！"
-            encouragement = f"今日完了したタスクと習慣、しっかり記録したキュ！ゆっくり休んでキュ〜！🌊"
-        elif char_id == "kyle":
-            greeting = f"ボス、一日お疲れさん！今日の成果をまとめたぜ。"
-            encouragement = f"よくやり切ったな！今夜は好きなことして頭を休めてくれよな。"
-        elif char_id == "seal":
-            greeting = f"ボス〜！今日もお仕事お疲れ様でした〜！もちもち日報だよ〜！"
-            encouragement = f"いっぱい頑張ってえらいえらい〜！あったかいお風呂に入ってね〜！🛀"
-        elif char_id == "kinoko":
-            greeting = f"ボス、本日の任務完了、誠にお疲れ様でござる！"
-            encouragement = f"見事な働きぶり！今宵はぐっすり休んで英気を養うでござる！🍵"
-        elif char_id == "wombat":
-            greeting = f"ボス、一日お疲れ様でした。本日の日報をまとめました。"
-            encouragement = f"積み重ねた努力は確実に力になっています。良き休息を。🌙"
-        else: # hisho
-            greeting = f"ボス、本日も一日大変お疲れ様でした！本日の業務日報です。"
-            encouragement = f"素晴らしい集中力と達成です。今夜はごゆっくりお休みくださいね。✨"
-
+    if mode in ("morning", "evening"):
+        greeting = t(f"briefing.char.{cid}.{mode}.greeting", name=name)
+        encouragement = t(f"briefing.char.{cid}.{mode}.encouragement")
     elif mode == "day":
-        greeting = f"ボス、午後の業務もお疲れ様です！午後の進捗ブリーフィングです。"
-        encouragement = "適度にストレッチやお茶タイムを取りながら進めましょう！☕"
-    else: # night
-        greeting = f"ボス、夜遅くまでお疲れ様です。夜間ブリーフィングです。"
-        encouragement = "無理は禁物ですよ。明日のために、そろそろお布団に入りましょうね。🌌"
+        greeting = t("briefing.char.common.day.greeting")
+        encouragement = t("briefing.char.common.day.encouragement")
+    else:  # night
+        greeting = t("briefing.char.common.night.greeting")
+        encouragement = t("briefing.char.common.night.encouragement")
 
     return {"greeting": greeting, "encouragement": encouragement, "name": name, "emoji": emoji}
 
@@ -159,20 +132,24 @@ def generate_briefing(force_mode: Optional[str] = None) -> BriefingReport:
     mode = force_mode if force_mode in ("morning", "day", "evening", "night") else get_current_briefing_mode(now.hour)
 
     mode_labels = {
-        "morning": "☀️ 朝会ブリーフィング",
-        "day": "⛅ 午後ブリーフィング",
-        "evening": "🌙 終礼日報",
-        "night": "🌌 夜間ブリーフィング",
+        "morning": t("briefing.mode.morning"),
+        "day": t("briefing.mode.day"),
+        "evening": t("briefing.mode.evening"),
+        "night": t("briefing.mode.night"),
     }
-    mode_label = mode_labels.get(mode, "☀️ ブリーフィング")
+    mode_label = mode_labels.get(mode, t("briefing.mode.default"))
 
     # 1. 実データの収集 (Seam統合)
     # 1.1 天気
     weather_info = weather_tools.get_weather()
-    weather_desc = {
-        "sunny": "晴れ ☀️", "cloudy": "曇り ☁️", "rainy": "雨 🌧️",
-        "snowy": "雪 ❄️", "thunder": "雷雨 ⚡"
-    }.get(weather_info.get("weather", "sunny"), "晴れ ☀️")
+    weather_desc_map = {
+        "sunny": t("briefing.weather.sunny"),
+        "cloudy": t("briefing.weather.cloudy"),
+        "rainy": t("briefing.weather.rainy"),
+        "snowy": t("briefing.weather.snowy"),
+        "thunder": t("briefing.weather.thunder"),
+    }
+    weather_desc = weather_desc_map.get(weather_info.get("weather", "sunny"), t("briefing.weather.sunny"))
     temp_str = f"{weather_info.get('temperature', 20.0):.1f}°C"
     city_str = weather_info.get("city", "東京")
 
@@ -217,12 +194,12 @@ def generate_briefing(force_mode: Optional[str] = None) -> BriefingReport:
     active_tasks = []
     try:
         active_tasks_raw = database.get_tasks(status=None) # todo, in_progress
-        for t in active_tasks_raw:
+        for task in active_tasks_raw:
             active_tasks.append({
-                "id": t.id,
-                "title": t.title,
-                "priority": getattr(t, "priority", 1),
-                "due_date": str(t.due_date) if getattr(t, "due_date", None) else ""
+                "id": task.id,
+                "title": task.title,
+                "priority": getattr(task, "priority", 1),
+                "due_date": str(task.due_date) if getattr(task, "due_date", None) else ""
             })
     except Exception as e:
         logger.warning(f"タスクデータ取得スキップ: {e}")
@@ -232,10 +209,10 @@ def generate_briefing(force_mode: Optional[str] = None) -> BriefingReport:
     completed_tasks_today = []
     try:
         comp_tasks_raw = database.get_tasks_completed_today(limit=10)
-        for t in comp_tasks_raw:
+        for task in comp_tasks_raw:
             completed_tasks_today.append({
-                "id": t.id,
-                "title": t.title
+                "id": task.id,
+                "title": task.title
             })
     except Exception as e:
         logger.warning(f"完了タスク取得スキップ: {e}")
@@ -268,39 +245,39 @@ def generate_briefing(force_mode: Optional[str] = None) -> BriefingReport:
     lines.append(f"{char_lines['greeting']}\n")
 
     # 天気サマリ
-    lines.append(f"🌡️ **現在の天気**: {city_str} は **{weather_desc}**（{temp_str}）")
+    lines.append(t("briefing.weather.summary", city=city_str, weather=weather_desc, temp=temp_str))
 
     if mode in ("morning", "day"):
         # 朝会・日中: 予定と未完了タスク
         if events_today:
-            lines.append("\n📅 **本日の予定タイムライン**:")
+            lines.append(t("briefing.events.timeline"))
             for ev in events_today[:4]:
-                time_range = f"{ev['start_time']}〜{ev['end_time']}" if ev['start_time'] else "終日"
+                time_range = f"{ev['start_time']}〜{ev['end_time']}" if ev['start_time'] else t("briefing.events.all_day")
                 lines.append(f"- **{time_range}**: {ev['title']}")
         else:
-            lines.append("\n📅 **本日の予定**: 大きな予定はありません（集中作業チャンスです！🎯）")
+            lines.append(t("briefing.events.none"))
 
         if active_tasks:
-            lines.append(f"\n📝 **重要TODO (残り{len(active_tasks)}件)**:")
-            for t in active_tasks[:3]:
-                lines.append(f"- ⏳ {t['title']}")
+            lines.append(t("briefing.tasks.active", count=len(active_tasks)))
+            for t_item in active_tasks[:3]:
+                lines.append(f"- ⏳ {t_item['title']}")
         else:
-            lines.append("\n📝 **TODO**: 残タスクはありません！素晴らしいです✨")
+            lines.append(t("briefing.tasks.none"))
 
         if habits_summary["total"] > 0:
-            lines.append(f"\n🌱 **今日の習慣**: {habits_summary['done']}/{habits_summary['total']} 達成中 ({habits_summary['rate_percent']}%)")
+            lines.append(t("briefing.habits.status", done=habits_summary['done'], total=habits_summary['total'], rate=habits_summary['rate_percent']))
 
     else:
         # 終礼・夜間: 成果の振り返りとねぎらい
         if completed_tasks_today:
-            lines.append(f"\n🎉 **本日完了したタスク ({len(completed_tasks_today)}件)**:")
-            for t in completed_tasks_today[:4]:
-                lines.append(f"- ✅ {t['title']}")
+            lines.append(t("briefing.tasks.completed_today", count=len(completed_tasks_today)))
+            for t_item in completed_tasks_today[:4]:
+                lines.append(f"- ✅ {t_item['title']}")
         else:
-            lines.append("\n📝 **タスク状況**: 本日もお疲れ様でした！")
+            lines.append(t("briefing.tasks.evening_none"))
 
         if habits_summary["total"] > 0:
-            lines.append(f"\n🌱 **本日の習慣達成率**: **{habits_summary['done']}/{habits_summary['total']} 件達成** ({habits_summary['rate_percent']}%)")
+            lines.append(t("briefing.habits.evening_status", done=habits_summary['done'], total=habits_summary['total'], rate=habits_summary['rate_percent']))
 
     lines.append(f"\n{char_lines['encouragement']}")
     formatted_markdown = "\n".join(lines)
@@ -308,24 +285,24 @@ def generate_briefing(force_mode: Optional[str] = None) -> BriefingReport:
     # 4. 音声TTS用プレーンテキストの構築（耳で聴いてわかりやすい自然言語）
     speech_parts = []
     speech_parts.append(f"{char_lines['greeting']}")
-    speech_parts.append(f"現在の{city_str}の天気は、{weather_desc.split()[0]}、気温は{int(weather_info.get('temperature', 20))}度です。")
+    speech_parts.append(t("briefing.speech.weather", city=city_str, weather=weather_desc.split()[0], temp=int(weather_info.get('temperature', 20))))
 
     if mode in ("morning", "day"):
         if events_today:
-            speech_parts.append(f"本日の予定は{len(events_today)}件あります。")
+            speech_parts.append(t("briefing.speech.events_count", count=len(events_today)))
             first_ev = events_today[0]
             if first_ev.get("start_time"):
-                speech_parts.append(f"最初の予定は、{first_ev['start_time']}からの、{first_ev['title']}です。")
+                speech_parts.append(t("briefing.speech.events_first", start_time=first_ev['start_time'], title=first_ev['title']))
         else:
-            speech_parts.append("本日は大きな予定は入っていません。")
+            speech_parts.append(t("briefing.speech.events_none"))
 
         if active_tasks:
-            speech_parts.append(f"未完了のタスクは{len(active_tasks)}件です。最優先は、{active_tasks[0]['title']}です。")
+            speech_parts.append(t("briefing.speech.tasks_active", count=len(active_tasks), title=active_tasks[0]['title']))
     else:
         if completed_tasks_today:
-            speech_parts.append(f"本日完了したタスクは{len(completed_tasks_today)}件です。")
+            speech_parts.append(t("briefing.speech.tasks_completed", count=len(completed_tasks_today)))
         if habits_summary["total"] > 0:
-            speech_parts.append(f"習慣は{habits_summary['total']}件中、{habits_summary['done']}件達成しました。")
+            speech_parts.append(t("briefing.speech.habits_summary", total=habits_summary['total'], done=habits_summary['done']))
 
     speech_parts.append(f"{char_lines['encouragement']}")
     speech_text = " ".join(speech_parts)

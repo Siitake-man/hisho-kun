@@ -149,6 +149,143 @@ _TRANSLATIONS: Dict[str, Dict[str, str]] = {
         "ui.dev.auto_deny": "自動拒否まで: {sec} 秒",
         "ui.dev.btn_deny": "🛑 拒否 (Esc)",
         "ui.dev.btn_allow": "✅ 許可 (Enter)",
+        # Settings Window (Phase 3)
+        "ui.settings.tab_general": "一般",
+        "ui.settings.tab_llm": "AIモデル設定",
+        "ui.settings.tab_mcp": "外部AI・MCP連携",
+        "ui.settings.tab_tools": "外部ツール・プラグイン",
+        "ui.settings.tab_devices": "接続端末管理",
+        "ui.settings.tab_guide": "使い方ガイド",
+        "ui.settings.language_card_title": "表示言語 / Language Settings",
+        "ui.settings.language_desc": (
+            "デスクトップペットの吹き出し、通知メッセージ、およびAI推論の応答言語を切り替えます。\n"
+            "Changes the language for pet speech bubbles, notifications, and AI model responses."
+        ),
+        "ui.settings.mcp_dialog_title": "➕ 新規MCPサーバーの追加",
+        "ui.settings.mcp_dialog_header": "➕ 新しいMCPサーバーを追加",
+        "ui.settings.mcp_id": "サーバー識別子 (例: google-calendar):",
+        "ui.settings.mcp_name": "表示名 (例: Google カレンダー連携):",
+        "ui.settings.mcp_name_placeholder": "Google カレンダー連携",
+        "ui.settings.mcp_cmd": "実行コマンド (例: npx, uvx, python):",
+        "ui.settings.mcp_args": "引数 (スペース区切り, 例: -y @modelcontextprotocol/server-xxx):",
+        "ui.settings.mcp_desc": "概要・説明 (省略可):",
+        "ui.settings.mcp_desc_placeholder": "Googleカレンダーの予定を参照・登録します",
+        "ui.settings.mcp_submit": "✨ MCPサーバーを登録",
+        "ui.settings.suggest_dialog_title": "💡 サジェストソース設定",
+        "ui.settings.suggest_dialog_header": "💡 インテリジェント・サジェスト設定",
+        "ui.settings.suggest_dialog_sub": "画面中央に表示する情報のソースを個別に選べます",
+        "ui.settings.suggest_keywords": "関心キーワード (カンマ区切り):",
+        "ui.settings.suggest_save": "設定を保存して閉じる",
+        "ui.settings.llm_sync_banner": "🌐 接続先APIから最新モデル一覧を一括取得して更新",
+        "ui.settings.llm_sync_btn": "⚡ 今すぐ一括同期",
+        "ui.settings.llm_sync_note": "※ ドロップダウンは直接キーボード入力で任意の未来モデル・独自モデル名も手打ち指定可能です",
+        "ui.settings.gemini_title": "☁ Google Gemini (2026最新・高効率爆速)",
+        "ui.settings.claude_title": "🧠 Anthropic Claude 3.5 / 3.7 (高知能推論・エンジニアリング)",
+        "ui.settings.openai_title": "⚡ OpenAI GPT-4o / o3-mini (万能・プログラミング強者)",
+        "ui.settings.deepseek_title": "🐉 DeepSeek-V3 / R1 (超安価・思考プロセス推論)",
+        "ui.settings.local_llm_title": "💻 ローカルLLM (Ollama / Llama.cpp / GGUF - 完全オフライン・秘密厳守)",
+        "ui.settings.local_url_label": "ローカルLLM サーバーURL (例: http://localhost:11434):",
+        "ui.settings.active_provider": "使用する主軸AIモデル:",
+        "ui.settings.model_label": "使用モデル:",
+
+        # Onboarding Tour (Phase 3)
+        "tour.settings_menu.title": "🎉 ようこそ！まずは右クリック",
+        "tour.settings_menu.text": (
+            "こんにちは、ボス！私はネオ秘書くんです。\n"
+            "私を**右クリック**すると、メニューが開きます。\n\n"
+            "AIモデルの切替・キャラ変更・ポモドーロ・手帳…\n"
+            "設定はすべてここから！まずは覗いてみてください。"
+        ),
+        "tour.mobile_qr.title": "📱 スマホとつなげよう",
+        "tour.mobile_qr.text": (
+            "**📱 スマホDesk Pet連携** が本アプリの目玉！\n"
+            "右クリック →「スマホDesk Pet接続」でQRコードを表示し、\n"
+            "スマホのカメラで読むだけ。\n\n"
+            "コーディングAIの承認をスマホでワンタップできるようになります！"
+        ),
+        "tour.chat_notebook.title": "💬 話しかける ＆ 📔 手帳",
+        "tour.chat_notebook.text": (
+            "下の入力欄に話しかけると、予定登録やTODO作成をします。\n"
+            "**「明日9時に資料作成 #仕事 !3」** のように自然に入力OK！\n\n"
+            "**📔 手帳**で予定・TODO・習慣を一元管理できます。\n"
+            "詳しくは設定画面の「📖 使い方ガイド」へ。それではよろしくお願いします！"
+        ),
+        "ui.tour.skip": "スキップ",
+        "ui.tour.prev": "戻る",
+        "ui.tour.next": "次へ",
+        "ui.tour.complete": "🎉 完了",
+        "ui.tour.msg_skipped": "🎓 ツアーをスキップしました。\nいつでも「使い方を教えて」と言ってくださいね！",
+        "ui.tour.msg_first_launch": (
+            "🎓 はじめまして、ボス！\n"
+            "初めてのご利用ありがとうございます！\n"
+            "これから使い方をご案内しますね。\n\n"
+            "（すぐにスタートします）"
+        ),
+        "ui.tour.msg_completed": (
+            "🎊 ツアー終了！覚えておいてほしいことは…\n\n"
+            "📋 **右クリック** でメニュー\n"
+            "📔 **統合手帳** で予定・TODO管理\n"
+            "📱 **スマホ連携** で承認ブリッジ\n"
+            "🍅 **ポモドーロ** で集中\n\n"
+            "また見たいときは「使い方を教えて」と呼びかけてね！"
+        ),
+
+        # Daily Briefing Engine (Phase 3)
+        "briefing.mode.morning": "☀️ 朝会ブリーフィング",
+        "briefing.mode.day": "⛅ 午後ブリーフィング",
+        "briefing.mode.evening": "🌙 終礼日報",
+        "briefing.mode.night": "🌌 夜間ブリーフィング",
+        "briefing.mode.default": "☀️ ブリーフィング",
+        "briefing.speech.weather": "現在の{city}の天気は、{weather}、気温は{temp}度です。",
+        "briefing.speech.events_count": "本日の予定は{count}件あります。",
+        "briefing.speech.events_first": "最初の予定は、{start_time}からの、{title}です。",
+        "briefing.speech.events_none": "本日は大きな予定は入っていません。",
+        "briefing.speech.tasks_active": "未完了のタスクは{count}件です。最優先は、{title}です。",
+        "briefing.speech.tasks_completed": "本日完了したタスクは{count}件です。",
+        "briefing.speech.habits_summary": "習慣は{total}件中、{done}件達成しました。",
+        "briefing.weather.sunny": "晴れ ☀️",
+        "briefing.weather.cloudy": "曇り ☁️",
+        "briefing.weather.rainy": "雨 🌧️",
+        "briefing.weather.snowy": "雪 ❄️",
+        "briefing.weather.thunder": "雷雨 ⚡",
+        "briefing.weather.summary": "🌡️ **現在の天気**: {city} は **{weather}**（{temp}）",
+        "briefing.events.timeline": "\n📅 **本日の予定タイムライン**:",
+        "briefing.events.none": "\n📅 **本日の予定**: 大きな予定はありません（集中作業チャンスです！🎯）",
+        "briefing.events.all_day": "終日",
+        "briefing.tasks.active": "\n📝 **重要TODO (残り{count}件)**:",
+        "briefing.tasks.none": "\n📝 **TODO**: 残タスクはありません！素晴らしいです✨",
+        "briefing.tasks.completed_today": "\n🎉 **本日完了したタスク ({count}件)**:",
+        "briefing.tasks.evening_none": "\n📝 **タスク状況**: 本日もお疲れ様でした！",
+        "briefing.habits.status": "\n🌱 **今日の習慣**: {done}/{total} 達成中 ({rate}%)",
+        "briefing.habits.evening_status": "\n🌱 **本日の習慣達成率**: **{done}/{total} 件達成** ({rate}%)",
+        "briefing.char.hisho.morning.greeting": "ボス、おはようございます！{name}が本日のブリーフィングをお届けします。",
+        "briefing.char.hisho.morning.encouragement": "本日もボスの最高のパートナーとして全力でサポートいたします！✨",
+        "briefing.char.hisho.evening.greeting": "ボス、本日も一日大変お疲れ様でした！本日の業務日報です。",
+        "briefing.char.hisho.evening.encouragement": "素晴らしい集中力と達成です。今夜はごゆっくりお休みくださいね。✨",
+        "briefing.char.retro_dolphin.morning.greeting": "ボス、おはようキュッ！{name}が今日の海路を案内するキュ！",
+        "briefing.char.retro_dolphin.morning.encouragement": "今日も一日、無理せずスイスイ進もうキュ！🐬✨",
+        "briefing.char.retro_dolphin.evening.greeting": "ボス、今日もお疲れ様キュ〜！本日の航海日誌だキュ！",
+        "briefing.char.retro_dolphin.evening.encouragement": "今日完了したタスクと習慣、しっかり記録したキュ！ゆっくり休んでキュ〜！🌊",
+        "briefing.char.kyle.morning.greeting": "おっ、ボス！おはようさん。{name}が今日のスケジュールをまとめたぜ。",
+        "briefing.char.kyle.morning.encouragement": "肩の力を抜いて、重要なことから片付けていこうぜ！🔥",
+        "briefing.char.kyle.evening.greeting": "ボス、一日お疲れさん！今日の成果をまとめたぜ。",
+        "briefing.char.kyle.evening.encouragement": "よくやり切ったな！今夜は好きなことして頭を休めてくれよな。",
+        "briefing.char.seal.morning.greeting": "もちもち〜！ボス、おはようございます〜！{name}だよ〜！",
+        "briefing.char.seal.morning.encouragement": "今日もボスのペースでがんばってね〜！応援してるよ〜！🦭💖",
+        "briefing.char.seal.evening.greeting": "ボス〜！今日もお仕事お疲れ様でした〜！もちもち日報だよ〜！",
+        "briefing.char.seal.evening.encouragement": "いっぱい頑張ってえらいえらい〜！あったかいお風呂に入ってね〜！🛀",
+        "briefing.char.kinoko.morning.greeting": "ボス、朝でござる！{name}、本日の任務書を持参いたした！",
+        "briefing.char.kinoko.morning.encouragement": "いざ出陣！健康第一で励むでござる！🍄✨",
+        "briefing.char.kinoko.evening.greeting": "ボス、本日の任務完了、誠にお疲れ様でござる！",
+        "briefing.char.kinoko.evening.encouragement": "見事な働きぶり！今宵はぐっすり休んで英気を養うでござる！🍵",
+        "briefing.char.wombat.morning.greeting": "ボス、おはようございます。{name}が今日の予定をどっしり支えます。",
+        "briefing.char.wombat.morning.encouragement": "焦らず着実に、一歩ずつ進めていきましょう。🦫",
+        "briefing.char.wombat.evening.greeting": "ボス、一日お疲れ様でした。本日の日報をまとめました。",
+        "briefing.char.wombat.evening.encouragement": "積み重ねた努力は確実に力になっています。良き休息を。🌙",
+        "briefing.char.common.day.greeting": "ボス、午後の業務もお疲れ様です！午後の進捗ブリーフィングです。",
+        "briefing.char.common.day.encouragement": "適度にストレッチやお茶タイムを取りながら進めましょう！☕",
+        "briefing.char.common.night.greeting": "ボス、夜遅くまでお疲れ様です。夜間ブリーフィングです。",
+        "briefing.char.common.night.encouragement": "無理は禁物ですよ。明日のために、そろそろお布団に入りましょうね。🌌"
     },
     "en": {
         "coach.analysis_title": "📊 Today's Life Analysis",
@@ -259,6 +396,142 @@ _TRANSLATIONS: Dict[str, Dict[str, str]] = {
         "ui.dev.auto_deny": "Auto-reject in: {sec}s",
         "ui.dev.btn_deny": "🛑 Reject (Esc)",
         "ui.dev.btn_allow": "✅ Allow (Enter)",
+        # Settings Window (Phase 3)
+        "ui.settings.tab_general": "General",
+        "ui.settings.tab_llm": "AI Models",
+        "ui.settings.tab_mcp": "MCP Integrations",
+        "ui.settings.tab_tools": "Tools & Plugins",
+        "ui.settings.tab_devices": "Connected Devices",
+        "ui.settings.tab_guide": "User Guide",
+        "ui.settings.language_card_title": "Language Settings",
+        "ui.settings.language_desc": (
+            "Changes the language for pet speech bubbles, notifications, and AI model responses."
+        ),
+        "ui.settings.mcp_dialog_title": "➕ Add New MCP Server",
+        "ui.settings.mcp_dialog_header": "➕ Add New MCP Server",
+        "ui.settings.mcp_id": "Server Identifier (e.g. google-calendar):",
+        "ui.settings.mcp_name": "Display Name (e.g. Google Calendar Integration):",
+        "ui.settings.mcp_name_placeholder": "Google Calendar Integration",
+        "ui.settings.mcp_cmd": "Command (e.g. npx, uvx, python):",
+        "ui.settings.mcp_args": "Arguments (space-separated, e.g. -y @modelcontextprotocol/server-xxx):",
+        "ui.settings.mcp_desc": "Description (optional):",
+        "ui.settings.mcp_desc_placeholder": "Read and manage Google Calendar events",
+        "ui.settings.mcp_submit": "✨ Register MCP Server",
+        "ui.settings.suggest_dialog_title": "💡 Suggestion Source Settings",
+        "ui.settings.suggest_dialog_header": "💡 Intelligent Suggestion Settings",
+        "ui.settings.suggest_dialog_sub": "Select information sources to display on screen",
+        "ui.settings.suggest_keywords": "Interest Keywords (comma-separated):",
+        "ui.settings.suggest_save": "Save Settings & Close",
+        "ui.settings.llm_sync_banner": "🌐 Fetch & Sync Latest Models from APIs",
+        "ui.settings.llm_sync_btn": "⚡ Sync All Now",
+        "ui.settings.llm_sync_note": "※ You can also type custom model names directly in the dropdown",
+        "ui.settings.gemini_title": "☁ Google Gemini (2026 Latest & High Efficiency)",
+        "ui.settings.claude_title": "🧠 Anthropic Claude 3.5 / 3.7 (High Intelligence)",
+        "ui.settings.openai_title": "⚡ OpenAI GPT-4o / o3-mini (Versatile & Coding)",
+        "ui.settings.deepseek_title": "🐉 DeepSeek-V3 / R1 (Cost-effective & Reasoning)",
+        "ui.settings.local_llm_title": "💻 Local LLM (Ollama / Llama.cpp / GGUF - Offline & Private)",
+        "ui.settings.local_url_label": "Local LLM Server URL (e.g. http://localhost:11434):",
+        "ui.settings.active_provider": "Primary AI Model Provider:",
+        "ui.settings.model_label": "Model:",
+
+        # Onboarding Tour (Phase 3)
+        "tour.settings_menu.title": "🎉 Welcome! First, Right-Click",
+        "tour.settings_menu.text": (
+            "Hello Boss! I am Neo-Secretary.\n"
+            "**Right-click** me to open the menu.\n\n"
+            "Switch AI models, change skins, Pomodoro, Notebook...\n"
+            "Everything is here! Give it a try."
+        ),
+        "tour.mobile_qr.title": "📱 Link with Smartphone",
+        "tour.mobile_qr.text": (
+            "**📱 Mobile Desk Pet Link** is a key feature!\n"
+            "Right-click -> 'Mobile Desk Pet' to view the QR code,\n"
+            "and scan with your phone.\n\n"
+            "Approve coding AI actions with a single tap on your phone!"
+        ),
+        "tour.chat_notebook.title": "💬 Talk to Secretary ＆ 📔 Notebook",
+        "tour.chat_notebook.text": (
+            "Type in the bottom bar to create events or tasks.\n"
+            "Natural inputs like **'Tomorrow 9am Meeting #work !3'** work great!\n\n"
+            "**📔 Notebook** manages events, tasks, and habits in one place.\n"
+            "Enjoy using Neo-Secretary!"
+        ),
+        "ui.tour.skip": "Skip",
+        "ui.tour.prev": "Back",
+        "ui.tour.next": "Next",
+        "ui.tour.complete": "🎉 Complete",
+        "ui.tour.msg_skipped": "🎓 Tour skipped.\nYou can ask 'Show guide' anytime!",
+        "ui.tour.msg_first_launch": (
+            "🎓 Welcome Boss!\n"
+            "Thank you for trying Neo-Secretary!\n"
+            "Let me guide you through the features.\n\n"
+            "(Starting shortly)"
+        ),
+        "ui.tour.msg_completed": (
+            "🎊 Tour complete! Key highlights:\n\n"
+            "📋 **Right-click** for Menu\n"
+            "📔 **Notebook** for Events & Tasks\n"
+            "📱 **Mobile Link** for Approval\n"
+            "🍅 **Pomodoro** for Focus\n\n"
+            "Ask 'Show guide' anytime to see this again!"
+        ),
+
+        # Daily Briefing Engine (Phase 3)
+        "briefing.mode.morning": "☀️ Morning Briefing",
+        "briefing.mode.day": "⛅ Afternoon Briefing",
+        "briefing.mode.evening": "🌙 Evening Report",
+        "briefing.mode.night": "🌌 Night Briefing",
+        "briefing.mode.default": "☀️ Briefing",
+        "briefing.speech.weather": "The current weather in {city} is {weather}, with a temperature of {temp} degrees.",
+        "briefing.speech.events_count": "You have {count} events scheduled for today.",
+        "briefing.speech.events_first": "The first event is {title} at {start_time}.",
+        "briefing.speech.events_none": "There are no major events scheduled for today.",
+        "briefing.speech.tasks_active": "You have {count} active tasks remaining. The top priority is {title}.",
+        "briefing.speech.tasks_completed": "You completed {count} tasks today.",
+        "briefing.speech.habits_summary": "You completed {done} out of {total} habits.",
+        "briefing.weather.sunny": "Sunny ☀️",
+        "briefing.weather.cloudy": "Cloudy ☁️",
+        "briefing.weather.rainy": "Rainy 🌧️",
+        "briefing.weather.snowy": "Snowy ❄️",
+        "briefing.weather.thunder": "Thunderstorm ⚡",
+        "briefing.weather.summary": "🌡️ **Current Weather**: {city} is **{weather}** ({temp})",
+        "briefing.events.timeline": "\n📅 **Today's Schedule**:",
+        "briefing.events.none": "\n📅 **Today's Schedule**: No major events (A great time for deep work! 🎯)",
+        "briefing.events.all_day": "All day",
+        "briefing.tasks.active": "\n📝 **Important Tasks ({count} remaining)**:",
+        "briefing.tasks.none": "\n📝 **Tasks**: No remaining tasks! Great job✨",
+        "briefing.tasks.completed_today": "\n🎉 **Completed Tasks Today ({count})**:",
+        "briefing.tasks.evening_none": "\n📝 **Task Status**: Great work today!",
+        "briefing.habits.status": "\n🌱 **Today's Habits**: {done}/{total} completed ({rate}%)",
+        "briefing.habits.evening_status": "\n🌱 **Habit Completion Today**: **{done}/{total} completed** ({rate}%)",
+        "briefing.char.hisho.morning.greeting": "Good morning Boss! {name} here with today's briefing.",
+        "briefing.char.hisho.morning.encouragement": "I'll support you fully today as your best partner! ✨",
+        "briefing.char.hisho.evening.greeting": "Great work today Boss! Here is your daily report.",
+        "briefing.char.hisho.evening.encouragement": "Wonderful focus and achievement today. Have a restful evening. ✨",
+        "briefing.char.retro_dolphin.morning.greeting": "Good morning Boss-kyu! {name} will guide today's course-kyu!",
+        "briefing.char.retro_dolphin.morning.encouragement": "Let's swim smoothly through today without pushing too hard-kyu! 🐬✨",
+        "briefing.char.retro_dolphin.evening.greeting": "Great job today Boss-kyu! Here is today's logbook-kyu!",
+        "briefing.char.retro_dolphin.evening.encouragement": "Recorded all finished tasks and habits-kyu! Have a good rest-kyu! 🌊",
+        "briefing.char.kyle.morning.greeting": "Hey Boss! Good morning. {name} here with today's schedule.",
+        "briefing.char.kyle.morning.encouragement": "Relax and tackle the important stuff first! 🔥",
+        "briefing.char.kyle.evening.greeting": "Boss, awesome work today! Here's a summary of today's results.",
+        "briefing.char.kyle.evening.encouragement": "You crushed it! Rest up and enjoy your evening.",
+        "briefing.char.seal.morning.greeting": "Mochi mochi~! Good morning Boss~! It's {name}~!",
+        "briefing.char.seal.morning.encouragement": "Do your best at your own pace today~! Rooting for you~! 🦭💖",
+        "briefing.char.seal.evening.greeting": "Boss~! Great job working today~! Here's the mochi report~!",
+        "briefing.char.seal.evening.encouragement": "You worked so hard, super proud~! Take a warm bath and relax~! 🛀",
+        "briefing.char.kinoko.morning.greeting": "Boss, morning is upon us! {name} brings today's mission brief!",
+        "briefing.char.kinoko.morning.encouragement": "To battle! Health comes first, let us strive! 🍄✨",
+        "briefing.char.kinoko.evening.greeting": "Boss, mission completed for today. Well done indeed!",
+        "briefing.char.kinoko.evening.encouragement": "Splendid work! Sleep well tonight and recharge your energy! 🍵",
+        "briefing.char.wombat.morning.greeting": "Good morning Boss. {name} is here to firmly support your schedule.",
+        "briefing.char.wombat.morning.encouragement": "No rush, let's move forward steadily step by step. 🦫",
+        "briefing.char.wombat.evening.greeting": "Boss, thank you for your hard work today. Here is the daily summary.",
+        "briefing.char.wombat.evening.encouragement": "Your stacked efforts grow your strength. Have a good rest. 🌙",
+        "briefing.char.common.day.greeting": "Boss, keep up the great work this afternoon! Here's the progress briefing.",
+        "briefing.char.common.day.encouragement": "Take stretch breaks and tea time as you work! ☕",
+        "briefing.char.common.night.greeting": "Boss, working late! Here is the night briefing.",
+        "briefing.char.common.night.encouragement": "Don't overexert yourself. Time to get some rest for tomorrow. 🌌"
     },
 }
 

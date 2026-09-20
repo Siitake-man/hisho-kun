@@ -1,3 +1,4 @@
+from i18n import t
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
@@ -196,7 +197,7 @@ class TourOverlayMixin:
             self._tour_title.pack(side=tk.LEFT, padx=(14, 4))
 
             btn_skip = tk.Button(
-                header, text="✕ スキップ", font=("Meiryo UI", 10),
+                header, text=f"✕ {t('ui.tour.skip')}", font=("Meiryo UI", 10),
                 bg='#F5F5DC', fg='#8B7355', bd=0,
                 activebackground='#E8DCC8', activeforeground='#8B7355',
                 cursor="hand2",
@@ -218,7 +219,7 @@ class TourOverlayMixin:
 
             bf = ("Meiryo UI", 11, "bold")
             self._tour_card_prev = tk.Button(
-                btn_frame, text="◀ 戻る", font=bf,
+                btn_frame, text=f"◀ {t('ui.tour.prev')}", font=bf,
                 bg='#8B7355', fg='#FFFFFF', bd=1, relief=tk.RAISED,
                 activebackground='#A67B5B', activeforeground='#FFFFFF',
                 padx=14, pady=4, cursor="hand2",
@@ -253,7 +254,7 @@ class TourOverlayMixin:
         self._tour_text.config(state=tk.DISABLED)
 
         self._tour_card_prev.config(state=tk.NORMAL if index > 0 else tk.DISABLED)
-        next_text = "次へ ▶" if index < total - 1 else "🎉 完了"
+        next_text = f"{t('ui.tour.next')} ▶" if index < total - 1 else t("ui.tour.complete")
         self._tour_card_next.config(text=next_text)
 
         # カードの配置（ネオ秘書くんウィンドウの左側にスマート配置）
@@ -283,9 +284,7 @@ class TourOverlayMixin:
         elif action == "skip":
             e.skip()
             self._destroy_tour_overlay()
-            self.update_message(
-                "🎓 ツアーをスキップしました。\n"
-                "いつでも「使い方を教えて」と言ってくださいね！")
+            self.update_message(t("ui.tour.msg_skipped"))
         if not e.is_active:
             self._destroy_tour_overlay()
 
@@ -311,12 +310,7 @@ class TourOverlayMixin:
         """初回起動かどうかを確認し、未完了ならツアーを自動開始する。"""
         flag_file = str(app_paths.get_app_root() / "backups" / ".tour_completed")
         if not os.path.exists(flag_file):
-            self.update_message(
-                "🎓 はじめまして、ボス！\n"
-                "初めてのご利用ありがとうございます！\n"
-                "これから使い方をご案内しますね。\n\n"
-                "（すぐにスタートします）"
-            )
+            self.update_message(t("ui.tour.msg_first_launch"))
             self.root.after(1500, self._start_tour)
 
     def _start_tour(self) -> None:
@@ -341,11 +335,4 @@ class TourOverlayMixin:
         os.makedirs(flag_dir, exist_ok=True)
         with open(os.path.join(flag_dir, ".tour_completed"), "w") as f:
             f.write("1")
-        self.update_message(
-            "🎊 ツアー終了！覚えておいてほしいことは…\n\n"
-            "📋 **右クリック** でメニュー\n"
-            "📔 **統合手帳** で予定・TODO管理\n"
-            "📱 **スマホ連携** で承認ブリッジ\n"
-            "🍅 **ポモドーロ** で集中\n\n"
-            "また見たいときは「使い方を教えて」と呼びかけてね！"
-        )
+        self.update_message(t("ui.tour.msg_completed"))

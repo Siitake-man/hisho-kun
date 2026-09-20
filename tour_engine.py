@@ -43,35 +43,32 @@ class TourStep:
 # 秘書くん初回ツアーの3ステップ (2026-09-01 3周レビュー P3対応:
 # 初回起動時の認知摩擦低減のため 7ステップ → 3ステップへ凝縮。
 # 詳細機能は設定画面「📖 使い方ガイド」タブと右クリックメニューに委譲する)
-DEFAULT_TOUR_STEPS: List[TourStep] = [
-    TourStep(
-        id="settings_menu",
-        title="🎉 ようこそ！まずは右クリック",
-        text="こんにちは、ボス！私はネオ秘書くんです。\n"
-             "私を**右クリック**すると、メニューが開きます。\n\n"
-             "AIモデルの切替・キャラ変更・ポモドーロ・手帳…\n"
-             "設定はすべてここから！まずは覗いてみてください。",
-        target_region="menu",
-    ),
-    TourStep(
-        id="mobile_qr",
-        title="📱 スマホとつなげよう",
-        text="**📱 スマホDesk Pet連携** が本アプリの目玉！\n"
-             "右クリック →「スマホDesk Pet接続」でQRコードを表示し、\n"
-             "スマホのカメラで読むだけ。\n\n"
-             "コーディングAIの承認をスマホでワンタップできるようになります！",
-        target_region="pet",
-    ),
-    TourStep(
-        id="chat_notebook",
-        title="💬 話しかける ＆ 📔 手帳",
-        text="下の入力欄に話しかけると、予定登録やTODO作成をします。\n"
-             "**「明日9時に資料作成 #仕事 !3」** のように自然に入力OK！\n\n"
-             "**📔 手帳**で予定・TODO・習慣を一元管理できます。\n"
-             "詳しくは設定画面の「📖 使い方ガイド」へ。それではよろしくお願いします！",
-        target_region="calendar",
-    ),
-]
+import i18n
+
+def get_default_tour_steps() -> List[TourStep]:
+    """現在言語に応じたデフォルトツアーステップを動的に生成して返す。"""
+    return [
+        TourStep(
+            id="settings_menu",
+            title=i18n.t("tour.settings_menu.title"),
+            text=i18n.t("tour.settings_menu.text"),
+            target_region="menu",
+        ),
+        TourStep(
+            id="mobile_qr",
+            title=i18n.t("tour.mobile_qr.title"),
+            text=i18n.t("tour.mobile_qr.text"),
+            target_region="pet",
+        ),
+        TourStep(
+            id="chat_notebook",
+            title=i18n.t("tour.chat_notebook.title"),
+            text=i18n.t("tour.chat_notebook.text"),
+            target_region="calendar",
+        ),
+    ]
+
+DEFAULT_TOUR_STEPS: List[TourStep] = get_default_tour_steps()
 
 
 class TourEngine:
@@ -82,7 +79,7 @@ class TourEngine:
     """
 
     def __init__(self, steps: List[TourStep] = None):
-        self._steps: List[TourStep] = steps or list(DEFAULT_TOUR_STEPS)
+        self._steps: List[TourStep] = steps if steps is not None else get_default_tour_steps()
         self._current_index: int = -1  # -1 = 未開始
         self._is_active: bool = False
         self._on_step_callback: Optional[Callable[[TourStep, int, int], None]] = None
@@ -127,6 +124,7 @@ class TourEngine:
     def start(self) -> bool:
         if self._is_active:
             return False
+        self._steps = get_default_tour_steps()
         self._current_index = 0
         self._is_active = True
         self._notify_step()

@@ -28,7 +28,7 @@ class AddMCPServerDialog(ctk.CTkToplevel):
     def __init__(self, parent_settings, *args, **kwargs):
         super().__init__(parent_settings, *args, **kwargs)
         self.parent_settings = parent_settings
-        self.title("➕ 新規MCPサーバーの追加")
+        self.title(t("ui.settings.mcp_dialog_title"))
         self.geometry("420x460")
         self.resizable(False, False)
         
@@ -45,41 +45,41 @@ class AddMCPServerDialog(ctk.CTkToplevel):
 
     def _build_ui(self):
         pad = 12
-        ctk.CTkLabel(self, text="➕ 新しいMCPサーバーを追加", font=self.font_title, text_color=self.primary_color).pack(pady=(12, 6))
+        ctk.CTkLabel(self, text=t("ui.settings.mcp_dialog_header"), font=self.font_title, text_color=self.primary_color).pack(pady=(12, 6))
         
         form = ctk.CTkFrame(self, fg_color="transparent")
         form.pack(fill="both", expand=True, padx=pad, pady=4)
         
         # 1. サーバーID
-        ctk.CTkLabel(form, text="サーバー識別子 (例: google-calendar):", font=self.font_body, text_color=self.text_color, anchor="w").pack(fill="x")
+        ctk.CTkLabel(form, text=t("ui.settings.mcp_id"), font=self.font_body, text_color=self.text_color, anchor="w").pack(fill="x")
         self.entry_id = ctk.CTkEntry(form, placeholder_text="google-calendar")
         self.entry_id.pack(fill="x", pady=(0, 6))
         
         # 2. 表示名
-        ctk.CTkLabel(form, text="表示名 (例: Google カレンダー連携):", font=self.font_body, text_color=self.text_color, anchor="w").pack(fill="x")
-        self.entry_name = ctk.CTkEntry(form, placeholder_text="Google カレンダー連携")
+        ctk.CTkLabel(form, text=t("ui.settings.mcp_name"), font=self.font_body, text_color=self.text_color, anchor="w").pack(fill="x")
+        self.entry_name = ctk.CTkEntry(form, placeholder_text=t("ui.settings.mcp_name_placeholder"))
         self.entry_name.pack(fill="x", pady=(0, 6))
         
         # 3. 実行コマンド (command)
-        ctk.CTkLabel(form, text="実行コマンド (例: npx, uvx, python):", font=self.font_body, text_color=self.text_color, anchor="w").pack(fill="x")
+        ctk.CTkLabel(form, text=t("ui.settings.mcp_cmd"), font=self.font_body, text_color=self.text_color, anchor="w").pack(fill="x")
         self.entry_cmd = ctk.CTkEntry(form, placeholder_text="npx")
         self.entry_cmd.insert(0, "npx")
         self.entry_cmd.pack(fill="x", pady=(0, 6))
         
         # 4. 引数 (args)
-        ctk.CTkLabel(form, text="引数 (スペース区切り, 例: -y @modelcontextprotocol/server-xxx):", font=self.font_body, text_color=self.text_color, anchor="w").pack(fill="x")
+        ctk.CTkLabel(form, text=t("ui.settings.mcp_args"), font=self.font_body, text_color=self.text_color, anchor="w").pack(fill="x")
         self.entry_args = ctk.CTkEntry(form, placeholder_text="-y @modelcontextprotocol/server-google-calendar")
         self.entry_args.pack(fill="x", pady=(0, 6))
         
         # 5. 説明
-        ctk.CTkLabel(form, text="概要・説明 (省略可):", font=self.font_body, text_color=self.text_color, anchor="w").pack(fill="x")
-        self.entry_desc = ctk.CTkEntry(form, placeholder_text="Googleカレンダーの予定を参照・登録します")
+        ctk.CTkLabel(form, text=t("ui.settings.mcp_desc"), font=self.font_body, text_color=self.text_color, anchor="w").pack(fill="x")
+        self.entry_desc = ctk.CTkEntry(form, placeholder_text=t("ui.settings.mcp_desc_placeholder"))
         self.entry_desc.pack(fill="x", pady=(0, 10))
         
         # 登録ボタン
         btn_add = ctk.CTkButton(
             self,
-            text="✨ MCPサーバーを登録",
+            text=t("ui.settings.mcp_submit"),
             font=self.font_title,
             fg_color=self.primary_color,
             hover_color="#8B634A",
@@ -125,7 +125,7 @@ class SuggestSettingsDialog(ctk.CTkToplevel):
     def __init__(self, parent_gui, *args, **kwargs):
         super().__init__(parent_gui.root, *args, **kwargs)
         self.parent_gui = parent_gui
-        self.title("💡 サジェストソース設定")
+        self.title(t("ui.settings.suggest_dialog_title"))
         self.geometry("380x430")
         self.resizable(False, False)
         
@@ -146,8 +146,8 @@ class SuggestSettingsDialog(ctk.CTkToplevel):
 
     def _build_ui(self):
         pad = 14
-        ctk.CTkLabel(self, text="💡 インテリジェント・サジェスト設定", font=self.font_title, text_color=self.primary_color).pack(pady=(12, 4))
-        ctk.CTkLabel(self, text="画面中央に表示する情報のソースを個別に選べます", font=self.font_small, text_color="#7A6B62").pack(pady=(0, 8))
+        ctk.CTkLabel(self, text=t("ui.settings.suggest_dialog_header"), font=self.font_title, text_color=self.primary_color).pack(pady=(12, 4))
+        ctk.CTkLabel(self, text=t("ui.settings.suggest_dialog_sub"), font=self.font_small, text_color="#7A6B62").pack(pady=(0, 8))
         
         scroll = ctk.CTkScrollableFrame(self, fg_color="#FFFFFF", border_color="#A67B5B", border_width=1.5, corner_radius=8)
         scroll.pack(fill="both", expand=True, padx=pad, pady=4)
@@ -186,7 +186,7 @@ class SuggestSettingsDialog(ctk.CTkToplevel):
                 
                 ctk.CTkLabel(
                     kw_frame, 
-                    text="関心キーワード (カンマ区切り):", 
+                    text=t("ui.settings.suggest_keywords"),
                     font=("Meiryo UI", 8, "bold"), 
                     text_color="#8B634A"
                 ).pack(anchor="w")
@@ -208,7 +208,7 @@ class SuggestSettingsDialog(ctk.CTkToplevel):
 
         btn_close = ctk.CTkButton(
             self,
-            text="設定を保存して閉じる",
+            text=t("ui.settings.suggest_save"),
             font=("Meiryo UI", 10, "bold"),
             fg_color=self.primary_color,
             hover_color="#8B634A",
@@ -254,6 +254,9 @@ class SettingsWindow(ctk.CTkToplevel):
         # 🖼️ ウィンドウアイコン (Alt+Tab/タスクバー) を統一 (例外安全 Seam)
         apply_window_icon(self)
 
+        from i18n import subscribe_language_change
+        subscribe_language_change(self._on_language_changed)
+
         self._build_ui()
 
     def _build_ui(self):
@@ -274,11 +277,11 @@ class SettingsWindow(ctk.CTkToplevel):
         self.tabview.pack(side="top", fill="both", expand=True, padx=12, pady=(6, 5))
         
         tab_general = self.tabview.add(f"⚙️ {t('ui.settings.general')}")
-        tab_llm = self.tabview.add("🧠 AIモデル設定")
-        tab_mcp = self.tabview.add("🤖 外部AI・MCP連携")
-        tab_tools = self.tabview.add("📅 外部ツール・プラグイン")
-        tab_devices = self.tabview.add("📱 接続端末管理")
-        tab_guide = self.tabview.add("📖 使い方ガイド")
+        tab_llm = self.tabview.add(f"🧠 {t('ui.settings.tab_llm')}")
+        tab_mcp = self.tabview.add(f"🤖 {t('ui.settings.tab_mcp')}")
+        tab_tools = self.tabview.add(f"📅 {t('ui.settings.tab_tools')}")
+        tab_devices = self.tabview.add(f"📱 {t('ui.settings.tab_devices')}")
+        tab_guide = self.tabview.add(f"📖 {t('ui.settings.tab_guide')}")
 
         # =====================================================================
         # Tab 0: 一般設定 (General Settings) - 言語切替 ＆ Auto-fit
@@ -295,7 +298,7 @@ class SettingsWindow(ctk.CTkToplevel):
 
         lbl_card_title = ctk.CTkLabel(
             card_lang,
-            text=f"🌐 {t('ui.settings.language')}",
+            text=f"🌐 {t('ui.settings.language_card_title')}",
             font=("Meiryo UI", 11, "bold"),
             text_color=self.primary_color,
             anchor="w"
@@ -304,8 +307,7 @@ class SettingsWindow(ctk.CTkToplevel):
 
         lbl_lang_desc = ctk.CTkLabel(
             card_lang,
-            text="デスクトップペットの吹き出し、通知メッセージ、およびAI推論の応答言語を切り替えます。\n"
-                 "Changes the language for pet speech bubbles, notifications, and AI model responses.",
+            text=t("ui.settings.language_desc"),
             font=self.font_small,
             text_color="#7A6B62",
             anchor="w",
@@ -369,14 +371,14 @@ class SettingsWindow(ctk.CTkToplevel):
         
         ctk.CTkLabel(
             sync_inner, 
-            text="🌐 接続先APIから最新モデル一覧を一括取得して更新", 
+            text=t("ui.settings.llm_sync_banner"),
             font=self.font_body, 
             text_color=self.text_color
         ).pack(side="left")
         
         self.btn_sync_all = ctk.CTkButton(
             sync_inner,
-            text="⚡ 今すぐ一括同期",
+            text=t("ui.settings.llm_sync_btn"),
             font=self.font_small,
             fg_color=self.primary_color,
             hover_color="#8B634A",
@@ -385,7 +387,7 @@ class SettingsWindow(ctk.CTkToplevel):
             command=self._sync_all_models
         )
         self.btn_sync_all.pack(side="right")
-        self.lbl_sync_status = ctk.CTkLabel(sync_banner, text="※ ドロップダウンは直接キーボード入力で任意の未来モデル・独自モデル名も手打ち指定可能です", font=("Meiryo UI", 8.5), text_color="#7A6B62")
+        self.lbl_sync_status = ctk.CTkLabel(sync_banner, text=t("ui.settings.llm_sync_note"), font=("Meiryo UI", 8.5), text_color="#7A6B62")
         self.lbl_sync_status.pack(pady=(0, 6))
 
         # 1. Google Gemini
@@ -1650,6 +1652,36 @@ class SettingsWindow(ctk.CTkToplevel):
                 self.after(0, _on_error)
 
         threading.Thread(target=_do_download, daemon=True).start()
+
+
+    def destroy(self):
+        try:
+            from i18n import unsubscribe_language_change
+            unsubscribe_language_change(self._on_language_changed)
+        except Exception:
+            pass
+        super().destroy()
+
+    def _on_language_changed(self, lang: str) -> None:
+        """言語変更イベントを受信し、設定画面のUI要素をリアルタイム更新する"""
+        try:
+            if not self.winfo_exists():
+                return
+            self.title(t("ui.settings.title"))
+            if hasattr(self, "lbl_card_title") and self.lbl_card_title.winfo_exists():
+                self.lbl_card_title.configure(text=f"🌐 {t('ui.settings.language_card_title')}")
+            if hasattr(self, "lbl_lang_desc") and self.lbl_lang_desc.winfo_exists():
+                self.lbl_lang_desc.configure(text=t("ui.settings.language_desc"))
+            if hasattr(self, "lbl_select_lang") and self.lbl_select_lang.winfo_exists():
+                self.lbl_select_lang.configure(text=f"{t('ui.settings.language')}:")
+            if hasattr(self, "btn_save") and self.btn_save.winfo_exists():
+                self.btn_save.configure(text=f"💾 {t('ui.settings.save')}")
+            if hasattr(self, "btn_sync_all") and self.btn_sync_all.winfo_exists():
+                self.btn_sync_all.configure(text=t("ui.settings.llm_sync_btn"))
+            if hasattr(self, "lbl_sync_status") and self.lbl_sync_status.winfo_exists():
+                self.lbl_sync_status.configure(text=t("ui.settings.llm_sync_note"))
+        except Exception as e:
+            logger.warning("設定画面言語更新エラー: %s", e)
 
     def _restart_tour(self) -> None:
         """設定画面の「使い方ガイド」タブからツアーを再開する。"""

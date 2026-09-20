@@ -27,6 +27,7 @@ from ui.radial_menu import RadialMenuMixin
 from ui.tour_overlay import TourOverlayMixin
 from ui.tk_teardown import install_quiet_teardown, quiet_destroy
 from ui.window_icon import apply_window_icon
+from i18n import t, subscribe_language_change
 from llm_factory import LLMFactory
 
 logger = logging.getLogger(__name__)
@@ -39,7 +40,6 @@ ctk.set_default_color_theme("green") # デフォルトテーマ
 class NeoSecretaryGUI(PomodoroMixin, RadialMenuMixin, TourOverlayMixin):
     def __init__(self):
         # 1. メインウィンドウの設定 (スマートコックピット 2.0)
-        from i18n import t, subscribe_language_change
         self.root = ctk.CTk()
         self.root.title(t("ui.gui.title"))
         
