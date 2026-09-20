@@ -784,24 +784,35 @@ class DeskPetSyncHandler(SimpleHTTPRequestHandler):
         else:
             # 🛡️ P0-2: 未承認外部端末接続時の Human-in-the-Loop 承認
             cb = tm.device_approval_callback
-            if cb is not None:
-                try:
-                    approved = cb(dev_name, client_ip)
-                except Exception as e:
-                    logger.error(f"端末接続承認コールバック例外 (Fail-Closed): {e}")
-                    approved = False
+            if cb is None:
+                logger.warning(f"🚫 [SyncAuth] 承認UI未登録のため外部接続をFail-Closed拒否: {dev_name} (IP: {client_ip})")
+                self.send_response(403)
+                self.send_header("Content-Type", "application/json; charset=utf-8")
+                self._set_cors_headers()
+                self.end_headers()
+                self.wfile.write(json.dumps(
+                    {"status": "forbidden", "message": "承認ダイアログが利用できないため接続できません。"},
+                    ensure_ascii=False
+                ).encode("utf-8"))
+                return
 
-                if not approved:
-                    logger.warning(f"🚫 [SyncAuth] 端末接続がユーザーにより拒否されました: {dev_name} (IP: {client_ip})")
-                    self.send_response(403)
-                    self.send_header("Content-Type", "application/json; charset=utf-8")
-                    self._set_cors_headers()
-                    self.end_headers()
-                    self.wfile.write(json.dumps(
-                        {"status": "forbidden", "message": "PC側で端末の接続が拒否されました。"},
-                        ensure_ascii=False
-                    ).encode("utf-8"))
-                    return
+            try:
+                approved = cb(dev_name, client_ip)
+            except Exception as e:
+                logger.error(f"端末接続承認コールバック例外 (Fail-Closed): {e}")
+                approved = False
+
+            if not approved:
+                logger.warning(f"🚫 [SyncAuth] 端末接続がユーザーにより拒否されました: {dev_name} (IP: {client_ip})")
+                self.send_response(403)
+                self.send_header("Content-Type", "application/json; charset=utf-8")
+                self._set_cors_headers()
+                self.end_headers()
+                self.wfile.write(json.dumps(
+                    {"status": "forbidden", "message": "PC側で端末の接続が拒否されました。"},
+                    ensure_ascii=False
+                ).encode("utf-8"))
+                return
 
             try:
                 token = database.issue_device_token(dev_name, ip_address=client_ip, user_agent=user_agent)

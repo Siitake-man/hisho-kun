@@ -498,6 +498,66 @@
   function openApprovalSheet() {
     var req = window.currentApprovalRequest;
     if (!req) return;
+
+    // ---- Jev 安全審査スコア バッジ (OpenCode GO 実機設計) ----
+    function buildJevBadge() {
+      var level = null;
+      var meta = null;
+
+      // 1. safety_level 優先
+      if (req.safety_level && /^(allow|confirm|deny)$/i.test(req.safety_level)) {
+        level = req.safety_level.toLowerCase();
+      }
+
+      // 2. summary からも抽出（信頼度などのメタ情報用）
+      if (req.summary) {
+        var m = req.summary.match(
+          /【Jev安全審査:\s*(allow|confirm|deny)\s*(?:\(([^)]*)\))?\s*】/i
+        );
+        if (m) {
+          if (!level) level = m[1].toLowerCase();
+          if (m[2]) meta = m[2].trim();
+        }
+      }
+
+      if (!level) return '';
+
+      var color = {
+        allow:   '#00E676',
+        confirm: '#FFD600',
+        deny:    '#FF5252'
+      }[level] || '#00E676';
+
+      var dot = { allow: '🟢', confirm: '🟡', deny: '🛑' }[level] || '🟢';
+      var label = 'Jev安全審査: ' + level.toUpperCase();
+      var metaHtml = meta
+        ? '<span style="opacity:.85;margin-left:6px;font-size:12px;">(' + escapeHtml(meta) + ')</span>'
+        : '';
+
+      return (
+        '<div class="jev-safety-badge jev-' + level + '" style="' +
+          'display:flex;' +
+          'align-items:center;' +
+          'gap:8px;' +
+          'padding:10px 14px;' +
+          'margin-bottom:12px;' +
+          'border-radius:8px;' +
+          'font-weight:bold;' +
+          'font-size:14px;' +
+          'color:' + color + ';' +
+          'background:rgba(0,0,0,0.45);' +
+          'border:1px solid ' + color + ';' +
+          'box-shadow:0 0 10px ' + color + '44, inset 0 0 10px ' + color + '22;' +
+          'text-shadow:0 0 4px ' + color + ';' +
+        '">' +
+          '<span style="font-size:16px;line-height:1;">' + dot + '</span>' +
+          '<span>' + label + metaHtml + '</span>' +
+        '</div>'
+      );
+    }
+
+    var jevBadgeHtml = buildJevBadge();
+
     var isStrict = (req.risk_level === 'strict');
     var warningHtml = isStrict
       ? '<div class="note-item" style="border-left: 3px solid #FF5252; background: rgba(255, 82, 82, 0.15);"><div class="note-title" style="color:#FF5252;">🚨 破壊的変更の警告</div><div class="note-desc">git reset / rm / drop table などの重大操作が含まれる可能性があります。コマンド内容を必ず確認してください。</div></div>'
@@ -505,7 +565,7 @@
     var commandHtml = req.command
       ? '<div class="note-item"><div class="note-title">⌨️ 実行コマンド</div><div class="note-desc" style="white-space: pre-wrap;">' + escapeHtml(req.command) + '</div></div>'
       : '';
-    var html = warningHtml + commandHtml +
+    var html = warningHtml + jevBadgeHtml + commandHtml +
       '<div class="note-item"><div class="note-title">🛡️ このコマンドの実行を許可しますか？</div><div class="note-desc">イヤホンの再生ボタンでも承認できます</div></div>' +
       '<div class="approval-sheet-actions">' +
       '<button class="btn-approve" onclick="closeBottomSheet(); respondApproval(\'approve\')">✅ 承認する</button>' +

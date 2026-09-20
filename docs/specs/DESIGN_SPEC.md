@@ -1,8 +1,9 @@
 # ネオ秘書くん システム設計書 (DESIGN_SPEC.md)
 
-- **バージョン**: 1.2.4 (📱 P0-2 端末接続承認ダイアログ完了 ＆ 🌐 Jev MCP 完全開通)
-- **最終更新日時**: 2026-09-20 14:43
+- **バージョン**: 1.2.5 (📱 P0-2＆P0-3完全完了 ＆ ⚡ Jev System One 2段階選抜・119スキル全量走破)
+- **最終更新日時**: 2026-09-20 16:05
 - **アーキテクチャ方針**: 完全ローカル完結型 非ブロッキング並行システム (Tkinter Desktop Overlay × Mobile PWA × LangGraph Agent × Zero-Trust Local Bridge)
+
 
 ---
 

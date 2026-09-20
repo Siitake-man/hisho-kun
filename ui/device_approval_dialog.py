@@ -155,11 +155,15 @@ class DeviceApprovalDialog(ctk.CTkToplevel):
             self.destroy()
 
 
+_dialog_lock = threading.Lock()
+_is_dialog_active = False
+
+
 def ask_device_approval_gui(
     root: Optional[tk.Tk],
     device_name: str,
     client_ip: str,
-    timeout_sec: int = 30,
+    timeout_sec: int = 10,
 ) -> bool:
     """HTTPバックグラウンドスレッドからGUIスレッドで承認ダイアログを開き、結果を安全に待機する。
 
@@ -167,19 +171,28 @@ def ask_device_approval_gui(
         root: Tkinter ルートウィンドウ (Noneの場合は即時拒絶)
         device_name: 接続元端末名
         client_ip: 接続元IP
-        timeout_sec: 待機タイムアウト秒数
+        timeout_sec: 待機タイムアウト秒数 (ソケットタイムアウト10sに整合)
 
     Returns:
         bool: 承認時 True、拒絶またはタイムアウト時 False (Fail-Closed)
     """
+    global _is_dialog_active
+
     if root is None or not root.winfo_exists():
         logger.warning("GUIが存在しないため端末接続要求を自動拒否 (Fail-Closed)")
         return False
+
+    with _dialog_lock:
+        if _is_dialog_active:
+            logger.warning(f"承認ダイアログが既に表示中のため接続要求をビジー拒絶: {device_name} ({client_ip})")
+            return False
+        _is_dialog_active = True
 
     result_event = threading.Event()
     outcome = [False]
 
     def _show():
+        global _is_dialog_active
         try:
             dialog = DeviceApprovalDialog(
                 root, device_name, client_ip, timeout_sec=timeout_sec
@@ -191,15 +204,20 @@ def ask_device_approval_gui(
             logger.error(f"承認ダイアログ表示エラー: {e}")
             outcome[0] = False
         finally:
+            with _dialog_lock:
+                _is_dialog_active = False
             result_event.set()
 
     # GUIメインスレッドで実行
     root.after(0, _show)
 
-    # HTTPスレッド側で結果待機（+2秒のマージン）
-    finished = result_event.wait(timeout=float(timeout_sec + 2))
+    # HTTPスレッド側で結果待機（+1秒のマージン）
+    finished = result_event.wait(timeout=float(timeout_sec + 1))
     if not finished:
         logger.warning(f"端末接続承認待機タイムアウト ({timeout_sec}s): Fail-Closed")
+        with _dialog_lock:
+            _is_dialog_active = False
         return False
 
     return outcome[0]
+

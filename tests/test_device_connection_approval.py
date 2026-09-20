@@ -184,6 +184,56 @@ class TestDeviceConnectionApproval(unittest.TestCase):
         result = ask_device_approval_gui(fake_root, "TestiPhone", "192.168.1.50", timeout_sec=2)
         self.assertTrue(result)
 
+    def test_cb_none_fails_closed_403(self):
+        """承認コールバックが未登録 (None) の場合、外部端末は Fail-Closed (403) で自動拒絶される。"""
+        self.tm.set_device_approval_callback(None)
+
+        handler = _FakeHttpHandler()
+        handler.path = "/api/auth/token"
+        handler.headers = {"User-Agent": "ExternalDevice"}
+
+        DeskPetSyncHandler._handle_auth_token(handler, "192.168.1.77", "ExternalDevice")
+        self.assertEqual(handler.status_codes, [403])
+        data = _decode_body(handler)
+        self.assertEqual(data.get("status"), "forbidden")
+        self.assertNotIn("token", data)
+
+    def test_unpaired_request_rejected_403(self):
+        """ペアリング期間外 (pairing_open == False) の場合、外部端末は 403 で即座に拒絶される。"""
+        self.tm.close_pairing()
+
+        handler = _FakeHttpHandler()
+        handler.path = "/api/auth/token"
+        handler.headers = {"User-Agent": "ExternalDevice"}
+
+        DeskPetSyncHandler._handle_auth_token(handler, "192.168.1.88", "ExternalDevice")
+        self.assertEqual(handler.status_codes, [403])
+        data = _decode_body(handler)
+        self.assertEqual(data.get("status"), "forbidden")
+        self.assertNotIn("token", data)
+
+    def test_slowloris_socket_timeout_p0_3(self):
+        """Slowloris対策としてソケットタイムアウトが 10.0秒 に設定されていることを担保する。"""
+        self.assertEqual(DeskPetSyncHandler.timeout, 10.0)
+
+    def test_dialog_stacking_mutex_guard(self):
+        """承認ダイアログが既にアクティブな場合、二重呼び出しは排他制御で即座に False を返す。"""
+        import ui.device_approval_dialog as dad
+
+        fake_root = mock.MagicMock()
+        fake_root.winfo_exists.return_value = True
+
+        with dad._dialog_lock:
+            dad._is_dialog_active = True
+
+        try:
+            res = dad.ask_device_approval_gui(fake_root, "SecondDevice", "192.168.1.99")
+            self.assertFalse(res)
+        finally:
+            with dad._dialog_lock:
+                dad._is_dialog_active = False
+
 
 if __name__ == "__main__":
     unittest.main()
+
