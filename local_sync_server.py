@@ -79,6 +79,7 @@ def _fmt_event_dt(ms_val: Any) -> str:
 
 import database
 import sync_config
+import i18n
 from web_assets import guess_asset_content_type, resolve_asset_path
 from update_checker import get_update_status
 from sync_dtos import validate_status_payload, validate_tasks_view_response
@@ -116,6 +117,8 @@ def set_gui_instance(gui) -> None:
 
         get_sync_token_manager().set_device_approval_callback(_approval_cb)
         logger.info("🔐 [SyncAuth] Human-in-the-Loop 端末接続承認コールバックを登録しました")
+    else:
+        get_sync_token_manager().set_device_approval_callback(None)
 
 
 def get_gui_instance():
@@ -701,6 +704,7 @@ ACTION_HANDLERS_DEVICE = {
     "trigger_briefing": api_agent_bridge.action_trigger_briefing,
     "set_weather_location": api_agent_bridge.action_set_weather_location,
     "record_minigame_score": api_agent_bridge.action_record_minigame_score,
+    "set_language": api_agent_bridge.action_set_language,
 }
 
 # 全アクションの統合ディスパッチテーブル
@@ -1188,12 +1192,18 @@ class DeskPetSyncHandler(SimpleHTTPRequestHandler):
                 pending_req = hub.get_latest_pending()
                 should_buzz = monitor.consume_buzz()
                 
+                current_lang = i18n.get_language()
+                is_en = (current_lang == "en")
+
                 # ポモドーロ状態の取得
                 gui = get_gui_instance()
                 pomodoro_active = getattr(gui, "pomodoro_active", False) if gui else False
                 pomodoro_is_break = getattr(gui, "pomodoro_is_break", False) if gui else False
                 pomodoro_sec = getattr(gui, "pomodoro_remaining_seconds", 0) if gui else 0
-                pomodoro_label = "☕ 休憩中" if pomodoro_is_break else "🍅 集中中"
+                if is_en:
+                    pomodoro_label = "☕ Break" if pomodoro_is_break else "🍅 Focus"
+                else:
+                    pomodoro_label = "☕ 休憩中" if pomodoro_is_break else "🍅 集中中"
                 
                 # ⏰ 期限リマインダー (roadmap 3.1) — エンジン未起動 (テスト/MCP単体) 時は空配列
                 try:
@@ -1208,16 +1218,16 @@ class DeskPetSyncHandler(SimpleHTTPRequestHandler):
                 pc_message = str(getattr(gui, "current_message", "") or "").strip() if gui else ""
                 use_greeting_rotation = not (pending_req or due_reminders or (pomodoro_active and not pomodoro_is_break) or pc_message)
                 if pending_req:
-                    default_msg = "ボス！エージェントからコマンド実行の許可を求められています！"
+                    default_msg = "Boss! An AI agent is requesting approval to execute a command!" if is_en else "ボス！エージェントからコマンド実行の許可を求められています！"
                 elif due_reminders:
                     rem_first = due_reminders[0]
-                    default_msg = f"⏰ 予定リマインダー: {rem_first.get('title', 'まもなく予定の時間です！')}"
+                    default_msg = f"⏰ Reminder: {rem_first.get('title', 'Upcoming schedule!')}" if is_en else f"⏰ 予定リマインダー: {rem_first.get('title', 'まもなく予定の時間です！')}"
                 elif pomodoro_active and not pomodoro_is_break:
-                    default_msg = "集中タイムです！ボス、一緒に頑張りましょう！🔥"
+                    default_msg = "Focus time! Let's do our best together, Boss! 🔥" if is_en else "集中タイムです！ボス、一緒に頑張りましょう！🔥"
                 elif pc_message:
                     default_msg = pc_message
                 else:
-                    default_msg = "ボス、いつもお疲れ様です！スマホからも見守っていますよ！"
+                    default_msg = "Boss, thank you for your hard work! Watching over you from mobile! ✨" if is_en else "ボス、いつもお疲れ様です！スマホからも見守っていますよ！"
                 
                 from suggest_engine import get_suggestion_engine
                 suggest_eng = get_suggestion_engine()
@@ -1291,14 +1301,24 @@ class DeskPetSyncHandler(SimpleHTTPRequestHandler):
                     except Exception:
                         greetings = []
                     hour = time.localtime().tm_hour
-                    if 5 <= hour < 11:
-                        greetings.append("おはようございます、ボス！今日も一日よろしくです！")
-                    elif 11 <= hour < 18:
-                        greetings.append("ボス、午後の業務もここから見守っていますよ！")
-                    elif 18 <= hour < 23:
-                        greetings.append("ボス、今日も一日お疲れ様です！もう少しだけ付き合ってください✨")
+                    if is_en:
+                        if 5 <= hour < 11:
+                            greetings = ["Good morning, Boss! Let's make today count! ✨"]
+                        elif 11 <= hour < 18:
+                            greetings = ["Boss, watching over your afternoon work from here! ✨"]
+                        elif 18 <= hour < 23:
+                            greetings = ["Great work today, Boss! Thank you for your dedication ✨"]
+                        else:
+                            greetings = ["Yawn... Still awake? Don't overdo it, Boss. 🌙"]
                     else:
-                        greetings.append("ふぁ…まだ起きています？無理は禁物ですよ、ボス。")
+                        if 5 <= hour < 11:
+                            greetings.append("おはようございます、ボス！今日も一日よろしくです！")
+                        elif 11 <= hour < 18:
+                            greetings.append("ボス、午後の業務もここから見守っていますよ！")
+                        elif 18 <= hour < 23:
+                            greetings.append("ボス、今日も一日お疲れ様です！もう少しだけ付き合ってください✨")
+                        else:
+                            greetings.append("ふぁ…まだ起きています？無理は禁物ですよ、ボス。")
                     if greetings:
                         default_msg = greetings[int(time.time() // 90) % len(greetings)]
 
@@ -1370,6 +1390,7 @@ class DeskPetSyncHandler(SimpleHTTPRequestHandler):
                     "weather_location": (lambda: (__import__('weather_tools').get_current_location_setting()))(),
                     "update": self._update_notice_payload(),
                     "sync_token": token_mgr.token,
+                    "language": current_lang,
                     "server_time": int(now * 1000)
                 }
                 # P2①: Pydantic DTO 境界検証 (契約違反時は生辞書フォールバックで可用性維持)
@@ -1636,7 +1657,7 @@ class LocalSyncServer:
             probe_fn=self.is_healthy,
             restart_fn=self._restart_httpd,
             interval=self._watchdog_interval,
-            failure_threshold=1,
+            failure_threshold=3,
             thread_name="sync-server-watchdog",
         )
 
@@ -1689,7 +1710,7 @@ class LocalSyncServer:
         if self._bound_port is None:
             return False
         try:
-            with socket.create_connection(("127.0.0.1", self._bound_port), timeout=0.5):
+            with socket.create_connection(("127.0.0.1", self._bound_port), timeout=2.0):
                 return True
         except OSError:
             return False

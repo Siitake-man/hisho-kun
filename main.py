@@ -178,10 +178,8 @@ class NeoSecretaryApp:
             lambda now: self.care_engine.check_and_trigger_care(),
             name="proactive_care",
         )
-        scheduler.register(
-            lambda now: self.care_engine.check_event_reminders(),
-            name="event_reminders",
-        )
+        # ※ 予定・タスクのリマインダーは reminder_engine (P2移管済み) に一本化し、
+        #    二重通知の競合を根絶 (2026-09-20 コードレビュー指摘対応)
         scheduler.start()
 
         # 4. スマホ専用ペット端末 (Desk Pet) ローカル同期サーバーの起動
@@ -412,9 +410,16 @@ class NeoSecretaryApp:
         # GUIにメッセージを表示してからエージェント推論へ
         self.gui.post_action(self.gui.update_message, f"🎤 {text}")
         self.gui.post_action(self.gui.set_pet_state, "thinking")
-        # asyncio タスクとしてエージェント推論を実行
+        # asyncio タスクとしてエージェント推論を実行 (ワーカースレッドからの安全なディスパッチ)
         import asyncio
-        asyncio.create_task(self._process_message(text))
+        if hasattr(self, "loop") and self.loop and self.loop.is_running():
+            asyncio.run_coroutine_threadsafe(self._process_message(text), self.loop)
+        else:
+            try:
+                loop = asyncio.get_running_loop()
+                loop.create_task(self._process_message(text))
+            except RuntimeError:
+                logger.error("エージェント推論のイベントループが見つかりません")
 
     def _on_submit(self, event=None):
         """ユーザーが入力をしてEnterを押した時に呼ばれる"""
@@ -539,6 +544,7 @@ async def async_mainloop(app: NeoSecretaryApp):
     自前で更新ループを回します。
     """
     logger.info("非同期メインループを開始します")
+    app.loop = asyncio.get_running_loop()
     
     while True:
         try:

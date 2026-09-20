@@ -28,6 +28,7 @@ class TestI18nAndUIGlobal(unittest.TestCase):
         self.assertEqual(t("ui.settings.save"), "保存して閉じる")
         self.assertEqual(t("ui.pet.working"), "お仕事中")
         self.assertEqual(t("ui.pet.sleeping"), "睡眠中")
+        self.assertEqual(t("ui.pet.auto_minimize_toggle", status="有効"), "📱 スマホ接続時のPCペット自動最小化を【有効】にしました！")
         self.assertEqual(t("ui.tray.settings"), "⚙️ 設定を開く")
         self.assertEqual(t("ui.tray.exit"), "❌ ネオ秘書くんを終了")
 
@@ -40,6 +41,7 @@ class TestI18nAndUIGlobal(unittest.TestCase):
         self.assertEqual(t("ui.settings.save"), "Save & Close")
         self.assertEqual(t("ui.pet.working"), "Working")
         self.assertEqual(t("ui.pet.sleeping"), "Sleeping")
+        self.assertEqual(t("ui.pet.auto_minimize_toggle", status="Enabled"), "📱 Auto-minimize on mobile link set to 【Enabled】!")
         self.assertEqual(t("ui.tray.settings"), "⚙️ Open Settings")
         self.assertEqual(t("ui.tray.exit"), "❌ Exit Neo-Secretary")
 
@@ -298,6 +300,50 @@ class TestI18nAndUIGlobal(unittest.TestCase):
         report_ja = generate_briefing(force_mode="morning")
         self.assertEqual(report_ja.mode_label, "☀️ 朝会ブリーフィング")
         self.assertIn("現在の天気", report_ja.formatted_markdown)
+
+    def test_i18n_sticky_note_multilang(self):
+        """付箋UI用辞書キーが ja/en で正しく切り替わることを検証"""
+        set_language("ja")
+        self.assertEqual(t("ui.sticky.title"), "📌 今日の最優先タスク")
+        self.assertEqual(t("ui.sticky.placeholder"), "新しいタスクを急ぎ追加...")
+        self.assertIn("保留中のタスクはありません", t("ui.sticky.no_tasks"))
+        self.assertEqual(t("ui.sticky.badge_top"), "[最優先] ")
+        self.assertEqual(t("ui.sticky.badge_urgent"), "[至急] ")
+        self.assertEqual(t("ui.sticky.badge_important"), "[重要] ")
+
+        set_language("en")
+        self.assertEqual(t("ui.sticky.title"), "📌 Top Priority Tasks")
+        self.assertEqual(t("ui.sticky.placeholder"), "Quick add urgent task...")
+        self.assertIn("No pending tasks", t("ui.sticky.no_tasks"))
+        self.assertEqual(t("ui.sticky.badge_top"), "[Top] ")
+        self.assertEqual(t("ui.sticky.badge_urgent"), "[Urgent] ")
+        self.assertEqual(t("ui.sticky.badge_important"), "[Important] ")
+
+    def test_reload_language_from_env(self):
+        """環境変数から言語が正しく初期化・再ロードされることを検証"""
+        import os
+        orig = os.environ.get("APP_LANGUAGE")
+        try:
+            os.environ["APP_LANGUAGE"] = "en"
+            lang = i18n.reload_language_from_env()
+            self.assertEqual(lang, "en")
+            self.assertEqual(get_language(), "en")
+
+            os.environ["APP_LANGUAGE"] = "ja"
+            lang = i18n.reload_language_from_env()
+            self.assertEqual(lang, "ja")
+            self.assertEqual(get_language(), "ja")
+
+            # 不正な言語コードの場合は既定 ja へフォールバック
+            os.environ["APP_LANGUAGE"] = "invalid_lang"
+            lang = i18n.reload_language_from_env()
+            self.assertEqual(lang, "ja")
+        finally:
+            if orig is not None:
+                os.environ["APP_LANGUAGE"] = orig
+            elif "APP_LANGUAGE" in os.environ:
+                del os.environ["APP_LANGUAGE"]
+            set_language("ja")
 
 
 if __name__ == "__main__":

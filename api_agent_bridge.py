@@ -438,6 +438,30 @@ def action_switch_character(ctx: ApiContext) -> bool:
     return True
 
 
+def action_set_language(ctx: ApiContext) -> bool:
+    """スマホ側からの言語切替要求を処理し、デスクトップおよびサーバーの言語を双方向同期する。
+
+    Args:
+        ctx: リクエストコンテキスト。
+
+    Returns:
+        bool: 常にレスポンスを書き込むため True。
+    """
+    import i18n
+    try:
+        data = json.loads(ctx.body.decode("utf-8")) if ctx.body else {}
+    except Exception:
+        data = {}
+    lang = data.get("language", "ja")
+    if lang not in ("ja", "en"):
+        lang = "ja"
+    i18n.set_language(lang)
+    logger.info(f"📱 スマホ側から言語切替を受信・双方向同期: {lang}")
+    ctx.write_json({"status": "success", "language": lang})
+    return True
+
+
+
 def action_toggle_suggest_source(ctx: ApiContext) -> bool:
     """スマホ側からのサジェストソース有効/無効変更要求を処理する。
 

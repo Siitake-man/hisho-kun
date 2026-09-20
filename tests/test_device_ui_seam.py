@@ -696,9 +696,20 @@ class TestSettingsWindowIntegration(unittest.TestCase):
 
     def test_panel_module_stays_gui_thin(self) -> None:
         """GUI 非依存ロジックが Seam 関数として公開されていること"""
-        for func_name in ("list_device_rows", "revoke_device_entry", "build_device_rows"):
+        for func_name in ("list_device_rows", "revoke_device_entry", "restore_device_entry", "delete_device_entry", "build_device_rows"):
             with self.subTest(func=func_name):
                 self.assertTrue(callable(getattr(panel, func_name)))
+
+    def test_delete_device_entry_success(self) -> None:
+        """delete_device_entry が database.delete_device を呼んで結果を返すこと"""
+        with mock.patch.object(panel.database, "delete_device", return_value=True) as mock_del:
+            self.assertTrue(panel.delete_device_entry(42))
+            mock_del.assert_called_once_with(42)
+
+    def test_delete_device_entry_exception_returns_false(self) -> None:
+        """delete_device_entry で例外発生時に安全に False を返すこと"""
+        with mock.patch.object(panel.database, "delete_device", side_effect=RuntimeError("DB locked")):
+            self.assertFalse(panel.delete_device_entry(42))
 
 
 if __name__ == "__main__":

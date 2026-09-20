@@ -71,10 +71,17 @@ class TestDeviceConnectionApproval(unittest.TestCase):
         init_db(self.db_path)
         self.tm = get_sync_token_manager()
         self.tm.unlock_pairing(duration_sec=60)
+        import ui.device_approval_dialog as dad
+        with dad._dialog_lock:
+            dad._is_dialog_active = False
 
     def tearDown(self) -> None:
         self.tm.close_pairing()
         self.tm.set_device_approval_callback(None)
+        local_sync_server.set_gui_instance(None)
+        import ui.device_approval_dialog as dad
+        with dad._dialog_lock:
+            dad._is_dialog_active = False
         self.temp_dir.cleanup()
 
     def test_approval_granted_issues_token(self):
@@ -163,25 +170,46 @@ class TestDeviceConnectionApproval(unittest.TestCase):
         result = ask_device_approval_gui(None, "TestDevice", "192.168.1.10")
         self.assertFalse(result)
 
-    def test_ask_device_approval_gui_thread_sync(self):
+    @mock.patch("ui.device_approval_dialog.DeviceApprovalDialog")
+    def test_ask_device_approval_gui_thread_sync(self, MockDialog):
         """ask_device_approval_gui がGUIスレッドへ after でディスパッチし結果を同期返却する。"""
         from ui.device_approval_dialog import ask_device_approval_gui
+
+        def _init_mock(*args, **kwargs):
+            cb = kwargs.get("on_decision")
+            if cb:
+                cb(True)
+            return mock.MagicMock()
+        MockDialog.side_effect = _init_mock
 
         fake_root = mock.MagicMock()
         fake_root.winfo_exists.return_value = True
 
         # root.after(0, func) を即座に実行するモック
-        def fake_after(delay, func):
-            # モックダイアログの挙動をシミュレート
-            with mock.patch("ui.device_approval_dialog.DeviceApprovalDialog") as MockDialog:
-                instance = MockDialog.return_value
-                instance.result = True
-                instance.wait_window.return_value = None
-                func()
-
-        fake_root.after.side_effect = fake_after
+        fake_root.after.side_effect = lambda delay, func: func()
 
         result = ask_device_approval_gui(fake_root, "TestiPhone", "192.168.1.50", timeout_sec=2)
+        self.assertTrue(result)
+
+    @mock.patch("ui.device_approval_dialog.DeviceApprovalDialog")
+    def test_ask_device_approval_gui_with_gui_instance_extracts_root(self, MockDialog):
+        """NeoSecretaryGUI インスタンス (post_action 属性を持つオブジェクト) が渡されても post_action で動作する。"""
+        from ui.device_approval_dialog import ask_device_approval_gui
+
+        def _init_mock(*args, **kwargs):
+            cb = kwargs.get("on_decision")
+            if cb:
+                cb(True)
+            return mock.MagicMock()
+        MockDialog.side_effect = _init_mock
+
+        fake_gui = mock.MagicMock(spec=["root", "post_action"])
+        fake_root = mock.MagicMock()
+        fake_root.winfo_exists.return_value = True
+        fake_gui.root = fake_root
+        fake_gui.post_action.side_effect = lambda func, *a, **kw: func()
+
+        result = ask_device_approval_gui(fake_gui, "AndroidDevice", "192.168.1.4", timeout_sec=2)
         self.assertTrue(result)
 
     def test_cb_none_fails_closed_403(self):
@@ -232,6 +260,51 @@ class TestDeviceConnectionApproval(unittest.TestCase):
         finally:
             with dad._dialog_lock:
                 dad._is_dialog_active = False
+
+    def test_dialog_coalesce_same_device(self):
+        """同一端末からの重複呼び出しの場合、ビジー拒絶せず既存ダイアログの結果に合流する。"""
+        import threading
+        import ui.device_approval_dialog as dad
+
+        fake_gui = mock.MagicMock(spec=["root", "post_action"])
+        fake_root = mock.MagicMock()
+        fake_root.winfo_exists.return_value = True
+        fake_gui.root = fake_root
+
+        # 1回目のダイアログは非同期で300ms後に許可される想定
+        def _slow_show(func):
+            def _delayed():
+                import time
+                time.sleep(0.05)
+                # active_outcome を True にして event を set
+                with dad._dialog_lock:
+                    if dad._active_outcome is not None:
+                        dad._active_outcome[0] = True
+                    if dad._active_result_event is not None:
+                        dad._active_result_event.set()
+            threading.Thread(target=_delayed, daemon=True).start()
+
+        fake_gui.post_action.side_effect = _slow_show
+
+        results = [None, None]
+
+        def _call_1():
+            results[0] = dad.ask_device_approval_gui(fake_gui, "SamePhone", "192.168.1.50", timeout_sec=2)
+
+        def _call_2():
+            import time
+            time.sleep(0.01)  # 1回目がロックを取得した後に発火
+            results[1] = dad.ask_device_approval_gui(fake_gui, "SamePhone", "192.168.1.50", timeout_sec=2)
+
+        t1 = threading.Thread(target=_call_1)
+        t2 = threading.Thread(target=_call_2)
+        t1.start()
+        t2.start()
+        t1.join(timeout=3)
+        t2.join(timeout=3)
+
+        self.assertTrue(results[0])
+        self.assertTrue(results[1])
 
 
 if __name__ == "__main__":

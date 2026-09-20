@@ -12,6 +12,7 @@ AI生活変化エンジン要件定義書 (docs/specs/ai_life_engine_multilang_s
 from __future__ import annotations
 
 import logging
+import os
 import threading
 from typing import Any, Dict
 
@@ -59,6 +60,15 @@ _TRANSLATIONS: Dict[str, Dict[str, str]] = {
         "ui.settings.save": "保存して閉じる",
         "ui.pet.working": "お仕事中",
         "ui.pet.sleeping": "睡眠中",
+        "ui.pet.auto_minimize_toggle": "📱 スマホ接続時のPCペット自動最小化を【{status}】にしました！",
+        "ui.pet.status_enabled": "有効",
+        "ui.pet.status_disabled": "無効",
+        "ui.pet.summoned_from_mobile": "🖥️ スマホからPC画面に呼び出されました！✨",
+        "ui.pet.new_sticky_added": "📌 デスクトップに新しい付箋を貼りました！\n自由にメモを書いてくださいね。",
+        "ui.pet.roaming_mode_toggle": "🚶 徘徊モードを【{status}】にしました！散歩中は画面下をテクテク移動します。",
+        "ui.pet.briefing_error": "申し訳ありません、ブリーフィングの生成中にエラーが発生しました。",
+        "ui.pet.switch_brain_success": "🧠 頭脳を『{name}』に切り替えました！\nモデル: {model}",
+        "ui.pet.switch_brain_failed": "切り替えに失敗しました。",
         # システムトレイ
         "ui.tray.show": "🖥️ ペットを画面に呼び出す",
         "ui.tray.hide": "🙈 ペットを隠す (最小化)",
@@ -68,6 +78,13 @@ _TRANSLATIONS: Dict[str, Dict[str, str]] = {
         "ui.tray.qr": "📱 スマホ接続 (QRコード)",
         "ui.tray.exit": "❌ ネオ秘書くんを終了",
         "ui.tray.tooltip": "ネオ秘書くん",
+        # デスクトップ半透明スマート付箋 (Desktop Sticky Note)
+        "ui.sticky.title": "📌 今日の最優先タスク",
+        "ui.sticky.placeholder": "新しいタスクを急ぎ追加...",
+        "ui.sticky.no_tasks": "🎉 現在、保留中のタスクはありません！\nゆっくりお茶でもどうぞ☕",
+        "ui.sticky.badge_top": "[最優先] ",
+        "ui.sticky.badge_urgent": "[至急] ",
+        "ui.sticky.badge_important": "[重要] ",
         # メインウィンドウ & 右クリックメニュー
         "ui.gui.title": "ネオ秘書くん",
         "ui.gui.header_name": "🤖 ネオ秘書くん",
@@ -306,6 +323,15 @@ _TRANSLATIONS: Dict[str, Dict[str, str]] = {
         "ui.settings.save": "Save & Close",
         "ui.pet.working": "Working",
         "ui.pet.sleeping": "Sleeping",
+        "ui.pet.auto_minimize_toggle": "📱 Auto-minimize on mobile link set to 【{status}】!",
+        "ui.pet.status_enabled": "Enabled",
+        "ui.pet.status_disabled": "Disabled",
+        "ui.pet.summoned_from_mobile": "🖥️ Summoned to PC screen from mobile! ✨",
+        "ui.pet.new_sticky_added": "📌 New sticky note placed on desktop!\nFeel free to jot down quick notes.",
+        "ui.pet.roaming_mode_toggle": "🚶 Roaming mode set to 【{status}】! The pet will stroll along the bottom of the screen.",
+        "ui.pet.briefing_error": "I apologize, an error occurred while generating the briefing.",
+        "ui.pet.switch_brain_success": "🧠 Switched brain to \"{name}\"!\nModel: {model}",
+        "ui.pet.switch_brain_failed": "Failed to switch brain model.",
         # System Tray
         "ui.tray.show": "🖥️ Summon Pet to Screen",
         "ui.tray.hide": "🙈 Hide Pet (Minimize)",
@@ -315,6 +341,13 @@ _TRANSLATIONS: Dict[str, Dict[str, str]] = {
         "ui.tray.qr": "📱 Mobile Desk Pet (QR)",
         "ui.tray.exit": "❌ Exit Neo-Secretary",
         "ui.tray.tooltip": "Neo-Secretary",
+        # Desktop Sticky Note
+        "ui.sticky.title": "📌 Top Priority Tasks",
+        "ui.sticky.placeholder": "Quick add urgent task...",
+        "ui.sticky.no_tasks": "🎉 No pending tasks right now!\nEnjoy a cup of tea ☕",
+        "ui.sticky.badge_top": "[Top] ",
+        "ui.sticky.badge_urgent": "[Urgent] ",
+        "ui.sticky.badge_important": "[Important] ",
         # Main Window & Context Menu
         "ui.gui.title": "Neo-Secretary",
         "ui.gui.header_name": "🤖 Neo-Secretary",
@@ -536,7 +569,36 @@ _TRANSLATIONS: Dict[str, Dict[str, str]] = {
 }
 
 _lang_lock = threading.Lock()
-_current_language: str = DEFAULT_LANGUAGE
+
+
+def _init_language_from_env() -> str:
+    """環境変数または .env から設定された言語コードを取得する。"""
+    lang = os.getenv("APP_LANGUAGE")
+    if not lang:
+        try:
+            import app_paths
+            env_file = app_paths.get_app_root() / ".env"
+            if env_file.exists():
+                from dotenv import dotenv_values
+                vals = dotenv_values(env_file)
+                lang = vals.get("APP_LANGUAGE")
+        except Exception:
+            pass
+    if isinstance(lang, str):
+        normalized = lang.strip().lower()
+        if normalized in SUPPORTED_LANGUAGES:
+            return normalized
+    return DEFAULT_LANGUAGE
+
+
+def reload_language_from_env() -> str:
+    """環境変数・.env から言語設定を再読み込みして適用する。"""
+    lang = _init_language_from_env()
+    set_language(lang)
+    return lang
+
+
+_current_language: str = _init_language_from_env()
 _lang_listeners: list = []
 
 

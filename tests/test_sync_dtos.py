@@ -76,6 +76,7 @@ def _sample_status_payload() -> Dict[str, Any]:
         "weather_location": "東京",
         "update": {"update_available": False, "current_version": None},
         "sync_token": "dummy-token",
+        "language": "ja",
         "server_time": 1790000000000,
     }
 
@@ -88,6 +89,13 @@ class StatusResponseDTOTest(unittest.TestCase):
         payload = _sample_status_payload()
         validated = validate_status_payload(payload)
         self.assertEqual(validated, payload)
+
+    def test_language_field_is_validated(self) -> None:
+        """language フィールドが正常に検証・保持されること。"""
+        payload = _sample_status_payload()
+        payload["language"] = "en"
+        validated = validate_status_payload(payload)
+        self.assertEqual(validated["language"], "en")
 
     def test_corrupt_task_falls_back_to_raw_payload(self) -> None:
         """契約違反タスクが混在しても例外を漏らさず生辞書で応答すること。"""

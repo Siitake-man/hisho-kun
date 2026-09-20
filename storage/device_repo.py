@@ -44,16 +44,26 @@ def register_device(
             SELECT id FROM devices WHERE token_hash = ?
         """, (token_hash,))
         row = cursor.fetchone()
+        if not row and ip_address and not ip_address.startswith("127.") and ip_address not in ("::1", "localhost"):
+            # 同一IPかつ同一端末名の既存レコードがあれば更新再利用 (重複行の増殖防止)
+            cursor.execute("""
+                SELECT id FROM devices WHERE ip_address = ? AND device_name = ?
+                ORDER BY last_seen DESC LIMIT 1
+            """, (ip_address, device_name))
+            row = cursor.fetchone()
+
         if row:
             dev_id = int(row[0])
             cursor.execute("""
                 UPDATE devices
                 SET device_name = ?,
+                    token_hash = ?,
                     ip_address = COALESCE(?, ip_address),
                     user_agent = COALESCE(?, user_agent),
-                    last_seen = ?
+                    last_seen = ?,
+                    is_revoked = 0
                 WHERE id = ?
-            """, (device_name, ip_address, user_agent, now, dev_id))
+            """, (device_name, token_hash, ip_address, user_agent, now, dev_id))
             logger.info(f"デバイス台帳更新: ID={dev_id}, name={device_name}")
             return dev_id
         else:
@@ -380,3 +390,24 @@ def cleanup_loopback_devices(db_path: str = "neo_secretary.db") -> int:
         """)
         conn.commit()
         return cursor.rowcount
+
+
+def delete_device(device_id: int, db_path: str = "neo_secretary.db") -> bool:
+    """指定されたIDの端末レコードを台帳から物理削除する。
+
+    Args:
+        device_id: 削除対象の端末ID
+        db_path: データベースファイルのパス
+
+    Returns:
+        bool: 削除成功時 True、見つからなかった場合 False
+    """
+    with get_db_connection(db_path) as conn:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM devices WHERE id = ?", (device_id,))
+        conn.commit()
+        deleted = cursor.rowcount > 0
+        if deleted:
+            logger.info(f"🗑️ [DeviceAuth] 端末レコードを削除しました: ID={device_id}")
+        return deleted
+

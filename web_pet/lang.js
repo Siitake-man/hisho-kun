@@ -46,6 +46,48 @@
       'banner.completed': '🎉 タスク完了通知',
       'banner.reminder': '⏰ リマインダー',
 
+      // ヘッダー・常時ONバナー
+      'header.wake_banner': '💡 常時画面ON（自動消灯防止）はここをタップ',
+      'header.nosleep_title': '💡 常時画面ON（自動消灯防止）',
+      'header.theme_title': '🏞️ 背景テーマ切替',
+      'header.fullscreen_title': '⛶ 全画面表示',
+      'header.pomodoro_title': '🍅 ポモドーロ開始（25分）',
+
+      // ブリーフィングバナー
+      'briefing.quick_morning': '☀️ 朝会ブリーフィングを聞く',
+      'briefing.quick_night': '🌙 夜間ブリーフィングを聞く',
+      'briefing.quick_tap': 'タップ 📖',
+
+      // サジェスト
+      'suggest.tag': '💡 サジェスト',
+      'suggest.ai_news': '💡 AIニュース',
+      'suggest.loading': '読み込み中...',
+      'suggest.default_title': '最新のAIトレンドをチェック',
+      'suggest.complete_task': 'このタスクを完了にする',
+
+      // TODOモーダル
+      'todo.title': '📝 タスク管理',
+      'todo.placeholder': '例: 明日18時に資料 #仕事 !3',
+      'todo.filter_list': '📋 リスト',
+      'todo.filter_all': '📥 すべて',
+      'todo.filter_range': '🗓 期間',
+      'todo.range_all': '🗂 すべて',
+      'todo.range_today': '⏰ 今日',
+      'todo.range_week': '📅 今週',
+      'todo.quad_toggle': '🎯 4象限',
+      'todo.quad_back': '📋 一覧に戻る',
+      'todo.empty': '🎉 未完了のタスクはありません！',
+
+      // カレンダーモーダル
+      'cal.title': '📅 統合手帳・カレンダー',
+      'cal.empty': '📅 直近3日間の予定はありません',
+
+      // 日報モーダル
+      'daily.title': '🌱 日報・生活記録',
+
+      // 設定モーダル
+      'settings.title': '⚙️ 設定',
+
       // トグルボタン表示（相手言語アフォーダンス）
       'lang.toggle_label': 'EN'
     },
@@ -77,6 +119,48 @@
       'banner.question': '❓ AI Question',
       'banner.completed': '🎉 Task Completed',
       'banner.reminder': '⏰ Reminder',
+
+      // Header & Wake Banner
+      'header.wake_banner': '💡 Tap here to keep screen ON',
+      'header.nosleep_title': '💡 Keep Screen ON',
+      'header.theme_title': '🏞️ Switch Background Theme',
+      'header.fullscreen_title': '⛶ Fullscreen',
+      'header.pomodoro_title': '🍅 Start Pomodoro (25m)',
+
+      // Briefing Banner
+      'briefing.quick_morning': '☀️ Morning Briefing',
+      'briefing.quick_night': '🌙 Evening Report Summary',
+      'briefing.quick_tap': 'Tap 📖',
+
+      // Suggestion
+      'suggest.tag': '💡 Suggestion',
+      'suggest.ai_news': '💡 AI News',
+      'suggest.loading': 'Loading...',
+      'suggest.default_title': 'Check latest AI trends',
+      'suggest.complete_task': 'Mark task complete',
+
+      // TODO Modal
+      'todo.title': '📝 Task Manager',
+      'todo.placeholder': 'e.g. Tomorrow 6pm docs #work !3',
+      'todo.filter_list': '📋 Lists',
+      'todo.filter_all': '📥 All',
+      'todo.filter_range': '🗓 Range',
+      'todo.range_all': '🗂 All',
+      'todo.range_today': '⏰ Today',
+      'todo.range_week': '📅 Week',
+      'todo.quad_toggle': '🎯 Eisenhower',
+      'todo.quad_back': '📋 Back to List',
+      'todo.empty': '🎉 No pending tasks right now!',
+
+      // Calendar Modal
+      'cal.title': '📅 Schedule / Calendar',
+      'cal.empty': '📅 No upcoming events in next 3 days',
+
+      // Daily Modal
+      'daily.title': '🌱 Daily Log & Habits',
+
+      // Settings Modal
+      'settings.title': '⚙️ Settings',
 
       // Toggle Button Label
       'lang.toggle_label': 'JA'
@@ -127,13 +211,30 @@
     return fallback !== undefined ? fallback : key;
   }
 
+  var _lastUserSwitchTime = 0;
+
+  /**
+   * 直近（5秒以内）にユーザー自身が手動で言語を切り替えたかどうかを判定
+   * サーバーからの古いステータスポーリングによる巻き戻しを防止する。
+   * @returns {boolean}
+   */
+  function isUserOverrideActive() {
+    return (Date.now() - _lastUserSwitchTime) < 5000;
+  }
+
   /**
    * 言語切り替え
    * @param {string} lang - 'ja' | 'en'
+   * @param {boolean} [fromUser=false] - ユーザーの手動操作かどうか
    */
-  function setLang(lang) {
+  function setLang(lang, fromUser) {
+    if (fromUser === undefined) fromUser = false;
     var target = (lang === 'en') ? 'en' : 'ja';
     _currentLang = target;
+
+    if (fromUser) {
+      _lastUserSwitchTime = Date.now();
+    }
 
     try {
       localStorage.setItem(STORAGE_KEY, target);
@@ -148,6 +249,32 @@
 
     // トグルボタンの表示更新
     updateToggleButtonUI();
+
+    // 🌐 ユーザー自身による手動切替時は、PCサーバー側にも即座に同期通知 & トースト視覚フィードバック
+    if (fromUser) {
+      try {
+        if (typeof window.showToast === 'function') {
+          var msg = (target === 'en') ? '🌐 Switched to English' : '🌐 言語を日本語に切り替えました';
+          window.showToast(msg, 1800, true);
+        }
+      } catch (e) {
+        console.debug('[NeoLang] showToast error (ignored):', e);
+      }
+
+      try {
+        var fetchFn = window.authFetch || window.fetch;
+        if (fetchFn) {
+          fetchFn('/api/action', {
+            method: 'POST',
+            body: JSON.stringify({ action: 'set_language', language: target })
+          }).catch(function (e) {
+            console.debug('[NeoLang] Server sync error (ignored):', e);
+          });
+        }
+      } catch (e) {
+        console.debug('[NeoLang] Server sync dispatch error:', e);
+      }
+    }
 
     // カスタムイベント発火（各UIコンポーネントが自律更新）
     try {
@@ -169,9 +296,9 @@
    */
   function toggleLang() {
     var next = (_currentLang === 'ja') ? 'en' : 'ja';
-    setLang(next);
+    setLang(next, true);
     if (navigator.vibrate) {
-      navigator.vibrate(25);
+      try { navigator.vibrate(25); } catch (e) {}
     }
     return next;
   }
@@ -190,6 +317,36 @@
   }
 
   /**
+   * トグルボタンへの確実なイベントバインド（スマホのタップ・タッチ対応）
+   */
+  function bindToggleButton() {
+    var btn = document.getElementById('lang-toggle-btn');
+    if (!btn) return;
+    if (btn._neolangBound) return;
+    btn._neolangBound = true;
+
+    var handleToggle = function (ev) {
+      if (ev) {
+        if (ev.preventDefault) ev.preventDefault();
+        if (ev.stopPropagation) ev.stopPropagation();
+      }
+      toggleLang();
+    };
+
+    // click と touchend の両方で即時反応（二重発火抑止付き）
+    var lastTrigger = 0;
+    var safeHandler = function (ev) {
+      var now = Date.now();
+      if (now - lastTrigger < 300) return; // 300ms以内の連続発火を防止
+      lastTrigger = now;
+      handleToggle(ev);
+    };
+
+    btn.addEventListener('click', safeHandler, { passive: false });
+    btn.addEventListener('touchend', safeHandler, { passive: false });
+  }
+
+  /**
    * 初期化処理
    */
   function init() {
@@ -198,27 +355,35 @@
       document.documentElement.lang = _currentLang;
     }
 
-    // DOM構築完了後にボタン表示を整える
+    // DOM構築完了後にボタン表示とイベントバインドを整える
     if (document.readyState === 'loading') {
       document.addEventListener('DOMContentLoaded', function () {
         updateToggleButtonUI();
+        bindToggleButton();
       });
     } else {
       updateToggleButtonUI();
+      bindToggleButton();
     }
   }
 
   // 初期化実行
   init();
 
+  var DICTIONARY = DICTIONARIES;
+
   // グローバルモジュール公開
   var NeoLang = {
     t: t,
-    getLang: function () { return _currentLang; },
+    getLang: getLang,
     setLang: setLang,
     toggleLang: toggleLang,
-    init: init,
-    dictionaries: DICTIONARIES
+    isUserOverrideActive: isUserOverrideActive,
+    updateToggleButtonUI: updateToggleButtonUI,
+    bindToggleButton: bindToggleButton,
+    DICTIONARY: DICTIONARY,
+    dictionaries: DICTIONARIES,
+    init: init
   };
 
   window.NeoLang = NeoLang;

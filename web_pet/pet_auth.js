@@ -73,6 +73,43 @@ function setSyncToken(newToken) {
   }
 }
 
+let activeTokenRefreshPromise = null;
+
+/**
+ * サーバーから新しい同期トークンを取得する（In-Flight重複リクエスト合流）。
+ * 
+ * @returns {Promise<string|null>} 取得できたトークン文字列、または失敗時 null
+ */
+async function requestSyncToken() {
+  if (activeTokenRefreshPromise) {
+    return activeTokenRefreshPromise;
+  }
+  activeTokenRefreshPromise = (async () => {
+    try {
+      const tokenRes = await fetch('/api/auth/token');
+      if (tokenRes.ok) {
+        const tokenData = await tokenRes.json();
+        if (tokenData && tokenData.token) {
+          setSyncToken(tokenData.token);
+          return tokenData.token;
+        }
+      } else {
+        // トークン取得に失敗（ペアリング未開放、拒絶等）
+        setSyncToken('');
+        if (typeof window.showToast === 'function') {
+          window.showToast('⚠️ PC側で「📱スマホDesk Pet接続」を開いて承認してください');
+        }
+      }
+    } catch (e) {
+      console.debug('[pet_auth] Token refresh error:', e);
+    } finally {
+      activeTokenRefreshPromise = null;
+    }
+    return null;
+  })();
+  return activeTokenRefreshPromise;
+}
+
 /**
  * 認証済み fetch ラッパー。全 API 呼び出しはこの関数を経由する。
  * 401応答時は /api/auth/token でトークン再取得を試み、1回だけ再試行する。
@@ -105,20 +142,9 @@ async function authFetch(url, options = {}) {
 
   // 401 Unauthorized または 403 Forbidden（失効済み・不整合）かつ未再試行の場合、トークン再取得を試行
   if ((res.status === 401 || res.status === 403) && !options._retried) {
-    try {
-      const tokenRes = await fetch('/api/auth/token');
-      if (tokenRes.ok) {
-        const tokenData = await tokenRes.json();
-        if (tokenData && tokenData.token) {
-          setSyncToken(tokenData.token);
-          return authFetch(url, Object.assign({}, options, { _retried: true }));
-        }
-      } else {
-        // トークン取得に失敗（ペアリング未開放等）した場合は古い無効トークンをクリア
-        setSyncToken('');
-      }
-    } catch (e) {
-      console.debug('[pet_auth] Token refresh error:', e);
+    const newToken = await requestSyncToken();
+    if (newToken) {
+      return authFetch(url, Object.assign({}, options, { _retried: true }));
     }
   }
   return res;

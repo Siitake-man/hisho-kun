@@ -96,52 +96,13 @@ class ProactiveCareEngine:
         return None
 
     def check_event_reminders(self) -> None:
-        """直近の予定をチェックし、10分前または開始時にリマインド通知を発火する。
+        """直近の予定チェック（※ reminder_engine.py に一本化済み）。
         
-        main.py のメインループから約10秒ごとに呼ばれることを想定。
+        重複通知の競合を根絶するため、予定リマインドは DB 冪等記録と
+        スマホ PWA 連携を備えた reminder_engine が担当します。
+        後方互換性のためメソッドシグネチャは維持します。
         """
-        if not self.is_enabled:
-            return
-
-        try:
-            import database
-            events = database.get_upcoming_events(days=1)
-            now_ts = int(time.time() * 1000)
-
-            for ev in events:
-                # 既に通知済みのイベントはスキップ
-                if ev.id in self._notified_event_ids:
-                    continue
-
-                diff_mins = int((ev.start_time - now_ts) / (1000 * 60))
-
-                # 10分前リマインド（9〜11分の範囲で発火）
-                if 9 <= diff_mins <= 11:
-                    self._notified_event_ids.add(ev.id)
-                    st = datetime.fromtimestamp(ev.start_time / 1000.0)
-                    time_str = st.strftime("%H:%M")
-                    msg = (
-                        f"⏰ 【10分前リマインド】\n"
-                        f"📅 {time_str}〜 『{ev.title}』\n"
-                        f"準備はお済みですか？"
-                    )
-                    if self.notify_callback:
-                        self.notify_callback(msg, "alarm_ask")
-                    logger.info(f"予定リマインド(10分前): {ev.title}")
-
-                # 開始時リマインド（-1〜1分の範囲で発火）
-                elif -1 <= diff_mins <= 1:
-                    self._notified_event_ids.add(ev.id)
-                    msg = (
-                        f"🔔 【予定開始時刻です！】\n"
-                        f"📅 『{ev.title}』\n"
-                        f"頑張ってください！"
-                    )
-                    if self.notify_callback:
-                        self.notify_callback(msg, "cheer")
-                    logger.info(f"予定リマインド(開始時): {ev.title}")
-        except Exception as e:
-            logger.debug(f"予定リマインドチェック例外: {e}")
+        pass
 
 
 # シングルトンインスタンス

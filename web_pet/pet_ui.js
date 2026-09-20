@@ -856,10 +856,69 @@
     }
   }
 
+  function updateAllScreenLabels() {
+    try {
+      var t = window.NeoLang ? window.NeoLang.t.bind(window.NeoLang) : function (k, f) { return f; };
+      
+      // 1. ボトムドック
+      renderBottomDock();
+      
+      // 2. 最優先イベントバナー
+      updateBannerLabels();
+
+      // 3. 常時ONバナー
+      var wakeBanner = document.getElementById('wake-banner');
+      if (wakeBanner) {
+        wakeBanner.textContent = t('header.wake_banner', '💡 常時画面ON（自動消灯防止）はここをタップ');
+      }
+
+      // 4. ブリーフィングクイックバナー
+      var briefText = document.getElementById('briefing-quick-text');
+      if (briefText) {
+        var hour = new Date().getHours();
+        var isNight = (hour >= 17 || hour < 5);
+        briefText.textContent = isNight
+          ? t('briefing.quick_night', '🌙 夜間ブリーフィングを聞く')
+          : t('briefing.quick_morning', '☀️ 朝会ブリーフィングを聞く');
+      }
+
+      // 5. サジェストカードのタグ
+      var sugTag = document.getElementById('suggest-tag');
+      if (sugTag) {
+        sugTag.textContent = t('suggest.tag', '💡 サジェスト');
+      }
+
+      // 6. サジェストクイック完了ボタン
+      var sugComplete = document.getElementById('suggest-quick-complete-btn');
+      if (sugComplete) {
+        sugComplete.textContent = '✅ ' + t('btn.complete', '完了');
+      }
+
+      // 7. ヘッダーボタンのタイトル・ツールチップ
+      var nosleepBtn = document.getElementById('nosleep-btn');
+      if (nosleepBtn) nosleepBtn.title = t('header.nosleep_title', '💡 常時画面ON（自動消灯防止）');
+      var pomoBtn = document.getElementById('pomodoro-btn');
+      if (pomoBtn) pomoBtn.title = t('header.pomodoro_title', '🍅 ポモドーロ開始（25分）');
+      
+      // 8. 吹き出しの初期文言（固定メッセージ時のみ）
+      var bubble = document.getElementById('speech-bubble');
+      if (bubble && window.NeoLang) {
+        var lang = window.NeoLang.getLang();
+        var curText = (bubble.innerText || '').trim();
+        if (curText.includes('お疲れ様です') || curText.includes('hard work')) {
+          bubble.innerText = (lang === 'en')
+            ? 'Good morning! Boss, thank you for your hard work today! ✨'
+            : 'おはようございます！ボス、今日もお疲れ様です！✨';
+        }
+      }
+    } catch (e) {
+      console.warn('[pet_ui] updateAllScreenLabels failed:', e);
+    }
+  }
+
   // neolang:changed イベントリスナー登録 (即時UI再描画)
   window.addEventListener('neolang:changed', function (ev) {
-    renderBottomDock();
-    updateBannerLabels();
+    updateAllScreenLabels();
 
     // 承認シートが開いていれば即座に再レンダリング
     if (window.currentApprovalRequest) {
@@ -878,12 +937,10 @@
   // DOMContentLoaded または初期実行
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', function () {
-      renderBottomDock();
-      updateBannerLabels();
+      updateAllScreenLabels();
     });
   } else {
-    renderBottomDock();
-    updateBannerLabels();
+    updateAllScreenLabels();
   }
 
   // =============================================================================

@@ -84,6 +84,7 @@ class StatusResponse(BaseModel):
     pomodoro: Optional[PomodoroDTO] = None
     tasks: List[TaskItemDTO] = Field(default_factory=list)
     events: List[EventItemDTO] = Field(default_factory=list)
+    language: str = "ja"
     server_time: Optional[int] = None
 
 

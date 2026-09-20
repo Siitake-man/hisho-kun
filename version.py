@@ -1,5 +1,4 @@
-"""
-ネオ秘書くん - バージョン定義 (version.py)
+"""ネオ秘書くん アプリケーションバージョン定義
 
 アプリケーションのバージョンとリリース情報の「唯一の情報源」(Single Source of Truth)。
 更新チェック (update_checker.py) や MCP サーバー応答 (hisho_mcp_server.py) 等、
@@ -9,7 +8,7 @@
 from typing import Final
 
 # アプリケーションのセマンティックバージョン (major.minor.patch)
-__version__: Final[str] = "1.1.0"
+__version__: Final[str] = "1.1.6"
 
 # 表示用アプリケーション名
 APP_NAME: Final[str] = "ネオ秘書くん (Neo-Secretary)"

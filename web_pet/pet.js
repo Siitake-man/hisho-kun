@@ -223,6 +223,14 @@ async function fetchStatus() {
       }
     }
 
+    // 🌐 デスクトップ側言語設定との自動同期（直近ユーザー手動切替時は巻き戻しを抑止）
+    if (data.language && window.NeoLang) {
+      const isOverride = typeof window.NeoLang.isUserOverrideActive === 'function' && window.NeoLang.isUserOverrideActive();
+      if (!isOverride && window.NeoLang.getLang() !== data.language) {
+        window.NeoLang.setLang(data.language, false);
+      }
+    }
+
     // 0.5 🤖 AIエージェント稼働ライブバッジ (Phase H: agent_activity 連動)
     updateAgentActivityBadge(data.agent_activity);
 
@@ -600,18 +608,27 @@ if (typeof escapeHtml === 'undefined' && typeof window.escapeHtml !== 'undefined
 
 /** 📅 予定一覧モーダル */
 function openEventsModal() {
+  window._currentOpenModalName = 'events';
+  const t = window.NeoLang ? window.NeoLang.t.bind(window.NeoLang) : (k, f) => f;
+  const isEn = window.NeoLang && window.NeoLang.getLang() === 'en';
   const count = eventsData ? eventsData.length : 0;
   let html = '';
   if (count === 0) {
-    html = '<div class="note-empty">📅 登録された予定はありません。<br>PC側の手帳やAIチャットで追加できます。</div>' +
-      '<div class="approval-sheet-actions" style="margin-top:8px;"><button class="btn-approve" onclick="closeBottomSheet();showToast(\'📱 PC側でGoogleカレンダー連携を設定してください\')">⚙ 設定から連携する</button></div>';
+    const emptyMsg = isEn
+      ? '📅 No upcoming events.<br>Add events via desktop notebook or AI chat.'
+      : '📅 登録された予定はありません。<br>PC側の手帳やAIチャットで追加できます。';
+    const btnLabel = isEn ? '⚙ Google Calendar Sync' : '⚙ 設定から連携する';
+    const toastMsg = isEn ? '📱 Please set up Google Calendar on PC' : '📱 PC側でGoogleカレンダー連携を設定してください';
+    html = `<div class="note-empty">${emptyMsg}</div>` +
+      `<div class="approval-sheet-actions" style="margin-top:8px;"><button class="btn-approve" onclick="closeBottomSheet();showToast('${toastMsg}')">${btnLabel}</button></div>`;
   } else {
     html = eventsData.map(e => {
       const dt = String(e.start_time || '').replace('T', ' ').slice(0, 16);
       return `<div class="note-item"><div class="note-title">📅 ${escapeHtml(e.title)}</div><div class="note-desc">🕐 ${escapeHtml(dt)}${e.source_name ? " ／ " + escapeHtml(e.source_name) : ""}</div></div>`;
     }).join('');
   }
-  openBottomSheet({ icon: '📅', tag: '手帳', title: `予定一覧 (${count}件)` }, html);
+  const title = isEn ? `Schedule (${count})` : `予定一覧 (${count}件)`;
+  openBottomSheet({ icon: '📅', tag: t('dock.cal', 'カレンダー'), title: title }, html);
 }
 
 // 🗂️ TODOビューの絞り込み状態 (Plan C: リスト/タグ/期間フィルタ)
@@ -819,15 +836,17 @@ function openTodoModal() {
 
 /** TODOモーダルの本体描画 (openTodoModal / setTodoFilter から呼ばれる) */
 function renderTodoModal() {
+  window._currentOpenModalName = 'todo';
+  const t = window.NeoLang ? window.NeoLang.t.bind(window.NeoLang) : (k, f) => f;
+  const isEn = window.NeoLang && window.NeoLang.getLang() === 'en';
   const filtered = todoApplyFilter();
   // 🚀 クイック追加バー (TickTick拡張): 「明日18時に〜 #仕事 !3」構文対応
   const quickBar = `
     <div class="quick-add-bar">
-      <input type="text" id="quick-task-input" placeholder="例: 明日18時に資料 #仕事 !3" enterkeyhint="done">
+      <input type="text" id="quick-task-input" placeholder="${escapeHtml(t('todo.placeholder', '例: 明日18時に資料 #仕事 !3'))}" enterkeyhint="done">
       <button id="quick-task-btn" onclick="quickAddTask()">＋</button>
     </div>`;
-  // 🌳 リスト階層順ソート (parent_id ツリー・Block 1.6-R): 親→子の深さ優先で並べ、
-  // 子リストにはインデント接頭辞を付けて階層を可視化する
+  // 🌳 リスト階層順ソート (parent_id ツリー・Block 1.6-R)
   const listChildren = {};
   todoLists.forEach(l => {
     const key = (l.parent_id == null) ? 0 : l.parent_id;
@@ -840,31 +859,33 @@ function renderTodoModal() {
       walkLists(l.id, depth + 1);
     });
   })(null, 0);
+  const allListLabel = t('todo.filter_all', '📥 すべて');
   const listRow = todoLists.length > 0
-    ? `<div class="todo-filter-bar"><span class="todo-filter-label">📋 リスト</span><div class="todo-filter-chips">`
-      + ['<button class="todo-chip' + (todoFilter.listId === null ? ' active' : '') + '" onclick="setTodoFilter({listId: null})">📥 すべて</button>']
+    ? `<div class="todo-filter-bar"><span class="todo-filter-label">${t('todo.filter_list', '📋 リスト')}</span><div class="todo-filter-chips">`
+      + [`<button class="todo-chip${todoFilter.listId === null ? ' active' : ''}" onclick="setTodoFilter({listId: null})">${allListLabel}</button>`]
         .concat(orderedLists.map(({ l, depth }) => {
           const indent = depth > 0 ? '　'.repeat(depth) + '└ ' : '';
           return `<button class="todo-chip${todoFilter.listId === l.id ? ' active' : ''}" onclick="setTodoFilter({listId: ${l.id}})">${indent}${escapeHtml(l.emoji || '📋')} ${escapeHtml(l.name)}</button>`;
         })).join('')
       + `</div></div>`
     : '';
-  // 🗓 期間フィルタ行 (セグメントコントロール化) ＋ 🎯 4象限ビュー切替を同列に集約
-  const rangeRow = `<div class="todo-filter-bar"><span class="todo-filter-label">🗓 期間</span><div class="todo-filter-chips">`
-    + [['all', '🗂 すべて'], ['today', '⏰ 今日'], ['week', '📅 今週']]
+  // 🗓 期間フィルタ行 (セグメントコントロール化) ＋ 🎯 4象限ビュー切替
+  const rangeRow = `<div class="todo-filter-bar"><span class="todo-filter-label">${t('todo.filter_range', '🗓 期間')}</span><div class="todo-filter-chips">`
+    + [['all', t('todo.range_all', '🗂 すべて')], ['today', t('todo.range_today', '⏰ 今日')], ['week', t('todo.range_week', '📅 今週')]]
       .map(([k, label]) => `<button class="todo-chip${todoFilter.range === k ? ' active' : ''}" onclick="setTodoFilter({range: '${k}'})">${label}</button>`).join('')
-    + `<button class="todo-chip todo-view-toggle${todoViewMode === 'quad' ? ' active' : ''}" onclick="setTodoView('${todoViewMode === 'quad' ? 'list' : 'quad'}')">${todoViewMode === 'quad' ? '📋 一覧に戻る' : '🎯 4象限'}</button>`
+    + `<button class="todo-chip todo-view-toggle${todoViewMode === 'quad' ? ' active' : ''}" onclick="setTodoView('${todoViewMode === 'quad' ? 'list' : 'quad'}')">${todoViewMode === 'quad' ? t('todo.quad_back', '📋 一覧に戻る') : t('todo.quad_toggle', '🎯 4象限')}</button>`
     + `</div></div>`;
-  // 🏷 タグ行 (絞り込み中のみ表示・✕で解除)
+  // 🏷 タグ行
   const tagRow = todoFilter.tag
-    ? `<div class="todo-filter-bar"><span class="todo-filter-label">🏷 タグ</span><div class="todo-filter-chips"><button class="todo-chip active" onclick="setTodoFilter({tag: null})">#${escapeHtml(todoFilter.tag)} ✕ 解除</button></div></div>`
+    ? `<div class="todo-filter-bar"><span class="todo-filter-label">🏷 ${isEn ? 'Tag' : 'タグ'}</span><div class="todo-filter-chips"><button class="todo-chip active" onclick="setTodoFilter({tag: null})">#${escapeHtml(todoFilter.tag)} ✕</button></div></div>`
     : '';
   let html = quickBar + listRow + rangeRow + tagRow;
-  // 🎯 4象限ビュー (Plan D): バケツ分けして2x2グリッド描画して終了
+  // 🎯 4象限ビュー (Plan D)
   if (todoViewMode === 'quad') {
     todoTagCandidates = [];
     html += renderQuadrant(filtered);
-    openBottomSheet({ icon: '📝', tag: '手帳', title: `TODO 4象限 (${filtered.length}件)` }, html);
+    const quadTitle = isEn ? `Eisenhower Matrix (${filtered.length})` : `TODO 4象限 (${filtered.length}件)`;
+    openBottomSheet({ icon: '📝', tag: t('dock.tasks', 'タスク'), title: quadTitle }, html);
     const qinput = document.getElementById('quick-task-input');
     if (qinput) {
       qinput.addEventListener('keydown', (e) => {
@@ -878,29 +899,34 @@ function renderTodoModal() {
   }
   const tagCandidates = [];
   if (filtered.length === 0) {
-    html += '<div class="note-empty">📝 該当するTODOはありません。<br>フィルタを変更するか、上のバーから追加してください✨</div>';
+    const emptyMsg = isEn
+      ? '📝 No tasks match the criteria.<br>Change filters or add a task using the bar above ✨'
+      : '📝 該当するTODOはありません。<br>フィルタを変更するか、上のバーから追加してください✨';
+    html += `<div class="note-empty">${emptyMsg}</div>`;
   } else {
     const prioIcon = { 3: '🔥', 2: '⭐', 1: '🌱' };
     const pad = n => String(n).padStart(2, '0');
-    html += filtered.map(t => {
-      const icon = prioIcon[t.priority] || '📌';
-      const recBadge = t.recurrence ? '<span class="todo-tag">🔄 繰り返し</span>' : '';
-      const tags = String(t.tags || '').split(',').map(s => s.trim()).filter(Boolean);
+    html += filtered.map(tItem => {
+      const icon = prioIcon[tItem.priority] || '📌';
+      const recBadge = tItem.recurrence ? `<span class="todo-tag">🔄 ${isEn ? 'Recurring' : '繰り返し'}</span>` : '';
+      const tags = String(tItem.tags || '').split(',').map(s => s.trim()).filter(Boolean);
       const tagHtml = tags.map(tag => {
         let idx = tagCandidates.indexOf(tag);
         if (idx === -1) { tagCandidates.push(tag); idx = tagCandidates.length - 1; }
         return `<span class="todo-tag" onclick="event.stopPropagation();toggleTodoTagIndex(${idx})">#${escapeHtml(tag)}</span>`;
       }).join('');
       let dueHtml = '';
-      if (t.due_date) {
-        const d = new Date(t.due_date);
+      if (tItem.due_date) {
+        const d = new Date(tItem.due_date);
         dueHtml = ` 📅 ${pad(d.getMonth() + 1)}/${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
       }
-      return `<div class="note-item" onclick="completeTask(${t.id}, this)"><div class="note-title">${icon} ${escapeHtml(t.title)}${recBadge}${tagHtml}</div><div class="note-desc">${dueHtml || '👆 タップで完了にする'} <span class="task-edit-link" onclick="event.stopPropagation();openTaskEditSheet(${t.id})">✏️</span></div></div>`;
+      const tapToComplete = isEn ? '👆 Tap to complete' : '👆 タップで完了にする';
+      return `<div class="note-item" onclick="completeTask(${tItem.id}, this)"><div class="note-title">${icon} ${escapeHtml(tItem.title)}${recBadge}${tagHtml}</div><div class="note-desc">${dueHtml || tapToComplete} <span class="task-edit-link" onclick="event.stopPropagation();openTaskEditSheet(${tItem.id})">✏️</span></div></div>`;
     }).join('');
   }
   todoTagCandidates = tagCandidates;
-  openBottomSheet({ icon: '📝', tag: '手帳', title: `TODOリスト (${filtered.length}件)` }, html);
+  const sheetTitle = isEn ? `Tasks (${filtered.length})` : `TODOリスト (${filtered.length}件)`;
+  openBottomSheet({ icon: '📝', tag: t('dock.tasks', 'タスク'), title: sheetTitle }, html);
   // Enterキーでも追加できるようにバインド
   const input = document.getElementById('quick-task-input');
   if (input) {
@@ -984,18 +1010,28 @@ function undoTask(taskId, el) {
 
 /** 🌱 習慣トラッカーモーダル（項目タップで達成トグル） */
 function openNotesModal() {
+  window._currentOpenModalName = 'notes';
+  const t = window.NeoLang ? window.NeoLang.t.bind(window.NeoLang) : (k, f) => f;
+  const isEn = window.NeoLang && window.NeoLang.getLang() === 'en';
   const count = habitsData ? habitsData.length : 0;
   let html = '';
   if (count === 0) {
-    html = '<div class="note-empty">🌱 登録された習慣はありません。<br>PC側の手帳で習慣を追加できます。</div>';
+    const emptyMsg = isEn
+      ? '🌱 No habits tracked yet.<br>Add habits via desktop notebook.'
+      : '🌱 登録された習慣はありません。<br>PC側の手帳で習慣を追加できます。';
+    html = `<div class="note-empty">${emptyMsg}</div>`;
   } else {
     html = habitsData.map(h => {
       const done = !!h.completed_today;
-      const streakBadge = h.streak > 0 ? `<span class="note-badge">🔥 ${h.streak}日連続</span>` : '';
-      return `<div class="note-item ${done ? 'done' : ''}" onclick="toggleHabit(${h.id}, this)"><div class="note-title">${h.emoji || '🌱'} ${escapeHtml(h.title)}${streakBadge}</div><div class="note-desc">${done ? '今日は達成済み！素晴らしい！✨' : '👆 タップで今日の達成を記録'}</div></div>`;
+      const streakBadge = h.streak > 0 ? `<span class="note-badge">🔥 ${h.streak}${isEn ? 'd streak' : '日連続'}</span>` : '';
+      const descText = done
+        ? (isEn ? 'Completed today! Great job! ✨' : '今日は達成済み！素晴らしい！✨')
+        : (isEn ? '👆 Tap to mark completed today' : '👆 タップで今日の達成を記録');
+      return `<div class="note-item ${done ? 'done' : ''}" onclick="toggleHabit(${h.id}, this)"><div class="note-title">${h.emoji || '🌱'} ${escapeHtml(h.title)}${streakBadge}</div><div class="note-desc">${descText}</div></div>`;
     }).join('');
   }
-  openBottomSheet({ icon: '🌱', tag: '手帳', title: '習慣トラッカー' }, html);
+  const title = isEn ? 'Habit Tracker' : '習慣トラッカー';
+  openBottomSheet({ icon: '🌱', tag: t('dock.daily', '日報'), title: title }, html);
 }
 
 /** 習慣達成トグル（サーバー同期 → 再取得） */
@@ -1063,9 +1099,38 @@ function selectEnvTheme(themeId) {
 
 let currentSavedLocation = '';
 
-/** ⚙️ 設定モーダル（キャラ・テーマ・地域・演出モード・全画面・常時ON・PCペット呼び出し） */
+/** ⚙️ 設定モーダル（キャラ・テーマ・地域・演出モード・全画面・常時ON・PCペット呼び出し・言語切り替え） */
 function openSettingsModal() {
-  const locLabel = currentSavedLocation ? currentSavedLocation : 'IP自動検出';
+  window._currentOpenModalName = 'settings';
+  const t = window.NeoLang ? window.NeoLang.t.bind(window.NeoLang) : (k, f) => f;
+  const isEn = window.NeoLang && window.NeoLang.getLang() === 'en';
+  const locLabel = currentSavedLocation ? currentSavedLocation : (isEn ? 'Auto IP Detection' : 'IP自動検出');
+
+  // 言語選択チップ
+  const langChipsHtml = `
+    <button style="
+      background: ${!isEn ? 'var(--accent-amber)' : 'rgba(255,255,255,0.08)'};
+      color: ${!isEn ? '#1E140E' : 'var(--text-main)'};
+      border: 1px solid var(--accent-amber);
+      border-radius: 14px;
+      padding: 5px 11px;
+      font-size: 11px;
+      font-weight: bold;
+      cursor: pointer;
+      margin: 3px;
+    " onclick="if(window.NeoLang){window.NeoLang.setLang('ja', true);openSettingsModal();}">🇯🇵 日本語</button>
+    <button style="
+      background: ${isEn ? 'var(--accent-amber)' : 'rgba(255,255,255,0.08)'};
+      color: ${isEn ? '#1E140E' : 'var(--text-main)'};
+      border: 1px solid var(--accent-amber);
+      border-radius: 14px;
+      padding: 5px 11px;
+      font-size: 11px;
+      font-weight: bold;
+      cursor: pointer;
+      margin: 3px;
+    " onclick="if(window.NeoLang){window.NeoLang.setLang('en', true);openSettingsModal();}">🇺🇸 English</button>
+  `;
 
   // キャラクター選択チップ
   const charChipsHtml = CHARACTERS.map(c => `
@@ -1083,10 +1148,10 @@ function openSettingsModal() {
   `).join('');
 
   // 背景テーマ選択チップ
-  const themeChipsHtml = ENV_THEMES.map(t => `
+  const themeChipsHtml = ENV_THEMES.map(tTheme => `
     <button style="
-      background: ${ENV_THEMES[currentEnvIndex].id === t.id ? 'var(--accent-amber)' : 'rgba(255,255,255,0.08)'};
-      color: ${ENV_THEMES[currentEnvIndex].id === t.id ? '#1E140E' : 'var(--text-main)'};
+      background: ${ENV_THEMES[currentEnvIndex].id === tTheme.id ? 'var(--accent-amber)' : 'rgba(255,255,255,0.08)'};
+      color: ${ENV_THEMES[currentEnvIndex].id === tTheme.id ? '#1E140E' : 'var(--text-main)'};
       border: 1px solid var(--accent-amber);
       border-radius: 14px;
       padding: 5px 11px;
@@ -1094,32 +1159,54 @@ function openSettingsModal() {
       font-weight: bold;
       cursor: pointer;
       margin: 3px;
-    " onclick="selectEnvTheme('${t.id}')">${t.label}</button>
+    " onclick="selectEnvTheme('${tTheme.id}')">${tTheme.label}</button>
   `).join('');
+
+  const sectionChar = isEn ? '🎭 Character Select:' : '🎭 キャラクター選択:';
+  const sectionTheme = isEn ? '🏞️ Background Theme:' : '🏞️ 背景テーマ選択:';
+  const sectionLang = isEn ? '🌐 Display Language:' : '🌐 表示言語 / Language:';
+  const locTitle = isEn ? '📍 Weather Location' : '📍 お住まいの地域（天気）';
+  const locDesc = isEn ? `Current: <b>${escapeHtml(locLabel)}</b> → Tap to change` : `現在: <b>${escapeHtml(locLabel)}</b> → タップで変更`;
+  const easterTitle = isEn ? '✨ Special Effects Mode' : '✨ イースターエッグ演出モード';
+  const easterDesc = isEn ? `Current: <b>${effectModeLabel()}</b> → Tap to toggle` : `現在: <b>${effectModeLabel()}</b> → タップで切替（低スペ端末は自動で軽量）`;
+  const nosleepTitle = isEn ? '💡 Keep Screen Always ON' : '💡 常時画面ON（自動消灯防止）';
+  const nosleepDesc = isEn ? 'Stays lit as a smart desk display' : '卓上スマートディスプレイとして常時点灯します';
+  const fullTitle = isEn ? '⛶ Fullscreen' : '⛶ 全画面表示';
+  const fullDesc = isEn ? 'Hide browser UI for full screen' : 'ブラウザUIを隠して全画面表示にします';
+  const pcPetTitle = isEn ? '🖥️ Summon PC Mascot' : '🖥️ PCのペットを呼び出す';
+  const pcPetDesc = isEn ? 'Re-display the desktop mascot' : 'デスクトップのペットを再表示します';
+  const closeTitle = isEn ? '✖ Close' : '✖ 閉じる';
 
   const html = `
     <div style="margin-bottom:12px;">
-      <div style="font-size:11px; font-weight:bold; color:var(--accent-amber); margin-bottom:5px;">🎭 キャラクター選択:</div>
+      <div style="font-size:11px; font-weight:bold; color:var(--accent-amber); margin-bottom:5px;">${sectionLang}</div>
+      <div style="display:flex; flex-wrap:wrap;">
+        ${langChipsHtml}
+      </div>
+    </div>
+
+    <div style="margin-bottom:12px;">
+      <div style="font-size:11px; font-weight:bold; color:var(--accent-amber); margin-bottom:5px;">${sectionChar}</div>
       <div style="display:flex; flex-wrap:wrap;">
         ${charChipsHtml}
       </div>
     </div>
 
     <div style="margin-bottom:12px;">
-      <div style="font-size:11px; font-weight:bold; color:var(--accent-amber); margin-bottom:5px;">🏞️ 背景テーマ選択:</div>
+      <div style="font-size:11px; font-weight:bold; color:var(--accent-amber); margin-bottom:5px;">${sectionTheme}</div>
       <div style="display:flex; flex-wrap:wrap;">
         ${themeChipsHtml}
       </div>
     </div>
 
-    <div class="note-item" onclick="openLocationSettingsModal();"><div class="note-title">📍 お住まいの地域（天気）</div><div class="note-desc">現在: <b>${escapeHtml(locLabel)}</b> → タップで変更</div></div>
-    <div class="note-item" onclick="cycleEffectMode(); openSettingsModal();"><div class="note-title">✨ イースターエッグ演出モード</div><div class="note-desc">現在: <b>${effectModeLabel()}</b> → タップで切替（低スペ端末は自動で軽量）</div></div>
-    <div class="note-item" onclick="toggleNoSleep(); closeBottomSheet();"><div class="note-title">💡 常時画面ON（自動消灯防止）</div><div class="note-desc">卓上スマートディスプレイとして常時点灯します</div></div>
-    <div class="note-item" onclick="toggleFullscreen(); closeBottomSheet();"><div class="note-title">⛶ 全画面表示</div><div class="note-desc">ブラウザUIを隠して全画面表示にします</div></div>
-    <div class="note-item" onclick="showPcPet()"><div class="note-title">🖥️ PCのペットを呼び出す</div><div class="note-desc">デスクトップのペットを再表示します</div></div>
-    <div class="note-item" onclick="closeBottomSheet(); if (window.EasterEggEngine) EasterEggEngine.triggerFromPwa();"><div class="note-title">⚡ イースターエッグ演出テスト</div><div class="note-desc">「お前を消す方法」の演出を発火テストします</div></div>
-    <div class="note-item" onclick="closeBottomSheet()"><div class="note-title">✖ 閉じる</div></div>`;
-  openBottomSheet({ icon: '⚙️', tag: '設定', title: '設定' }, html);
+    <div class="note-item" onclick="openLocationSettingsModal();"><div class="note-title">${locTitle}</div><div class="note-desc">${locDesc}</div></div>
+    <div class="note-item" onclick="cycleEffectMode(); openSettingsModal();"><div class="note-title">${easterTitle}</div><div class="note-desc">${easterDesc}</div></div>
+    <div class="note-item" onclick="toggleNoSleep(); closeBottomSheet();"><div class="note-title">${nosleepTitle}</div><div class="note-desc">${nosleepDesc}</div></div>
+    <div class="note-item" onclick="toggleFullscreen(); closeBottomSheet();"><div class="note-title">${fullTitle}</div><div class="note-desc">${fullDesc}</div></div>
+    <div class="note-item" onclick="showPcPet()"><div class="note-title">${pcPetTitle}</div><div class="note-desc">${pcPetDesc}</div></div>
+    <div class="note-item" onclick="closeBottomSheet()"><div class="note-title">${closeTitle}</div></div>`;
+  const sheetTitle = isEn ? 'Settings' : '設定';
+  openBottomSheet({ icon: '⚙️', tag: t('dock.settings', '設定'), title: sheetTitle }, html);
 }
 
 /** ✨ 演出モードの現在値ラベル（easter_eggs.js 連携・low-end端末は自動で軽量化） */
@@ -1652,3 +1739,19 @@ async function _sendVoiceToWhisper(audioBlob, filename) {
     if (bubble) bubble.innerText = "⚠️ PCとの通信に失敗しました。接続を確認してください。";
   }
 }
+
+// 🌐 言語切り替え時のモーダル自動再描画
+window.addEventListener('neolang:changed', function () {
+  const sheet = document.getElementById('bottom-sheet');
+  if (sheet && sheet.classList.contains('open')) {
+    if (window._currentOpenModalName === 'todo') {
+      renderTodoModal();
+    } else if (window._currentOpenModalName === 'events') {
+      openEventsModal();
+    } else if (window._currentOpenModalName === 'notes') {
+      openNotesModal();
+    } else if (window._currentOpenModalName === 'settings') {
+      openSettingsModal();
+    }
+  }
+});

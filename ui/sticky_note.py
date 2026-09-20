@@ -19,6 +19,7 @@ import customtkinter as ctk
 import app_paths
 import database
 from database import Task
+import i18n
 
 logger = logging.getLogger(__name__)
 
@@ -75,6 +76,21 @@ class DesktopStickyNote:
         if saved_pos is not None:
             self._pos_x, self._pos_y = self._clamp_to_screen(saved_pos[0], saved_pos[1])
             logger.debug("付箋の前回位置を復元しました: x=%d, y=%d", self._pos_x, self._pos_y)
+
+        # 言語切り替え通知を購読
+        i18n.subscribe_language_change(self._on_language_changed)
+
+    def _on_language_changed(self, lang: str) -> None:
+        """言語変更イベントを受信した際のUI更新処理。"""
+        try:
+            if self.window and self.window.winfo_exists():
+                if hasattr(self, "title_lbl") and self.title_lbl.winfo_exists():
+                    self.title_lbl.configure(text=i18n.t("ui.sticky.title"))
+                if hasattr(self, "add_entry") and self.add_entry.winfo_exists():
+                    self.add_entry.configure(placeholder_text=i18n.t("ui.sticky.placeholder"))
+                self.refresh_tasks()
+        except Exception as e:
+            logger.debug("付箋の言語切替反映をスキップ: %s", e)
 
     def toggle_visibility(self) -> None:
         """付箋の表示 / 非表示を切り替える。"""
@@ -138,17 +154,17 @@ class DesktopStickyNote:
         header_frame.bind("<B1-Motion>", self._on_drag_motion)
         header_frame.bind("<ButtonRelease-1>", self._on_drag_end)
 
-        title_lbl = tk.Label(
+        self.title_lbl = tk.Label(
             header_frame,
-            text="📌 今日の最優先タスク",
+            text=i18n.t("ui.sticky.title"),
             font=("Meiryo UI", 9, "bold"),
             bg="#3E3A36",
             fg="#F5F5DC",
         )
-        title_lbl.pack(side=tk.LEFT, padx=6, pady=2)
-        title_lbl.bind("<Button-1>", self._on_drag_start)
-        title_lbl.bind("<B1-Motion>", self._on_drag_motion)
-        title_lbl.bind("<ButtonRelease-1>", self._on_drag_end)
+        self.title_lbl.pack(side=tk.LEFT, padx=6, pady=2)
+        self.title_lbl.bind("<Button-1>", self._on_drag_start)
+        self.title_lbl.bind("<B1-Motion>", self._on_drag_motion)
+        self.title_lbl.bind("<ButtonRelease-1>", self._on_drag_end)
 
         # 閉じる（非表示）ボタン
         close_btn = tk.Label(
@@ -172,7 +188,7 @@ class DesktopStickyNote:
 
         self.add_entry = ctk.CTkEntry(
             footer_frame,
-            placeholder_text="新しいタスクを急ぎ追加...",
+            placeholder_text=i18n.t("ui.sticky.placeholder"),
             font=("Meiryo UI", 9),
             height=26,
             fg_color="#3E3A36",
@@ -224,7 +240,7 @@ class DesktopStickyNote:
             if not display_tasks:
                 no_task_lbl = tk.Label(
                     self.tasks_container,
-                    text="🎉 現在、保留中のタスクはありません！\nゆっくりお茶でもどうぞ☕",
+                    text=i18n.t("ui.sticky.no_tasks"),
                     font=("Meiryo UI", 9),
                     bg="#2D2B28",
                     fg="#A09890",
@@ -263,13 +279,13 @@ class DesktopStickyNote:
         task_is_important = bool(getattr(task, "importance_flag", False))
         task_is_urgent = bool(getattr(task, "urgency_flag", False))
         if task_is_important and task_is_urgent:
-            badge_text = "[最優先] "
+            badge_text = i18n.t("ui.sticky.badge_top")
             badge_color = "#FF8A80"
         elif task_is_urgent:
-            badge_text = "[至急] "
+            badge_text = i18n.t("ui.sticky.badge_urgent")
             badge_color = "#FFD180"
         elif task_is_important:
-            badge_text = "[重要] "
+            badge_text = i18n.t("ui.sticky.badge_important")
             badge_color = "#80D8FF"
 
         # タイトル
@@ -416,6 +432,14 @@ class DesktopStickyNote:
         self._pos_x = self.window.winfo_x() + dx
         self._pos_y = self.window.winfo_y() + dy
         self.window.geometry(f"+{self._pos_x}+{self._pos_y}")
+
+    def destroy(self) -> None:
+        """付箋を完全に破棄し、言語リスナーを解除する。"""
+        i18n.unsubscribe_language_change(self._on_language_changed)
+        if self.window and self.window.winfo_exists():
+            self.window.destroy()
+        self.window = None
+        self._is_visible = False
 
 
 # 後方互換エイリアス

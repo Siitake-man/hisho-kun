@@ -525,7 +525,8 @@ class NeoSecretaryGUI(PomodoroMixin, RadialMenuMixin, TourOverlayMixin):
     def toggle_auto_minimize(self):
         """スマホ接続時の自動最小化設定をトグル"""
         self.auto_minimize_on_link = not getattr(self, 'auto_minimize_on_link', False)
-        status_str = "有効" if self.auto_minimize_on_link else "無効"
+        status_key = "ui.pet.status_enabled" if self.auto_minimize_on_link else "ui.pet.status_disabled"
+        status_str = t(status_key)
         
         if self.auto_minimize_on_link:
             try:
@@ -540,7 +541,7 @@ class NeoSecretaryGUI(PomodoroMixin, RadialMenuMixin, TourOverlayMixin):
             self._was_linked_minimized = False
             self.root.deiconify()
             
-        self.update_message(f"📱 スマホ接続時のPCペット自動最小化を【{status_str}】にしました！")
+        self.update_message(t("ui.pet.auto_minimize_toggle", status=status_str))
 
     def set_pet_state(self, state: str, duration_ms: int = 0):
         """
@@ -784,7 +785,8 @@ class NeoSecretaryGUI(PomodoroMixin, RadialMenuMixin, TourOverlayMixin):
             get_character_manager().set_wandering_enabled(enabled)
         except Exception as e:
             logger.error(f"徘徊モード設定の保存に失敗: {e}")
-        self.update_message(f"🚶 徘徊モードを【{'ON' if enabled else 'OFF'}】にしました！散歩中は画面下をテクテク移動します。")
+        status_text = "ON" if enabled else "OFF"
+        self.update_message(t("ui.pet.roaming_mode_toggle", status=status_text))
         logger.info(f"徘徊モード切替: {enabled}")
 
     def _step_walk(self) -> None:
@@ -817,7 +819,7 @@ class NeoSecretaryGUI(PomodoroMixin, RadialMenuMixin, TourOverlayMixin):
             self.set_pet_state("happy", duration_ms=5000)
         except Exception as e:
             logger.error(f"ブリーフィング生成エラー: {e}")
-            self.update_message("申し訳ありません、ブリーフィングの生成中にエラーが発生しました。")
+            self.update_message(t("ui.pet.briefing_error"))
 
     def _on_create_quick_sticky(self):
         """メニューから手動でクイックに新しい付箋を作成・表示"""
@@ -838,7 +840,7 @@ class NeoSecretaryGUI(PomodoroMixin, RadialMenuMixin, TourOverlayMixin):
         win = StickyNoteWindow(self, note)
         self.sticky_windows[note_id] = win
         win.textbox.focus_set()
-        self.update_message("📌 デスクトップに新しい付箋を貼りました！\n自由にメモを書いてくださいね。")
+        self.update_message(t("ui.pet.new_sticky_added"))
 
     def _open_qr_connection(self):
         """スマホDesk Pet接続用のQRコードダイアログを開く"""
@@ -898,9 +900,9 @@ class NeoSecretaryGUI(PomodoroMixin, RadialMenuMixin, TourOverlayMixin):
             factory = get_llm_factory()
             if factory.switch_provider(provider_id, model_name):
                 info = factory.DEFAULT_CONFIGS[factory.current_provider]
-                self.update_message(f"🧠 頭脳を『{info['name']}』に切り替えました！\nモデル: {factory.current_model_name}")
+                self.update_message(t("ui.pet.switch_brain_success", name=info['name'], model=factory.current_model_name))
             else:
-                self.update_message("切り替えに失敗しました。")
+                self.update_message(t("ui.pet.switch_brain_failed"))
         except Exception as e:
             logger.error(f"LLM切り替えエラー: {e}")
             self.update_message(f"エラー: {e}")
@@ -987,7 +989,7 @@ class NeoSecretaryGUI(PomodoroMixin, RadialMenuMixin, TourOverlayMixin):
             self.root.lift()
             self.root.attributes("-topmost", True)
             self.root.update_idletasks()
-            self.update_message("🖥️ スマホからPC画面に呼び出されました！✨")
+            self.update_message(t("ui.pet.summoned_from_mobile"))
             self.set_pet_state("happy", duration_ms=3000)
             logger.info("PCペットを画面上に再表示しました")
         except Exception as e:

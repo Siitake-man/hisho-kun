@@ -9,7 +9,7 @@ import logging
 import threading
 import time
 import tkinter as tk
-from typing import Optional
+from typing import Optional, Any, Callable
 import customtkinter as ctk
 
 from ui.window_icon import apply_window_icon
@@ -27,6 +27,7 @@ class DeviceApprovalDialog(ctk.CTkToplevel):
         client_ip: str,
         timeout_sec: int = 30,
         jev_score_text: str = "🟢 allow / 信頼度 1.0 (同一LAN/私有端末)",
+        on_decision: Optional[object] = None,
     ) -> None:
         super().__init__(parent)
         self.device_name = device_name
@@ -34,6 +35,7 @@ class DeviceApprovalDialog(ctk.CTkToplevel):
         self.timeout_sec = timeout_sec
         self.remaining_sec = timeout_sec
         self.result: Optional[bool] = None
+        self.on_decision = on_decision
 
         from i18n import t
         self.title(t("ui.dev.req_title"))
@@ -41,6 +43,20 @@ class DeviceApprovalDialog(ctk.CTkToplevel):
         self.resizable(False, False)
         self.attributes("-topmost", True)
         apply_window_icon(self)
+
+        # 画面中央へセンタリング ＆ 最前面フォーカス
+        try:
+            self.update_idletasks()
+            sw = self.winfo_screenwidth()
+            sh = self.winfo_screenheight()
+            w, h = 460, 340
+            x = max(0, (sw - w) // 2)
+            y = max(0, (sh - h) // 2)
+            self.geometry(f"{w}x{h}+{x}+{y}")
+            self.lift()
+            self.focus_force()
+        except Exception as e:
+            logger.debug(f"ダイアログセンタリング例外: {e}")
 
         self._build_ui(jev_score_text)
         self._bind_keys()
@@ -148,29 +164,52 @@ class DeviceApprovalDialog(ctk.CTkToplevel):
         if self.result is None:
             self.result = True
             logger.info(f"端末接続許可: {self.device_name} ({self.client_ip})")
+            if callable(self.on_decision):
+                try:
+                    self.on_decision(True)
+                except Exception as e:
+                    logger.debug(f"on_decision(True) 呼び出し例外: {e}")
             self.destroy()
 
     def _on_deny(self) -> None:
         if self.result is None:
             self.result = False
             logger.info(f"端末接続拒絶: {self.device_name} ({self.client_ip})")
+            if callable(self.on_decision):
+                try:
+                    self.on_decision(False)
+                except Exception as e:
+                    logger.debug(f"on_decision(False) 呼び出し例外: {e}")
             self.destroy()
 
 
 _dialog_lock = threading.Lock()
 _is_dialog_active = False
+_active_device_key: Optional[str] = None
+_active_result_event: Optional[threading.Event] = None
+_active_outcome: Optional[list] = None
 
 
 def ask_device_approval_gui(
-    root: Optional[tk.Tk],
+    root: Optional[Any],
     device_name: str,
     client_ip: str,
     timeout_sec: int = 10,
 ) -> bool:
     """HTTPバックグラウンドスレッドからGUIスレッドで承認ダイアログを開き、結果を安全に待機する。
 
+    スレッド安全性の保証:
+        Tkinter のメソッド (winfo_exists, after 等) はメインスレッド専用であり、
+        HTTPワーカースレッドから直接呼び出すと 'RuntimeError: main thread is not in main loop'
+        が発生する。そのため本関数内では Tkinter メソッドを直接実行せず、
+        gui.post_action() 経由でメインGUIスレッドへディスパッチして実行する。
+
+    同一端末の合流待機 (Coalesce):
+        スマホ側が短周期ポーリングで /api/auth/token を再要求してきた場合、
+        同一端末 (IP+名前) であればビジー拒絶せず、現在表示中ダイアログの結果を共有して待機する。
+
     Args:
-        root: Tkinter ルートウィンドウ (Noneの場合は即時拒絶)
+        root: GUIインスタンス (NeoSecretaryGUI) または Tkinter ルートウィンドウ (Noneの場合は即時拒絶)
         device_name: 接続元端末名
         client_ip: 接続元IP
         timeout_sec: 待機タイムアウト秒数 (ソケットタイムアウト10sに整合)
@@ -178,48 +217,117 @@ def ask_device_approval_gui(
     Returns:
         bool: 承認時 True、拒絶またはタイムアウト時 False (Fail-Closed)
     """
-    global _is_dialog_active
+    global _is_dialog_active, _active_device_key, _active_result_event, _active_outcome
 
-    if root is None or not root.winfo_exists():
+    if root is None:
         logger.warning("GUIが存在しないため端末接続要求を自動拒否 (Fail-Closed)")
         return False
 
+    # gui オブジェクト (NeoSecretaryGUI) か tk.Tk (またはそのモック) かを安全に判別
+    # ※ MagicMock は全属性に hasattr=True を返すため、クラス名または after 未保持で判別
+    is_gui = (
+        root.__class__.__name__ == "NeoSecretaryGUI"
+        or (hasattr(root, "post_action") and not hasattr(root, "after"))
+    )
+    gui = root if is_gui else None
+    actual_root = getattr(root, "root", root) if is_gui else root
+
+    device_key = f"{client_ip}:{device_name}"
+
     with _dialog_lock:
         if _is_dialog_active:
-            logger.warning(f"承認ダイアログが既に表示中のため接続要求をビジー拒絶: {device_name} ({client_ip})")
-            return False
-        _is_dialog_active = True
+            # 🛡️ 同一端末からの重複リクエスト（ポーリング）なら既存の承認結果イベントに相乗り合流
+            if _active_device_key == device_key and _active_result_event is not None and _active_outcome is not None:
+                logger.info(f"同一端末からの重複承認要求を既存ダイアログに合流待機: {device_key}")
+                shared_event = _active_result_event
+                shared_outcome = _active_outcome
+                # ロックを抜けて待機
+            else:
+                logger.warning(f"承認ダイアログが既に表示中のため接続要求をビジー拒絶: {device_name} ({client_ip})")
+                return False
+        else:
+            _is_dialog_active = True
+            _active_device_key = device_key
+            _active_result_event = threading.Event()
+            _active_outcome = [False]
+            shared_event = None
+            shared_outcome = None
 
-    result_event = threading.Event()
-    outcome = [False]
+    if shared_event is not None and shared_outcome is not None:
+        # 合流側: 既存イベントの完了を待つ
+        finished = shared_event.wait(timeout=float(timeout_sec + 1))
+        if not finished:
+            return False
+        return shared_outcome[0]
+
+    result_event = _active_result_event
+    outcome = _active_outcome
+
+    def _handle_decision(approved: bool):
+        outcome[0] = approved
+        result_event.set()
 
     def _show():
-        global _is_dialog_active
+        """メインGUIスレッド上で安全に実行されるダイアログ初期化処理。"""
         try:
+            # メインスレッド上であれば winfo_exists() を安全に呼べる
+            if actual_root is not None and hasattr(actual_root, "winfo_exists"):
+                if not actual_root.winfo_exists():
+                    logger.warning("GUIウィンドウが破棄されているため端末承認を自動拒否")
+                    _handle_decision(False)
+                    return
+
+            # 親ウィンドウまたは最前面Toplevelの検出
+            dialog_parent = actual_root
+            try:
+                # もしQRコードダイアログ等が開いていれば、そのウィンドウの手前に配置
+                if actual_root is not None and hasattr(actual_root, "winfo_children"):
+                    for child in actual_root.winfo_children():
+                        if isinstance(child, (ctk.CTkToplevel, tk.Toplevel)):
+                            try:
+                                if child.winfo_exists() and child.winfo_viewable():
+                                    dialog_parent = child
+                                    break
+                            except Exception:
+                                pass
+            except Exception as e:
+                logger.debug(f"親ウィンドウ探索例外: {e}")
+
             dialog = DeviceApprovalDialog(
-                root, device_name, client_ip, timeout_sec=timeout_sec
+                dialog_parent,
+                device_name,
+                client_ip,
+                timeout_sec=timeout_sec,
+                on_decision=_handle_decision,
             )
-            # ダイアログ終了まで待機
-            dialog.wait_window()
-            outcome[0] = bool(dialog.result)
+            # GC防止のため親に参照を一時保持
+            if hasattr(actual_root, "_active_device_dialog"):
+                actual_root._active_device_dialog = dialog
         except Exception as e:
-            logger.error(f"承認ダイアログ表示エラー: {e}")
-            outcome[0] = False
-        finally:
-            with _dialog_lock:
-                _is_dialog_active = False
-            result_event.set()
+            logger.error(f"承認ダイアログ表示エラー (メインスレッド): {e}")
+            _handle_decision(False)
 
-    # GUIメインスレッドで実行
-    root.after(0, _show)
+    try:
+        # メインGUIスレッドへディスパッチ (gui.post_action 優先でメッセージドロップを完全防止)
+        if gui is not None and hasattr(gui, "post_action"):
+            gui.post_action(_show)
+        elif hasattr(actual_root, "after"):
+            actual_root.after(0, _show)
+        else:
+            logger.error("GUIディスパッチ手段が存在しないため接続要求を自動拒否")
+            return False
 
-    # HTTPスレッド側で結果待機（+1秒のマージン）
-    finished = result_event.wait(timeout=float(timeout_sec + 1))
-    if not finished:
-        logger.warning(f"端末接続承認待機タイムアウト ({timeout_sec}s): Fail-Closed")
+        # HTTPスレッド側で結果待機（+1秒のマージン）
+        finished = result_event.wait(timeout=float(timeout_sec + 1))
+        if not finished:
+            logger.warning(f"端末接続承認待機タイムアウト ({timeout_sec}s): Fail-Closed")
+            return False
+
+        return outcome[0]
+    finally:
         with _dialog_lock:
             _is_dialog_active = False
-        return False
-
-    return outcome[0]
+            _active_device_key = None
+            _active_result_event = None
+            _active_outcome = None
 

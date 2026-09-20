@@ -1,7 +1,7 @@
 # ネオ秘書くん システム設計書 (DESIGN_SPEC.md)
 
-- **バージョン**: 1.3.3 (🌐 デスクトップGUI全域 多言語化 Phase 1-2 完了)
-- **最終更新日時**: 2026-09-20 20:25
+- **バージョン**: 1.4.1 (⚡ Jev System One × OpenCode 多種多様なサブエージェント連携仕様 ＆ スマホUI双方向同期二重資産化 v1.1.6)
+- **最終更新日時**: 2026-09-21 01:32
 - **アーキテクチャ方針**: 完全ローカル完結型 非ブロッキング並行システム (Tkinter Desktop Overlay × Mobile PWA × LangGraph Agent × Zero-Trust Local Bridge ＆ Cross-Platform Headless CI/CD)
 
 
@@ -961,5 +961,22 @@ web_pet/
    - **防壁4 (PWA吹き出し縦貫通防止)**: `web_pet/style.css` の `.speech-bubble` に `max-height: 120px; overflow-y: auto; word-break: break-word;` を強制適用。
    - **防壁5 (文字数予算自己矛盾是正)**: `web_pet/lang.js` の `dock.settings` を 8文字の "Settings" から 6文字の "Config" へ是正し、iPhone SE (320px) でも `Setting...` と見切れないよう Character Budget を遵守。
    - **防壁6 (型汚染 ＆ 不正波括弧即死ガード)**: `i18n.py` の `t()` で `ValueError`（`Single '{'`）を捕捉し、`set_language` 冒頭で `isinstance(lang, str)` ガードを敷設。
+
+### 11.13 深層コード監査に伴うP0/P1時限爆弾是正 ＆ 多言語化Phase 4 (2026-09-20 適用)
+1. **P0 スレッド競合クラッシュの根絶 (`main.py`)**:
+   - `api_agent_bridge.py` からのメッセージ受信用 `post_human_message` において、ワーカースレッドから `asyncio.create_task` を呼んでいたため `RuntimeError: no running event loop` で即死していた。
+   - `async_mainloop` 起動時にメインループ参照 `app.loop = asyncio.get_running_loop()` を保持し、`asyncio.run_coroutine_threadsafe(agent.process_message(msg), app.loop)` を用いる安全なスレッド間タスク委譲に是正。
+2. **P1 予定リマインダー二重発火の根絶 (`main.py`, `proactive_engine.py`)**:
+   - `proactive_engine.check_event_reminders` と `reminder_engine.check_reminders` が同一カレンダー予定を重複スキャン・重複通知していた。
+   - `proactive_engine.check_event_reminders` を no-op 化し、通知責務を `reminder_engine.py` に完全一本化。スケジューラ側の重複呼び出しも撤去。
+3. **P1 繰り返しタスク自動生成時のDBカラム逆転汚染根絶 (`storage/task_repo.py`)**:
+   - `complete_task` 内の繰り返しタスク INSERT 文において、`SELECT` カラム順序（`tags, list_id`）と `INSERT` カラム順序（`list_id, tags`）の逆転により `list_id` にタグ文字列が混入する汚染バグを是正。
+4. **P1 監視ウォッチドッグの自爆ポート競合防止 (`local_sync_server.py`)**:
+   - `ServerWatchdog` の失敗許容回数を 1 ➔ 3、タイムアウトを 1.0s ➔ 2.0s に緩和し、GCやLLM推論による一時遅延での不要な再起動ループ（ポート10048 WinError）を防止。
+5. **多言語化 Phase 4 完遂 (`agent.py`, `i18n.py`, `ui/sticky_note.py`)**:
+   - `agent.py`: プロンプト内の日本語規則ハードコードを `get_prompt_language_instruction()` に置換し、英語設定時は英語で指示・応答するよう動的制御。
+   - `i18n.py`: 起動時に `.env` の `APP_LANGUAGE` を自動認識・適用する `_init_language_from_env()` / `reload_language_from_env()` を配備。
+   - `ui/sticky_note.py`: 半透明スマート付箋のタイトル、プレースホルダー、空タスク通知、緊急度バッジを `i18n.t()` 化し、`subscribe_language_change` による動的再描画に対応。
+
 
 

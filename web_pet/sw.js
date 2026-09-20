@@ -11,6 +11,7 @@ const CACHE_NAME = self.WEB_PET_CACHE_NAME || 'neo-pet-v1.0.0';
 const ASSETS_TO_CACHE = [
   './index.html',
   './version.js',
+  './lang.js',
   './pet_auth.js',
   './pet_audio_se.js',
   './pet_particles.js',

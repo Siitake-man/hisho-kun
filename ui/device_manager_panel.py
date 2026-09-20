@@ -266,6 +266,22 @@ def restore_device_entry(device_id: Any) -> bool:
         return False
 
 
+def delete_device_entry(device_id: Any) -> bool:
+    """端末レコードを台帳から物理削除する Seam。
+
+    Args:
+        device_id: 対象デバイスID (文字列も許容)。
+
+    Returns:
+        bool: 削除に成功した場合 True。対象不在/DB異常時は False (例外を漏らさない)。
+    """
+    try:
+        return bool(database.delete_device(int(device_id)))
+    except Exception as e:
+        logger.error(f"端末レコードの削除に失敗しました (id={device_id}): {e}")
+        return False
+
+
 
 class DeviceManagerSection(ctk.CTkFrame):
     """設定画面に差し込む「📱 接続端末管理（ゼロトラスト）」セクション。
@@ -398,28 +414,40 @@ class DeviceManagerSection(ctk.CTkFrame):
             font=("Meiryo UI", 9, "bold"),
             text_color=row.status_color,
         ).pack(anchor="e", pady=(0, 2))
+        btn_box = ctk.CTkFrame(action, fg_color="transparent")
+        btn_box.pack(anchor="e")
         if row.is_revoked:
             ctk.CTkButton(
-                action,
-                text="♻️ 接続復帰",
+                btn_box,
+                text="♻️ 復帰",
                 font=("Meiryo UI", 9),
                 fg_color=STATUS_COLOR_ACTIVE,
                 hover_color="#1B5E20",
-                width=92,
+                width=72,
                 height=24,
                 command=lambda r=row: self.restore(r),
-            ).pack(anchor="e")
+            ).pack(side="left", padx=(0, 4))
         else:
             ctk.CTkButton(
-                action,
-                text="🔒 接続解除",
+                btn_box,
+                text="🔒 解除",
                 font=("Meiryo UI", 9),
                 fg_color=STATUS_COLOR_REVOKED,
                 hover_color="#8E1B1B",
-                width=92,
+                width=72,
                 height=24,
                 command=lambda r=row: self.revoke(r),
-            ).pack(anchor="e")
+            ).pack(side="left", padx=(0, 4))
+        ctk.CTkButton(
+            btn_box,
+            text="🗑️ 削除",
+            font=("Meiryo UI", 9),
+            fg_color="#64748b",
+            hover_color="#475569",
+            width=68,
+            height=24,
+            command=lambda r=row: self.delete(r),
+        ).pack(side="left")
 
     # ------------------------------------------------------------- 再描画/解除
     def refresh(self) -> None:
@@ -620,6 +648,36 @@ class DeviceManagerSection(ctk.CTkFrame):
             )
         return ok
 
+    def delete(self, row: DeviceRow) -> bool:
+        """端末レコードを台帳から完全に物理削除し、一覧から除外する。
+
+        Args:
+            row: 対象端末の表示DTO。
+
+        Returns:
+            bool: 削除に成功した場合 True (キャンセル/失敗時は False)。
+        """
+        if not self._request_delete_confirmation(row):
+            logger.info(f"端末の削除をキャンセルしました (id={row.device_id})")
+            return False
+
+        ok = delete_device_entry(row.device_id)
+        if ok:
+            logger.info(f"端末レコードを削除しました (id={row.device_id})")
+            # 楽観反映: 一覧から即座に除外
+            self._apply_result(
+                DeviceFetchResult(
+                    [item for item in self.rows if item.device_id != row.device_id]
+                )
+            )
+            self.refresh_async()
+            return True
+        else:
+            self._set_status(
+                f"⚠️ 「{row.title}」の削除に失敗しました（DBロック等の可能性があります）"
+            )
+            return False
+
     def _request_confirmation(self, row: DeviceRow) -> bool:
         """接続解除の確認を取る (注入されたコールバック優先)。"""
         if self._confirm_callback is not None:
@@ -636,4 +694,19 @@ class DeviceManagerSection(ctk.CTkFrame):
                 "　スマホ側でQRコードを再ペアリングしてください）",
             )
         )
+
+    def _request_delete_confirmation(self, row: DeviceRow) -> bool:
+        """端末レコード削除の確認を取る。"""
+        from tkinter import messagebox
+
+        return bool(
+            messagebox.askyesno(
+                "端末レコードの削除",
+                f"「{row.title}」の登録レコードを削除しますか？\n\n"
+                f"IP: {row.subtitle}\n"
+                "※ 削除すると台帳から完全に抹消されます。\n"
+                "　 再接続時は再度PC側での接続承認が必要になります。",
+            )
+        )
+
 
