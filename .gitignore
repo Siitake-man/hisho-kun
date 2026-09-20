@@ -20,6 +20,7 @@ hisyokun-modern-source/
 docs/*
 !docs/guides/
 !docs/specs/
+!docs/releases/
 !docs/index.html
 !docs/neo-secretary-showcase.html
 !docs/neo-secretary-showcase-en.html

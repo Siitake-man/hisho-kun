@@ -1208,11 +1208,12 @@
             </div>
 
             <div class="feature-card">
-              <div class="feature-icon">📱</div>
-              <div class="feature-title">スマホでのワンタップ承認＆通知</div>
+              <div class="feature-icon">🛡️</div>
+              <div class="feature-title">ゼロトラスト認証 ＆ Jev安全バッジ</div>
               <div class="feature-desc">
-                • <strong>タスク完了通知</strong>: 実装が終わるとスマホのペットが歓喜してお知らせ！<br>
-                • <strong>コマンド実行承認</strong>: 画面から離れていても、スマホ画面の <code>[承認]</code> / <code>[却下]</code> を押す（またはイヤホン操作）だけでAIが作業を再開します。
+                • <strong>端末個別256bit暗号トークン</strong>: 同一LAN内でも不正端末をFail-Closed遮断<br>
+                • <strong>リアルタイム安全審査バッジ</strong>: 外部AI審査スコアを受け取り、スマホ上で <code>🟢 Jev安全審査: ALLOW</code> をエメラルドグリーン点灯！<br>
+                • <strong>Canvas 0fps省電力</strong>: ペット静止時は描画完全スリープでバッテリー長持ち
               </div>
             </div>
           </div>
@@ -1234,7 +1235,7 @@
             <div id="md-cs04" class="md-content-box">
               <div class="rendered-markdown">
                 <h1 class="md-h1">🤖 ネオ秘書くん チートシート ④【コーディングエージェント遠隔承認 ＆ 独自MCP編】</h1>
-<p class="md-p"><em>最終更新日: 2026-09-01</em></p>
+<p class="md-p"><em>最終更新日: 2026-09-20 (v1.1.0)</em></p>
 <p class="md-p"><strong>エンジニア・AI開発者必見のキラー機能！</strong></p>
 <p class="md-p">Antigravity、Claude Code、Cline、Codex 等の自律型コーディングAIと連携し、スマホから開発を遠隔操作・承認できます。</p>
 <p class="md-p">さらに、NotionやSlackなどの任意の外部MCPサーバーも自由に追加可能です。</p>
@@ -1249,14 +1250,30 @@
 <div class="md-code-block"><pre><code>[PC上のAI (Antigravity / Claude Code / Cline / Codex)]
        │
        ▼ (MCPブリッジ連携: neo_hisho_bridge)
-[ネオ秘書くん (PC)]
+[ネオ秘書くん (PC Hub: ゼロトラスト認証 & ポリシー審査)]
        │
-       ▼ (リアルタイム同期)
-[スマホ Desk Pet (PWA)] 📱「ボス！コマンド承認が必要です！ [Approve] [Reject]」
-       │
+       ▼ (ローカル暗号化WebSocket / HTTP)
+[スマホ Desk Pet (PWA)] 📱「🟢 Jev安全審査: ALLOW (スコア 0.99)」
+       │               『git push origin main の実行許可』 [承認] [却下]
        └─► スマホでワンタップ承認 ➔ PC上のAIエージェントが作業再開！</code></pre></div>
 <hr class="md-hr">
-<h2 class="md-h2">🛠️ 2. コーディングエージェントへの登録手順（30秒）</h2>
+<h2 class="md-h2">🛡️ 2. v1.1.0 新機能: ゼロトラスト認証 ＆ インテリジェント承認カード</h2>
+<h3 class="md-h3">① ゼロトラスト端末認証（成りすまし遮断）</h3>
+<ul class="md-list">
+<li>社内LANや同一Wi-Fi環境であっても、各スマホごとに<strong>暗号論的256bit個別トークン</strong>を発行・照合します。</li>
+<li>未承認の新しい端末が接続を試みた場合、PC画面に10秒カウントダウン付きの承認ダイアログがポップアップし、ボスの許可がない限り通信を Fail-Closed で完全遮断します。</li>
+</ul>
+<h3 class="md-h3">② Jev安全審査バッジのリアルタイム点灯</h3>
+<ul class="md-list">
+<li>外部エージェント（Antigravity等）が実行した安全審査（TypeSafe Jev Tool Guard等）のスコアを受信し、スマホ画面上でエメラルドグリーンのネオンバッジ（<code class="inline-code">🟢 Jev安全審査: ALLOW</code>）を点灯させます。</li>
+<li><code class="inline-code">rm -rf</code> や <code class="inline-code">git reset --hard</code> などの破壊的変更が含まれる場合は赤色（<code class="inline-code">🛑 DENY</code> または <code class="inline-code">🚨 高リスク承認</code>）で警告し、誤タップによる事故を防止します。</li>
+</ul>
+<h3 class="md-h3">③ 適応型 Canvas 0fps 省電力（バッテリー長持ち）</h3>
+<ul class="md-list">
+<li>スマホを机上に置きっぱなしにしても発熱・バッテリー消費を防ぐため、ペット静止時は描画ループを 0fps に完全停止（スリープ）。通知受信時や画面タップ時のみ瞬時に復帰（Wake-on-Demand）します。</li>
+</ul>
+<hr class="md-hr">
+<h2 class="md-h2">🛠️ 3. コーディングエージェントへの登録手順（30秒）</h2>
 <p class="md-p">設定画面（⚙️）の <strong>「🤖 外部AI・MCP連携」</strong> タブを開くだけで、ワンクリックで設定できます：</p>
 <div class="md-table-wrapper"><table class="md-table">
 <tr><th>対象AIツール</th><th>登録方法</th></tr>
