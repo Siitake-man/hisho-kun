@@ -1,7 +1,7 @@
 # ネオ秘書くん システム設計書 (DESIGN_SPEC.md)
 
-- **バージョン**: 1.2.1 (🛡️ ゼロトラストP0封鎖 ＆ スマホ接続完全復帰 ＆ ループバック除外 ＆ 403自動リカバリ完遂)
-- **最終更新日時**: 2026-09-18 13:00
+- **バージョン**: 1.2.4 (📱 P0-2 端末接続承認ダイアログ完了 ＆ 🌐 Jev MCP 完全開通)
+- **最終更新日時**: 2026-09-20 14:43
 - **アーキテクチャ方針**: 完全ローカル完結型 非ブロッキング並行システム (Tkinter Desktop Overlay × Mobile PWA × LangGraph Agent × Zero-Trust Local Bridge)
 
 ---
@@ -886,3 +886,38 @@ web_pet/
    - `tests/test_device_individual_tokens.py`（新規TDDテスト）、`tests/test_api_devices_seam.py`、`tests/test_device_ui_seam.py`。
    - 独立査読エージェント（`quality-reviewer`）多角査読により APPROVED 判定。
 
+### 20.12 Jev意思決定エンジン連携アーキテクチャ (2026-09-20)
+1. **背景とコア設計思想（引き算の美学）**:
+   - 2026年9月に登場したTypeSafe Jev（System Oneモデル）を活用し、LLMの推論トークンを消費せずにミリ秒・極小コスト（約0.002円/回）で白黒判定やルーティングを行う基盤を導入。
+   - **本体への不組込み原則**: 秘書くん本体（Desk Pet / Agent Bridge）にはJevの推論コードやキーを持たせず、外部エージェント（Antigravity, Codex等）側がJevを叩いて判断を下す「関心事の分離」を徹底。
+2. **連携フローと承認要請の進化**:
+   - エージェント側で `jev_guard_command` を呼び出してコマンドの安全性・破壊性を事前審査。
+   - `ask_human_approval` 呼び出し時、サマリにJev判定結果（例: `【Jev安全審査: allow (信頼度1.0)】 git push origin main`）を付与。
+   - スマホDesk Petを見たボスが、コードを熟読せずとも一目でワンタップ承認できるUI体験を実現。
+3. **成果物とグローバル完全独立配備**:
+   - 配置先: `C:\Users\bonob\.gemini\tools\jev_router\`（全リポジトリ共通資産）
+     - `jev_client.py`: OpenRouter Decisions API 連携
+     - `model_fetcher.py`: OpenCode GO / OpenRouter 最新モデル動的取得 ＆ ローカルキャッシュ (24h TTL)
+     - `jev_mcp_server.py`: FastMCP stdio サーバー (`jev_guard_command`, `jev_route_agent`, `jev_list_available_models`, `jev_execute_opencode`)
+   - 設定: `C:\Users\bonob\.gemini\config\mcp_config.json` に専用仮想環境（`.venv`）参照でグローバル登録完了（4 tools enabled）
+   - リポジトリクリーン化: 秘書くんリポジトリ内の一時ファイルを退役させ、完全な「関心事の分離」を実現。
+4. **ボス開発エコシステム・マスター設計書 ＆ Showcase**:
+   - `C:\Users\bonob\.gemini\docs\BOSS_DEVELOPMENT_ECOSYSTEM.md`: 6層アーキテクチャ、データフロー、記憶境界（知識の宝庫 vs MentisDB vs codebase-memory）の体系化。
+   - `docs/ecosystem_showcase.html` / `~/.gemini/docs/ecosystem_showcase.html`: 動的相関図・パケット送受信アニメーションShowcase。
+
+### 20.13 未承認端末接続時の Human-in-the-Loop 承認ダイアログ (P0-2) (2026-09-20)
+1. **背景とゼロトラスト原則**:
+   - 同一LANやTailscaleに侵入した未知の端末がペアリング開放期間中に自動接続し、正規トークンを不正取得する脅威を根絶。
+   - 新規端末からのトークン発行要求（`/api/auth/token`）に対し、デスクトップPC上で人間が明示的に「許可」を押さない限りトークンを発行しない **Human-in-the-Loop（人間承認）の二重防壁** を導入。
+2. **設計・アーキテクチャ**:
+   - **承認ダイアログ GUI (`ui/device_approval_dialog.py`)**:
+     - `DeviceApprovalDialog`: 最前面表示（`-topmost`）、端末名・IP・安全審査バッジ・30秒カウントダウン表示。
+     - 自動拒絶（Fail-Closed）: 30秒経過、ダイアログ閉じる操作、例外発生時はすべて自動拒絶。
+     - スレッド同期 Seam: `ask_device_approval_gui` が HTTP スレッドと Tkinter メインスレッドの間を `root.after` と `threading.Event` で非同期ブリッジし、UIフリーズを回避。
+   - **同期サーバー結合 (`local_sync_server.py`)**:
+     - `set_gui_instance`: GUI起動時に `SyncTokenManager.set_device_approval_callback` を自動結合。
+     - `DeskPetSyncHandler._handle_auth_token`: ループバック（`127.0.0.1` / `::1`）からの要求は即時バイパス、外部IP端末は承認ダイアログを起動。拒絶時は即時 `403 Forbidden`。
+3. **OpenCode GO 実機 kimi-k2.7-code 査読結果**:
+   - Jev が選定した Moonshot Kimi（Thinkingモデル）による4000トークンの実機推論により、スレッド競合耐性・Fail-Closed 挙動・キー誤爆リスクの深層検証をクリア。
+4. **テスト**:
+   - `tests/test_device_connection_approval.py`（7件全件合格）。

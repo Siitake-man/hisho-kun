@@ -98,6 +98,32 @@ ASSETS_DIR = Path(__file__).parent / "assets"
 SERVER_PORT = sync_config.SERVER_PORT
 TOKEN_FILE = Path(__file__).parent / ".sync_token"
 
+_global_gui_instance = None
+
+
+def set_gui_instance(gui) -> None:
+    """GUIインスタンスを保持し、Human-in-the-Loop 端末承認ダイアログコールバックを設定する。"""
+    global _global_gui_instance
+    _global_gui_instance = gui
+    if gui is not None:
+        def _approval_cb(device_name: str, client_ip: str) -> bool:
+            try:
+                from ui.device_approval_dialog import ask_device_approval_gui
+                return ask_device_approval_gui(gui, device_name, client_ip, timeout_sec=30)
+            except Exception as err:
+                logger.error(f"端末承認ダイアログ呼び出しエラー: {err}")
+                return False
+
+        get_sync_token_manager().set_device_approval_callback(_approval_cb)
+        logger.info("🔐 [SyncAuth] Human-in-the-Loop 端末接続承認コールバックを登録しました")
+
+
+def get_gui_instance():
+    """登録されているGUIインスタンスを取得する。"""
+    return _global_gui_instance
+
+
+
 # =============================================================================
 # 🔐 同期サーバー認証トークン管理 (Zero-Trust Bearer Auth)
 # =============================================================================
@@ -116,7 +142,25 @@ class SyncTokenManager:
         self._lock = threading.Lock()
         # ペアリングモードの解除期限(epoch秒)。QR接続ダイアログ表示中のみトークン配布APIを開放する(Fail-Closed)
         self._pairing_unlocked_until: float = 0.0
+        # 🛡️ P0-2: 未承認外部端末接続時の Human-in-the-Loop 承認コールバック
+        self._device_approval_callback = None
         self._load_or_create()
+
+    def set_device_approval_callback(self, callback) -> None:
+        """未承認端末接続時の Human-in-the-Loop 承認コールバックを登録する。
+
+        Args:
+            callback: Callable[[str, str], bool] - (device_name, client_ip) を受け取り、
+                      ユーザー承認時は True、拒否時は False を返す関数。
+        """
+        with self._lock:
+            self._device_approval_callback = callback
+
+    @property
+    def device_approval_callback(self):
+        """登録されている端末接続承認コールバックを返す。"""
+        with self._lock:
+            return self._device_approval_callback
 
     @property
     def pairing_open(self) -> bool:
@@ -738,6 +782,27 @@ class DeskPetSyncHandler(SimpleHTTPRequestHandler):
             # 🛡️ ループバック（PC自身）は端末台帳に登録しない（マスタトークン返却）
             token = tm.token
         else:
+            # 🛡️ P0-2: 未承認外部端末接続時の Human-in-the-Loop 承認
+            cb = tm.device_approval_callback
+            if cb is not None:
+                try:
+                    approved = cb(dev_name, client_ip)
+                except Exception as e:
+                    logger.error(f"端末接続承認コールバック例外 (Fail-Closed): {e}")
+                    approved = False
+
+                if not approved:
+                    logger.warning(f"🚫 [SyncAuth] 端末接続がユーザーにより拒否されました: {dev_name} (IP: {client_ip})")
+                    self.send_response(403)
+                    self.send_header("Content-Type", "application/json; charset=utf-8")
+                    self._set_cors_headers()
+                    self.end_headers()
+                    self.wfile.write(json.dumps(
+                        {"status": "forbidden", "message": "PC側で端末の接続が拒否されました。"},
+                        ensure_ascii=False
+                    ).encode("utf-8"))
+                    return
+
             try:
                 token = database.issue_device_token(dev_name, ip_address=client_ip, user_agent=user_agent)
             except Exception as e:
@@ -1531,16 +1596,6 @@ class DeskPetSyncHandler(SimpleHTTPRequestHandler):
         """標準出力のノイズを抑えるカスタムロガー"""
         pass
 
-
-# グローバルGUI参照
-_global_gui_instance = None
-
-def set_gui_instance(gui) -> None:
-    global _global_gui_instance
-    _global_gui_instance = gui
-
-def get_gui_instance():
-    return _global_gui_instance
 
 
 class LocalSyncServer:
