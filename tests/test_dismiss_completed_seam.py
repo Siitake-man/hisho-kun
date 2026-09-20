@@ -56,7 +56,8 @@ class TestDismissCompletedSeam(unittest.TestCase):
         self.assertIn("translateZ(0)", html_content, "GPU合成レイヤー分離 translateZ(0) が存在すること")
         self.assertIn("backface-visibility: hidden", html_content, "チラつき防止 backface-visibility が存在すること")
         self.assertIn("isolation: isolate", html_content, "スタッキング隔離 isolation: isolate が存在すること")
-        self.assertIn("pet_motion.js?v=1.0.3", html_content, "キャッシュバスタークエリが付与されていること")
+        from version import __version__
+        self.assertIn(f"pet_motion.js?v={__version__}", html_content, "キャッシュバスタークエリが付与されていること")
 
         particles_path = Path(__file__).resolve().parent.parent / "web_pet" / "pet_particles.js"
         self.assertTrue(particles_path.exists())
