@@ -244,6 +244,62 @@ class TestI18nAndUIGlobal(unittest.TestCase):
         self.assertEqual(t("ui.gui.fsm_coding", agent_name="Antigravity"), "🤖 [Antigravity] 猛烈にコード書き込み中！🔥")
 
 
+
+    def test_phase3_settings_and_tour_keys_en_and_ja(self):
+        """Phase 3 (Settings, Tour, Briefing) の翻訳キーが ja/en とも正常に取得できることを検証"""
+        set_language("en")
+        self.assertEqual(t("ui.settings.tab_llm"), "AI Models")
+        self.assertEqual(t("ui.settings.mcp_dialog_title"), "➕ Add New MCP Server")
+        self.assertEqual(t("ui.settings.suggest_dialog_title"), "💡 Suggestion Source Settings")
+        self.assertEqual(t("ui.settings.llm_sync_btn"), "⚡ Sync All Now")
+        self.assertEqual(t("tour.settings_menu.title"), "🎉 Welcome! First, Right-Click")
+        self.assertEqual(t("ui.tour.skip"), "Skip")
+        self.assertEqual(t("briefing.mode.morning"), "☀️ Morning Briefing")
+
+        set_language("ja")
+        self.assertEqual(t("ui.settings.tab_llm"), "AIモデル設定")
+        self.assertEqual(t("ui.settings.mcp_dialog_title"), "➕ 新規MCPサーバーの追加")
+        self.assertEqual(t("ui.settings.suggest_dialog_title"), "💡 サジェストソース設定")
+        self.assertEqual(t("ui.settings.llm_sync_btn"), "⚡ 今すぐ一括同期")
+        self.assertEqual(t("tour.settings_menu.title"), "🎉 ようこそ！まずは右クリック")
+        self.assertEqual(t("ui.tour.skip"), "スキップ")
+        self.assertEqual(t("briefing.mode.morning"), "☀️ 朝会ブリーフィング")
+
+    def test_tour_engine_multilang(self):
+        """TourEngine が言語切り替えに応じて英語/日本語ステップを動的生成することを検証"""
+        from tour_engine import get_default_tour_steps, TourEngine
+        set_language("en")
+        steps_en = get_default_tour_steps()
+        self.assertEqual(len(steps_en), 3)
+        self.assertIn("Welcome", steps_en[0].title)
+
+        engine_en = TourEngine()
+        engine_en.start()
+        self.assertEqual(engine_en.current_step.title, "🎉 Welcome! First, Right-Click")
+
+        set_language("ja")
+        steps_ja = get_default_tour_steps()
+        self.assertEqual(len(steps_ja), 3)
+        self.assertIn("ようこそ", steps_ja[0].title)
+
+        engine_ja = TourEngine()
+        engine_ja.start()
+        self.assertEqual(engine_ja.current_step.title, "🎉 ようこそ！まずは右クリック")
+
+    def test_briefing_engine_multilang(self):
+        """BriefingEngine が ja/en それぞれで正しい言語のレポートを生成することを検証"""
+        from briefing_engine import generate_briefing
+        set_language("en")
+        report_en = generate_briefing(force_mode="morning")
+        self.assertEqual(report_en.mode_label, "☀️ Morning Briefing")
+        self.assertIn("Current Weather", report_en.formatted_markdown)
+
+        set_language("ja")
+        report_ja = generate_briefing(force_mode="morning")
+        self.assertEqual(report_ja.mode_label, "☀️ 朝会ブリーフィング")
+        self.assertIn("現在の天気", report_ja.formatted_markdown)
+
+
 if __name__ == "__main__":
     unittest.main()
 
