@@ -284,6 +284,7 @@ class TestSyncLanSelfHeal(unittest.TestCase):
         """ペアリング開放中 (QR接続ダイアログ表示中) は LAN からでもトークンを取得できること"""
         tm = local_sync_server.get_sync_token_manager()
         tm.unlock_pairing(duration_sec=60)
+        tm.set_device_approval_callback(lambda dev_name, ip: True)
         self.addCleanup(self._reset_pairing)
         with patch.object(
             local_sync_server.DeskPetSyncHandler,

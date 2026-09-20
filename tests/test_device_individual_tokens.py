@@ -366,6 +366,7 @@ class TestDeviceIndividualTokens(unittest.TestCase):
 
         tm = get_sync_token_manager()
         tm.unlock_pairing(duration_sec=600)
+        tm.set_device_approval_callback(lambda dev_name, client_ip: True)
         self.assertTrue(tm.pairing_open)
 
         # 1回目の発行シミュレーション
@@ -413,6 +414,7 @@ class TestDeviceIndividualTokens(unittest.TestCase):
 
         tm = get_sync_token_manager()
         tm.unlock_pairing(duration_sec=600)
+        tm.set_device_approval_callback(lambda dev_name, client_ip: True)
 
         handler = _FakeHttpHandler()
         handler.path = "/api/auth/token"

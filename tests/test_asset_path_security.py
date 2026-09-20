@@ -47,7 +47,7 @@ class TestResolveAssetPath(unittest.TestCase):
 
     def setUp(self) -> None:
         self._tmp = tempfile.TemporaryDirectory()
-        self.root = Path(self._tmp.name)
+        self.root = Path(self._tmp.name).resolve()
         (self.root / "pwa").mkdir()
         (self.root / "pwa" / "icon_192.png").write_bytes(b"\x89PNG\r\n\x1a\npwa-icon")
         (self.root / "ok.png").write_bytes(b"\x89PNG\r\n\x1a\nroot-icon")
