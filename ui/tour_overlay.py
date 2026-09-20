@@ -23,7 +23,7 @@ import os
 import tkinter as tk
 
 import app_paths
-from tour_engine import get_tour_engine
+from tour_engine import TourStep, get_tour_engine
 
 logger = logging.getLogger(__name__)
 

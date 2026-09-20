@@ -10,6 +10,7 @@ import logging
 import tkinter as tk
 from tkinter import messagebox
 from pathlib import Path
+from typing import Optional
 import customtkinter as ctk
 from dotenv import load_dotenv
 

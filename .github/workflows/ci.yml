@@ -32,12 +32,13 @@ jobs:
       - name: Bytecode compilation check (py_compile)
         run: |
           echo "=== Python バイトコード構文コンパイル検査 (全モジュール) ==="
-          python -m compileall -q .
+          # .git, venv, ビルド成果物, 一時作業ディレクトリを除外して構文検査
+          python -m compileall -q -e "/(\.git|\.venv|venv|build|dist|backups|docs/temp)/" .
 
       - name: Run Ruff Linter
         run: |
           echo "=== Ruff による高速静的解析 (致命的エラー・未定義変数ブロック) ==="
-          ruff check --select E9,F63,F7,F82 .
+          ruff check --select E9,F63,F7,F82 --exclude ".git,venv,.venv,build,dist,backups,docs/temp" .
 
   # ---------------------------------------------------------------------------
   # 2. セキュリティ検査 (全コミット履歴の機密情報スキャン)
