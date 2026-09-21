@@ -9,7 +9,7 @@ import logging
 import threading
 import time
 import tkinter as tk
-from typing import Optional, Any, Callable
+from typing import Optional, Any, Callable, Dict
 import customtkinter as ctk
 
 from ui.window_icon import apply_window_icon
@@ -188,6 +188,9 @@ _is_dialog_active = False
 _active_device_key: Optional[str] = None
 _active_result_event: Optional[threading.Event] = None
 _active_outcome: Optional[list] = None
+# 🛡️ 直近に承認された端末のデバウンスキャッシュ {device_key: 有効期限(epoch秒)}
+_recent_approvals: Dict[str, float] = {}
+APPROVAL_DEBOUNCE_TTL_SEC: float = 10.0
 
 
 def ask_device_approval_gui(
@@ -204,9 +207,10 @@ def ask_device_approval_gui(
         が発生する。そのため本関数内では Tkinter メソッドを直接実行せず、
         gui.post_action() 経由でメインGUIスレッドへディスパッチして実行する。
 
-    同一端末の合流待機 (Coalesce):
+    同一端末の合流待機 (Coalesce) ＆ 短時間デバウンス:
         スマホ側が短周期ポーリングで /api/auth/token を再要求してきた場合、
-        同一端末 (IP+名前) であればビジー拒絶せず、現在表示中ダイアログの結果を共有して待機する。
+        - 現在表示中であれば、同一端末 (IP+名前) はビジー拒絶せず既存ダイアログの結果に合流待機する。
+        - 直近10秒以内に承認済みであれば、ダイアログを再表示せず即座に承認 (True) を返す。
 
     Args:
         root: GUIインスタンス (NeoSecretaryGUI) または Tkinter ルートウィンドウ (Noneの場合は即時拒絶)
@@ -217,7 +221,7 @@ def ask_device_approval_gui(
     Returns:
         bool: 承認時 True、拒絶またはタイムアウト時 False (Fail-Closed)
     """
-    global _is_dialog_active, _active_device_key, _active_result_event, _active_outcome
+    global _is_dialog_active, _active_device_key, _active_result_event, _active_outcome, _recent_approvals
 
     if root is None:
         logger.warning("GUIが存在しないため端末接続要求を自動拒否 (Fail-Closed)")
@@ -233,8 +237,16 @@ def ask_device_approval_gui(
     actual_root = getattr(root, "root", root) if is_gui else root
 
     device_key = f"{client_ip}:{device_name}"
+    now = time.time()
 
     with _dialog_lock:
+        # 1. 直近に承認された端末であればダイアログを再ポップアップさせず即座に承認（デバウンス）
+        # 期限切れレコードの掃除も同時に実施
+        _recent_approvals = {k: exp for k, exp in _recent_approvals.items() if exp > now}
+        if _recent_approvals.get(device_key, 0.0) > now:
+            logger.info(f"⚡ [DeviceApproval] 直近承認済み端末のためダイアログをスキップして即時承認: {device_key}")
+            return True
+
         if _is_dialog_active:
             # 🛡️ 同一端末からの重複リクエスト（ポーリング）なら既存の承認結果イベントに相乗り合流
             if _active_device_key == device_key and _active_result_event is not None and _active_outcome is not None:
@@ -322,6 +334,11 @@ def ask_device_approval_gui(
         if not finished:
             logger.warning(f"端末接続承認待機タイムアウト ({timeout_sec}s): Fail-Closed")
             return False
+
+        if outcome[0]:
+            with _dialog_lock:
+                _recent_approvals[device_key] = time.time() + APPROVAL_DEBOUNCE_TTL_SEC
+                logger.info(f"✅ [DeviceApproval] 端末承認をデバウンスキャッシュに登録 ({APPROVAL_DEBOUNCE_TTL_SEC}s): {device_key}")
 
         return outcome[0]
     finally:

@@ -79,6 +79,11 @@ output.txt
 # --- MCP設定（ローカル環境固有のパスを含む） ---
 mcp_config.json
 
+# --- OpenCode ローカル設定（2026-09-21 追加） ---
+# opencode.json は個人絶対パスを、.opencode/ は非公開のエージェント定義（.agents/ と同内容）を含むため非公開
+opencode.json
+.opencode/
+
 # --- 重いバイナリ（LLMモデル） ---
 models/*.gguf
 models/*.bin

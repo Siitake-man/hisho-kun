@@ -306,7 +306,43 @@ class TestDeviceConnectionApproval(unittest.TestCase):
         self.assertTrue(results[0])
         self.assertTrue(results[1])
 
+    def test_dialog_recent_approval_debounce(self):
+        """直近10秒以内に承認された同一端末からの再要求は、ダイアログを再表示せず即座に承認(True)を返す。"""
+        import ui.device_approval_dialog as dad
+
+        fake_gui = mock.MagicMock(spec=["root", "post_action"])
+        fake_root = mock.MagicMock()
+        fake_root.winfo_exists.return_value = True
+        fake_gui.root = fake_root
+        # post_actionで即座に承認をセット
+        fake_gui.post_action.side_effect = lambda func: func()
+
+        with mock.patch("ui.device_approval_dialog.DeviceApprovalDialog") as MockDialog:
+            def _init_mock(*args, **kwargs):
+                cb = kwargs.get("on_decision")
+                if cb:
+                    cb(True)
+                return mock.MagicMock()
+            MockDialog.side_effect = _init_mock
+
+            # 1回目の承認（ダイアログが開き、承認されて閉じる）
+            res1 = dad.ask_device_approval_gui(fake_gui, "DebouncePhone", "192.168.1.60", timeout_sec=2)
+            self.assertTrue(res1)
+            self.assertEqual(MockDialog.call_count, 1)
+
+            # 2回目（直後に同一端末から再度呼ばれた場合）
+            # ダイアログは新たにインスタンス化されず (call_count は 1 のまま)、即座に True が返る
+            res2 = dad.ask_device_approval_gui(fake_gui, "DebouncePhone", "192.168.1.60", timeout_sec=2)
+            self.assertTrue(res2)
+            self.assertEqual(MockDialog.call_count, 1)
+
+            # 異なる端末からの要求は別枠としてダイアログが生成される
+            res3 = dad.ask_device_approval_gui(fake_gui, "OtherPhone", "192.168.1.61", timeout_sec=2)
+            self.assertTrue(res3)
+            self.assertEqual(MockDialog.call_count, 2)
+
 
 if __name__ == "__main__":
     unittest.main()
+
 

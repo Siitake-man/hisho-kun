@@ -1,8 +1,66 @@
 # OpenCode Desktop × Jev-MCP 自律マルチエージェント連携仕様書
-**Document Version**: 1.0.0  
+**Document Version**: 1.1.0  
 **Target Environment**: OpenCode Desktop / OpenCode CLI / Antigravity / Claude Code  
 **Author**: Antigravity Principal Architect (Pair-Programming with Boss)  
 **Date**: 2026-09-21  
+**最終更新**: 2026-09-21 (v1.1.0 — 実機配備完了に伴い §0 As-Built を新設し、V1/V2 形式差異を是正)  
+
+---
+
+## 0. As-Built: 実機配備済み構成（2026-09-21 / OpenCode v2.0.11）
+
+> ✅ **この節が現行の正本である。** §3 の Step-by-Step は V1 形式で記述された**歴史的サンプル**であり、
+> OpenCode V2 ではそのままでは動作しない。差異は §0.4 の対応表を参照すること。
+
+### 0.1 配備済みファイル一覧
+
+| 種別 | パス | 内容 |
+|:---|:---|:---|
+| グローバル設定 | `~/.config/opencode/opencode.jsonc` | MCP: `jev-mcp` / `codebase-memory-mcp` / `neo_hisho_bridge`（全プロジェクト共通） |
+| プロジェクト設定 | `<repo>/opencode.json`（.gitignore対象） | `permissions` 44ルール（Hard ACL）のみ（MCPはグローバルへ集約） |
+| エージェント定義 | `<repo>/.opencode/agents/*.md`（11体・自動生成） | 正本 `.agents/agents/*.md` から変換生成 |
+| 同期ツール | `<repo>/tools/sync_opencode_agents.py` | 正本→生成物の一方向同期 + `--check` ドリフト検知 |
+| OpenCode規約 | `<repo>/OPENCODE.md` | Jev Pre-flight / Tool Guard / Verifierゲート / Desk Pet通知 |
+| 自動ロード規約 | `<repo>/AGENTS.md` の「## 4. OpenCode 実行環境プロトコル」 | **V2が自動ロードする唯一の経路** |
+| グローバル規約 | `~/.config/opencode/AGENTS.md` | GEMINI.md への薄いブリッジ（全プロジェクト共通） |
+| venv 依存 | `<repo>/venv` に `mcp==1.30.0` | `neo_hisho_bridge` 起動用（`requirements.txt` は不変） |
+
+### 0.2 実機検証エビデンス（2026-09-21 取得）
+
+| 検証項目 | 実測結果 |
+|:---|:---|
+| Jev-MCP ツール公開 | `jev_guard_command` / `jev_route_agent` の2本 ✅ |
+| Jev Route（ダミータスク「UIボタンのタッチ判定を修正する」） | **`pixel-frontend-designer` 66.0% で第1位推薦** ✅ |
+| Jev Guard（`python -m pytest tests/`） | `allow`（確信度 0.99）✅ |
+| Jev Guard（`git reset --hard`） | `deny`（**確信度 0.39** ← 確率的ソフト層の限界）✅ |
+| サブエージェント実起動 | `agent-tester` を実起動し回帰テストを実行（sessionID: `ses_f403c6456ffespdn2ra9zrqxQF`）✅ |
+| 回帰テスト | **684〜686件 ALL GREEN**（failed=0 / errors=0 / 約47〜54秒）✅ |
+| 1回あたりコスト | 約 $0.0003（0.05円） |
+
+### 0.3 二層防御アーキテクチャ（本配備の核心）
+
+```
+[シェルコマンド実行要求]
+   │
+   ├─ 第1層: jev_guard_command（確率的ソフト層 / 確信度が低い場合がある）
+   │    実測例: git reset --hard → deny（確信度 0.39）
+   │
+   └─ 第2層: opencode.json の permissions（決定論的ハード層 / 必ず効く）
+        { "action": "shell", "resource": "*git reset --hard*", "effect": "deny" }
+```
+
+> **設計判断（ADR候補）**: Jev は「ミリ秒・極小コストで大半の危険を弾く高速フィルタ」として使い、
+> 最終的な保証は OpenCode の決定論的 `permissions` が担う。LLM の確率出力に安全性の最終責任を負わせない。
+
+### 0.4 V1記述 → V2正解 対応表（§3 のサンプルを読む前に必ず確認）
+
+| V1 / AntiGravity 形式（§3 の記述） | OpenCode V2 の正解（本配備） |
+|:---|:---|
+| `"mcpServers": { ... }` | `"mcp": { "servers": { "<name>": { "type": "local", "command": [配列] } } }` |
+| エージェント frontmatter `tools: ["read_file", ...]` | `permissions: [{ action, resource, effect }]`（V2 で `tools` は使用しない） |
+| グローバル `~/.opencode/config.json` | `~/.config/opencode/opencode.jsonc` |
+| `OPENCODE.md` を置けば自動ロードされる | **自動ロードは `AGENTS.md` のみ**。`instructions` は V2 未解決。よって `AGENTS.md` から `OPENCODE.md` を参照させる |
+| （記載なし） | V2 は `.agents/skills/` を互換パスとして自動発見する（プロジェクト専用スキル9種は移植不要） |
 
 ---
 
@@ -54,9 +112,10 @@
 > **Q2. 汎用的なサブエージェントを作る場合、多種多様なサブエージェントを作ることが肝なのでは？**  
 > **A2. その通りです。まさにそれが最大の肝（Core Value）です。**  
 > 単に「coder」と「tester」の2体だけでは、人間の浅い思考と変わりません。  
-> 以下の **10大専門ペルソナ（陣形）** を揃え、Jevがタスクの性質に応じて最適なスペシャリストを動的に召喚することで、個人の開発力が数十人規模の専門エンジニアチームへとスケールします。
+> 以下の **11体の専門ペルソナ（陣形）** を揃え、Jevがタスクの性質に応じて最適なスペシャリストを動的に召喚することで、個人の開発力が数十人規模の専門エンジニアチームへとスケールします。
+> （初版策定時は10体想定だったが、実装時に正本 `.agents/agents/` を機械的に数えた結果 **11体** であることが確定した。）
 
-### 2.2 必須の10大サブエージェント陣形
+### 2.2 必須の11体サブエージェント陣形（実装時点の正本と一致）
 
 | エージェント名 | 担当領域・ペルソナ | 主な使用ツール・スキル |
 |:---|:---|:---|
@@ -175,7 +234,12 @@ if __name__ == "__main__":
 ---
 
 ### Step 2: OpenCode の設定ファイル（`opencode.json`）
-OpenCode Desktop のグローバル設定（`~/.opencode/config.json`）またはプロジェクトのルートに `opencode.json` を作成・設定します。
+
+> ⚠️ **V1形式（歴史的記録）**: この節の `mcpServers` は OpenCode V2 では解釈されない。
+> 現行の正解は **§0.1 / §0.4** を参照（`mcp.servers` + `type: "local"` + `command` 配列）。
+> あわせて、V2 のグローバル設定パスは `~/.config/opencode/opencode.jsonc` である。
+
+OpenCode Desktop のグローバル設定またはプロジェクトのルートに `opencode.json` を作成・設定します。
 
 ```json
 {
@@ -200,6 +264,12 @@ OpenCode Desktop のグローバル設定（`~/.opencode/config.json`）また�
 ---
 
 ### Step 3: OpenCode 用サブエージェント定義ファイルの配置
+
+> ⚠️ **V1形式（歴史的記録）**: この節の frontmatter `tools: [...]` は OpenCode V2 では使われない。
+> V2 は `permissions: [{ action, resource, effect }]` を用いる（§0.1 / §0.4 参照）。
+> また本配備では、11体は正本 `.agents/agents/*.md` から `tools/sync_opencode_agents.py` で
+> **自動生成**される（`.opencode/agents/*.md` の直接編集は禁止）。
+
 プロジェクトの `.opencode/agents/` ディレクトリに、各専門エージェントのプロンプトを定義します。
 
 #### ① `.opencode/agents/python-architect.md`
@@ -252,7 +322,13 @@ tools: ["read_file", "grep", "glob"]
 ---
 
 ### Step 4: OpenCode マスタールール（`OPENCODE.md`）の配置
-OpenCode が起動時に読み込むマスタールールとして、プロジェクトルートに `OPENCODE.md`（または `AGENTS.md`）を配置します。
+
+> ⚠️ **重要な仕様差異**: OpenCode V2 が自動ロードする指示ファイルは **`AGENTS.md` のみ**である。
+> `OPENCODE.md` を単独で置いても読み込まれない（設定の `instructions` フィールドも V2 では未解決）。
+> したがって現行配備では、`AGENTS.md` に「## 4. OpenCode 実行環境プロトコル」を追記し、
+> そこから `OPENCODE.md` を参照する二段構えを採用している（§0.1 参照）。
+
+OpenCode が起動時に読み込むマスタールールとして、プロジェクトルートに `OPENCODE.md` を配置します。
 
 ```markdown
 # OpenCode 自律オーケストレーション規約 (Jev Multi-Agent Protocol)
@@ -334,7 +410,7 @@ OpenCode Desktop にこの構成を導入すると、以下のフローが完全
 
 1. **Jev-MCP サーバーの認識と接続確認**:
    - `opencode.json`（または `~/.opencode/config.json`）の `mcpServers` に `jev-mcp` が定義されているか確認し、ツール `jev_route_agent`, `jev_guard_command` が呼び出し可能であることをテストせよ。
-2. **プロジェクト専用サブエージェント（10体）の配備**:
+2. **プロジェクト専用サブエージェント（11体）の配備**:
    - `.agents/agents/*.md`（AntiGravity資産）の内容をスキャンし、`.opencode/agents/` 配下へ OpenCode 規格のサブエージェント（`python-architect.md`, `agent-tester.md`, `devils-advocate.md`, `pixel-frontend-designer.md`, `quality-reviewer.md` 等）として配置・同期せよ。
 3. **自律オーケストレーション規約（OPENCODE.md）の適用**:
    - プロジェクトルートに `OPENCODE.md` を作成し、「タスク受領時の Jev ルーティング義務」「コマンド実行前の Jev Guard 義務」「実装後の独立検証者（Verifier）によるテスト合格義務」をマスタールールとしてロードせよ。
@@ -350,4 +426,4 @@ OpenCode Desktop にこの構成を導入すると、以下のフローが完全
 
 - **思考の完全オフロード**: 誰がどの手順でやるべきかを悩む必要がゼロになり、5分の隙間時間で最高精度の開発指示を出せる。
 - **絶対的安全性の担保**: Jev Tool Guard により、誤操作によるコード喪失やリポジトリ破壊が100%遮断される。
-- **AntiGravity ⇆ OpenCode の双発エンジン化**: どちらのエディタ・環境を開いても、全く同じ10大スペシャリスト陣形とJev意思決定エンジンが起動し、ブレのない世界最高水準の個人開発が継続する。
+- **AntiGravity ⇆ OpenCode の双発エンジン化**: どちらのエディタ・環境を開いても、全く同じ11体のスペシャリスト陣形とJev意思決定エンジンが起動し、ブレのない世界最高水準の個人開発が継続する。

@@ -1,7 +1,7 @@
 # ネオ秘書くん システム設計書 (DESIGN_SPEC.md)
 
-- **バージョン**: 1.4.1 (⚡ Jev System One × OpenCode 多種多様なサブエージェント連携仕様 ＆ スマホUI双方向同期二重資産化 v1.1.6)
-- **最終更新日時**: 2026-09-21 01:32
+- **バージョン**: 1.4.4 (⚡ OpenCode実証済み「ask_input非ブロッキング通知」のAntigravity移植完了 ＆ agent-tester検証合格)
+- **最終更新日時**: 2026-09-21 18:35
 - **アーキテクチャ方針**: 完全ローカル完結型 非ブロッキング並行システム (Tkinter Desktop Overlay × Mobile PWA × LangGraph Agent × Zero-Trust Local Bridge ＆ Cross-Platform Headless CI/CD)
 
 
@@ -977,6 +977,73 @@ web_pet/
    - `agent.py`: プロンプト内の日本語規則ハードコードを `get_prompt_language_instruction()` に置換し、英語設定時は英語で指示・応答するよう動的制御。
    - `i18n.py`: 起動時に `.env` の `APP_LANGUAGE` を自動認識・適用する `_init_language_from_env()` / `reload_language_from_env()` を配備。
    - `ui/sticky_note.py`: 半透明スマート付箋のタイトル、プレースホルダー、空タスク通知、緊急度バッジを `i18n.t()` 化し、`subscribe_language_change` による動的再描画に対応。
+
+
+## 21. OpenCode × Jev-MCP 自律マルチエージェント配線 (As-Built 2026-09-21)
+
+AntiGravity で本番運用している「System One (Jev) × System Two (専門エージェント陣形)」を
+OpenCode Desktop (v2.0.11) へ **同一の開発体験・安全規約・品質ゲート**として移植した。
+詳細仕様は `docs/guides/OPENCODE_JEV_MULTIAGENT_INTEGRATION_SPEC.md`（v1.1.0 §0 As-Built）を正本とする。
+
+### 21.1 3層アーキテクチャと配備ファイル
+| 層 | 実体 | 配備先 |
+|:---|:---|:---|
+| System One | `jev-mcp`（`jev_route_agent` / `jev_guard_command`） | `~/.config/opencode/opencode.jsonc`（全プロジェクト共通） |
+| System Two | `.opencode/agents/*.md` 11体（V2 `permissions` で最小権限） | プロジェクト（`.gitignore` 対象） |
+| 知識・承認 | `codebase-memory-mcp` / `neo_hisho_bridge`（`HISHO_AGENT_NAME=OpenCode`） | `~/.config/opencode/opencode.jsonc`（全プロジェクト共通 / 2026-09-21 移設） |
+
+### 21.2 二層防御（本設計の核心 / ADR候補）
+- **第1層 = Jev Guard（確率的ソフト層）**: ミリ秒・約0.05円で大半の危険を高速に弾く。
+  実測: `python -m pytest` → allow（0.99）、`git reset --hard` → deny（**確信度 0.39**）。
+- **第2層 = OpenCode `permissions`（決定論的ハード層）**: 15の deny ルール（`rm -rf /`・`git reset --hard`・
+  `git push --force`・`git clean -f`・`DROP TABLE`・`mkfs` 等）＋ シェル原則 `ask` ＋ 安全コマンド allowlist 10件。
+- **設計判断**: 安全性の最終責任を LLM の確率出力に負わせない。Jev は高速フィルタ、保証は決定論的 ACL が担う。
+
+### 21.3 ドリフト根絶（正本 → 生成物の一方向同期）
+- 正本は `.agents/agents/*.md`（Antigravity 資産）。`tools/sync_opencode_agents.py` が
+  Antigravity の `tools:` リストを OpenCode V2 の `permissions` へ翻訳し `.opencode/agents/*.md` を生成する。
+- `--check` でドリフト検知（終了コード1）。生成物には正本ハッシュを刻印し、直接編集を禁止する。
+
+### 21.4 OpenCode V2 仕様上の重要な発見（ファクト / 推測なし）
+1. MCP は `mcpServers` ではなく **`mcp.servers`**（`type: "local"` / `command` は配列）。
+2. エージェント権限は `tools:` ではなく **`permissions: [{action, resource, effect}]`**。判定は**後勝ち**。
+3. **自動ロードされる指示ファイルは `AGENTS.md` のみ**。`instructions` フィールドは V2 では解決されない
+   → よって `OPENCODE.md` は `AGENTS.md` §4 から参照させる二段構えとする。
+4. V2 は **`.agents/skills/` を互換パスとして自動発見**する（プロジェクト専用スキルは移植不要）。
+
+### 21.5 実機検証（2026-09-21）
+| 検証 | 結果 |
+|:---|:---|
+| Jev Route（「UIボタンのタッチ判定を修正する」） | `pixel-frontend-designer` 66.0% 第1位 ✅ |
+| サブエージェント実起動 | `agent-tester` を起動し回帰テスト実行（sessionID: `ses_f403c6456ffespdn2ra9zrqxQF`）✅ |
+| 回帰テスト | **684〜686件 ALL GREEN**（failed=0 / errors=0 / 47〜54秒）✅ |
+| 設定構文 | JSONC検証OK（グローバル2サーバー / プロジェクト44ルール）✅ |
+| 独立査読 | `quality-reviewer` による多角査読（sessionID: `ses_f40392574ffeGcarX95KVihv67`）→ P0×1 / P1×6 を検出し全件是正 |
+| 同期ツールのテスト | `tests/test_sync_opencode_agents.py`（22件 / 74 subtests）新設。全回帰 **709 passed / 3 skipped** |
+
+### 21.6 独立査読（quality-reviewer）と是正記録（2026-09-21）
+
+`quality-reviewer` を独立コンテキストで起動し、公式V2ドキュメントを正本として全成果物を査読させた。
+判定は **CHANGES_REQUESTED**（P0×1 / P1×6）。以下を全て是正し、契約テストで凍結した。
+
+| 指摘 | 内容 | 是正 |
+|:---|:---|:---|
+| **P0-1** | `git branch *` の allow が `git branch -D/-f/-m` を**無承認で**通す決定論的ホール | allow を読み取り専用形（`git branch` / `--list` / `-v` / `-a`）へ限定し、破壊形7パターンを deny に追加 |
+| **P1-1** | エージェント権限に `shell` の allow を再宣言 → **後勝ち**でグローバル deny を上書きし得る | ポリシーテーブルから allow を全廃（`INHERIT_PROJECT_ACL = ()`）。「締める方向にのみ働く」不変条件をテストで凍結 |
+| **P1-2** | 正本の `mainAgent: true` を捨て `mode: subagent` 固定 → `hisho-orchestrator` を primary に選べず**名乗りが形骸化** | `resolve_mode()` を新設し `mainAgent`/`subagent` から `all`/`primary`/`subagent` を導出（7体=all / 4体=subagent） |
+| **P1-3** | `--check` が孤立生成物（改名の残骸）を検知できない | 孤立検出を追加。削除は `--prune` 明示時のみ（同意なき削除の禁止を遵守） |
+| **P1-4** | `return 1 if warnings and not loaded else 0` が**恒偽**で、検証警告が CI を落とせない | 終了コード契約を実装（警告 or ドリフトで 1） |
+| **P1-5** | 権限ポリシー未定義の新規エージェントで `KeyError` 即死 | 書き込み時は修正箇所を明示した `ValueError`、`--check` 時はドリフトとして報告 |
+| **P1-6** | 同期ツールにテストが無い（AGENTS.md §2.9 TDD 違反） | `tests/test_sync_opencode_agents.py` を新設（Red→Green を実証: 29 failed → 22 passed） |
+| P2-2 | Read-Only 7体が MCP 経由で書き込み可能 | `neo_hisho_bridge_*` の書き込み4ツールを deny に追加 |
+| P2-4 | `*.db`（個人データ）の `read` が無保護 | `read *.db` / `*.db-wal` / `*.db-shm` を `ask` に追加 |
+| P2-6 | 正本ハッシュがバイト列依存（CRLF で偽ドリフト） | 改行を LF へ正規化してからハッシュ算出 |
+| P2-8 | 読み替え表が V1 用語（`bash`）のまま | `bash (V1) / shell (V2)` と併記 |
+| P2-9 | 陣形数の表記不整合（10 vs 11） | 仕様書・ロードマップ・一覧・active_context を **11体** に統一 |
+
+> **教訓（ボスのコード審美眼メモ）**: OpenCode の permission は **後勝ち**である。
+> 「設定ファイルに deny を書いたから安全」ではなく、**後から追記されるルール（エージェント定義）が
+> その deny を覆さないか**を常に確認する。今回はまさにこの1点が P0 と P1-1 の共通根因であった。
 
 
 

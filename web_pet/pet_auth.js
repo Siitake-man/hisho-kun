@@ -74,9 +74,11 @@ function setSyncToken(newToken) {
 }
 
 let activeTokenRefreshPromise = null;
+let lastTokenRefreshAttempt = 0;
+const TOKEN_REFRESH_COOLDOWN_MS = 3000; // 連続要求を抑制するクールダウン(3秒)
 
 /**
- * サーバーから新しい同期トークンを取得する（In-Flight重複リクエスト合流）。
+ * サーバーから新しい同期トークンを取得する（In-Flight重複リクエスト合流 ＆ クールダウン制御）。
  * 
  * @returns {Promise<string|null>} 取得できたトークン文字列、または失敗時 null
  */
@@ -84,6 +86,13 @@ async function requestSyncToken() {
   if (activeTokenRefreshPromise) {
     return activeTokenRefreshPromise;
   }
+  const now = Date.now();
+  if (now - lastTokenRefreshAttempt < TOKEN_REFRESH_COOLDOWN_MS) {
+    console.debug('[pet_auth] Token refresh throttled by cooldown');
+    return syncToken || null;
+  }
+  lastTokenRefreshAttempt = now;
+
   activeTokenRefreshPromise = (async () => {
     try {
       const tokenRes = await fetch('/api/auth/token');
@@ -94,8 +103,10 @@ async function requestSyncToken() {
           return tokenData.token;
         }
       } else {
-        // トークン取得に失敗（ペアリング未開放、拒絶等）
-        setSyncToken('');
+        // 403 (明示的拒絶・失効) の場合のみトークンをクリア
+        if (tokenRes.status === 403) {
+          setSyncToken('');
+        }
         if (typeof window.showToast === 'function') {
           window.showToast('⚠️ PC側で「📱スマホDesk Pet接続」を開いて承認してください');
         }
