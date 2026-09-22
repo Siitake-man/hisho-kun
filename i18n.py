@@ -173,6 +173,27 @@ _TRANSLATIONS: Dict[str, Dict[str, str]] = {
         "ui.settings.tab_tools": "外部ツール・プラグイン",
         "ui.settings.tab_devices": "接続端末管理",
         "ui.settings.tab_guide": "使い方ガイド",
+        # Settings Navigation (Sidebar)
+        "ui.settings.nav_general": "⚙️ 一般・言語",
+        "ui.settings.nav_agent_hooks": "🤖 エージェント連携",
+        "ui.settings.nav_llm": "🧠 AIモデル設定",
+        "ui.settings.nav_tools": "🔌 外部連携 (MCP)",
+        "ui.settings.nav_devices": "📱 接続端末管理",
+        "ui.settings.nav_guide": "📖 使い方ガイド",
+        # Hooks Guide Card
+        "ui.settings.hooks_card_title": "エージェント Hooks ＆ 承認通知ガイド",
+        "ui.settings.hooks_desc": (
+            "Antigravity や OpenCode などのAIコーディングエージェントに設定を追加することで、\n"
+            "「⚠️ 権限が必要です」などの承認待ち発生時に、PCペットとスマホDesk Petが即座に覚醒・通知します。"
+        ),
+        "ui.settings.hooks_tab_antigravity": "Antigravity",
+        "ui.settings.hooks_tab_opencode": "OpenCode",
+        "ui.settings.hooks_tab_claudecode": "Claude Code",
+        "ui.settings.hooks_copy_btn": "📋 設定スニペットをコピー",
+        "ui.settings.hooks_copied_msg": "クリップボードにコピーしました！",
+        "ui.settings.hooks_ping_btn": "🔔 接続テスト（Ping）を実行",
+        "ui.settings.hooks_ping_success": "✓ 秘書くんへ通知を送信しました！ペットの暴れとスマホのBuzz振動を確認してください。",
+        "ui.settings.hooks_ping_fail": "✕ 通知送信に失敗しました。秘書くんが起動しているか確認してください。",
         "ui.settings.language_card_title": "表示言語 / Language Settings",
         "ui.settings.language_desc": (
             "デスクトップペットの吹き出し、通知メッセージ、およびAI推論の応答言語を切り替えます。\n"
@@ -436,6 +457,27 @@ _TRANSLATIONS: Dict[str, Dict[str, str]] = {
         "ui.settings.tab_tools": "Tools & Plugins",
         "ui.settings.tab_devices": "Connected Devices",
         "ui.settings.tab_guide": "User Guide",
+        # Settings Navigation (Sidebar)
+        "ui.settings.nav_general": "⚙️ General",
+        "ui.settings.nav_agent_hooks": "🤖 Agent Hooks",
+        "ui.settings.nav_llm": "🧠 AI Models",
+        "ui.settings.nav_tools": "🔌 Integrations",
+        "ui.settings.nav_devices": "📱 Devices",
+        "ui.settings.nav_guide": "📖 User Guide",
+        # Hooks Guide Card
+        "ui.settings.hooks_card_title": "Agent Hooks & Approval Alerts",
+        "ui.settings.hooks_desc": (
+            "Configure your AI agents (Antigravity, OpenCode, etc.) to trigger\n"
+            "immediate Buzz alerts on your Desk Pet whenever approval is required."
+        ),
+        "ui.settings.hooks_tab_antigravity": "Antigravity",
+        "ui.settings.hooks_tab_opencode": "OpenCode",
+        "ui.settings.hooks_tab_claudecode": "Claude Code",
+        "ui.settings.hooks_copy_btn": "📋 Copy Snippet",
+        "ui.settings.hooks_copied_msg": "Copied to clipboard!",
+        "ui.settings.hooks_ping_btn": "🔔 Test Connection (Ping)",
+        "ui.settings.hooks_ping_success": "✓ Test alert sent! Check your pet reaction and phone buzz.",
+        "ui.settings.hooks_ping_fail": "✕ Failed to send test alert. Please ensure Neo-Secretary is running.",
         "ui.settings.language_card_title": "Language Settings",
         "ui.settings.language_desc": (
             "Changes the language for pet speech bubbles, notifications, and AI model responses."

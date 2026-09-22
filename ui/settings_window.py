@@ -240,7 +240,8 @@ class SettingsWindow(ctk.CTkToplevel):
         super().__init__(parent_gui.root, *args, **kwargs)
         self.parent_gui = parent_gui
         self.title(t("ui.settings.title"))
-        self.geometry("500x640")
+        self.minsize(720, 550)
+        self.geometry("760x600")
         
         self.bg_color = "#F5F5DC"
         self.primary_color = "#A67B5B"
@@ -257,37 +258,100 @@ class SettingsWindow(ctk.CTkToplevel):
         from i18n import subscribe_language_change
         subscribe_language_change(self._on_language_changed)
 
+        self.nav_buttons = {}
+        self.content_frames = {}
+        self.current_nav = "general"
+
         self._build_ui()
+
+    def select_nav(self, nav_key: str):
+        """サイドバーで選択されたカテゴリを表示する"""
+        if self.current_nav == nav_key and self.content_frames.get(nav_key) and self.content_frames[nav_key].winfo_ismapped():
+            return
+        self.current_nav = nav_key
+        for k, btn in self.nav_buttons.items():
+            if k == nav_key:
+                btn.configure(fg_color=self.primary_color, text_color="#FFFFFF")
+            else:
+                btn.configure(fg_color="transparent", text_color=self.text_color)
+        
+        for k, frame in self.content_frames.items():
+            if k == nav_key:
+                frame.grid(row=0, column=0, sticky="nsew")
+            else:
+                frame.grid_forget()
 
     def _build_ui(self):
         load_dotenv(override=True)
         from llm_factory import get_llm_factory, LLMProvider
         factory = get_llm_factory()
         
-        # ヘッダー
+        # ヘッダー (上部タイトルバー)
         header = ctk.CTkFrame(self, fg_color=self.primary_color, corner_radius=0, height=45)
         header.pack(side="top", fill="x")
         header.pack_propagate(False)
         
-        title_label = ctk.CTkLabel(header, text=t("ui.settings.title"), font=self.font_title, text_color="#FFFFFF")
-        title_label.pack(pady=8)
+        self.header_title = ctk.CTkLabel(header, text=t("ui.settings.title"), font=self.font_title, text_color="#FFFFFF")
+        self.header_title.pack(pady=8)
+
+        # 保存ボタンバー (最下部固定)
+        footer = ctk.CTkFrame(self, fg_color=self.bg_color, height=48)
+        footer.pack(side="bottom", fill="x", padx=12, pady=(4, 8))
+        self.btn_save = ctk.CTkButton(
+            footer,
+            text=f"💾 {t('ui.settings.save')}",
+            font=self.font_title,
+            fg_color=self.primary_color,
+            hover_color="#8B634A",
+            height=38,
+            command=self._on_save
+        )
+        self.btn_save.pack(fill="x")
         
-        # タブビュー領域
-        self.tabview = ctk.CTkTabview(self, fg_color=self.bg_color, segmented_button_selected_color=self.primary_color, segmented_button_selected_hover_color="#8B634A")
-        self.tabview.pack(side="top", fill="both", expand=True, padx=12, pady=(6, 5))
-        
-        tab_general = self.tabview.add(f"⚙️ {t('ui.settings.general')}")
-        tab_llm = self.tabview.add(f"🧠 {t('ui.settings.tab_llm')}")
-        tab_mcp = self.tabview.add(f"🤖 {t('ui.settings.tab_mcp')}")
-        tab_tools = self.tabview.add(f"📅 {t('ui.settings.tab_tools')}")
-        tab_devices = self.tabview.add(f"📱 {t('ui.settings.tab_devices')}")
-        tab_guide = self.tabview.add(f"📖 {t('ui.settings.tab_guide')}")
+        # メインボディ領域 (左右分割: 左サイドバー + 右コンテンツ)
+        main_body = ctk.CTkFrame(self, fg_color=self.bg_color, corner_radius=0)
+        main_body.pack(side="top", fill="both", expand=True)
+
+        # 左サイドバー (Navigation Rail: 幅190px)
+        self.sidebar_frame = ctk.CTkFrame(main_body, fg_color="#EDE6D6", width=190, corner_radius=0)
+        self.sidebar_frame.pack(side="left", fill="y", padx=0, pady=0)
+        self.sidebar_frame.pack_propagate(False)
+
+        self.nav_items_def = [
+            ("general", "ui.settings.nav_general"),
+            ("agent_hooks", "ui.settings.nav_agent_hooks"),
+            ("llm", "ui.settings.nav_llm"),
+            ("tools", "ui.settings.nav_tools"),
+            ("devices", "ui.settings.nav_devices"),
+            ("guide", "ui.settings.nav_guide"),
+        ]
+        for key, text_key in self.nav_items_def:
+            btn = ctk.CTkButton(
+                self.sidebar_frame,
+                text=t(text_key),
+                font=self.font_body,
+                fg_color="transparent",
+                text_color=self.text_color,
+                hover_color="#D8CFBD",
+                anchor="w",
+                height=42,
+                corner_radius=6,
+                command=lambda k=key: self.select_nav(k)
+            )
+            btn.pack(fill="x", padx=8, pady=4)
+            self.nav_buttons[key] = btn
+
+        # 右コンテンツコンテナ
+        self.content_container = ctk.CTkFrame(main_body, fg_color="transparent")
+        self.content_container.pack(side="right", fill="both", expand=True, padx=8, pady=6)
+        self.content_container.grid_rowconfigure(0, weight=1)
+        self.content_container.grid_columnconfigure(0, weight=1)
 
         # =====================================================================
-        # Tab 0: 一般設定 (General Settings) - 言語切替 ＆ Auto-fit
+        # Nav 1: 一般・言語設定 (General Settings)
         # =====================================================================
-        content_general = ctk.CTkScrollableFrame(tab_general, fg_color="transparent")
-        content_general.pack(fill="both", expand=True)
+        content_general = ctk.CTkScrollableFrame(self.content_container, fg_color="transparent")
+        self.content_frames["general"] = content_general
 
         card_lang = ctk.CTkFrame(content_general, fg_color="#FFFFFF", border_width=1, border_color="#E0D8C8", corner_radius=8)
         card_lang.pack(fill="x", pady=6, padx=2)
@@ -296,16 +360,16 @@ class SettingsWindow(ctk.CTkToplevel):
         card_lang.grid_columnconfigure(0, weight=0)
         card_lang.grid_columnconfigure(1, weight=1)
 
-        lbl_card_title = ctk.CTkLabel(
+        self.lbl_card_title = ctk.CTkLabel(
             card_lang,
             text=f"🌐 {t('ui.settings.language_card_title')}",
             font=("Meiryo UI", 11, "bold"),
             text_color=self.primary_color,
             anchor="w"
         )
-        lbl_card_title.grid(row=0, column=0, columnspan=2, sticky="ew", padx=12, pady=(10, 4))
+        self.lbl_card_title.grid(row=0, column=0, columnspan=2, sticky="ew", padx=12, pady=(10, 4))
 
-        lbl_lang_desc = ctk.CTkLabel(
+        self.lbl_lang_desc = ctk.CTkLabel(
             card_lang,
             text=t("ui.settings.language_desc"),
             font=self.font_small,
@@ -313,17 +377,17 @@ class SettingsWindow(ctk.CTkToplevel):
             anchor="w",
             justify="left"
         )
-        lbl_lang_desc.grid(row=1, column=0, columnspan=2, sticky="ew", padx=12, pady=(0, 10))
+        self.lbl_lang_desc.grid(row=1, column=0, columnspan=2, sticky="ew", padx=12, pady=(0, 10))
 
         # 言語選択行
-        lbl_select_lang = ctk.CTkLabel(
+        self.lbl_select_lang = ctk.CTkLabel(
             card_lang,
             text=f"{t('ui.settings.language')}:",
             font=self.font_body,
             text_color=self.text_color,
             anchor="w"
         )
-        lbl_select_lang.grid(row=2, column=0, sticky="w", padx=(12, 8), pady=(0, 12))
+        self.lbl_select_lang.grid(row=2, column=0, sticky="w", padx=(12, 8), pady=(0, 12))
 
         # 言語コード・表示名マッピング
         self._LANG_NAME_TO_CODE = {"日本語": "ja", "English": "en"}
@@ -336,11 +400,7 @@ class SettingsWindow(ctk.CTkToplevel):
             code = self._LANG_NAME_TO_CODE.get(selected_name, "ja")
             i18n.set_language(code)
             logger.info("設定画面から言語を変更しました: %s (%s)", code, selected_name)
-            # 即時UI反映: ウィンドウタイトル、言語ラベル、保存ボタンを再描画
-            self.title(t("ui.settings.title"))
-            lbl_select_lang.configure(text=f"{t('ui.settings.language')}:")
-            if hasattr(self, "btn_save") and self.btn_save:
-                self.btn_save.configure(text=f"💾 {t('ui.settings.save')}")
+            self._on_language_changed(code)
 
         self.combo_language = ctk.CTkOptionMenu(
             card_lang,
@@ -357,10 +417,139 @@ class SettingsWindow(ctk.CTkToplevel):
         self.combo_language.grid(row=2, column=1, sticky="ew", padx=(0, 12), pady=(0, 12))
 
         # =====================================================================
-        # Tab 1: AIモデル設定 (LLM Brain)
+        # Nav 2: エージェント連携 ＆ Hooks設定 (Agent Hooks & Approval)
         # =====================================================================
-        content_llm = ctk.CTkScrollableFrame(tab_llm, fg_color="transparent")
-        content_llm.pack(fill="both", expand=True)
+        content_hooks = ctk.CTkScrollableFrame(self.content_container, fg_color="transparent")
+        self.content_frames["agent_hooks"] = content_hooks
+
+        # カード1: 概要 ＆ 🔔 接続テスト (Ping)
+        card_hooks_intro = ctk.CTkFrame(content_hooks, fg_color="#FFFFFF", border_width=1, border_color="#E0D8C8", corner_radius=8)
+        card_hooks_intro.pack(fill="x", pady=6, padx=2)
+
+        self.lbl_hooks_title = ctk.CTkLabel(
+            card_hooks_intro,
+            text=f"🤖 {t('ui.settings.hooks_card_title')}",
+            font=("Meiryo UI", 12, "bold"),
+            text_color=self.primary_color,
+            anchor="w"
+        )
+        self.lbl_hooks_title.pack(fill="x", padx=12, pady=(10, 4))
+
+        self.lbl_hooks_desc = ctk.CTkLabel(
+            card_hooks_intro,
+            text=t("ui.settings.hooks_desc"),
+            font=self.font_small,
+            text_color="#7A6B62",
+            anchor="w",
+            justify="left"
+        )
+        self.lbl_hooks_desc.pack(fill="x", padx=12, pady=(0, 10))
+
+        # Pingテストボタン
+        self.btn_ping = ctk.CTkButton(
+            card_hooks_intro,
+            text=t("ui.settings.hooks_ping_btn"),
+            font=self.font_body,
+            fg_color="#4CAF50",
+            hover_color="#388E3C",
+            height=34,
+            command=self._on_ping_test
+        )
+        self.btn_ping.pack(fill="x", padx=12, pady=(0, 12))
+
+        # カード2: エージェント別設定スニペット
+        card_snippets = ctk.CTkFrame(content_hooks, fg_color="#FFFFFF", border_width=1, border_color="#E0D8C8", corner_radius=8)
+        card_snippets.pack(fill="x", pady=6, padx=2)
+
+        ctk.CTkLabel(
+            card_snippets,
+            text="📋 主要エージェント向け設定スニペット",
+            font=("Meiryo UI", 11, "bold"),
+            text_color=self.primary_color,
+            anchor="w"
+        ).pack(fill="x", padx=12, pady=(10, 4))
+
+        snippets = {
+            "Antigravity": (
+                "// ~/.gemini/config/hooks.json または .agents/hooks.json\n"
+                "{\n"
+                '  "code-discovery-and-safety-guard": {\n'
+                '    "enabled": true,\n'
+                '    "PreToolUse": [\n'
+                "      {\n"
+                '        "matcher": "grep_search|run_command",\n'
+                '        "hooks": [\n'
+                "          {\n"
+                '            "type": "command",\n'
+                '            "command": "python C:/Users/bonob/.gemini/tools/jev_router/tool_guard_hook.py",\n'
+                '            "timeout": 5\n'
+                "          }\n"
+                "        ]\n"
+                "      }\n"
+                "    ]\n"
+                "  }\n"
+                "}"
+            ),
+            "OpenCode": (
+                "// ~/.config/opencode/plugins/hisho-approval-notify/index.ts\n"
+                "// ctx.permission.hook('evaluate', event => {\n"
+                "//   if (event.effect === 'ask') {\n"
+                "//     fetch('http://localhost:8765/api/agent/ask_input', {\n"
+                "//       method: 'POST',\n"
+                "//       body: JSON.stringify({ agent_name: 'OpenCode', wait_decision: false, ... })\n"
+                "//     })\n"
+                "//   }\n"
+                "// })"
+            ),
+            "Claude Code": (
+                "// ~/.claude/config.json または PreToolUse フック\n"
+                "// neo_hisho_bridge MCP サーバーを有効化し、\n"
+                "// 危険コマンド実行前に ask_human_approval を自動呼び出し"
+            )
+        }
+
+        self.txt_snippet = ctk.CTkTextbox(card_snippets, height=130, font=("Consolas", 10))
+        self.txt_snippet.pack(fill="x", padx=12, pady=6)
+        self.txt_snippet.insert("1.0", snippets["Antigravity"])
+        self.txt_snippet.configure(state="disabled")
+
+        def _on_snippet_agent_select(agent: str):
+            self.txt_snippet.configure(state="normal")
+            self.txt_snippet.delete("1.0", "end")
+            self.txt_snippet.insert("1.0", snippets.get(agent, ""))
+            self.txt_snippet.configure(state="disabled")
+
+        combo_agent = ctk.CTkSegmentedButton(
+            card_snippets,
+            values=["Antigravity", "OpenCode", "Claude Code"],
+            command=_on_snippet_agent_select,
+            selected_color=self.primary_color
+        )
+        combo_agent.set("Antigravity")
+        combo_agent.pack(fill="x", padx=12, pady=(0, 6))
+
+        def _copy_snippet():
+            text = self.txt_snippet.get("1.0", "end-1c")
+            self.clipboard_clear()
+            self.clipboard_append(text)
+            messagebox.showinfo("Neo-Secretary", t("ui.settings.hooks_copied_msg"))
+
+        btn_copy = ctk.CTkButton(
+            card_snippets,
+            text=t("ui.settings.hooks_copy_btn"),
+            font=self.font_small,
+            fg_color=self.primary_color,
+            hover_color="#8B634A",
+            height=30,
+            command=_copy_snippet
+        )
+        btn_copy.pack(fill="x", padx=12, pady=(0, 12))
+
+        # =====================================================================
+        # Nav 3: AIモデル設定 (LLM Brain)
+        # =====================================================================
+        content_llm = ctk.CTkScrollableFrame(self.content_container, fg_color="transparent")
+        self.content_frames["llm"] = content_llm
 
         # 🌐 一括モデル同期バナー
         sync_banner = ctk.CTkFrame(content_llm, fg_color="#EFEBE9", border_color=self.primary_color, border_width=1.5, corner_radius=8)
@@ -575,10 +764,12 @@ class SettingsWindow(ctk.CTkToplevel):
         self.lbl_custom_status.pack(fill="x", pady=(0, 8))
 
         # =====================================================================
-        # Tab 2: 外部AI・MCP連携 (Agent Bridge & Configs)
+        # Nav 4: 外部連携・プラグイン (MCP & Tools)
         # =====================================================================
-        content_mcp = ctk.CTkScrollableFrame(tab_mcp, fg_color="transparent")
-        content_mcp.pack(fill="both", expand=True)
+        content_tools = ctk.CTkScrollableFrame(self.content_container, fg_color="transparent")
+        self.content_frames["tools"] = content_tools
+        content_mcp = content_tools
+
 
         guide_desc = (
             "Codex, Claude Code, Cursor, Antigravity 等のコーディングAIにネオ秘書くんの\n"
@@ -683,13 +874,7 @@ class SettingsWindow(ctk.CTkToplevel):
         )
         self.chk_voice_narration.pack(anchor="w", padx=8, pady=(2, 6))
 
-        # =====================================================================
-        # Tab 3: カレンダー・Google・GitHub・プラグイン
-        # =====================================================================
-        content_tools = ctk.CTkScrollableFrame(tab_tools, fg_color="transparent")
-        content_tools.pack(fill="both", expand=True)
-
-        # 1. Google サービス統合 (Workspace / Gmail / Calendar OAuth 2.0)
+        # 5. Google サービス統合 (Workspace / Gmail / Calendar OAuth 2.0)
         card_google = ctk.CTkFrame(content_tools, fg_color="#FFFFFF", border_width=1, border_color="#E0D8C8", corner_radius=6)
         card_google.pack(fill="x", pady=4, padx=2)
         
@@ -995,10 +1180,10 @@ class SettingsWindow(ctk.CTkToplevel):
             btn_del.pack(side="right")
 
         # =====================================================================
-        # Tab 5: 使い方ガイド
+        # Nav 6: 使い方ガイド
         # =====================================================================
-        content_guide = ctk.CTkScrollableFrame(tab_guide, fg_color="transparent")
-        content_guide.pack(fill="both", expand=True, padx=8, pady=6)
+        content_guide = ctk.CTkScrollableFrame(self.content_container, fg_color="transparent")
+        self.content_frames["guide"] = content_guide
 
         # クイックスタート
         ctk.CTkLabel(content_guide, text="🚀 クイックスタート", font=self.font_title,
@@ -1048,34 +1233,67 @@ class SettingsWindow(ctk.CTkToplevel):
                           text_color="#7A6B62", anchor="w", wraplength=400).pack(anchor="w", padx=(8, 0))
 
         # =====================================================================
-        # Tab 4: 接続端末管理（ゼロトラスト端末台帳）
+        # Nav 5: 接続端末管理（ゼロトラスト端末台帳）
         #   Sprint C 先取り (2026-09-16): 台帳の表示・Revoke は
         #   ui/device_manager_panel.py の Deep Module へ委譲し、
         #   本画面はセクションを差し込むだけに留める (肥大化防止)。
         # =====================================================================
+        content_devices = ctk.CTkFrame(self.content_container, fg_color="transparent")
+        self.content_frames["devices"] = content_devices
+
         from ui.device_manager_panel import DeviceManagerSection
 
         # dispatch=parent_gui.post_action により、台帳読み出しはワーカースレッドで実行され
         # 結果だけがメインスレッドで反映される（設定画面が固まらない / P1-3）
         self.device_manager_section = DeviceManagerSection(
-            tab_devices, dispatch=getattr(self.parent_gui, "post_action", None)
+            content_devices, dispatch=getattr(self.parent_gui, "post_action", None)
         )
         self.device_manager_section.pack(fill="both", expand=True, padx=8, pady=6)
 
+        # 初期表示: 一般タブを選択
+        self.select_nav("general")
 
-        # =====================================================================
-        # 保存ボタン
-        # =====================================================================
-        self.btn_save = ctk.CTkButton(
-            self,
-            text=f"💾 {t('ui.settings.save')}",
-            font=self.font_title,
-            fg_color=self.primary_color,
-            hover_color="#8B634A",
-            height=38,
-            command=self._on_save
-        )
-        self.btn_save.pack(side="bottom", fill="x", padx=15, pady=8)
+    def _on_ping_test(self):
+        """エージェント連携の接続テスト (Ping) を送信し、PCペットとスマホDesk Petをテスト通知させる"""
+        import threading
+
+        if hasattr(self, "btn_ping") and self.btn_ping.winfo_exists():
+            self.btn_ping.configure(state="disabled", text="⏳ 送信中...")
+
+        def _worker():
+            try:
+                import agent_bridge_client
+                payload = {
+                    "agent_name": "SettingsUI",
+                    "question": "🔔 設定画面からの接続テスト（Ping）です！通知は正常に届いています。",
+                    "choices": ["了解"],
+                    "wait_decision": False
+                }
+                res = agent_bridge_client._post_to_hub("/api/agent/ask_input", payload, timeout=5)
+                success = res.get("status") not in ("error", "unreachable")
+
+                def _ui_callback():
+                    if not self.winfo_exists():
+                        return
+                    if hasattr(self, "btn_ping") and self.btn_ping.winfo_exists():
+                        self.btn_ping.configure(state="normal", text=t("ui.settings.hooks_ping_btn"))
+                    if success:
+                        messagebox.showinfo("Neo-Secretary", t("ui.settings.hooks_ping_success"), parent=self)
+                    else:
+                        messagebox.showwarning("Neo-Secretary", t("ui.settings.hooks_ping_fail"), parent=self)
+
+                self.after(0, _ui_callback)
+            except Exception as ex:
+                logger.warning("Ping test failed: %s", ex)
+                def _ui_error():
+                    if not self.winfo_exists():
+                        return
+                    if hasattr(self, "btn_ping") and self.btn_ping.winfo_exists():
+                        self.btn_ping.configure(state="normal", text=t("ui.settings.hooks_ping_btn"))
+                    messagebox.showwarning("Neo-Secretary", f"{t('ui.settings.hooks_ping_fail')}\n({ex})", parent=self)
+                self.after(0, _ui_error)
+
+        threading.Thread(target=_worker, daemon=True).start()
 
     def _open_add_mcp_dialog(self):
         """MCPサーバー新規追加ダイアログを開く"""
@@ -1668,12 +1886,24 @@ class SettingsWindow(ctk.CTkToplevel):
             if not self.winfo_exists():
                 return
             self.title(t("ui.settings.title"))
+            if hasattr(self, "header_title") and self.header_title.winfo_exists():
+                self.header_title.configure(text=t("ui.settings.title"))
+            # サイドバーナビゲーションボタンの多言語更新
+            for key, text_key in getattr(self, "nav_items_def", []):
+                if key in self.nav_buttons and self.nav_buttons[key].winfo_exists():
+                    self.nav_buttons[key].configure(text=t(text_key))
             if hasattr(self, "lbl_card_title") and self.lbl_card_title.winfo_exists():
                 self.lbl_card_title.configure(text=f"🌐 {t('ui.settings.language_card_title')}")
             if hasattr(self, "lbl_lang_desc") and self.lbl_lang_desc.winfo_exists():
                 self.lbl_lang_desc.configure(text=t("ui.settings.language_desc"))
             if hasattr(self, "lbl_select_lang") and self.lbl_select_lang.winfo_exists():
                 self.lbl_select_lang.configure(text=f"{t('ui.settings.language')}:")
+            if hasattr(self, "lbl_hooks_title") and self.lbl_hooks_title.winfo_exists():
+                self.lbl_hooks_title.configure(text=f"🤖 {t('ui.settings.hooks_card_title')}")
+            if hasattr(self, "lbl_hooks_desc") and self.lbl_hooks_desc.winfo_exists():
+                self.lbl_hooks_desc.configure(text=t("ui.settings.hooks_desc"))
+            if hasattr(self, "btn_ping") and self.btn_ping.winfo_exists():
+                self.btn_ping.configure(text=t("ui.settings.hooks_ping_btn"))
             if hasattr(self, "btn_save") and self.btn_save.winfo_exists():
                 self.btn_save.configure(text=f"💾 {t('ui.settings.save')}")
             if hasattr(self, "btn_sync_all") and self.btn_sync_all.winfo_exists():

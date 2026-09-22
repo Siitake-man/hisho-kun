@@ -1,7 +1,7 @@
 # ネオ秘書くん システム設計書 (DESIGN_SPEC.md)
 
-- **バージョン**: 1.4.4 (⚡ OpenCode実証済み「ask_input非ブロッキング通知」のAntigravity移植完了 ＆ agent-tester検証合格)
-- **最終更新日時**: 2026-09-21 18:35
+- **バージョン**: 1.5.1-dev (🛡️ 全権限インターセプト通知配備 ＆ 📦 全エージェント統合 AI Dotfiles バックアップ・復元基盤確立)
+- **最終更新日時**: 2026-09-22 09:20 (🛡️ 全権限Hook通知・AI Dotfiles Git管理同期完了)
 - **アーキテクチャ方針**: 完全ローカル完結型 非ブロッキング並行システム (Tkinter Desktop Overlay × Mobile PWA × LangGraph Agent × Zero-Trust Local Bridge ＆ Cross-Platform Headless CI/CD)
 
 
@@ -1044,6 +1044,86 @@ OpenCode Desktop (v2.0.11) へ **同一の開発体験・安全規約・品質�
 > **教訓（ボスのコード審美眼メモ）**: OpenCode の permission は **後勝ち**である。
 > 「設定ファイルに deny を書いたから安全」ではなく、**後から追記されるルール（エージェント定義）が
 > その deny を覆さないか**を常に確認する。今回はまさにこの1点が P0 と P1-1 の共通根因であった。
+
+---
+
+## 22. エージェント Hooks 設定ガイドウィザード ＆ 新・機能オンボーディングツアー設計 (v1.5.0)
+
+### 22.1 課題とアーキテクチャ背景 (Why)
+1. **エージェント側の導入摩擦ゼロ化**:
+   - ネオ秘書くんの「離席中にエージェントが承認待ちで停止する痛点」の解消は、エージェント側（Antigravityの `PreToolUse` Hook や OpenCode の `hisho-approval-notify` プラグイン）との協調動作によって初めて成立する。
+   - しかし、外部設定ファイル（`hooks.json` や `index.ts`）を手動配置する作業はユーザーにとって認知負荷が高いため、秘書くんアプリ側で「設定ガイドウィザード」と「セルフ診断（Pingテスト）」を提供し、導入を1分で完了させる必要がある。
+2. **ツアー機能の最新化と国際化**:
+   - 初期のオンボーディングツアー（`tour_engine.py`）は3ステップの静的案内のまま止まっており、Agent Bridge、スマホ遠隔承認、適応型0fps省電力、統合手帳、日英多言語切替といった現在のコア価値が網羅されていない。
+   - 英語版ツアーを完備し、海外ユーザーにも「なぜネオ秘書くんが必要なのか」を直感的に腹落ちさせる。
+
+### 22.2 Hooks 設定ガイドウィザード構成 (What)
+- **UIコンポーネント (`ui/hooks_guide_dialog.py` / 設定画面タブ)**:
+  - エージェント選択タブ（`Antigravity` / `OpenCode` / `Claude Code` / `Cursor` / `Codex`）。
+  - 各エージェント向けの設定スニペットワンクリックコピー。
+  - ローカル設定フォルダ自動検出＆ワンタップ自動配置ボタン（ファイル存在時はマージ確認）。
+  - 「🔔 接続テスト（Ping）」ボタン: `POST /api/agent/ask_input` をテスト送信し、PCペットの `alarm_ask` とスマホDesk PetのBuzz振動が正しく発火するかをその場で確認。
+
+### 22.3 新・機能オンボーディングツアー 4ステップ設計
+1. **Step 1: 🎉 ようこそネオ秘書くんへ (`tour.welcome`)**:
+   - デスクトップ常駐ペット、サークルメニュー、基本操作。
+2. **Step 2: 📱 スマホとつなぐ卓上リモコン (`tour.mobile_pet`)**:
+   - QRコードワンタップペアリング、適応型Canvas 0fps完全省電力、愛着と生活モーション。
+3. **Step 3: 🤖 コーディングエージェント遠隔承認 (`tour.agent_bridge`)**:
+   - 席を外してもAIが止まらない。Agent BridgeとHooksによる離席中のノールック承認。
+4. **Step 4: 📔 統合手帳・カレンダー ＆ 言語設定 (`tour.notebook_i18n`)**:
+   - TODO、習慣トラッカー、iCal連携、および日英動的切替。
+
+
+## 23. OpenCode モデル選択 ＆ 入力待ち通知の設計 (2026-09-21 深夜セッション / ボス承認済み)
+
+### 23.1 課題と設計判断（Why）
+1. **モデル選択の帰属問題**: Antigravity は「サブエージェントごとにモデルを指定すると直列実行になる」制約を持つ。
+   一方 OpenCode は `subagent` ツールの `model` 引数で動的に指定できる（実測済み）。
+   両者は **同じ `jev-mcp` を共有**しているため、Jev の出力にモデル情報を足すと Antigravity 側が直列化してしまう。
+2. **解決**: Jev を改造するのではなく **契約の境界を分ける**。
+   - Antigravity … `jev_mcp_server.py`（2ツール / **変更禁止** / モデル情報ゼロ）
+   - OpenCode … `jev_mcp_planner.py`（3ツール / モデル選択を追加）
+   - `jev_guard_command` / `jev_route_agent` は **Antigravity 側の関数オブジェクトをそのまま import** して登録し、
+     挙動がズレる余地を構造的に排除（`tests/test_jev_model_planner.py` の `assertIs` で凍結）。
+
+### 23.2 モデル選定の3原則
+| 原則 | 内容 |
+|:---|:---|
+| **一次情報はライブ** | `tools.opencode.models`（OpenCode自身が知る実在モデル）を毎回取得。キャッシュは保険のみ（実測: 既存キャッシュ37件中**10件が廃止済み**だった） |
+| **候補はクライアントが渡す** | Jev はモデル名を知らない。MCPサーバーは `tools.opencode.models` を呼べないため、呼び出し側（エージェント）が実在候補を渡す |
+| **高コストは構造で防ぐ** | 既定では承認帯（出力 $1.0/M 以上）を候補から除外。Jev は**選べない** |
+
+### 23.3 コスト帯ポリシー（`model_policy.json`）
+- **ボスが編集する唯一のファイル**。しきい値・役割別モデル・監査系を JSON で保持し、`model_catalog.py` が読み込む。
+- 🟢 常用帯（< $1.0/M 出力）: 自動で使用可。実装の既定は `deepseek-v4.1-flash` / `glm-5.3-flash`（ボス指定）
+- 🟡 承認帯（≥ $1.0/M 出力）: `ask_human_approval` による**スマホ承認必須**。監査は `glm-5.3` / `grok-4.6` / `kimi-k3`
+- **B案（厳格運用）**: 指定モデル以外は候補から除外（安い逃げ道を廃止）。追随は `model_policy.json` への1行追記で完結。
+- **ドリフト検知CLI**: `model_catalog.py --check --live-json <実在モデル一覧>` が ①推奨モデルの廃止 ②新モデルの出現 ③価格改定 を検知（終了コード1）。
+
+### 23.4 入力待ち通知プラグイン（`hisho-approval-notify`）
+1. **背景**: OpenCode が「⚠️ 権限が必要です」で止まっても、ボスが画面を見ていないと気づけず待ちぼうけになる
+   （＝**ネオ秘書くんの存在意義そのもの**）。Antigravity は `PreToolUse` Hook で解決するが、OpenCode に Hook は無い。
+2. **設計**: **Plugin** が `ctx.permission.hook("evaluate")` で権限評価の瞬間を捕捉し、
+   イベントの **`effect: "ask"`**（＝人間の判断が必要）のときだけ通知する（`allow`/`deny` では鳴らさない＝スパム防止）。
+3. **通知経路**: `POST /api/agent/ask_input`（**`wait_decision:false`**）→ `trigger_buzz()` ＋ `gui.set_pet_state("alarm_ask", 6000)` ＋ スマホプッシュ。
+4. **安全性**: Bearer認証（`.sync_token`）／ localhost限定（サーバー側でも403で防御）／ **権限判定には一切干渉しない（観測のみ）** ／
+   全例外をログして OpenCode を止めない（Fail-Safe）／ 同一要求は60秒クールダウン。
+5. **実測**: ボスが実機で通知を受信（`HTTP 200 {"status":"queued"}`）。診断ログ `%TEMP%\hisho-notify.log` に全履歴。
+6. **Gotcha（重要）**: `import { Plugin } from "@opencode/plugin"` は**この環境では解決できない**
+   （`Cannot find package '@opencode/plugin'`）。`Plugin.define` の実体は素通し関数（`return plugin`）であるため、
+   **import を省いて素のオブジェクトを default export** すれば等価（実測で解決・ホットリロードで反映）。
+
+### 23.5 Antigravity への技術移管
+同じ痛点を Antigravity 側でも解消するため、実測済みのAPI契約と落とし穴
+（**`wait_decision:false` 必須**／Bearer認証／`_post_to_hub` の再利用／`PreToolUse` には allow/ask の区別が無いため逆allowlist方式）
+を指示文として提供し、Antigravity 側の実装完了を確認した（2026-09-21）。
+
+### 23.6 品質ゲート
+- 独立査読（`quality-reviewer`）: P0×1（`git branch *` allow の決定論的ホール）/ P1×6 を検出し**全件是正**
+- TDD: `tests/test_jev_model_planner.py` 34件（Red 29 failed → Green 22 passed の実証を含む）
+- 全回帰: **753 passed / 2 skipped**
+
 
 
 

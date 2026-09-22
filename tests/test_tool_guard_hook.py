@@ -107,6 +107,48 @@ class TestToolGuardHook(unittest.TestCase):
             except Exception as e:
                 self.fail(f"notify_waiting raised an exception: {e}")
 
+    def test_is_external_workspace_path(self):
+        """ワークスペース外のパス判定が正しく行われること"""
+        # 相対パスは内部判定
+        self.assertFalse(tgh.is_external_workspace_path("tests/test_tool_guard_hook.py"))
+        self.assertFalse(tgh.is_external_workspace_path(""))
+        
+        # ワークスペース配下の絶対パスは内部判定
+        workspace_file = str(tgh.HISHO_ROOT / "main.py")
+        self.assertFalse(tgh.is_external_workspace_path(workspace_file))
+
+        # ワークスペース外（~/.gemini や C:\Windows 等）は外部判定
+        self.assertTrue(tgh.is_external_workspace_path("C:/Users/bonob/.gemini/config/hooks.json"))
+        self.assertTrue(tgh.is_external_workspace_path("C:/Windows/System32"))
+
+    def test_external_path_tool_triggers_notify(self):
+        """外部パスへのアクセスツール呼び出し時に notify_waiting がトリガーされること"""
+        from unittest import mock
+
+        with mock.patch("tool_guard_hook.notify_waiting") as mock_notify, \
+             mock.patch("sys.stdin") as mock_stdin:
+            import io
+            import json
+            
+            payload = {
+                "toolCall": {
+                    "name": "list_dir",
+                    "args": {
+                        "DirectoryPath": "C:/Users/bonob/.config"
+                    }
+                }
+            }
+            mock_stdin.read.return_value = json.dumps(payload)
+
+            with mock.patch("sys.stdout", new_callable=io.StringIO) as mock_stdout:
+                tgh.main()
+                output = json.loads(mock_stdout.getvalue())
+                self.assertEqual(output["decision"], "allow")
+                self.assertTrue(mock_notify.called)
+                args, _ = mock_notify.call_args
+                self.assertIn("list_dir", args[0])
+                self.assertIn("C:/Users/bonob/.config", args[0])
+
 
 if __name__ == "__main__":
     unittest.main()
