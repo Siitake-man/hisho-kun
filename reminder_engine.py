@@ -219,9 +219,27 @@ class ReminderEngine:
     def _dispatch(self, message: str) -> None:
         """PC側コールバックへ通知をディスパッチする (ベストエフォート)。
 
+        あわせて Web Push (push_sender) を fire-and-forget 送信する。
+        Push 送信はスマホ PWA が閉じていても OS 標準通知として届けるための
+        経路であり、PC コールバック (on_reminder) の設定有無に依存しない。
+
         Args:
             message: 通知メッセージ
         """
+        # Web Push 送信 (ノンブロッキング・Fail-Safe: 例外は push_sender 内で完結)
+        try:
+            import push_sender
+
+            push_sender.send_push_to_all_devices(
+                title="⏰ リマインダー",
+                body=message,
+                tag="reminder",
+                event_type="reminder",
+                db_path=self._db_path,
+            )
+        except Exception as e:
+            logger.warning(f"リマインダーの Web Push 送信に失敗しました: {e}")
+
         if not callable(self._on_reminder):
             return
         try:

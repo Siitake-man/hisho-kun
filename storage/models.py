@@ -302,6 +302,50 @@ class Device(BaseModel):
 
 
 # =============================================================================
+# Web Push (Service Worker + VAPID) モデル
+# =============================================================================
+
+class PushSubscription(BaseModel):
+    """
+    スマホ PWA (Service Worker) の Web Push 購読1件を表すモデル。
+
+    Attributes:
+        id: 購読ID（自動採番）
+        token_hash: 登録元デバイスの認証トークン SHA-256 ハッシュ
+        endpoint: Push Service のエンドポイント URL（UNIQUE）
+        p256dh: ECDH 鍵合意用のクライアント公開鍵 (Base64URL)
+        auth: 認証シークレット (Base64URL)
+        created_at: 初回登録時刻（Unix Timestamp ミリ秒）
+        updated_at: 最終更新時刻（Unix Timestamp ミリ秒）
+    """
+    id: Optional[int] = None
+    token_hash: str = Field(..., min_length=1)
+    endpoint: str = Field(..., min_length=1, max_length=2048)
+    p256dh: str = Field(..., min_length=1, max_length=512)
+    auth: str = Field(..., min_length=1, max_length=512)
+    created_at: int = Field(default_factory=lambda: int(datetime.now().timestamp() * 1000))
+    updated_at: int = Field(default_factory=lambda: int(datetime.now().timestamp() * 1000))
+
+
+class VapidKeys(BaseModel):
+    """
+    Web Push 送信用の VAPID 鍵ペア（単一行運用）を表すモデル。
+
+    Attributes:
+        id: レコードID（単一行運用のため固定）
+        private_key_pem: ECDSA P-256 秘密鍵 (PKCS#8 PEM)
+        public_key: Base64URL エンコードした非圧縮公開鍵 (P-256, 65バイト)
+        subject: VAPID claims の sub (例: "mailto:neo-hisho@localhost")
+        created_at: 生成時刻（Unix Timestamp ミリ秒）
+    """
+    id: Optional[int] = None
+    private_key_pem: str = Field(..., min_length=1)
+    public_key: str = Field(..., min_length=1)
+    subject: str = Field(..., min_length=1)
+    created_at: int = Field(default_factory=lambda: int(datetime.now().timestamp() * 1000))
+
+
+# =============================================================================
 # 承認監査ログモデル
 # =============================================================================
 

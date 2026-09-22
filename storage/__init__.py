@@ -19,6 +19,8 @@ from storage.models import (
     MinigameScore,
     Device,
     AuditLogEntry,
+    PushSubscription,
+    VapidKeys,
 )
 from storage.connection import (
     get_db_connection,
@@ -44,6 +46,15 @@ from storage.device_repo import (
     verify_device_token,
     cleanup_loopback_devices,
     delete_device,
+)
+from storage.push_subscription_repo import (
+    upsert_subscription,
+    get_all_subscriptions,
+    delete_subscription_by_endpoint,
+    delete_subscriptions_by_token_hash,
+)
+from storage.vapid_key_repo import (
+    get_or_create_vapid_keys,
 )
 from storage.calendar_repo import (
     create_category,
@@ -121,6 +132,8 @@ __all__ = [
     "MinigameScore",
     "Device",
     "AuditLogEntry",
+    "PushSubscription",
+    "VapidKeys",
     # Connection & Backup
     "get_db_connection",
     "init_db",
@@ -143,6 +156,13 @@ __all__ = [
     "verify_device_token",
     "cleanup_loopback_devices",
     "delete_device",
+    # Push Subscription Repo
+    "upsert_subscription",
+    "get_all_subscriptions",
+    "delete_subscription_by_endpoint",
+    "delete_subscriptions_by_token_hash",
+    # Vapid Key Repo
+    "get_or_create_vapid_keys",
     # Calendar Repo
     "create_category",
     "get_category",

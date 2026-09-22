@@ -1124,6 +1124,63 @@ OpenCode Desktop (v2.0.11) へ **同一の開発体験・安全規約・品質�
 - TDD: `tests/test_jev_model_planner.py` 34件（Red 29 failed → Green 22 passed の実証を含む）
 - 全回帰: **753 passed / 2 skipped**
 
+## 24. スマホ通知の Web Push API 導入 (As-Built 2026-09-22 / ロードマップ §13.19 第4項・手帳 TODO ID 30)
+
+### 24.1 課題と設計判断（Why）
+1. **構造的限界の確定**: 従来のスマホ通知は「PWA 開いている間の 2秒ポーリング（`/api/status` の `buzz` / `latest_notification`）」のみで、画面オフ・ブラウザ閉じ・スリープ中は**原理的に届かない**（2026-09-22 実測: 通知発火時 `devices.last_seen` = 901.7分前）。「席を外しても気づく」というコアバリューの成立のため **Service Worker + VAPID** を導入した。
+2. **observe-only の維持（最重要制約）**: Push 送信は既存の通知入口（`handle_agent_ask` / `handle_agent_ask_input` / `handle_agent_notify` / `reminder_engine._dispatch`）に**後段追記**したのみで、権限判定・ポーリング契約・既存メソッド署名は一切変更しない。既存 763 テストが無修正で生きる。
+3. **ノンブロッキング構造**: `push_sender.send_push_to_all_devices()` は **DB 読み取りと VAPID 準備（ミリ秒）を呼び出し元スレッドで同期実行**し、ネットワーク送信（秒）のみ daemon スレッドへ委譲する。バックグラウンドスレッドが DB ファイルを保持しないため、テスト環境の一時ファイル削除との競合 (WinError 32) も構造的に回避する。
+4. **VAPID 鍵の単一行永続化**: 鍵は `vapid_keys` テーブルに PKCS#8 PEM で保存し**再生成しない**（再生成すると全端末の購読が無効化されるため）。公開鍵は `GET /api/push/vapid_key`（Bearer 認証必須）で配信する。
+
+### 24.2 システム構成（データフロー）
+| 層 | 実体 | 役割 |
+|:---|:---|:---|
+| 台帳 | `storage/push_subscription_repo.py` ＋ `push_subscriptions` テーブル | endpoint UNIQUE の購読 upsert・token_hash 単位一括削除 |
+| 鍵 | `storage/vapid_key_repo.py` | P-256 鍵ペア生成（初回のみ）・`Vapid` インスタンス復元 |
+| 送信 | `push_sender.py` | pywebpush 送信（timeout 10秒明示）・**404/410 の無効購読を自動掃除**・Fail-Safe（1件の例外で全送信を止めない） |
+| API | `api_push.py` | `POST /api/push/subscribe` / `unsubscribe`（入力長上限 2048/512 を 422 で拒否）／`GET /api/push/vapid_key`。Bearer 認証は `do_POST`/`do_GET` の共通経路で強制 |
+| 配線 | `local_sync_server.py` `POST_PATH_HANDLERS` / `GET_PATH_HANDLERS` | ルート登録のみ（認証・監査は既存経路を流用） |
+| PWA | `web_pet/sw.js` | `push` イベント → OS 標準通知表示 ＋ IndexedDB (`neo-hisho-push`) へ未読記録。`notificationclick` → アプリ復帰 |
+| PWA | `web_pet/pet_push.js` / `push_common.js` | SW 登録・購読登録・**起動時の取りこぼしまとめバナー（未読バッジ）**。通知許可は初回タップ後（ジェスチャ要件対策） |
+
+### 24.3 対象イベントと通知形式
+| イベント | title | tag / event_type |
+|:---|:---|:---|
+| 承認待ち (`/api/agent/ask`) | `⚠️ 承認待ち` | `approval_request` |
+| 質問 (`/api/agent/ask_input`) | `💬 質問` | `ask_input` |
+| 作業完了 (`/api/agent/notify`) | `✨ {agent_name} 完了` | `agent_notify` |
+| 予定・タスクリマインダー (`reminder_engine._dispatch`) | `⏰ リマインダー` | `reminder` |
+
+### 24.4 品質ゲートと運用メモ
+- TDD: `tests/test_web_push_server.py` **24件**（repo CRUD / VAPID 永続化 / 404・410 掃除 / 例外継続 / ノンブロッキング / API 入力検証 400・403・422 / 配線）
+- 全回帰: **785 passed / 2 skipped**（旧基線 761+2 からの純増 24件、既存テスト無修正）
+- 実機 E2E (2026-09-22 16:58): HTTPS (Tailscale) 購読 → **画面OFF で OS 通知受信**（FCM 201 受理）→ 起動時まとめバナー表示を確認。凡例: `インストール済み PWA「ネオ秘書くん」名義で通知表示`
+- 依存追加: `pywebpush==2.5.0` / `py-vapid==1.9.4`（requirements.txt ピン留め済み）
+- **Gotcha**: ① 秘書くんアプリ本体は Python 変更の**再起動が必要**（PWA 側 JS は保存即反映）② 従来ポーリングは併存（撤去しない＝後退リスクゼロ）③ OpenCode Plugin v1.1（`hisho-approval-notify`）による `question` 回答待ち通知（同日実装）と本機能は相互補完関係にある
+
+## 25. 起動時 LLM モデル同期の設定済みプロバイダ限定 (As-Built 2026-09-22 / ロードマップ §13.19 第5項・手帳 TODO ID 31)
+
+### 25.1 課題と設計判断（Why）
+起動時の `llm_factory.sync_all_discovered_models()` は `LLMProvider` 全10プロバイダを無条件巡回し、APIキー未設定（openai/groq/openrouter）・ローカルサーバー未起動（ollama/lm_studio/custom_openai）の6プロバイダで**確定失敗のネットワーク試行＋ERROR ログ＋フォールバックロード**を毎回発生させていた（実測約4.6秒の巡回・ERROR 6件）。引き算の美学により「設定済み・呼び出し可能性のあるものだけ」を巡回するゲート（`LLMFactory.should_probe_provider`）を導入した。
+
+### 25.2 ゲート規則
+| プロバイダ種別 | 判定 | 根拠 |
+|:---|:---|:---|
+| 現行選択中 | 常に巡回 | 動作保証のため |
+| LOCAL_GGUF | 常に巡回 | ローカルディレクトリスキャンのみで通信が無い |
+| クラウド系（`api_key_env` あり） | `is_provider_configured() == True` のみ | 既存の60秒TTL判定（ダミーキー除外付き）を再利用 |
+| Ollama / LM Studio | TCP プローブ（`_probe_endpoint`・0.5秒タイムアウト）成功時のみ | アプリ起動と無関係に生滅するローカルサーバーのため、キー判定ではなく疎通確認が適切 |
+
+- 未起動・未設定の正常系扱い: 巡回は「⏭ スキップ」INFO ログ＋`"skipped: 未設定・未起動"` の結果記録で静かに省略する（ERROR ログは出さない）。
+- 設定画面からの手動同期（`SettingsWindow._sync_all_models`）は本ゲートを通さず**全プロバイダを巡回**する（ボスの明示操作＝全件取得の期待に応えるため）。
+
+### 25.3 品質ゲート
+- TDD: `tests/test_llm_factory_sync_gating.py` **8件**（Red 8 failed → Green 8 passed の実証を含む）
+- 全回帰: **793 passed / 2 skipped**（環境条件 skip は Tk 初期化不可×2 またはアプリ起動中ポート競合×2）
+- 独立検証（`agent-tester`, `ses_f37d4c53bffe7PSGbsxEuFqXK3`）: **PASSED**。実測で未設定7プロバイダのスキップ＆ERROR 0件を確認
+- Gotcha: `_compute_provider_configured` は `load_dotenv(override=True)` で実 .env を読み戻すため、テストでは `llm_factory.load_dotenv` も遮断する必要がある
+
+
 
 
 

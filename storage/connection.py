@@ -306,6 +306,36 @@ def init_db(db_path: str = "neo_secretary.db") -> None:
         )
         logger.info("devicesテーブルを確認/作成しました")
 
+        # Web Push 購読台帳 (Service Worker Push Subscription: endpoint UNIQUE)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS push_subscriptions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                token_hash TEXT NOT NULL,
+                endpoint TEXT NOT NULL UNIQUE,
+                p256dh TEXT NOT NULL,
+                auth TEXT NOT NULL,
+                created_at INTEGER NOT NULL,
+                updated_at INTEGER NOT NULL
+            )
+        """)
+        cursor.execute(
+            "CREATE INDEX IF NOT EXISTS idx_push_subscriptions_token_hash "
+            "ON push_subscriptions (token_hash)"
+        )
+        logger.info("push_subscriptionsテーブルを確認/作成しました")
+
+        # VAPID 鍵ペア (単一行運用・Web Push 送信署名用)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS vapid_keys (
+                id INTEGER PRIMARY KEY,
+                private_key_pem TEXT NOT NULL,
+                public_key TEXT NOT NULL,
+                subject TEXT NOT NULL,
+                created_at INTEGER NOT NULL
+            )
+        """)
+        logger.info("vapid_keysテーブルを確認/作成しました")
+
         # approval_audit_logsテーブル (エージェント承認監査ログ基盤: Block 2)
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS approval_audit_logs (

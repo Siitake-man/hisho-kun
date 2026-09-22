@@ -88,6 +88,7 @@ import api_tasks
 import api_agent_bridge
 import api_calendar
 import api_devices
+import api_push
 from server_watchdog import ServerWatchdog
 from agent_fsm import agent_fsm
 
@@ -720,6 +721,8 @@ POST_PATH_HANDLERS = {
     "/api/test_buzz": api_agent_bridge.handle_test_buzz,
     "/api/webhook/calendar": api_calendar.handle_webhook_calendar,
     "/api/webhook/task": api_calendar.handle_webhook_task,
+    "/api/push/subscribe": api_push.handle_push_subscribe,
+    "/api/push/unsubscribe": api_push.handle_push_unsubscribe,
 }
 
 # GET パス系APIのディスパッチテーブル (P1-B 第一歩: api_devices モジュールへ委譲)
@@ -727,6 +730,7 @@ POST_PATH_HANDLERS = {
 # Bearer 認証 (_check_auth) は do_GET 側のディスパッチ箇所で適用する。
 GET_PATH_HANDLERS = {
     "/api/devices": api_devices.handle_get_devices,
+    "/api/push/vapid_key": api_push.handle_get_push_vapid_key,
 }
 
 

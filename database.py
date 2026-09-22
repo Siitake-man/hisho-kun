@@ -45,6 +45,8 @@ from storage import (
     MinigameScore,
     Device,
     AuditLogEntry,
+    PushSubscription,
+    VapidKeys,
     # 接続・初期化・バックアップ
     get_db_connection,
     init_db,
@@ -67,6 +69,12 @@ from storage import (
     verify_device_token,
     cleanup_loopback_devices,
     delete_device,
+    # Push 購読
+    upsert_subscription,
+    get_all_subscriptions,
+    delete_subscription_by_endpoint,
+    delete_subscriptions_by_token_hash,
+    get_or_create_vapid_keys,
     # カレンダー・カテゴリ
     create_category,
     get_category,
@@ -138,6 +146,8 @@ __all__ = [
     "MinigameScore",
     "Device",
     "AuditLogEntry",
+    "PushSubscription",
+    "VapidKeys",
     # 接続・初期化・バックアップ
     "get_db_connection",
     "init_db",
@@ -160,6 +170,12 @@ __all__ = [
     "verify_device_token",
     "cleanup_loopback_devices",
     "delete_device",
+    # Push 購読
+    "upsert_subscription",
+    "get_all_subscriptions",
+    "delete_subscription_by_endpoint",
+    "delete_subscriptions_by_token_hash",
+    "get_or_create_vapid_keys",
     # カレンダー・カテゴリ
     "create_category",
     "get_category",

@@ -328,6 +328,13 @@ class LLMFactory:
         if config.get("api_key_env")
     ]
 
+    # 起動時巡回の TCP プローブ対象 (ローカルサーバー型プロバイダ)
+    LOCAL_SERVER_PROVIDERS: tuple = (LLMProvider.OLLAMA, LLMProvider.LM_STUDIO)
+    # TCP 接続プローブのタイムアウト (秒)。起動確認のみのため短く設定する
+    PROBE_TIMEOUT_SEC: float = 0.5
+    # 巡回スキップ時に results へ記録する固定文字列
+    SKIP_REASON: str = "skipped: 未設定・未起動"
+
     @staticmethod
     def check_any_api_key_configured() -> bool:
         """1つ以上のLLM APIキーが環境変数に設定されているかを確認する。
@@ -573,18 +580,82 @@ class LLMFactory:
                 return fallback
             raise e
 
+    def _probe_endpoint(self, base_url: str) -> bool:
+        """TCP 接続プローブでエンドポイントの起動を確認する (0.5秒タイムアウト)。
+
+        ローカルサーバー型プロバイダ (Ollama / LM Studio) はアプリ起動と無関係に
+        生滅するため、APIキー判定の代わりに TCP プローブで「起動している時だけ」
+        モデル一覧の取得を試みる。接続拒否は正常系 (未起動) として扱う。
+
+        Args:
+            base_url: 確認対象の Base URL (例: "http://localhost:11434/v1")。
+
+        Returns:
+            接続に成功した場合 True。
+        """
+        import socket
+        import urllib.parse
+
+        parsed = urllib.parse.urlparse(base_url)
+        if parsed.scheme not in ("http", "https") or not parsed.hostname:
+            return False
+        port = parsed.port or (443 if parsed.scheme == "https" else 80)
+        try:
+            with socket.create_connection((parsed.hostname, port), timeout=self.PROBE_TIMEOUT_SEC):
+                return True
+        except OSError:
+            return False
+
+    def should_probe_provider(self, provider: LLMProvider) -> bool:
+        """起動時モデル巡回の対象外プロバイダを判定する (設定済みプロバイダ限定)。
+
+        ゲート規則 (手帳 TODO ID 31 / ロードマップ §13.19 第5項):
+          1. 現行選択中プロバイダ … 未設定でも常に巡回 (動作保証のため)
+          2. LOCAL_GGUF … ローカルディレクトリスキャンのみで通信が無いので常に巡回
+          3. クラウド系 (api_key_env あり) … is_provider_configured() == True のみ巡回
+          4. ローカルサーバー系 (Ollama / LM Studio) … TCP プローブ成功時のみ巡回
+
+        Args:
+            provider: 判定対象プロバイダ。
+
+        Returns:
+            巡回すべき場合 True。
+        """
+        if provider == self._current_provider:
+            return True
+        if provider == LLMProvider.LOCAL_GGUF:
+            return True
+
+        config = self.DEFAULT_CONFIGS.get(provider, {})
+        if config.get("api_key_env"):
+            return self.is_provider_configured(provider)
+
+        if provider in self.LOCAL_SERVER_PROVIDERS:
+            env_name = "OLLAMA_BASE_URL" if provider == LLMProvider.OLLAMA else "LM_STUDIO_BASE_URL"
+            base_url = os.getenv(env_name, config.get("base_url") or "")
+            return self._probe_endpoint(base_url)
+
+        return True
+
     def sync_all_discovered_models(self, background: bool = True) -> Dict[str, Any]:
         """
-        全プロバイダのAPIエンドポイントやmodels/ディレクトリを巡回し、
+        プロバイダのAPIエンドポイントやmodels/ディレクトリを巡回し、
         最新の利用可能モデル一覧を動的取得してキャッシュを更新・永続化します。
 
         短期改善 Step 3: 直列巡回（未起動ポートのタイムアウト待ちが最大10秒×N累積）を
         ThreadPoolExecutor による並列取得に変更し、所要時間を実質「最遅1プロバイダ分」に短縮。
+        さらに手帳 TODO ID 31 (2026-09-22): should_probe_provider のゲートで
+        未設定・未起動プロバイダの確定失敗ネットワーク試行を排除した（設定済みプロバイダ限定）。
         """
         import threading
         from concurrent.futures import ThreadPoolExecutor
 
         def _sync_one(prov: LLMProvider) -> tuple:
+            # 設定済みプロバイダ限定 (手帳 TODO ID 31): 未設定・未起動プロバイダへの
+            # 確定失敗のネットワーク試行と ERROR ログを排除する
+            if not self.should_probe_provider(prov):
+                logger.info(f"⏭ [モデル同期] {prov.value} は未設定・未起動のため巡回をスキップします")
+                return (prov.value, self.SKIP_REASON)
             try:
                 models = self.fetch_available_models(prov.value)
                 return (prov.value, len(models))

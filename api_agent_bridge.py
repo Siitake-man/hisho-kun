@@ -118,6 +118,15 @@ def handle_agent_ask(ctx: ApiContext) -> None:
         else:
             # 🟡 PROMPT または 🔴 STRICT: スマホ Desk Pet を振動・点滅させて人間承認を促す
             get_link_monitor().trigger_buzz()
+            # 📲 Web Push: スマホの Service Worker 通知としても承認待ちを告知する
+            #   (fire-and-forget daemon スレッドのため待ちループ req.wait には影響しない)
+            import push_sender
+            push_sender.send_push_to_all_devices(
+                title="⚠️ 承認待ち",
+                body=f"【{req_dto.agent_name}】{req_dto.command[:100]}",
+                tag="approval_request",
+                event_type="approval_request",
+            )
 
         if raw_data.get("wait_decision", True):
             decision = req.wait(timeout=req_dto.timeout_sec)
@@ -179,6 +188,15 @@ def handle_agent_ask_input(ctx: ApiContext) -> None:
         hub = get_bridge_hub()
         req = hub.create_question_request(agent_name, question, choices, details, timeout_sec=timeout, requester_ip=ctx.client_ip)
         get_link_monitor().trigger_buzz()
+
+        # 📲 Web Push: スマホへ質問を通知する (ノンブロッキング fire-and-forget)
+        import push_sender
+        push_sender.send_push_to_all_devices(
+            title="💬 質問",
+            body=question,
+            tag="ask_input",
+            event_type="ask_input",
+        )
 
         # PCペットのメッセージとリアクション（非表示状態は維持）
         gui = get_gui_instance()
@@ -302,6 +320,15 @@ def handle_agent_notify(ctx: ApiContext) -> None:
 
         # スマホDesk Petへ最新通知をセット（自動でbuzz要求も発行）
         get_link_monitor().set_notification(agent_name, title, message, pet_reaction)
+
+        # 📲 Web Push: スマホへ完了通知を送る (ノンブロッキング fire-and-forget)
+        import push_sender
+        push_sender.send_push_to_all_devices(
+            title=f"✨ {agent_name} 完了",
+            body=f"{title} {message}".strip(),
+            tag="agent_notify",
+            event_type="agent_notify",
+        )
 
         ctx.write_json({
             "status": "success",
