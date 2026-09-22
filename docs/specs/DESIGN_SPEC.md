@@ -421,7 +421,7 @@ MiniCPM-Petの秀逸な着眼点をネオ秘書くんのクリーンアーキテ
   - **失効解除は `restore_device()` のみ**（`is_revoked = 0` を書ける関数は同関数ただ1つ。`tests/test_p0_sync_token_leak_and_revocation.py` のソース凍結テストで機械的に保証）。
   - **人間承認済み再ペアリング = 明示的な復帰操作**: `_handle_auth_token` は承認ダイアログ許可後にのみ `restore_device` を呼び、監査ログ `source="pairing"`（`client_ip` 付き）へ記録する。復帰失敗時は失効を維持し warning を残す（UI の嘘を作らない）。
   - **失効は端末識別単位で実効**: 失効端末は個別トークン・マスタートークンのいずれを提示しても拒絶される。
-- **残余リスク（バックログ起票済み / 機能ロードマップ §13.19）**: ① Tailscale Serve 経由の `client_ip` 同一性（P0-3: トークン種別ベース信頼設計）② `Host` ヘッダー未検証（DNS Rebinding・ID 44）③ 失効×復帰レース・ペアリング600秒窓・403自動再ペアリング（ID 45）④ `.sync_token` 書込失敗時の旧キー復活。
+- **残余リスク（バックログ起票済み / 機能ロードマップ §13.19）**: ① Tailscale Serve 経由の `client_ip` 同一性（P0-3: トークン種別ベース信頼設計）② `Host` ヘッダー未検証（DNS Rebinding・ID 47）③ 失効×復帰レース・ペアリング600秒窓・403自動再ペアリング（ID 48）④ 承認1クリック横取り・行マッチ属性依存（ID 50）⑤ UI暗黙削除・DTO deny-list 浅さ・Webhook Fail-Open（ID 51）⑥ `.sync_token` 書込失敗時の旧キー復活。
 - **管理用エンドポイント**:
   - `GET /api/devices`: 登録済み端末一覧（認証必須）。
   - `POST /api/devices/revoke`: 端末失効（管理者・同一PC/ループバックからの呼び出しに限定し、外部クライアントからの他端末キック DoS を完全防止）。
