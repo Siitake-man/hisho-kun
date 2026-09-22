@@ -1,7 +1,7 @@
 # ネオ秘書くん システム設計書 (DESIGN_SPEC.md)
 
-- **バージョン**: 1.5.1-dev (🛡️ 全権限インターセプト通知配備 ＆ 📦 全エージェント統合 AI Dotfiles バックアップ・復元基盤確立)
-- **最終更新日時**: 2026-09-22 09:20 (🛡️ 全権限Hook通知・AI Dotfiles Git管理同期完了)
+- **バージョン**: 1.5.1-dev (📲 Web Push API 導入 ＆ ⏱ 起動同期ゲート ＆ ✂️ スコープ縮小決定 ＆ 🔍 総合コードレビュー完遂)
+- **最終更新日時**: 2026-09-22 19:45 (📲 Web Push 実機E2E完了 §24 / ⏱ llm_factory 同期ゲート §25 / ✂️ Whisper・LifeCoach 撤去決定 §26 / 🔍 4スキルレビュー完遂・P0×4確定)
 - **アーキテクチャ方針**: 完全ローカル完結型 非ブロッキング並行システム (Tkinter Desktop Overlay × Mobile PWA × LangGraph Agent × Zero-Trust Local Bridge ＆ Cross-Platform Headless CI/CD)
 
 
@@ -1179,6 +1179,27 @@ OpenCode Desktop (v2.0.11) へ **同一の開発体験・安全規約・品質�
 - 全回帰: **793 passed / 2 skipped**（環境条件 skip は Tk 初期化不可×2 またはアプリ起動中ポート競合×2）
 - 独立検証（`agent-tester`, `ses_f37d4c53bffe7PSGbsxEuFqXK3`）: **PASSED**。実測で未設定7プロバイダのスキップ＆ERROR 0件を確認
 - Gotcha: `_compute_provider_configured` は `load_dotenv(override=True)` で実 .env を読み戻すため、テストでは `llm_factory.load_dotenv` も遮断する必要がある
+
+## 26. スコープ縮小（引き算）決定 — Whisper / LifeCoach 撤去予定 (2026-09-22 ボス決定 / 計画)
+
+### 26.1 背景と設計判断（Why）
+総合コードレビュー（`ruthless-code-evaluation`: 引き算 D評価 / `codebase-design`: shallow 分析）が「コアバリュー（Agent Bridge + Desk Pet）以外の百貨店化」を指摘。ボスはこれを受け、以下2機能の撤去を決定した（AGENTS.md §1.4 引き算の美学の実践第1号）。実施は **P0 セキュリティ修正完了後**（手帳 TODO ID 35 / 36・ロードマップ §13.19 第8/9項に同時起票）。
+
+| 対象 | 撤去理由（ボス判断） | 主なフットプリント |
+|:---|:---|:---|
+| **Whisper 音声認識（＋休眠中の Web Speech 音声入力）** | 実測で認識精度が低すぎた。**スマホOS標準の音声入力（キーボードのマイク）** で代替可能となり、内蔵する必然性が消滅。ボス実使用でも「音声機能が欲しい場面がほぼ無かった」ことを確認（2026-09-22 全撤去決定） | `whisper_transcriber.py`（199行・faster-whisper は optional import で requirements 未記載）／`api_tasks.action_transcribe_voice`／`web_pet/pet.js` の `startVoiceInput`＋`_sendVoiceToWhisper`（Web Speech 認識も含む）／`tools/e2e_voice_check.py`／設定トグル（`voice_input_enabled`）／関連テスト・CHEAT_SHEETS |
+| **LifeCoachEngine** | 2時間ごとの LLM 呼び出しコストに対し、ボスの行動変容に寄与していない（＝通知ノイズ） | `life_coach_engine.py`（511行・LLM/テーブル/スケジューラ/サジェスト連携）／`main.py` 配線／status payload の `life_coach` フィールド／関連テスト・i18n |
+
+### 26.2 誤削除の禁止事項（Important）
+- **`LifeDreamer`（`life_dreamer.py`: 天気・生活イベント＝ペットの情緒・コアバリュー）は残す**。LifeCoach との混同による誤削除を固く禁止する。
+- **`toggleBriefingSpeech`（TTS 読み上げ・朝会ブリーフィング「🔊 音声で聴く」）は残す**。音声入力とは別機能であり、稼働中・依存ゼロ（ブラウザ標準 API のみ）。2026-09-22 ボス決定。
+- 撤去時は対象テストを同時に削除し、全回帰 Green を確認する。Git 履歴で復元可能（セーブポイント不要論の根拠）。
+
+### 26.3 実施手順（各5分マイクロタスク粒度）
+1. 対象テスト同時削除 → `pytest tests/ -q` 全回帰 Green 確認
+2. Python 側撤去（エンジン/アクション/配線/payload）
+3. PWA 側撤去（マイクUI・関連i18n）
+4. ドキュメント4点セット同期（本節の「予定」→「完了」更新・ロードマップ・一覧・active_context）
 
 
 
