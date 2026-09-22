@@ -75,7 +75,7 @@ def _sample_status_payload() -> Dict[str, Any]:
         "life_coach": None,
         "weather_location": "東京",
         "update": {"update_available": False, "current_version": None},
-        "sync_token": "dummy-token",
+        # 🛡️ P0-1 (2026-09-22): /api/status は同期トークン (マスターキー) を配布しない
         "language": "ja",
         "server_time": 1790000000000,
     }

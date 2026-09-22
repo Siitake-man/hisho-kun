@@ -22,10 +22,23 @@ def register_device(
     token_hash: str,
     ip_address: Optional[str] = None,
     user_agent: Optional[str] = None,
-    db_path: str = "neo_secretary.db"
+    db_path: str = "neo_secretary.db",
+    *,
+    reuse_identity: bool = False
 ) -> int:
     """
     新規端末を登録、または同一token_hashの端末情報を更新します。
+
+    Notes:
+        🛡️ P0-1 (2026-09-22): 既存行の失効フラグ (is_revoked) は決して書き換えません。
+        失効の解除は restore_device() を呼ぶ明示的な人間操作のみです
+        (AD-1: 失効のチャネル横断不変条件)。
+
+        🔐 reuse_identity=True は「同一IP+同一端末名の既存行を再利用して新しい資格情報
+        (token_hash) を束縛する」動作を許可します。これは **人間承認を伴うペアリング経路
+        (issue_device_token) 専用** です。認証経路 (sync_device_session) で有効化すると、
+        マスタートークン保持端末が他端末の身元を乗っ取り、失効を回避できてしまうため
+        既定値は False (Fail-Closed) とします。
 
     Args:
         device_name: 端末表示名
@@ -33,6 +46,8 @@ def register_device(
         ip_address: 接続元IP
         user_agent: 接続元User-Agent
         db_path: データベースファイルのパス
+        reuse_identity: 同一IP+端末名の既存行の再利用 (資格情報の束縛) を許可するか。
+            ペアリング経路のみ True。既定 False。
 
     Returns:
         登録または更新されたデバイスID
@@ -44,8 +59,10 @@ def register_device(
             SELECT id FROM devices WHERE token_hash = ?
         """, (token_hash,))
         row = cursor.fetchone()
-        if not row and ip_address and not ip_address.startswith("127.") and ip_address not in ("::1", "localhost"):
-            # 同一IPかつ同一端末名の既存レコードがあれば更新再利用 (重複行の増殖防止)
+        if row is None and reuse_identity and ip_address and not ip_address.startswith("127.") and ip_address not in ("::1", "localhost"):
+            # 同一IPかつ同一端末名の既存レコードがあれば更新再利用 (重複行の増殖防止)。
+            # 🛡️ P0-1: 人間承認済みペアリング経路のみに限定する。認証経路で許すと
+            # マスタートークン保持端末が他端末の資格情報を上書きして失効を回避できる。
             cursor.execute("""
                 SELECT id FROM devices WHERE ip_address = ? AND device_name = ?
                 ORDER BY last_seen DESC LIMIT 1
@@ -54,14 +71,20 @@ def register_device(
 
         if row:
             dev_id = int(row[0])
+            # 🛡️ P0-1: 既存行の失効フラグ (is_revoked) には一切触れない。
+            # 失効の解除は restore_device() を呼ぶ明示的な人間操作
+            # (♻️ 接続復帰 / 承認済み再ペアリング) のみに限定する (AD-1: 失効のチャネル横断不変条件)。
+            # ここで失効フラグを 0 に戻すと、失効端末がリクエストを1回送るだけで
+            # 無言で復活する「失効巻き戻し」脆弱性になる (2026-09-22 レビュー P0-1)。
+            # なお資格情報 (token_hash) は更新する: 失効中は新トークンでも 403 のままとなり、
+            # 人間が復帰させた時点で最新トークンが有効になる (資格情報ローテーション)。
             cursor.execute("""
                 UPDATE devices
                 SET device_name = ?,
                     token_hash = ?,
                     ip_address = COALESCE(?, ip_address),
                     user_agent = COALESCE(?, user_agent),
-                    last_seen = ?,
-                    is_revoked = 0
+                    last_seen = ?
                 WHERE id = ?
             """, (device_name, token_hash, ip_address, user_agent, now, dev_id))
             logger.info(f"デバイス台帳更新: ID={dev_id}, name={device_name}")
@@ -113,47 +136,43 @@ def get_device_by_token_hash(token_hash: str, db_path: str = "neo_secretary.db")
 
 
 def sync_device_session(
-    device_name: str,
     bearer: str,
     ip_address: Optional[str] = None,
     user_agent: Optional[str] = None,
     db_path: str = "neo_secretary.db"
 ) -> Optional[Device]:
-    """認証済み Bearer トークンに対応する端末セッションをデバイス台帳へ同期する。
+    """認証済み Bearer トークンに対応する端末を台帳から照会し、last_seen を更新する。
 
     SHA-256 ハッシュ化をデータベース層の内部手順として隠蔽し、呼び出し側
     (HTTPサーバー) からハッシュアルゴリズムの詳細を取り除く (Deep Module 原則)。
-    登録済みかつ失効していない端末は last_seen 更新のみを行い、
-    未登録端末は device_name で自動登録する。last_seen 更新と自動登録は
-    通信を阻害しないよう失敗時に debug ログのみで継続する Fail-Safe とする。
-    なお台帳照会の失敗は握りつぶさず上位へ伝播させる (呼び出し側で Fail-Safe)。
+
+    🛡️ P0-1 (2026-09-22): 本関数は **台帳へ一切書き込まない (読み取り専用)**。
+    未登録の資格情報は自動登録せず None を返す。資格情報の登録 (束縛) は
+    人間承認を伴うペアリング経路 (issue_device_token) のみが行う。これは
+    マスタートークン保持端末が「同一IP+端末名」の既存行を乗っ取り、失効を
+    回避する攻撃 (devils-advocate 指摘 P0) を構造的に排除するためである。
+    登録済みかつ失効していない端末は last_seen を更新し、失効済み端末は更新しない
+    (失効セッションの生存期間を演出しないため)。台帳照会の失敗は握りつぶさず
+    上位へ伝播させる (呼び出し側が Fail-Closed で拒否する)。
 
     Args:
-        device_name: 未登録時の登録名 (User-Agent 等から呼び出し側が推定して渡す)。
         bearer: 平文の Bearer トークン文字列。
         ip_address: 接続元 IP。
         user_agent: 接続元 User-Agent。
         db_path: データベースファイルのパス。
 
     Returns:
-        該当 Device モデル (未登録時は None。失効済み端末はそのまま返却)。
+        該当 Device モデル (照会・更新後の実体。未登録または解決不能な場合は None)。
     """
     token_hash = hashlib.sha256(bearer.encode("utf-8")).hexdigest()
     device = get_device_by_token_hash(token_hash, db_path=db_path)
     if device is None:
-        try:
-            register_device(device_name, token_hash, ip_address=ip_address, user_agent=user_agent, db_path=db_path)
-        except Exception as e:
-            logger.debug(f"デバイス台帳自動登録エラー (無視): {e}")
-    else:
-        # 失効済み端末の last_seen は更新しない (失効セッションの生存期間を演出しないため)
-        if device.is_revoked != 1:
-            try:
-                touch_device_last_seen(token_hash, ip_address=ip_address, user_agent=user_agent, db_path=db_path)
-                # 返却する Device は touch 後の最新状態 (ip_address / user_agent / last_seen) を反映させる
-                device = get_device_by_token_hash(token_hash, db_path=db_path)
-            except Exception as e:
-                logger.debug(f"last_seen 更新エラー (無視): {e}")
+        return None
+    # 失効済み端末の last_seen は更新しない (失効セッションの生存期間を演出しないため)
+    if device.is_revoked != 1:
+        touch_device_last_seen(token_hash, ip_address=ip_address, user_agent=user_agent, db_path=db_path)
+        # 返却する Device は touch 後の最新状態 (ip_address / user_agent / last_seen) を反映させる
+        device = get_device_by_token_hash(token_hash, db_path=db_path)
     return device
 
 
@@ -331,6 +350,13 @@ def issue_device_token(
     QRペアリング単位で端末固有のトークンを発行することで、端末ごとの個別台帳管理と
     個別失効（Revoke）を実現します。平文トークンは返却のみ行い、DBにはSHA-256ハッシュのみ永続化します。
 
+    Notes:
+        🛡️ P0-1 (2026-09-22): 本関数は人間承認（承認ダイアログ）を経たペアリング経路からのみ
+        呼び出されるため、reuse_identity=True で「同一IP+同一端末名の既存行の再利用
+        (資格情報の再束縛)」を許可します。これにより端末再ペアリング時に台帳が重複増殖せず、
+        失効中の端末は復帰判定 (is_revoked=1 のまま返る → 呼び出し側で明示 restore) に回せます。
+        認証経路 (sync_device_session) は書き込みを行わないため、身元の乗っ取りは成立しません。
+
     Args:
         device_name: デバイス表示名
         ip_address: 接続元IP
@@ -348,6 +374,7 @@ def issue_device_token(
         ip_address=ip_address,
         user_agent=user_agent,
         db_path=db_path,
+        reuse_identity=True,
     )
     logger.info(f"🔐 [DeviceAuth] 端末固有トークンを発行・登録しました: {device_name}")
     return raw_token

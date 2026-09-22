@@ -128,12 +128,13 @@ def handle_post_devices_revoke(ctx: ApiContext) -> bool:
 def record_device_restore(
     device_id: int, *, actor: str, source: str, device_name: str = ""
 ) -> None:
-    """端末復帰（Restore）を監査ログへ記録する（ゼロトラスト監査: who / when / what）。
+    """端末復帰（Restore）を監査ログへ記録する（ゼロトラスト監査: who / when / what / where）。
 
     Args:
         device_id: 復帰させたデバイスID。
         actor: 操作主体（例: "pc_settings_ui" / 接続元IP / "localhost"）。
-        source: 操作経路（"ui" = PC設定画面 / "api" = ローカルAPI）。
+        source: 操作経路（"ui" = PC設定画面 / "api" = ローカルAPI /
+            "pairing" = 人間承認済み再ペアリング）。
         device_name: 端末名（表示用・不明なら空）。
     """
     try:
@@ -151,7 +152,7 @@ def record_device_restore(
             decision_by=actor,
             decision_message=f"source={source}",
             requester_ip=None,
-            client_ip=actor if source == "api" else None,
+            client_ip=actor if source in ("api", "pairing") else None,
         )
         record_audit_log(entry)
         logger.info(

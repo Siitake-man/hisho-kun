@@ -100,7 +100,13 @@ class TestPetSeamAuth(unittest.TestCase):
         # インラインでの重複宣言(const SYNC_TOKEN_KEY)が除去され、委譲コメントが存在すること
         self.assertIn("pet_auth.js にSeam分離済み", content)
         self.assertIn("window.authFetch", content)
-        self.assertIn("setSyncToken(data.sync_token)", content)
+        # 🛡️ P0-1 (2026-09-22): ステータス応答を根拠としたトークン上書きは撤去済み。
+        # トークン更新は pet_auth.js の requestSyncToken() (/api/auth/token) の一本道であること。
+        self.assertNotIn(
+            "setSyncToken(data.sync_token)",
+            content,
+            "ステータス応答によるトークン上書き (権限昇格の温床) を再導入してはならない",
+        )
 
     def test_http_serves_pet_auth_js(self) -> None:
         """HTTPサーバー経由で /pet_auth.js が 200 OK で配信されること。"""

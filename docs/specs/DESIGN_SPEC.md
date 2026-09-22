@@ -1,7 +1,7 @@
 # ネオ秘書くん システム設計書 (DESIGN_SPEC.md)
 
-- **バージョン**: 1.5.1-dev (📲 Web Push API 導入 ＆ ⏱ 起動同期ゲート ＆ ✂️ スコープ縮小決定 ＆ 🔍 総合コードレビュー完遂)
-- **最終更新日時**: 2026-09-22 19:45 (📲 Web Push 実機E2E完了 §24 / ⏱ llm_factory 同期ゲート §25 / ✂️ Whisper・LifeCoach 撤去決定 §26 / 🔍 4スキルレビュー完遂・P0×4確定)
+- **バージョン**: 1.5.2-dev (🛡️ P0-1 失効の実効性強化（A案）＆ 📲 Web Push 導入 ＆ ⏱ 起動同期ゲート ＆ ✂️ スコープ縮小決定)
+- **最終更新日時**: 2026-09-22 21:30 (🛡️ P0-1 完了 §10.2 改定（sync_token 漏洩撤去・失効巻き戻し廃止・認証経路の読み取り専用化・非ループバック・マスターキーの Fail-Closed）／残余リスクは §13.19 バックログへ)
 - **アーキテクチャ方針**: 完全ローカル完結型 非ブロッキング並行システム (Tkinter Desktop Overlay × Mobile PWA × LangGraph Agent × Zero-Trust Local Bridge ＆ Cross-Platform Headless CI/CD)
 
 
@@ -410,12 +410,18 @@ MiniCPM-Petの秀逸な着眼点をネオ秘書くんのクリーンアーキテ
   - `user_agent`: クライアント識別子
   - `created_at` / `last_seen`: 登録日時および最終通信日時（Unixミリ秒）
   - `is_revoked`: 個別失効フラグ（0: 有効, 1: 失効）
-- **認証・認可フロー (`_check_auth`)**:
-  1. Bearer トークンを抽出し、`SyncTokenManager` で署名照合。
-  2. SHA-256 ハッシュを算出し、`database.get_device_by_token_hash` を照会。
-  3. `is_revoked == 1`（失効済み）の場合は即座に **403 Forbidden** で通信遮断。
-  4. 有効端末は `touch_device_last_seen` で接続日時とIPを自動更新（DBロック発生時も通信を巻き込まない Fail-Safe 例外防護）。
-  5. 未登録端末は `register_device` で自動登録。
+- **認証・認可フロー (`_check_auth`) — 🛡️ P0-1 改定 (2026-09-22 / v1.1.7)**:
+  1. Bearer トークンを抽出し、`SyncTokenManager` でマスタートークン（PCマスターキー）か個別トークン（QRペアリング配布）かを判定する。
+  2. **マスタートークンはループバック（PC自身・Agent Bridge・MCPサーバー）専用**。非ループバックからの提示は台帳照合を必須とし、**未登録または照合例外は 401 Fail-Closed**（漏洩済みマスターキーの実効無効化 = A案 / 2026-09-22 ボス承認）。
+  3. 個別トークンは SHA-256 ハッシュで `database.verify_device_token` を照会し、`is_revoked == 1`（失効済み）は即座に **403 Forbidden** で通信遮断。
+  4. 有効端末は `touch_device_last_seen` で接続日時とIPを自動更新。**照合例外は 401 Fail-Closed**（warning ログで可視化。旧「Fail-Safe で認証継続」は失効判定の蒸発を招くため廃止）。
+  5. **認証経路は台帳へ書き込まない（読み取り専用）**: `sync_device_session` は未登録資格情報を自動登録せず `None` を返す。資格情報の登録・再束縛は**人間承認を伴うペアリング経路のみ**（`issue_device_token` → `register_device(reuse_identity=True)`）。
+  6. `GET /api/status` のレスポンスへ同期トークン（マスターキー）を同梱しない。DTO 境界 `validate_status_payload` の deny-list が再混入を除去し ERROR ログを残す（多層防御）。
+- **失効の不変条件 (AD-3 / 2026-09-22)**:
+  - **失効解除は `restore_device()` のみ**（`is_revoked = 0` を書ける関数は同関数ただ1つ。`tests/test_p0_sync_token_leak_and_revocation.py` のソース凍結テストで機械的に保証）。
+  - **人間承認済み再ペアリング = 明示的な復帰操作**: `_handle_auth_token` は承認ダイアログ許可後にのみ `restore_device` を呼び、監査ログ `source="pairing"`（`client_ip` 付き）へ記録する。復帰失敗時は失効を維持し warning を残す（UI の嘘を作らない）。
+  - **失効は端末識別単位で実効**: 失効端末は個別トークン・マスタートークンのいずれを提示しても拒絶される。
+- **残余リスク（バックログ起票済み / 機能ロードマップ §13.19）**: ① Tailscale Serve 経由の `client_ip` 同一性（P0-3: トークン種別ベース信頼設計）② `Host` ヘッダー未検証（DNS Rebinding・ID 44）③ 失効×復帰レース・ペアリング600秒窓・403自動再ペアリング（ID 45）④ `.sync_token` 書込失敗時の旧キー復活。
 - **管理用エンドポイント**:
   - `GET /api/devices`: 登録済み端末一覧（認証必須）。
   - `POST /api/devices/revoke`: 端末失効（管理者・同一PC/ループバックからの呼び出しに限定し、外部クライアントからの他端末キック DoS を完全防止）。

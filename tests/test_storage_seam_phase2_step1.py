@@ -120,9 +120,9 @@ class TestStorageSeamPhase2Step1(unittest.TestCase):
             self.assertEqual(device.device_name, "Boss iPhone 15")
             self.assertEqual(device.is_revoked, 0)
 
-            # 3. セッション同期 (touch_last_seen)
+            # 3. セッション同期 (touch_last_seen) — P0-1: 認証経路は読み取り専用 (bearer のみ)
             synced_device = sync_device_session(
-                "Boss iPhone 15", raw_token, ip_address="10.0.0.1", user_agent="PWAClientV2", db_path=temp_db
+                raw_token, ip_address="10.0.0.1", user_agent="PWAClientV2", db_path=temp_db
             )
             self.assertIsNotNone(synced_device)
             self.assertEqual(synced_device.ip_address, "10.0.0.1")

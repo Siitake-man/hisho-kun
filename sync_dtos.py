@@ -116,6 +116,11 @@ class TasksViewResponse(BaseModel):
 def validate_status_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
     """GET /api/status ペイロードを StatusResponse 契約で検証する。
 
+    Notes:
+        🛡️ P0-1 (2026-09-22) 多層防御: 同期トークン (マスターキー) は本レスポンスへ
+        絶対に含めない。万一ペイロード組み立て側で再混入しても、DTO 境界で除去して
+        警告ログを残す (extra="allow" の透過に頼らない最終防壁)。
+
     Args:
         payload: ハンドラが組み立てたレスポンス辞書。
 
@@ -123,6 +128,12 @@ def validate_status_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
         検証通過時は正規化済み辞書 (内容は入力と等価)。
         契約違反時は入力をそのまま返す (スマホ同期の可用性優先)。
     """
+    if "sync_token" in payload:
+        payload.pop("sync_token", None)
+        logger.error(
+            "🚨 [DTO] /api/status ペイロードへの sync_token 混入を検出・除去しました "
+            "(P0-1 多層防御)。ペイロード組み立て側の再混入を調査してください。"
+        )
     try:
         return StatusResponse.model_validate(payload).model_dump()
     except ValidationError as e:

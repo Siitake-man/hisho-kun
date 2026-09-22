@@ -31,6 +31,7 @@ from storage.device_repo import (
     get_all_devices,
     get_device_by_token_hash,
     issue_device_token,
+    register_device_from_bearer,
     restore_device,
     revoke_all_devices,
     revoke_device,
@@ -299,9 +300,26 @@ class TestDeviceIndividualTokens(unittest.TestCase):
             with mock.patch("database.verify_device_token", side_effect=lambda b: verify_device_token(b, db_path=self.db_path)):
                 with mock.patch("database.touch_device_last_seen", side_effect=lambda h, **kw: storage.device_repo.touch_device_last_seen(h, db_path=self.db_path, **kw)) as mock_touch:
                     with mock.patch.object(local_sync_server.get_sync_token_manager(), "verify", side_effect=lambda t: t == global_token):
-                        # 1. グローバルトークンは通る
+                        # 1. 🛡️ P0-1 (A案): 台帳未登録のマスタートークンは非ループバックから拒否 (401)
                         h_global = DummyHandler(global_token)
-                        self.assertTrue(DeskPetSyncHandler._check_auth(h_global))
+                        self.assertFalse(DeskPetSyncHandler._check_auth(h_global))
+                        self.assertEqual(h_global.status_codes, [401])
+
+                        # 1b. 台帳に登録済みのマスタートークン (レガシー登録) は通る
+                        register_device_from_bearer(
+                            "Legacy Bridge", global_token,
+                            ip_address="192.168.1.101", user_agent="TestApp/1.0",
+                            db_path=self.db_path,
+                        )
+                        h_global_registered = DummyHandler(global_token)
+                        self.assertTrue(DeskPetSyncHandler._check_auth(h_global_registered))
+
+                        # 1c. 登録済みでも失効させれば 403 (失効は資格情報の種別に依存しない)
+                        legacy_dev = verify_device_token(global_token, db_path=self.db_path)
+                        revoke_device(legacy_dev.id, db_path=self.db_path)
+                        h_global_revoked = DummyHandler(global_token)
+                        self.assertFalse(DeskPetSyncHandler._check_auth(h_global_revoked))
+                        self.assertEqual(h_global_revoked.status_codes, [403])
 
                         # 2. 端末Aの個別トークンは通る
                         h_a = DummyHandler(token_a)

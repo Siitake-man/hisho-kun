@@ -780,6 +780,13 @@ class DeskPetSyncHandler(SimpleHTTPRequestHandler):
         - ペアリング開放中 or 同一PC内（ループバック）のみ許可。
         - 個別トークンを1度正常発行したら即座にペアリング待機を終了する (P0-2 ワンタイム化・Single-Use Fail-Closed)。
         - 個別トークン発行失敗時はグローバルトークンを返さず HTTP 500 で遮断する (P1-2 Fail-Closed)。
+        - 外部端末は必ず人間承認（承認ダイアログ）を経てから個別トークンを発行する (P0-2 Human-in-the-Loop)。
+        - 🛡️ P0-1 (2026-09-22): 承認済み再ペアリングは明示的な復帰操作とみなし、失効中の端末
+          (is_revoked=1) を restore_device() で復帰させ、監査ログ (source="pairing") へ記録する。
+
+        Args:
+            client_ip (str): 接続元IPアドレス。
+            user_agent (str): 接続元User-Agent（端末表示名の推定に使用）。
         """
         tm = get_sync_token_manager()
         if not (tm.pairing_open or DeskPetSyncHandler._is_loopback(client_ip)):
@@ -845,6 +852,33 @@ class DeskPetSyncHandler(SimpleHTTPRequestHandler):
                 ).encode("utf-8"))
                 return
 
+            # ♻️ P0-1 / AD-1: 失効の解除は「人間の明示操作」のみ。
+            # ここへ到達するには ①PC側でQRペアリングダイアログを開く ②PC側の承認ダイアログで
+            # 許可する、という2段の人間操作が必須のため、承認済み再ペアリングは明示的な
+            # 復帰操作とみなして監査ログ付きで解除する (無言の巻き戻しとは明確に区別する)。
+            try:
+                paired_dev = database.verify_device_token(token)
+                if paired_dev is not None and paired_dev.is_revoked == 1:
+                    restored = bool(database.restore_device(paired_dev.id))
+                    if restored:
+                        api_devices.record_device_restore(
+                            paired_dev.id,
+                            actor=client_ip or "unknown",
+                            source="pairing",
+                            device_name=paired_dev.device_name,
+                        )
+                        logger.warning(
+                            f"♻️ [SyncAuth] 承認済み再ペアリングにより失効端末を復帰: ID={paired_dev.id} ({paired_dev.device_name})"
+                        )
+                    else:
+                        # 復帰できなかった場合は失効のまま (Fail-Closed)。UI の嘘を作らないため可視化する
+                        logger.warning(
+                            f"⚠️ [SyncAuth] 承認済み再ペアリングの復帰に失敗 (対象行消失など): ID={paired_dev.id} — 失効状態を維持します"
+                        )
+            except Exception as e:
+                # 復帰処理の失敗はトークン配布自体を失敗させない (端末は失効のまま = Fail-Closed 側に倒れる)
+                logger.error(f"再ペアリング時の端末復帰処理エラー (失効状態を維持): {e}")
+
         self.send_response(200)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self._set_cors_headers()
@@ -852,7 +886,14 @@ class DeskPetSyncHandler(SimpleHTTPRequestHandler):
         self.wfile.write(json.dumps({"status": "ok", "token": token}, ensure_ascii=False).encode("utf-8"))
 
     def _dispatch_get_devices(self, client_ip: str) -> bool:
-        """GET /api/devices をディスパッチする Seam。PC同一マシン（ループバック）のみ許可する (P1-3)。"""
+        """GET /api/devices をディスパッチする Seam。PC同一マシン（ループバック）のみ許可する (P1-3)。
+
+        Args:
+            client_ip (str): 接続元IPアドレス。
+
+        Returns:
+            bool: レスポンス書き込み済みのため常に True (呼び出し側の分岐を単純化する)。
+        """
         if not DeskPetSyncHandler._is_loopback(client_ip):
             logger.warning(f"🚫 [Security] 非ループバック({client_ip})からのデバイス一覧閲覧要求を拒否")
             self.send_response(403)
@@ -953,23 +994,33 @@ class DeskPetSyncHandler(SimpleHTTPRequestHandler):
 
         # 2. 有効なBearerトークンがあれば認証OK（デバイス台帳で失効状態を検査）。
         #    グローバルトークン（PC内・Agent Bridge用）または端末固有トークン（QRペアリング用）のいずれかを検証。
+        #    🛡️ P0-1 (2026-09-22): マスタートークン（PCマスターキー）はループバック（PC自身）専用。
+        #    非ループバックからマスタートークンが提示された場合は台帳照合を必須とし、
+        #    未登録・照合失敗は Fail-Closed で拒否する（漏洩済みマスターキーの実効無効化 = A案）。
         if bearer:
             dev = None
             is_valid_token = False
             if token_mgr.verify(bearer):
-                is_valid_token = True
-                # 🛡️ ループバック（PC自身）は端末台帳に登録・同期しない (外部スマホ専用)
-                if not DeskPetSyncHandler._is_loopback(client_ip):
+                # 🛡️ ループバック（PC自身・Agent Bridge・MCPサーバー）は端末台帳の対象外
+                if DeskPetSyncHandler._is_loopback(client_ip):
+                    is_valid_token = True
+                else:
                     try:
                         dev = database.sync_device_session(
-                            device_name=DeskPetSyncHandler._infer_device_name(user_agent),
                             bearer=bearer,
                             ip_address=client_ip,
                             user_agent=user_agent,
                         )
+                        is_valid_token = dev is not None
                     except Exception as e:
-                        logger.debug(f"デバイス台帳同期エラー (Fail-Safe で認証継続): {e}")
+                        # 🛡️ Fail-Closed: 台帳照合に失敗した場合は認証を成立させない (握りつぶし禁止: warning で可視化)
+                        logger.warning(f"🚫 [SyncAuth] 台帳照合エラーによりマスタートークンを拒否 (Fail-Closed): {e}")
                         dev = None
+                        is_valid_token = False
+                    if not is_valid_token:
+                        logger.warning(
+                            f"🚫 [SyncAuth] 台帳未登録のマスタートークンを非ループバック({client_ip})から拒否しました"
+                        )
             else:
                 try:
                     dev = database.verify_device_token(bearer)
@@ -978,8 +1029,10 @@ class DeskPetSyncHandler(SimpleHTTPRequestHandler):
                         if dev.is_revoked != 1:
                             database.touch_device_last_seen(dev.token_hash, ip_address=client_ip, user_agent=user_agent)
                 except Exception as e:
-                    logger.debug(f"個別端末トークン検証エラー: {e}")
+                    # 🛡️ Fail-Closed: 照会失敗時は認証を成立させない (握りつぶし禁止: warning で可視化)
+                    logger.warning(f"🚫 [SyncAuth] 個別端末トークン照合エラー (Fail-Closed で拒否): {e}")
                     dev = None
+                    is_valid_token = False
 
             if is_valid_token:
                 if dev is not None and dev.is_revoked == 1:
@@ -1345,11 +1398,10 @@ class DeskPetSyncHandler(SimpleHTTPRequestHandler):
                         "active_event": None
                     }
 
-                # 同期トークンはスマホ側のペアリング表示用にペイロードへ同梱する。
-                # (バグ修正 2026-08-30: token_mgr 未定義の NameError により
-                #  /api/status が常に {"status": "error"} を返し、スマホ同期が
-                #  全滅していた障害を解消)
-                token_mgr = get_sync_token_manager()
+                # 🛡️ P0-1 (2026-09-22): 同期トークン (マスターキー) は絶対にペイロードへ同梱しない。
+                # 端末個別トークンしか持たないスマホが /api/status 経由でマスターキーを入手し、
+                # 以降その端末を失効させても通信が通り続ける権限昇格 (漏洩×失効巻き戻し) の温床だった。
+                # スマホ側のトークン取得は /api/auth/token (ペアリング開放 + 人間承認) の一本道のみ。
                 # AI生活コーチの最新分析レポート (Phase L1: life_coach フィールド)
                 try:
                     from life_coach_engine import get_life_coach_engine
@@ -1393,7 +1445,6 @@ class DeskPetSyncHandler(SimpleHTTPRequestHandler):
                     "life_coach": coach_report,
                     "weather_location": (lambda: (__import__('weather_tools').get_current_location_setting()))(),
                     "update": self._update_notice_payload(),
-                    "sync_token": token_mgr.token,
                     "language": current_lang,
                     "server_time": int(now * 1000)
                 }

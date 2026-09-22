@@ -203,15 +203,11 @@ async function fetchStatus() {
       fetchBackoffActive = false;
     }
 
-    // 🔐 トークン自動同期（自己治癒）
-    if (data.sync_token && data.sync_token !== syncToken) {
-      if (typeof setSyncToken === 'function') {
-        setSyncToken(data.sync_token);
-      } else {
-        syncToken = data.sync_token;
-        localStorage.setItem(SYNC_TOKEN_KEY, syncToken);
-      }
-    }
+    // 🛡️ P0-1 (2026-09-22): ステータス応答で Bearer トークンを上書きしない。
+    // /api/status はマスターキーを配布しなくなったため、トークン更新の唯一の経路は
+    // pet_auth.js の requestSyncToken() (401/403 時の /api/auth/token = ペアリング開放 + 人間承認) のみ。
+    // 旧実装はここでステータス応答内のトークンを保存し、端末個別トークンをマスターキーへ
+    // 昇格させていた (「個別失効させても通信が通り続ける」権限昇格の真因)。
 
     // 0. ペット状態（歩行コントローラーのガード用 ＆ 歓喜アニメーション連動）
     if (!window._celebratingUntil || Date.now() > window._celebratingUntil) {
