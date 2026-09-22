@@ -1285,12 +1285,13 @@ class SettingsWindow(ctk.CTkToplevel):
                 self.after(0, _ui_callback)
             except Exception as ex:
                 logger.warning("Ping test failed: %s", ex)
+                err_msg = str(ex)
                 def _ui_error():
                     if not self.winfo_exists():
                         return
                     if hasattr(self, "btn_ping") and self.btn_ping.winfo_exists():
                         self.btn_ping.configure(state="normal", text=t("ui.settings.hooks_ping_btn"))
-                    messagebox.showwarning("Neo-Secretary", f"{t('ui.settings.hooks_ping_fail')}\n({ex})", parent=self)
+                    messagebox.showwarning("Neo-Secretary", f"{t('ui.settings.hooks_ping_fail')}\n({err_msg})", parent=self)
                 self.after(0, _ui_error)
 
         threading.Thread(target=_worker, daemon=True).start()
