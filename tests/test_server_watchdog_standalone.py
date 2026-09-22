@@ -15,6 +15,12 @@ from server_watchdog import ServerWatchdog
 
 
 class TestServerWatchdogStandalone(unittest.TestCase):
+    """server_watchdog のヒステリシス再起動とスレッド終端契約を検証する。
+
+    健全時は再起動せず、連続失敗が閾値に達した時点で一度だけ発火し、
+    stop() 後にゾンビ再起動が起きないこと（耐障害性）を守る。
+    """
+
     def test_healthy_server_does_not_trigger_restart(self):
         """プローブが常に真を返す場合、restart_fn は呼ばれない。"""
         probe_fn = MagicMock(return_value=True)

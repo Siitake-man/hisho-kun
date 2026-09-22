@@ -12,6 +12,11 @@ import webhook_tools
 
 
 class TestWebhookIntegration(unittest.TestCase):
+    """外部 SaaS Webhook の設定永続化・受信登録・送信 POST の契約を検証する。
+
+    受信ペイロードが DB に正しく登録され、送信設定が保存・復元されて
+    外部 URL へ POST されること（マルチ中継連携の出入力契約）を守る。
+    """
 
     def setUp(self):
         """テスト用テンポラリSQLiteデータベースの初期化"""

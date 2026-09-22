@@ -27,6 +27,12 @@ from database import (
 
 
 class TestDeviceRegistry(unittest.TestCase):
+    """端末台帳 (devices テーブル) の CRUD と last_seen 更新契約を検証する。
+
+    登録・取得・最終アクセス更新・失効・一覧取得が同一 DB 上で
+    一貫して振る舞うこと（トークンハッシュによる台帳照会が壊れないこと）を守る。
+    """
+
     def setUp(self):
         self.temp_db = tempfile.NamedTemporaryFile(suffix=".db", delete=False)
         self.db_path = self.temp_db.name
@@ -41,6 +47,7 @@ class TestDeviceRegistry(unittest.TestCase):
                 pass
 
     def test_register_and_get_device(self):
+        """登録直後の端末がトークンハッシュ経由で全属性付きで復元されることを保証する。"""
         raw_token = "secret_token_alpha_123"
         token_hash = hashlib.sha256(raw_token.encode("utf-8")).hexdigest()
 
@@ -62,6 +69,7 @@ class TestDeviceRegistry(unittest.TestCase):
         self.assertEqual(device.is_revoked, 0)
 
     def test_touch_device_last_seen(self):
+        """touch_device_last_seen 呼び出しで最終アクセス日時と IP が進むことを保証する。"""
         raw_token = "secret_token_beta_456"
         token_hash = hashlib.sha256(raw_token.encode("utf-8")).hexdigest()
 
@@ -88,6 +96,7 @@ class TestDeviceRegistry(unittest.TestCase):
         self.assertGreaterEqual(device_after.last_seen, device_before.last_seen)
 
     def test_revoke_device(self):
+        """失効実行後も端末レコードは残り、is_revoked が 1 に切り替わることを保証する。"""
         raw_token = "secret_token_gamma_789"
         token_hash = hashlib.sha256(raw_token.encode("utf-8")).hexdigest()
 
@@ -106,6 +115,7 @@ class TestDeviceRegistry(unittest.TestCase):
         self.assertEqual(device.is_revoked, 1)
 
     def test_get_all_devices(self):
+        """登録済みの全端末が登録順に漏れなく一覧取得されることを保証する。"""
         token1 = hashlib.sha256(b"tok1").hexdigest()
         token2 = hashlib.sha256(b"tok2").hexdigest()
 
@@ -119,6 +129,7 @@ class TestDeviceRegistry(unittest.TestCase):
         self.assertIn("Dev 2", names)
 
     def test_infer_device_name(self):
+        """User-Agent から端末種別名が推定され、未知クライアントも安全名にフォールバックすることを保証する。"""
         from local_sync_server import DeskPetSyncHandler
         self.assertEqual(
             DeskPetSyncHandler._infer_device_name("Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)"),

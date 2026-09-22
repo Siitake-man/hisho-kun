@@ -10,6 +10,12 @@ from ui.settings_window import SettingsWindow
 
 
 class TestSettingsSidebarSeam(unittest.TestCase):
+    """設定ウィンドウのサイドバーナビゲーション・Pingテスト Seam・言語追従の契約を検証する。
+
+    ウィンドウ最小寸法（文字潰れ防止）、6ナビ項目の存在と切替、
+    Agent Bridge 通知と i18n ラベル追従が壊れないこと（UI Seam）を守る。
+    """
+
     @classmethod
     def setUpClass(cls):
         # ヘッドレスTk初期化

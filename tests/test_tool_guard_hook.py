@@ -16,6 +16,12 @@ import tool_guard_hook as tgh
 
 
 class TestToolGuardHook(unittest.TestCase):
+    """Tool Guard Hook の allow/deny 判定と承認通知・フェイルセーフ契約を検証する。
+
+    日本語文言検索は許可し、識別子・禁止コマンドは遮断、通信例外時は
+    エージェント動作を止めないこと（二層防御のソフト層）を守る。
+    """
+
     def test_japanese_search_allowed(self):
         """日本語を含む文字列検索は許可されること (UI文言・ドキュメント検索等)"""
         dec, _ = tgh.evaluate_grep_query("新しい端末からの接続要求")

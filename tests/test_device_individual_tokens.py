@@ -74,6 +74,12 @@ def _decode_body(handler: _FakeHttpHandler) -> dict:
 
 
 class TestDeviceIndividualTokens(unittest.TestCase):
+    """端末個別トークンの発行・個別失効・復帰・監査ログの契約を検証する。
+
+    1台を失効・削除しても他端末の通信が継続し、グローバルトークンが
+    個別トークン経路から漏洩しないこと（fail-closed）を守る。
+    """
+
     def setUp(self):
         self.temp_db = tempfile.NamedTemporaryFile(suffix=".db", delete=False)
         self.db_path = self.temp_db.name

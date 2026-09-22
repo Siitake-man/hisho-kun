@@ -10,6 +10,11 @@ import agent_identity
 
 
 class TestAgentIdentity(unittest.TestCase):
+    """エージェント自動識別の優先順位・環境シグネチャ・フォールバック契約を検証する。
+
+    明示指定 > 環境変数上書き > 親プロセス/環境シグネチャ > デフォルト名、
+    の優先順位が崩れないこと（コード探索と重複しないこと）を守る。
+    """
 
     def test_explicit_name_wins(self):
         """明示指定されたエージェント名は環境検出より優先される"""

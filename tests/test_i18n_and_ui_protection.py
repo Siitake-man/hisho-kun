@@ -12,6 +12,12 @@ from ui.pet_window import calculate_bubble_width, draw_speech_bubble, PetBubbleM
 
 
 class TestI18nAndUIGlobal(unittest.TestCase):
+    """i18n 辞書・動的 LLM 言語ガード・ペット吹き出し UI 防御の契約を検証する。
+
+    言語切替に全 UI 文言と LLM ガードが追従し、超長文・無空白トークンが
+    注入されても吹き出しが破綻しないこと（UI 防御）を守る。
+    """
+
     def setUp(self):
         # 既定言語を ja に戻す
         set_language("ja")

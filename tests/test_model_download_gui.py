@@ -8,6 +8,12 @@ import tools.setup_local_model as setup_tool
 
 
 class TestModelDownloadGUI(unittest.TestCase):
+    """ローカルモデルダウンロード GUI 呼び出し契約とモデルカタログ定義を検証する。
+
+    progress_callback が安全に呼ばれる署名仕様と、350m/1.2b カタログの
+    ファイル名が UI・CLI と一致すること（ダウンロード失敗の混入防止）を守る。
+    """
+
     def test_download_model_signature_with_callback(self):
         """download_model が progress_callback を受け取り正常に処理できるか検証"""
         callback_called = []

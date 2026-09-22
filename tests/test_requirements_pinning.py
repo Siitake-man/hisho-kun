@@ -51,6 +51,7 @@ class TestRequirementsCompleteness(unittest.TestCase):
     """実行時必須依存が requirements.txt に宣言されていること"""
 
     def test_all_runtime_dependencies_are_declared(self) -> None:
+        """実行時に import される必須依存がすべて requirements.txt に宣言されていることを保証する。"""
         declared = _declared_package_names()
         missing = [
             pkg for pkg in REQUIRED_RUNTIME_PACKAGES

@@ -494,7 +494,7 @@ class SettingsWindow(ctk.CTkToplevel):
                 "// ~/.config/opencode/plugins/hisho-approval-notify/index.ts\n"
                 "// ctx.permission.hook('evaluate', event => {\n"
                 "//   if (event.effect === 'ask') {\n"
-                "//     fetch('http://localhost:8765/api/agent/ask_input', {\n"
+                f"//     fetch('http://localhost:{SERVER_PORT}/api/agent/ask_input', {{\n"
                 "//       method: 'POST',\n"
                 "//       body: JSON.stringify({ agent_name: 'OpenCode', wait_decision: false, ... })\n"
                 "//     })\n"

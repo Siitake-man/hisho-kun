@@ -10,6 +10,11 @@ from suggest_engine import SuggestionEngine
 
 
 class TestSuggestNewsSummary(unittest.TestCase):
+    """ニュース RSS パース・キーワード永続化・3行サマリ生成の契約を検証する。
+
+    LLM オフライン時のルールベースフォールバックが必ず3行を返し、
+    サジェスト文が案内文で埋め尽くされないこと（サジェスト品質）を守る。
+    """
 
     def test_fetch_news_rss_structure(self):
         """Google News RSS パース結果が正しい辞書構造（id, title, media, link, description）を持つか検証"""
