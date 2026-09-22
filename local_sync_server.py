@@ -143,6 +143,10 @@ class SyncTokenManager:
 
     def __init__(self) -> None:
         self._token: str = ""
+        # 🛡️ P0-3 (2026-09-22): PC内ブラウザ専用の loopback トークン。
+        # マスター鍵 (self._token) は HTTP で一切配布しない (ループバックでも配らない)。
+        # 台帳 (devices) にも登録しないため、PCブラウザ利用で台帳を汚さない。
+        self._loopback_token: str = secrets.token_hex(32)
         self._lock = threading.Lock()
         # ペアリングモードの解除期限(epoch秒)。QR接続ダイアログ表示中のみトークン配布APIを開放する(Fail-Closed)
         self._pairing_unlocked_until: float = 0.0
@@ -238,6 +242,24 @@ class SyncTokenManager:
         if not presented:
             return False
         return hmac.compare_digest(presented.strip(), self._token)
+
+    @property
+    def loopback_token(self) -> str:
+        """PC内ブラウザ専用の loopback トークンを返す（マスター鍵とは別の資格情報）。"""
+        return self._loopback_token
+
+    def verify_loopback(self, presented: str) -> bool:
+        """loopback 専用トークンを定数時間比較で検証する。
+
+        Args:
+            presented (str): 提示された Bearer トークン文字列。
+
+        Returns:
+            bool: 一致した場合 True。
+        """
+        if not presented:
+            return False
+        return hmac.compare_digest(presented.strip(), self._loopback_token)
 
     def regenerate(self) -> str:
         """既存トークンを無効化し、新しいトークンを生成・保存する。
@@ -777,19 +799,27 @@ class DeskPetSyncHandler(SimpleHTTPRequestHandler):
     def _handle_auth_token(self, client_ip: str, user_agent: str) -> None:
         """トークン配布 (GET /api/auth/token) を処理する Seam。
 
-        - ペアリング開放中 or 同一PC内（ループバック）のみ許可。
+        - ペアリング開放中 or 信頼できる loopback（TCPピア + Host + プロキシヘッダ無しの3条件）のみ許可。
         - 個別トークンを1度正常発行したら即座にペアリング待機を終了する (P0-2 ワンタイム化・Single-Use Fail-Closed)。
         - 個別トークン発行失敗時はグローバルトークンを返さず HTTP 500 で遮断する (P1-2 Fail-Closed)。
         - 外部端末は必ず人間承認（承認ダイアログ）を経てから個別トークンを発行する (P0-2 Human-in-the-Loop)。
         - 🛡️ P0-1 (2026-09-22): 承認済み再ペアリングは明示的な復帰操作とみなし、失効中の端末
           (is_revoked=1) を restore_device() で復帰させ、監査ログ (source="pairing") へ記録する。
+        - 🛡️ P0-3 (2026-09-22): **マスター鍵は HTTP で一切配布しない**。loopback には
+          loopback 専用トークン（プロセス内生成・台帳非登録）を返す。Tailscale Serve 等の
+          リバースプロキシ経由は Host ヘッダが loopback 名でないため loopback 信頼が成立せず、
+          外部端末として人間承認 + 個別トークンの対象になる。
 
         Args:
             client_ip (str): 接続元IPアドレス。
             user_agent (str): 接続元User-Agent（端末表示名の推定に使用）。
         """
         tm = get_sync_token_manager()
-        if not (tm.pairing_open or DeskPetSyncHandler._is_loopback(client_ip)):
+        headers = getattr(self, "headers", None) or {}
+        trusted_loopback = DeskPetSyncHandler._is_trusted_loopback(
+            client_ip, str(headers.get("Host", "")), headers
+        )
+        if not (tm.pairing_open or trusted_loopback):
             logger.warning(f"🚫 [SyncAuth] 外部IPからのトークン要求を拒否 (IP: {client_ip})")
             self.send_response(403)
             self.send_header("Content-Type", "application/json; charset=utf-8")
@@ -802,9 +832,10 @@ class DeskPetSyncHandler(SimpleHTTPRequestHandler):
             return
 
         dev_name = DeskPetSyncHandler._infer_device_name(user_agent)
-        if DeskPetSyncHandler._is_loopback(client_ip):
-            # 🛡️ ループバック（PC自身）は端末台帳に登録しない（マスタトークン返却）
-            token = tm.token
+        if trusted_loopback:
+            # 🛡️ P0-3: PC内ブラウザへは loopback 専用トークン（マスター鍵ではない）を返す。
+            # 台帳 (devices) にも登録しないため PC ブラウザ利用で台帳を汚さない。
+            token = tm.loopback_token
         else:
             # 🛡️ P0-2: 未承認外部端末接続時の Human-in-the-Loop 承認
             cb = tm.device_approval_callback
@@ -852,6 +883,10 @@ class DeskPetSyncHandler(SimpleHTTPRequestHandler):
                 ).encode("utf-8"))
                 return
 
+            # 🛡️ P0-3 N4: 個別トークンを1度発行したら即座にペアリング待機を終了する
+            # (DESIGN_SPEC §10.2 の Single-Use Fail-Closed を実装で担保。600秒窓の悪用を封鎖)
+            tm.close_pairing()
+
             # ♻️ P0-1 / AD-1: 失効の解除は「人間の明示操作」のみ。
             # ここへ到達するには ①PC側でQRペアリングダイアログを開く ②PC側の承認ダイアログで
             # 許可する、という2段の人間操作が必須のため、承認済み再ペアリングは明示的な
@@ -886,7 +921,7 @@ class DeskPetSyncHandler(SimpleHTTPRequestHandler):
         self.wfile.write(json.dumps({"status": "ok", "token": token}, ensure_ascii=False).encode("utf-8"))
 
     def _dispatch_get_devices(self, client_ip: str) -> bool:
-        """GET /api/devices をディスパッチする Seam。PC同一マシン（ループバック）のみ許可する (P1-3)。
+        """GET /api/devices をディスパッチする Seam。信頼できる loopback のみ許可する (P1-3 / P0-3)。
 
         Args:
             client_ip (str): 接続元IPアドレス。
@@ -894,7 +929,8 @@ class DeskPetSyncHandler(SimpleHTTPRequestHandler):
         Returns:
             bool: レスポンス書き込み済みのため常に True (呼び出し側の分岐を単純化する)。
         """
-        if not DeskPetSyncHandler._is_loopback(client_ip):
+        headers = getattr(self, "headers", None) or {}
+        if not DeskPetSyncHandler._is_trusted_loopback(client_ip, str(headers.get("Host", "")), headers):
             logger.warning(f"🚫 [Security] 非ループバック({client_ip})からのデバイス一覧閲覧要求を拒否")
             self.send_response(403)
             self.send_header("Content-Type", "application/json; charset=utf-8")
@@ -997,12 +1033,25 @@ class DeskPetSyncHandler(SimpleHTTPRequestHandler):
         #    🛡️ P0-1 (2026-09-22): マスタートークン（PCマスターキー）はループバック（PC自身）専用。
         #    非ループバックからマスタートークンが提示された場合は台帳照合を必須とし、
         #    未登録・照合失敗は Fail-Closed で拒否する（漏洩済みマスターキーの実効無効化 = A案）。
+        # 🛡️ P0-3: loopback 信頼は3条件（TCPピア + Host + プロキシヘッダ無し）でのみ成立
+        trusted_loopback = DeskPetSyncHandler._is_trusted_loopback(
+            client_ip, str(self.headers.get("Host", "")), self.headers
+        )
         if bearer:
             dev = None
             is_valid_token = False
-            if token_mgr.verify(bearer):
-                # 🛡️ ループバック（PC自身・Agent Bridge・MCPサーバー）は端末台帳の対象外
-                if DeskPetSyncHandler._is_loopback(client_ip):
+            if token_mgr.verify_loopback(bearer):
+                # 🛡️ P0-3: loopback 専用トークン（PC内ブラウザ用）は信頼できる loopback でのみ有効。
+                # 盗まれても非ループバック（Serve 経由・LAN）からは一切使えない。
+                if trusted_loopback:
+                    is_valid_token = True
+                else:
+                    logger.warning(
+                        f"🚫 [SyncAuth] loopback 専用トークンを非ループバック({client_ip})から拒否しました"
+                    )
+            elif token_mgr.verify(bearer):
+                # 🛡️ マスタートークン（PCマスターキー）は信頼できる loopback 専用（Agent Bridge・MCPサーバー）
+                if trusted_loopback:
                     is_valid_token = True
                 else:
                     try:
@@ -1057,7 +1106,7 @@ class DeskPetSyncHandler(SimpleHTTPRequestHandler):
         #    従来は同一LAN (192.168.x.x 等) なら無条件で閲覧できたが、共有Wi-Fi の第三者に
         #    /api/status (TODO・予定・生活状態) を覗き見されるため塞いだ。スマホPWA は
         #    ペアリング後に Bearer を保持して GET にも付与するため機能影響はない。
-        if self.command == "GET" and self._is_loopback(client_ip):
+        if self.command == "GET" and trusted_loopback:
             return True
 
         # 4. 認証失敗: 外部IPのみ失敗カウントを記録
@@ -1100,7 +1149,7 @@ class DeskPetSyncHandler(SimpleHTTPRequestHandler):
 
         # 3. シークレット未設定かつローカルループバック接続の場合
         client_ip = self.client_address[0] if self.client_address else "unknown"
-        if not configured_secret and self._is_loopback(client_ip):
+        if not configured_secret and self._request_is_trusted_loopback():
             return True
 
         logger.warning(f"🚫 [WebhookAuth] 認証失敗: {self.path} (IP: {client_ip})")
@@ -1121,6 +1170,92 @@ class DeskPetSyncHandler(SimpleHTTPRequestHandler):
     def _is_loopback(client_ip: str) -> bool:
         """接続元IPが同一PC内（ループバック）かどうかを判定する。"""
         return client_ip in ("127.0.0.1", "::1", "localhost")
+
+    @staticmethod
+    def _host_is_loopback(host_header: str) -> bool:
+        """Host ヘッダが loopback 名（localhost / 127.0.0.1 / ::1）かどうかを判定する。
+
+        Notes:
+            🛡️ P0-3 (2026-09-22): Tailscale Serve 等のリバースプロキシは接続元を
+            127.0.0.1 に中継するため、TCPピアだけで loopback を信頼すると
+            テールネット全体が PC 自身として扱われてしまう。Host ヘッダが
+            loopback 名であることを loopback 信頼の必須条件に加える。
+            Host 無し（空）は HTTP/1.1 では異常なため Fail-Closed で非ループバック扱いとする。
+
+        Args:
+            host_header (str): Host ヘッダの値（ポート付き可）。
+
+        Returns:
+            bool: loopback 名の場合 True。
+        """
+        host = (host_header or "").strip().lower()
+        if not host:
+            return False
+        if host.startswith("["):
+            # IPv6 リテラルは `[::1]` または `[::1]:<port>` の完全形のみ許可する (P0-3 N2)
+            closing = host.find("]")
+            if closing == -1:
+                return False
+            literal = host[1:closing]
+            remainder = host[closing + 1:]
+            if remainder and not remainder.startswith(":"):
+                return False
+            return literal == "::1"
+        if ":" in host:
+            host = host.rsplit(":", 1)[0]
+        return host in ("localhost", "127.0.0.1", "::1")
+
+    @staticmethod
+    def _is_trusted_loopback(client_ip: str, host_header: str = "", headers: Optional[Dict[str, Any]] = None) -> bool:
+        """loopback 信頼の3条件（TCPピア + Host + プロキシヘッダ無し）を判定する (P0-3)。
+
+        Notes:
+            🛡️ P0-3: 「PC自身」= TCPピアが loopback の接続、と同一視してはならない。
+            リバースプロキシ（Tailscale Serve / DNS Rebinding 経由のブラウザ）を
+            構造的に排除するため、次の3条件すべてを要求する:
+              1. TCPピアが loopback (127.0.0.1 / ::1)
+              2. プロキシヘッダ (X-Forwarded-For / Forwarded / X-Real-IP) が無い
+              3. Host ヘッダが loopback 名である
+            条件を満たさない接続は「外部端末」として個別トークン + 人間承認の対象になる。
+
+        Args:
+            client_ip (str): TCPピアのIPアドレス。
+            host_header (str): Host ヘッダの値。
+            headers (Optional[Dict[str, Any]]): リクエストヘッダ辞書（プロキシ検出用）。
+
+        Returns:
+            bool: 3条件すべてを満たす場合 True。
+        """
+        if not DeskPetSyncHandler._is_loopback(client_ip):
+            return False
+        header_map = headers or {}
+
+        def _header_values(name: str) -> List[str]:
+            """同名ヘッダの全出現値を返す（email.message / 素の dict 双方に対応）。"""
+            if hasattr(header_map, "get_all"):
+                return [str(v or "") for v in (header_map.get_all(name) or [])]
+            value = header_map.get(name)
+            return [str(value or "")] if value is not None else []
+
+        # Host は単一出現のみ許可する (RFC 7230 / P0-3 N3: 複数 Host は Fail-Closed)
+        if len(_header_values("Host")) > 1:
+            return False
+        # プロキシ・中継の痕跡ヘッダが1つでも非空なら loopback 信頼を無効化する (P0-3 N1/N3)
+        for name in (
+            "X-Forwarded-For", "X-Forwarded-Host", "X-Forwarded-Proto", "Forwarded", "X-Real-IP", "Via",
+            "Tailscale-User-Login", "Tailscale-Funnel-Request", "Tailscale-Headers-Info",
+        ):
+            if any(value.strip() for value in _header_values(name)):
+                return False
+        return DeskPetSyncHandler._host_is_loopback(host_header)
+
+    def _request_is_trusted_loopback(self) -> bool:
+        """このリクエストが信頼できる loopback かを3条件で判定する (P0-3)。"""
+        client_ip = self.client_address[0] if getattr(self, "client_address", None) else "unknown"
+        headers = getattr(self, "headers", None) or {}
+        return DeskPetSyncHandler._is_trusted_loopback(
+            client_ip, str(headers.get("Host", "")), headers
+        )
 
     def _update_notice_payload(self) -> Dict[str, Any]:
         """スマホPWA向けの更新通知ペイロードを生成する (/api/status 専用)。"""
@@ -1566,7 +1701,7 @@ class DeskPetSyncHandler(SimpleHTTPRequestHandler):
         # これにより、LAN上の攻撃者がトークンを入手しても ask を作成できず、
         # 「自作リクエスト → 自己承認」の RCE チェーンが成立しなくなる (要求元/承認者の分離)。
         AGENT_ONLY_PATHS = ("/api/agent/ask", "/api/agent/ask_input", "/api/agent/notify")
-        if self.path in AGENT_ONLY_PATHS and not self._is_loopback(client_ip):
+        if self.path in AGENT_ONLY_PATHS and not self._request_is_trusted_loopback():
             logger.warning(f"🚫 [Security] 非ループバック({client_ip})からのエージェントAPI呼び出しを拒否: {self.path}")
             self.send_response(403)
             self.send_header("Content-Type", "application/json; charset=utf-8")
@@ -1586,7 +1721,7 @@ class DeskPetSyncHandler(SimpleHTTPRequestHandler):
         # 3.5 デバイス個別失効API (POST /api/devices/revoke) — 管理者/同一PC操作に限定
         #     処理本体（監査ログ記録を含む）は api_devices.handle_post_devices_revoke へ委譲 (P1-4)
         elif self.path == "/api/devices/revoke":
-            if not self._is_loopback(client_ip):
+            if not self._request_is_trusted_loopback():
                 logger.warning(f"🚫 [Security] 非ループバック({client_ip})からのデバイス失効要求を拒否")
                 self.send_response(403)
                 self.send_header("Content-Type", "application/json; charset=utf-8")
@@ -1599,7 +1734,7 @@ class DeskPetSyncHandler(SimpleHTTPRequestHandler):
 
         # 3.5b デバイス個別復帰API (POST /api/devices/restore) — 管理者/同一PC操作に限定
         elif self.path == "/api/devices/restore":
-            if not self._is_loopback(client_ip):
+            if not self._request_is_trusted_loopback():
                 logger.warning(f"🚫 [Security] 非ループバック({client_ip})からのデバイス復帰要求を拒否")
                 self.send_response(403)
                 self.send_header("Content-Type", "application/json; charset=utf-8")
@@ -1612,7 +1747,7 @@ class DeskPetSyncHandler(SimpleHTTPRequestHandler):
 
         # 3.6 AIエージェント稼働状態更新 (POST /api/agent/activity) — Phase H
         elif self.path == "/api/agent/activity":
-            if not self._is_loopback(client_ip):
+            if not self._request_is_trusted_loopback():
                 logger.warning(f"🚫 [Security] 非ループバック({client_ip})からのエージェント状態更新を拒否")
                 self.send_response(403)
                 self.send_header("Content-Type", "application/json; charset=utf-8")

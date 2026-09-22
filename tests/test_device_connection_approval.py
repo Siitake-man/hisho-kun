@@ -108,6 +108,8 @@ class TestDeviceConnectionApproval(unittest.TestCase):
                 self.assertIn("token", data)
                 self.assertEqual(len(approval_called), 1)
                 self.assertEqual(approval_called[0][1], "192.168.1.50")
+                # 🛡️ P0-3 N4: 個別トークン発行でペアリング待機が即座に閉じること (Single-Use)
+                self.assertFalse(self.tm.pairing_open, "発行後はペアリング待機が自動クローズされること")
 
     def test_approval_denied_returns_403(self):
         """PC側で拒絶された場合、403 Forbidden が返却されトークンは発行されない。"""
@@ -129,16 +131,40 @@ class TestDeviceConnectionApproval(unittest.TestCase):
         self.assertIn("拒否", data.get("message", ""))
 
     def test_loopback_skips_approval(self):
-        """ループバック（PC自身）は承認コールバックを呼ばずに即座にマスタトークンを返す。"""
+        """信頼できる loopback（TCPピア + Host が loopback 名）は承認コールバックを呼ばず、loopback 専用トークンを返す (P0-3)。"""
         mock_callback = mock.MagicMock(return_value=False)
         self.tm.set_device_approval_callback(mock_callback)
 
         handler = _FakeHttpHandler()
         handler.path = "/api/auth/token"
-        handler.headers = {"User-Agent": "LocalClient"}
+        handler.headers = {"User-Agent": "LocalClient", "Host": "127.0.0.1:8765"}
 
         DeskPetSyncHandler._handle_auth_token(handler, "127.0.0.1", handler.headers["User-Agent"])
         self.assertEqual(handler.status_codes, [200])
+        mock_callback.assert_not_called()
+        data = _decode_body(handler)
+        self.assertEqual(
+            data.get("token"), self.tm.loopback_token,
+            "🛡️ P0-3: マスター鍵ではなく loopback 専用トークンを返すこと",
+        )
+        self.assertNotEqual(data.get("token"), self.tm.token, "🛡️ マスター鍵は HTTP で配布しない")
+
+    def test_loopback_ip_with_foreign_host_is_not_trusted(self):
+        """TCPピアが loopback でも Host が loopback 名でなければ外部端末扱い（403）となること (P0-3)。
+
+        Tailscale Serve（Host = *.ts.net）や DNS Rebinding（Host = 攻撃者ドメイン）は
+        TCPピアが 127.0.0.1 になるため、Host 条件が唯一の構造的な識別子となる。
+        """
+        mock_callback = mock.MagicMock(return_value=True)
+        self.tm.set_device_approval_callback(mock_callback)
+        self.tm.close_pairing()
+
+        handler = _FakeHttpHandler()
+        handler.path = "/api/auth/token"
+        handler.headers = {"User-Agent": "ServeClient", "Host": "neo-pc.tailnet-xxxx.ts.net"}
+
+        DeskPetSyncHandler._handle_auth_token(handler, "127.0.0.1", handler.headers["User-Agent"])
+        self.assertEqual(handler.status_codes, [403], "🛡️ Serve 経由は loopback 扱いしない")
         mock_callback.assert_not_called()
 
     def test_set_gui_instance_registers_callback(self):

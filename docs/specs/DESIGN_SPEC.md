@@ -1,7 +1,7 @@
 # ネオ秘書くん システム設計書 (DESIGN_SPEC.md)
 
-- **バージョン**: 1.5.2-dev (🛡️ P0-1 失効の実効性強化（A案）＆ 📲 Web Push 導入 ＆ ⏱ 起動同期ゲート ＆ ✂️ スコープ縮小決定)
-- **最終更新日時**: 2026-09-22 21:30 (🛡️ P0-1 完了 §10.2 改定（sync_token 漏洩撤去・失効巻き戻し廃止・認証経路の読み取り専用化・非ループバック・マスターキーの Fail-Closed）／残余リスクは §13.19 バックログへ)
+- **バージョン**: 1.5.4-dev (🛡️ P0-1 失効の実効性強化 ＋ 🛡️ P0-3 loopback 信頼の3条件化 ＋ 🛡️ P0-2 承認ポリシー構造パース化 ＆ 📲 Web Push 導入)
+- **最終更新日時**: 2026-09-22 23:05 (🛡️ P0-2 完了 §10 承認ポリシー節（shlex 構造判定・shlex 既定値の罠封鎖・過剰STRICT防止）／🛡️ P0-3 完了 §10.2（loopback 3条件＋追加硬化 N1〜N4）／P0-1 は同日 v1.1.7)
 - **アーキテクチャ方針**: 完全ローカル完結型 非ブロッキング並行システム (Tkinter Desktop Overlay × Mobile PWA × LangGraph Agent × Zero-Trust Local Bridge ＆ Cross-Platform Headless CI/CD)
 
 
@@ -246,6 +246,18 @@ MiniCPM-Petの秀逸な着眼点をネオ秘書くんのクリーンアーキテ
         1. 🟢 **Auto-Allow**: `npm test`, `git status`, 読取専用コマンドは自動即時許可（認知負荷削減）
         2. 🟡 **Prompt**: `npm install`, ファイル編集, `git commit` はスマホワンタップ承認
         3. 🔴 **Strict / Block**: `rm -rf`, `git push --force`, `drop table`, 秘密鍵・トークン外部送信はスマホ大画面での警告＆二重確認
+      - **🛡️ 構造パース堅牢化 (P0-2 / 2026-09-22)**: 複合コマンド検知を `;` `&&` `||` の**部分文字列判定**から
+        `shlex`（posix + `punctuation_chars`）による**シェル演算子トークンの構造判定**へ移行。
+        - パイプ（`|`）・リダイレクト（`>` `>>` `<`）・バックグラウンド（`&`）・チェイン・
+          **コマンド置換／変数展開**（`$( )`・バッククォート・`%VAR%`・`$env:`・`${}`）・改行による複合は 🟡 **Prompt** へ格上げ。
+        - パイプ先インタプリタ（sh/bash/pwsh/python 等）・`xargs`＋インタプリタ・`find -exec/-delete/-fprint`・
+          `eval`/`Invoke-Expression`・`git (diff|log|show) --output`・`git branch -D`/`tag -d`/`remote add|remove`・
+          `rm --recursive --force` 系は 🔴 **Strict**（トークン＝非クォート語で判定し、引用符内文字列の誤検知を防止）。
+        - **shlex の既定値の罠を封鎖**: ①`commenters='#'` は語中でも以降を読み捨てる → `commenters=""` を必須化
+          ②連続する句読点は1トークンに連結（`>|` `&>` `&>>`）→「句読点のみのトークン＝演算子ラン」で判定
+          ③引用符が語全体を覆う純粋演算子（`echo ">"`）は保守的に Prompt（混在語 `echo "a;b"` は Auto-Allow を維持）。
+        - 構文解析失敗（閉じない引用符等）は **Fail-Closed で Prompt**（warning ログで可視化）。
+        - 検証: `tests/test_approval_policy.py`（既存回帰）＋ `tests/test_p0_2_approval_policy_structural.py`（19テスト＋40 subtests）。
     - **Audit Log（承認監査ログ基盤 - P0 / v1.1.0)**:
       - すべての承認要請・判定結果・タイムスタンプ・実行エージェント名を SQLite `approval_audit_logs` に記録し、改ざん防止・後日監査を可能にする。
     - **承認失敗モード堅牢化 (v1.1.0)**: エージェント側のタイムアウト時のスマホUI追従、Wi-Fi瞬断時の冪等リトライ、PWAスリープ復帰時の再同期。
@@ -410,13 +422,21 @@ MiniCPM-Petの秀逸な着眼点をネオ秘書くんのクリーンアーキテ
   - `user_agent`: クライアント識別子
   - `created_at` / `last_seen`: 登録日時および最終通信日時（Unixミリ秒）
   - `is_revoked`: 個別失効フラグ（0: 有効, 1: 失効）
-- **認証・認可フロー (`_check_auth`) — 🛡️ P0-1 改定 (2026-09-22 / v1.1.7)**:
-  1. Bearer トークンを抽出し、`SyncTokenManager` でマスタートークン（PCマスターキー）か個別トークン（QRペアリング配布）かを判定する。
-  2. **マスタートークンはループバック（PC自身・Agent Bridge・MCPサーバー）専用**。非ループバックからの提示は台帳照合を必須とし、**未登録または照合例外は 401 Fail-Closed**（漏洩済みマスターキーの実効無効化 = A案 / 2026-09-22 ボス承認）。
-  3. 個別トークンは SHA-256 ハッシュで `database.verify_device_token` を照会し、`is_revoked == 1`（失効済み）は即座に **403 Forbidden** で通信遮断。
-  4. 有効端末は `touch_device_last_seen` で接続日時とIPを自動更新。**照合例外は 401 Fail-Closed**（warning ログで可視化。旧「Fail-Safe で認証継続」は失効判定の蒸発を招くため廃止）。
-  5. **認証経路は台帳へ書き込まない（読み取り専用）**: `sync_device_session` は未登録資格情報を自動登録せず `None` を返す。資格情報の登録・再束縛は**人間承認を伴うペアリング経路のみ**（`issue_device_token` → `register_device(reuse_identity=True)`）。
-  6. `GET /api/status` のレスポンスへ同期トークン（マスターキー）を同梱しない。DTO 境界 `validate_status_payload` の deny-list が再混入を除去し ERROR ログを残す（多層防御）。
+- **認証・認可フロー (`_check_auth`) — 🛡️ P0-1 / P0-3 改定 (2026-09-22 / v1.1.7)**:
+  1. Bearer トークンを抽出し、`SyncTokenManager` でマスタートークン（PCマスターキー）/ loopback 専用トークン / 個別トークン（QRペアリング配布）を判定する。
+  2. **マスタートークンは信頼できる loopback 専用**（Agent Bridge・MCPサーバー）。非ループバックからの提示は台帳照合を必須とし、**未登録または照合例外は 401 Fail-Closed**（漏洩済みマスターキーの実効無効化 = A案 / 2026-09-22 ボス承認）。
+  3. **loopback 専用トークン（PC内ブラウザ用 / P0-3）** はプロセス内生成で台帳に登録せず、`/api/auth/token` の loopback 分岐のみが配布する。**信頼できる loopback 以外では 401**（窃取しても Serve/LAN からは使えない）。**マスター鍵は HTTP で一切配布しない**。
+  4. 個別トークンは SHA-256 ハッシュで `database.verify_device_token` を照会し、`is_revoked == 1`（失効済み）は即座に **403 Forbidden** で通信遮断。
+  5. 有効端末は `touch_device_last_seen` で接続日時とIPを自動更新。**照合例外は 401 Fail-Closed**（warning ログで可視化。旧「Fail-Safe で認証継続」は失効判定の蒸発を招くため廃止）。
+  6. **認証経路は台帳へ書き込まない（読み取り専用）**: `sync_device_session` は未登録資格情報を自動登録せず `None` を返す。資格情報の登録・再束縛は**人間承認を伴うペアリング経路のみ**（`issue_device_token` → `register_device(reuse_identity=True)`）。
+  7. `GET /api/status` のレスポンスへ同期トークン（マスターキー）を同梱しない。DTO 境界 `validate_status_payload` の deny-list が再混入を除去し ERROR ログを残す（多層防御）。
+- **loopback 信頼の3条件 (P0-3 / 2026-09-22) — `_is_trusted_loopback(client_ip, host_header, headers)`**:
+  1. TCPピアが loopback（`127.0.0.1` / `::1`）
+  2. プロキシヘッダ（`X-Forwarded-For` / `Forwarded` / `X-Real-IP`）が**無い**
+  3. **`Host` ヘッダが loopback 名**（`localhost` / `127.0.0.1` / `::1`。ポート付き・IPv6 リテラル対応、Host 無しは Fail-Closed）
+  - **Tailscale Serve の識別子**: Serve は TCPピアを 127.0.0.1 に中継するが `Host` は `*.ts.net` のまま届くため、条件3で「外部端末」と正しく分類され、ペアリング開放 + 人間承認 + 個別トークンの対象になる（失効・監査の対象にもなる）。
+  - **DNS Rebinding の遮断**: 攻撃者ドメインの `Host` は条件3を満たさず loopback 信頼が成立しない（`/api/devices/restore` 等の管理APIは遮断）。
+  - 適用箇所: `_check_auth` / `_handle_auth_token` / `_dispatch_get_devices` / `do_GET`(トークン無し閲覧) / `_check_webhook_auth` / `AGENT_ONLY_PATHS` / devices revoke・restore / agent activity。
 - **失効の不変条件 (AD-3 / 2026-09-22)**:
   - **失効解除は `restore_device()` のみ**（`is_revoked = 0` を書ける関数は同関数ただ1つ。`tests/test_p0_sync_token_leak_and_revocation.py` のソース凍結テストで機械的に保証）。
   - **人間承認済み再ペアリング = 明示的な復帰操作**: `_handle_auth_token` は承認ダイアログ許可後にのみ `restore_device` を呼び、監査ログ `source="pairing"`（`client_ip` 付き）へ記録する。復帰失敗時は失効を維持し warning を残す（UI の嘘を作らない）。

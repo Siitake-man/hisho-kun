@@ -15,11 +15,15 @@ AIコーディングエージェントからのコマンド実行要請を解析
             スマホ画面が赤く警告点滅し、慎重な二重確認を求める。
 """
 
+import logging
 import re
+import shlex
 from dataclasses import dataclass, field
 from typing import List, Optional, Pattern
 
 from agent_adapter import RiskLevel
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -54,6 +58,24 @@ class PolicyDecision:
 class ApprovalPolicyEngine:
     """エージェントが要求したコマンドの危険度を正規表現ベースで多重評価するエンジン。"""
 
+    # 🛡️ P0-2 (2026-09-22): shlex 構造パースで「複合コマンド」と判定するシェル演算子。
+    #    部分文字列（`;` 等）ではなくトークン単位で判定するため、引用符内の演算子を
+    #    含む語（例: `echo "a;b"`）は単一コマンドとして扱われる。
+    #    ※ 引用符が語全体を覆う純粋演算子（例: `echo ">"`）は保守的に複合扱い（安全側）。
+    _PUNCT_CHARS = frozenset("();<>|&")
+
+    # 展開構文（コマンド置換・変数展開）: shlex は展開を解釈しないため明示検知する。
+    #  %VAR% (cmd.exe) / $env:X (PowerShell) / ${X} (bash) / $( ) / バッククォート
+    _EXPANSION_RE: Pattern[str] = re.compile(
+        r"\$\(|`|%[A-Za-z_][A-Za-z0-9_]*%|\$(env:|\{)", re.IGNORECASE
+    )
+
+    # パイプ・xargs 経由の実行で危険とみなすインタプリタ
+    _INTERPRETER_TOKENS = frozenset({
+        "sh", "bash", "zsh", "dash", "ksh", "pwsh", "powershell", "cmd",
+        "python", "python3", "perl", "ruby", "node", "php",
+    })
+
     # 🔴 STRICT (破壊的・危険コマンド) の正規表現パターン
     DEFAULT_STRICT_PATTERNS: List[str] = [
         # 再帰的・強制削除 (rm -rf, rmdir /s, del /s, Remove-Item -Recurse -Force 等)
@@ -82,6 +104,19 @@ class ApprovalPolicyEngine:
         r"\bmkfs\b",
         r"\bformat\s+[a-zA-Z]:",
         r"\bdd\s+if=",
+
+        # 🛡️ P0-2 (2026-09-22): 構造パースで検知する任意コード実行の複合形
+        #    パイプ先がインタプリタ（シェル・スクリプト言語）＝無承認で任意コード実行
+        r"\|\s*(sh|bash|zsh|dash|ksh|pwsh|powershell|cmd|python[0-9.]*|perl|ruby|node|php)\b",
+
+        # 🛡️ P0-2: ファイル書込・破壊を伴う「読み取り系」の変種（無承認化の防止）
+        r"\bgit\s+(status|diff|log|show)\b[^|;&]*--output",
+        r"\bgit\s+branch\s+(-D|-d\b|--delete)",
+        r"\bgit\s+tag\s+-d\b",
+        r"\bgit\s+remote\s+(add|remove|set-url|rename)\b",
+        r"\brm\b[^|;&]*(--recursive\b|-r\b)[^|;&]*(--force\b|-f\b)",
+        r"\brm\b[^|;&]*(--force\b|-f\b)[^|;&]*(--recursive\b|-r\b)",
+        r"\bRemove-Item\b[^|;&]*-[rR]ecurse\b",
     ]
 
     # 🟢 AUTO_ALLOW (安全・読み取り専用・テストコマンド) の正規表現パターン
@@ -118,6 +153,87 @@ class ApprovalPolicyEngine:
         """自動許可コマンド判定パターンを動的に追加する。"""
         self._auto_allow_regexes.insert(0, re.compile(pattern, re.IGNORECASE))
 
+    def _tokenize(self, command: str) -> Optional[List[str]]:
+        """シェル字句解析（shlex）でトークン列を得る (P0-2)。
+
+        Notes:
+            🛡️ P0-2: `commenters` を無効化する。shlex の既定値は `'#'` をコメント開始と
+            みなし **語中でも以降を読み捨てる**ため、`echo pwn#>~/.bashrc` が
+            「複合なし」と誤判定され無承認書込に到達してしまう（bash は語中 `#` を
+            リテラル扱いする）。解析不能（閉じない引用符等）は None を返し、
+            呼び出し側が Fail-Closed（PROMPT）に倒す。
+
+        Args:
+            command (str): 実行予定のコマンドライン文字列。
+
+        Returns:
+            Optional[List[str]]: トークン列（解析不能時は None）。
+        """
+        try:
+            lexer = shlex.shlex(command, posix=True, punctuation_chars=True)
+            lexer.whitespace_split = True
+            lexer.commenters = ""
+            return list(lexer)
+        except ValueError as e:
+            logger.warning("コマンド構文の解析に失敗しました (Fail-Closed で PROMPT に倒します): %s", e)
+            return None
+
+    def _detect_structural_strict(self, tokens: List[str]) -> str:
+        """トークン列から構造的に危険な操作を検出する (P0-2)。
+
+        引用符内の文字列（例: `grep -r 'eval(' .` の `eval(`）を誤検知しないよう、
+        生文字列ではなくトークン（＝シェルが実際にコマンド語として解釈する単位）で判定する。
+
+        Args:
+            tokens (List[str]): `_tokenize` の結果。
+
+        Returns:
+            str: 検出理由（該当なしの場合は空文字）。
+        """
+        lowered = [t.lower() for t in tokens]
+        for name in ("eval", "invoke-expression", "iex"):
+            if name in lowered:
+                return f"動的評価 ({name}) を検出しました"
+        if "find" in lowered:
+            for flag in ("-exec", "-execdir", "-delete", "-fprint", "-fprintf", "-fls"):
+                if flag in lowered:
+                    return f"find の {flag} による任意操作を検出しました"
+        if "xargs" in lowered:
+            for name in self._INTERPRETER_TOKENS:
+                if name in lowered:
+                    return f"xargs 経由のインタプリタ実行 ({name}) を検出しました"
+        return ""
+
+    def _detect_composite(self, command: str) -> str:
+        """シェル構造を字句解析し、複合コマンド・リダイレクト・展開を検出する (P0-2)。
+
+        Notes:
+            🛡️ P0-2 (2026-09-22): 旧実装は `;` `&&` `||` の**部分文字列**しか見ていなかったため、
+            `cat evil.sh | bash`（パイプ）・`echo x > ~/.bashrc`（リダイレクト）・
+            `ls & pytest`（バックグラウンド）・`cat $(whoami)`（置換）が AUTO_ALLOW を素通りしていた。
+            shlex の punctuation_chars でシェル演算子をトークン化し、
+            **句読点のみで構成されるトークン＝演算子ラン**（`>|` `&>` `&>>` 等の連結形を含む）を
+            構造で判定する。
+
+        Args:
+            command (str): 実行予定のコマンドライン文字列。
+
+        Returns:
+            str: 複合と判定した理由（単一コマンドの場合は空文字）。
+        """
+        if self._EXPANSION_RE.search(command):
+            return "コマンド置換・変数展開を含むため通常承認が必要です"
+        if "\n" in command or "\r" in command:
+            # 改行はシェルではコマンド区切り（shlex は空白として扱うため明示検知する）
+            return "複数行コマンド（改行による複合）のため通常承認が必要です"
+        tokens = self._tokenize(command)
+        if tokens is None:
+            return "シェル構文の解析に失敗したため通常承認が必要です"
+        for token in tokens:
+            if token and all(ch in self._PUNCT_CHARS for ch in token):
+                return "複合コマンド（パイプ・チェイン・リダイレクト）のため通常承認が必要です"
+        return ""
+
     def evaluate(self, command: str) -> PolicyDecision:
         """コマンドを評価し、3段階の危険度判定を下す。
 
@@ -150,13 +266,26 @@ class ApprovalPolicyEngine:
                     matched_rule=pattern.pattern,
                 )
 
+        # 1.5 🔴 STRICT チェック（構造判定 / P0-2）: 引用符内の文字列を誤検知しないよう
+        #     シェルが実際にコマンド語として解釈するトークン列で危険操作を判定する。
+        tokens = self._tokenize(clean_cmd)
+        if tokens is not None:
+            structural_strict_reason = self._detect_structural_strict(tokens)
+            if structural_strict_reason:
+                return PolicyDecision(
+                    risk_level=RiskLevel.STRICT,
+                    reason=structural_strict_reason,
+                    matched_rule="structural_strict",
+                )
+
         # 2. 🟢 AUTO_ALLOW チェック (安全なコマンドに適合するか)
-        # ※ セミコロンやパイプで複合されている場合は慎重にPROMPTに倒す
-        if ";" in clean_cmd or "&&" in clean_cmd or "||" in clean_cmd:
-            # 複合コマンドは安全のためPROMPTへ
+        # 🛡️ P0-2 (2026-09-22): シェル構造をパースし、複合コマンド・リダイレクト・コマンド置換は
+        # 安全のため PROMPT へ倒す（部分文字列判定を廃止し、構造判定へ移行）。
+        composite_reason = self._detect_composite(clean_cmd)
+        if composite_reason:
             return PolicyDecision(
                 risk_level=RiskLevel.PROMPT,
-                reason="複合コマンド（チェイン実行）のため通常承認が必要です",
+                reason=composite_reason,
                 matched_rule="composite_command",
             )
 
