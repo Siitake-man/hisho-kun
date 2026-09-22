@@ -163,6 +163,45 @@ class TestApprovalPolicyStructuralParsing(unittest.TestCase):
         decision = self.engine.evaluate("find . -print0 | xargs -0 sh -c 'evil'")
         self.assertEqual(decision.risk_level, RiskLevel.STRICT, f"actual={decision.risk_level}")
 
+    def test_find_write_flag_variants_are_strict(self) -> None:
+        """find の書込・実行系フラグの派生形（-fprint0 / -ok / -okdir）も STRICT であること (再査読 P1)。"""
+        for cmd in (
+            "find . -name '*.log' -fprint0 out.bin",
+            "find . -ok rm {} \\;",
+            "find . -okdir rm {} \\;",
+        ):
+            with self.subTest(cmd=cmd):
+                decision = self.engine.evaluate(cmd)
+                self.assertEqual(decision.risk_level, RiskLevel.STRICT, f"actual={decision.risk_level}")
+
+    def test_find_harmless_flag_stays_auto_allowed(self) -> None:
+        """無害な find フラグ（-printf / -name）は AUTO_ALLOW のままであること（過剰 Strict の防止）。"""
+        for cmd in ("find . -name '*.py' -printf '%p\\n'", "find . -name '*.py'"):
+            with self.subTest(cmd=cmd):
+                decision = self.engine.evaluate(cmd)
+                self.assertEqual(decision.risk_level, RiskLevel.AUTO_ALLOW, f"actual={decision.risk_level}")
+
+    def test_path_qualified_interpreter_pipe_is_strict(self) -> None:
+        """パス修飾・env 経由のインタプリタへのパイプも STRICT であること (再査読 P2)。"""
+        for cmd in ("cat evil.sh | /bin/bash", "cat evil.sh | /usr/bin/env bash"):
+            with self.subTest(cmd=cmd):
+                decision = self.engine.evaluate(cmd)
+                self.assertEqual(decision.risk_level, RiskLevel.STRICT, f"actual={decision.risk_level}")
+
+    def test_git_branch_and_tag_write_variants_are_strict(self) -> None:
+        """`git branch -M/-f`・`git tag <name>`・`git remote prune` 等の書込変種は STRICT であること (再査読 P2)。"""
+        for cmd in ("git branch -M newname", "git branch -f main HEAD~1", "git tag v1.0.0", "git remote prune origin"):
+            with self.subTest(cmd=cmd):
+                decision = self.engine.evaluate(cmd)
+                self.assertEqual(decision.risk_level, RiskLevel.STRICT, f"actual={decision.risk_level}")
+
+    def test_git_read_only_variants_stay_auto_allowed(self) -> None:
+        """読み取り専用の git 変種（`git tag -l`・`git branch`）は AUTO_ALLOW のままであること。"""
+        for cmd in ("git tag -l", "git branch", "git remote -v"):
+            with self.subTest(cmd=cmd):
+                decision = self.engine.evaluate(cmd)
+                self.assertEqual(decision.risk_level, RiskLevel.AUTO_ALLOW, f"actual={decision.risk_level}")
+
     def test_quoted_eval_argument_is_not_strict(self) -> None:
         """引用符内の `eval` 文字列は誤検知しないこと（構造判定＝過剰 STRICT の防止）。"""
         decision = self.engine.evaluate("grep -r 'eval(' .")

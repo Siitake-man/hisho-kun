@@ -111,9 +111,9 @@ class ApprovalPolicyEngine:
 
         # 🛡️ P0-2: ファイル書込・破壊を伴う「読み取り系」の変種（無承認化の防止）
         r"\bgit\s+(status|diff|log|show)\b[^|;&]*--output",
-        r"\bgit\s+branch\s+(-D|-d\b|--delete)",
-        r"\bgit\s+tag\s+-d\b",
-        r"\bgit\s+remote\s+(add|remove|set-url|rename)\b",
+        r"\bgit\s+branch\s+(-[dDmMfcu]|--delete|--set-upstream-to)",
+        r"\bgit\s+tag\s+(?!(-l|-n|--list|--contains|--points-at|--merged|--sort|--format)\b)\S",
+        r"\bgit\s+remote\s+(add|remove|set-url|rename|prune|set-head|set-branches|update)\b",
         r"\brm\b[^|;&]*(--recursive\b|-r\b)[^|;&]*(--force\b|-f\b)",
         r"\brm\b[^|;&]*(--force\b|-f\b)[^|;&]*(--recursive\b|-r\b)",
         r"\bRemove-Item\b[^|;&]*-[rR]ecurse\b",
@@ -195,13 +195,21 @@ class ApprovalPolicyEngine:
             if name in lowered:
                 return f"動的評価 ({name}) を検出しました"
         if "find" in lowered:
-            for flag in ("-exec", "-execdir", "-delete", "-fprint", "-fprintf", "-fls"):
-                if flag in lowered:
-                    return f"find の {flag} による任意操作を検出しました"
+            # 🛡️ 完全一致ではなく**先頭一致**で判定する（-fprint0 / -okdir 等の派生形を取りこぼさない）
+            for flag in ("-exec", "-execdir", "-delete", "-fprint", "-fprintf", "-fls", "-ok", "-okdir"):
+                if any(token == flag or token.startswith(flag) for token in lowered):
+                    return f"find の {flag} 系による任意操作を検出しました"
         if "xargs" in lowered:
             for name in self._INTERPRETER_TOKENS:
                 if name in lowered:
                     return f"xargs 経由のインタプリタ実行 ({name}) を検出しました"
+        # パイプ経由のインタプリタ実行はパス修飾形（/bin/bash・env bash 等）も検出する
+        has_pipe = any(t and all(ch in self._PUNCT_CHARS for ch in t) and "|" in t for t in tokens)
+        if has_pipe:
+            for token in tokens:
+                base = token.replace("\\", "/").rsplit("/", 1)[-1].lower()
+                if base in self._INTERPRETER_TOKENS:
+                    return f"パイプ経由のインタプリタ実行 ({base}) を検出しました"
         return ""
 
     def _detect_composite(self, command: str) -> str:
