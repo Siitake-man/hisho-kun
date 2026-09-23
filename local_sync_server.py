@@ -14,6 +14,7 @@ import json
 import time
 import uuid
 import hmac
+import ipaddress
 import socket
 import secrets
 import logging
@@ -80,6 +81,7 @@ def _fmt_event_dt(ms_val: Any) -> str:
 import database
 import sync_config
 import i18n
+import app_paths
 from web_assets import guess_asset_content_type, resolve_asset_path
 from update_checker import get_update_status
 from sync_dtos import validate_status_payload, validate_tasks_view_response
@@ -98,7 +100,9 @@ WEB_PET_DIR = Path(__file__).parent / "web_pet"
 ASSETS_DIR = Path(__file__).parent / "assets"
 # 待受ポートは sync_config を唯一の情報源とする (QRダイアログ/Tailscale起動と一元化)
 SERVER_PORT = sync_config.SERVER_PORT
-TOKEN_FILE = Path(__file__).parent / ".sync_token"
+# 🛡️ P0-4 (2026-09-23 / ADR-2): マスタートークンはデータ境界 (非同期領域) に配置する。
+# 旧配置 (リポジトリ/exe 直下) はクラウド同期で漏洩し得るため禁止。
+TOKEN_FILE = app_paths.get_sync_token_path()
 
 _global_gui_instance = None
 
@@ -819,6 +823,19 @@ class DeskPetSyncHandler(SimpleHTTPRequestHandler):
         trusted_loopback = DeskPetSyncHandler._is_trusted_loopback(
             client_ip, str(headers.get("Host", "")), headers
         )
+        # 🛡️ ID 53 (2026-09-23): Serve 中継の TCPピア (127.0.0.1) をそのまま台帳へ書くと
+        # 「PC内のゴミ」と誤認され cleanup に物理削除される。中継経由では XFF の実IPを採用する。
+        ledger_ip = DeskPetSyncHandler._resolve_ledger_client_ip(
+            client_ip, str(headers.get("Host", "")), headers
+        )
+        # 🛡️ P2-N4: XFF 由来の推定値であることを承認ダイアログで明示する
+        # (単一値XFFを上書きする中継の背後での誤誘導を防ぐ)
+        if ledger_ip is None:
+            approval_ip_label = "中継経由（IP不明）"
+        elif ledger_ip != client_ip:
+            approval_ip_label = f"{ledger_ip}（中継経由・推定）"
+        else:
+            approval_ip_label = ledger_ip
         if not (tm.pairing_open or trusted_loopback):
             logger.warning(f"🚫 [SyncAuth] 外部IPからのトークン要求を拒否 (IP: {client_ip})")
             self.send_response(403)
@@ -852,13 +869,13 @@ class DeskPetSyncHandler(SimpleHTTPRequestHandler):
                 return
 
             try:
-                approved = cb(dev_name, client_ip)
+                approved = cb(dev_name, approval_ip_label)
             except Exception as e:
                 logger.error(f"端末接続承認コールバック例外 (Fail-Closed): {e}")
                 approved = False
 
             if not approved:
-                logger.warning(f"🚫 [SyncAuth] 端末接続がユーザーにより拒否されました: {dev_name} (IP: {client_ip})")
+                logger.warning(f"🚫 [SyncAuth] 端末接続がユーザーにより拒否されました: {dev_name} (IP: {ledger_ip or 'unknown'})")
                 self.send_response(403)
                 self.send_header("Content-Type", "application/json; charset=utf-8")
                 self._set_cors_headers()
@@ -869,8 +886,12 @@ class DeskPetSyncHandler(SimpleHTTPRequestHandler):
                 ).encode("utf-8"))
                 return
 
+            logger.warning(
+                f"🔐 [SyncAuth] 端末接続承認を通過: {dev_name} (実IP: {ledger_ip or '不明（中継経由）'} / "
+                f"TCPピア: {client_ip} / UA: {user_agent[:80]})"
+            )
             try:
-                token = database.issue_device_token(dev_name, ip_address=client_ip, user_agent=user_agent)
+                token = database.issue_device_token(dev_name, ip_address=ledger_ip, user_agent=user_agent)
             except Exception as e:
                 logger.error(f"個別トークン発行エラー (Fail-Closed: 500返却): {e}")
                 self.send_response(500)
@@ -898,7 +919,7 @@ class DeskPetSyncHandler(SimpleHTTPRequestHandler):
                     if restored:
                         api_devices.record_device_restore(
                             paired_dev.id,
-                            actor=client_ip or "unknown",
+                            actor=ledger_ip or "relayed-unknown",
                             source="pairing",
                             device_name=paired_dev.device_name,
                         )
@@ -974,7 +995,19 @@ class DeskPetSyncHandler(SimpleHTTPRequestHandler):
 
     @staticmethod
     def _infer_device_name(user_agent: str) -> str:
-        """User-Agent 文字列からデバイス表示名を推定する。"""
+        """User-Agent 文字列からデバイス表示名を推定する。
+
+        Notes:
+            🛡️ ID 50/53 (2026-09-23): 非ブラウザUA（PC側の Python クライアント等）を
+            「スマホブラウザ」と偽装すると、ボスが承認ダイアログで正体を判別できない
+            （1クリック横取りの温床）。ブラウザUA（Mozilla 系）以外は正直なラベルを返す。
+
+        Args:
+            user_agent: User-Agent ヘッダ値。
+
+        Returns:
+            str: 端末表示名。
+        """
         ua = (user_agent or "").lower()
         if "iphone" in ua:
             return "iPhone"
@@ -986,7 +1019,9 @@ class DeskPetSyncHandler(SimpleHTTPRequestHandler):
             return "Mac"
         elif "windows" in ua:
             return "Windows PC"
-        return "スマホブラウザ"
+        if "mozilla" in ua:
+            return "スマホブラウザ"
+        return "⚠️ 非ブラウザ端末"
 
     def _check_auth(self) -> bool:
         """Bearerトークンを検証する。LAN内接続時は柔軟に自己治癒を許可する。
@@ -997,15 +1032,22 @@ class DeskPetSyncHandler(SimpleHTTPRequestHandler):
         """
         client_ip = self.client_address[0] if self.client_address else "unknown"
         user_agent = self.headers.get("User-Agent", "")
+        headers = getattr(self, "headers", None) or {}
         rate_limiter = get_auth_rate_limiter()
-        is_trusted = self._is_private_ip(client_ip)
+        # 🛡️ ID 53 / P2-N5 (2026-09-23): 中継経由 (Tailscale Serve 等) は TCPピアが
+        # 127.0.0.1 になるため、台帳照会とレートリミットのキーを実IP (ledger_ip) へ統一する。
+        ledger_ip = DeskPetSyncHandler._resolve_ledger_client_ip(
+            client_ip, str(headers.get("Host", "")), headers
+        )
+        limiter_key = ledger_ip or client_ip
+        is_trusted = self._is_private_ip(limiter_key)
 
         # 1. 締め出し判定 (外部IPのみ。同一LAN・Tailscale端末は再起動時のトークン不整合による誤遮断を防止)
         if not is_trusted:
-            blocked, retry_after = rate_limiter.is_blocked(client_ip)
+            blocked, retry_after = rate_limiter.is_blocked(limiter_key)
             if blocked:
                 logger.warning(
-                    f"🚨 [RateLimit] IP {client_ip} はロックアウト中のため拒否 (残り {retry_after}秒)"
+                    f"🚨 [RateLimit] IP {limiter_key} はロックアウト中のため拒否 (残り {retry_after}秒)"
                 )
                 try:
                     self.send_response(429)
@@ -1034,8 +1076,9 @@ class DeskPetSyncHandler(SimpleHTTPRequestHandler):
         #    非ループバックからマスタートークンが提示された場合は台帳照合を必須とし、
         #    未登録・照合失敗は Fail-Closed で拒否する（漏洩済みマスターキーの実効無効化 = A案）。
         # 🛡️ P0-3: loopback 信頼は3条件（TCPピア + Host + プロキシヘッダ無し）でのみ成立
+        # 🛡️ ID 53: 中継経由 (Tailscale Serve 等) は XFF の実IPを台帳照会・last_seen 更新に用いる
         trusted_loopback = DeskPetSyncHandler._is_trusted_loopback(
-            client_ip, str(self.headers.get("Host", "")), self.headers
+            client_ip, str(headers.get("Host", "")), headers
         )
         if bearer:
             dev = None
@@ -1057,7 +1100,7 @@ class DeskPetSyncHandler(SimpleHTTPRequestHandler):
                     try:
                         dev = database.sync_device_session(
                             bearer=bearer,
-                            ip_address=client_ip,
+                            ip_address=ledger_ip,
                             user_agent=user_agent,
                         )
                         is_valid_token = dev is not None
@@ -1076,7 +1119,7 @@ class DeskPetSyncHandler(SimpleHTTPRequestHandler):
                     if dev is not None:
                         is_valid_token = True
                         if dev.is_revoked != 1:
-                            database.touch_device_last_seen(dev.token_hash, ip_address=client_ip, user_agent=user_agent)
+                            database.touch_device_last_seen(dev.token_hash, ip_address=ledger_ip, user_agent=user_agent)
                 except Exception as e:
                     # 🛡️ Fail-Closed: 照会失敗時は認証を成立させない (握りつぶし禁止: warning で可視化)
                     logger.warning(f"🚫 [SyncAuth] 個別端末トークン照合エラー (Fail-Closed で拒否): {e}")
@@ -1248,6 +1291,59 @@ class DeskPetSyncHandler(SimpleHTTPRequestHandler):
             if any(value.strip() for value in _header_values(name)):
                 return False
         return DeskPetSyncHandler._host_is_loopback(host_header)
+
+    @staticmethod
+    def _resolve_ledger_client_ip(client_ip: str, host_header: str = "", headers: Optional[Dict[str, Any]] = None) -> Optional[str]:
+        """台帳・監査へ記録するクライアントIPを解決する (ID 53 / 2026-09-23)。
+
+        Notes:
+            Tailscale Serve 等のリバースプロキシは TCPピアを 127.0.0.1 に中継するため、
+            TCPピアをそのまま台帳へ書くと「PC内のゴミ」と誤認され、
+            ①cleanup に物理削除される（個別トークン即死）②reuse_identity の 127.* 除外で
+            承認のたびに行が増殖する、という実害が出る。そこで「TCPピアが loopback かつ
+            loopback 信頼の3条件を満たさない」＝中継経由と確定できる場合に限り、
+            ``X-Forwarded-For`` が**単一の非loopback有効IP**であるときだけ実IPとして採用する。
+            XFF が無い・複数出現（チェーン）・IP不正・loopback値の場合は
+            ``None``（IP不明）を返す。**毒値 127.0.0.1 は絶対に返さない**
+            (P1-N1: 返すと行増殖・不可視化の障害が再発するため)。
+            非loopbackの直接接続は、XFF を詐称し得るため TCPピアをそのまま採用する。
+
+        Args:
+            client_ip: TCPピアのIPアドレス。
+            host_header: Host ヘッダの値。
+            headers: リクエストヘッダ辞書（email.message / 素の dict 双方に対応）。
+
+        Returns:
+            Optional[str]: 台帳・監査に記録するIPアドレス。中継経由で特定不能な場合は None。
+        """
+        if not DeskPetSyncHandler._is_loopback(client_ip):
+            return client_ip
+        if DeskPetSyncHandler._is_trusted_loopback(client_ip, host_header, headers):
+            return client_ip
+
+        header_map = headers or {}
+        if hasattr(header_map, "get_all"):
+            raw_values = [str(v or "") for v in (header_map.get_all("X-Forwarded-For") or [])]
+        else:
+            raw_value = header_map.get("X-Forwarded-For")
+            raw_values = [str(raw_value or "")] if raw_value is not None else []
+
+        entries = [part.strip() for value in raw_values for part in value.split(",") if part.strip()]
+        if len(entries) != 1:
+            logger.info(
+                f"🛡️ [SyncAuth] 中継経由で実IPを特定できません (XFF欠落/複数: {len(entries)}件) → IP不明として記録"
+            )
+            return None
+        try:
+            parsed = ipaddress.ip_address(entries[0])
+        except ValueError:
+            logger.warning(f"🚫 [SyncAuth] X-Forwarded-For の値がIPとして不正のため IP不明として記録: {entries[0]!r}")
+            return None
+        if parsed.is_loopback:
+            # 中継経由なのに loopback 値は異常（詐称・多重中継）→ 毒値として捨てる
+            logger.warning(f"🚫 [SyncAuth] 中継経由の X-Forwarded-For が loopback 値のため破棄: {entries[0]!r}")
+            return None
+        return entries[0]
 
     def _request_is_trusted_loopback(self) -> bool:
         """このリクエストが信頼できる loopback かを3条件で判定する (P0-3)。"""

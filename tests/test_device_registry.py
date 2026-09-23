@@ -129,7 +129,7 @@ class TestDeviceRegistry(unittest.TestCase):
         self.assertIn("Dev 2", names)
 
     def test_infer_device_name(self):
-        """User-Agent から端末種別名が推定され、未知クライアントも安全名にフォールバックすることを保証する。"""
+        """User-Agent から端末種別名が推定され、非ブラウザUAも正直に表示されることを保証する。"""
         from local_sync_server import DeskPetSyncHandler
         self.assertEqual(
             DeskPetSyncHandler._infer_device_name("Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)"),
@@ -151,9 +151,11 @@ class TestDeviceRegistry(unittest.TestCase):
             DeskPetSyncHandler._infer_device_name("Mozilla/5.0 (Windows NT 10.0; Win64; x64)"),
             "Windows PC"
         )
+        # 🛡️ ID 50/53 (2026-09-23): 非ブラウザUAを「スマホブラウザ」と偽装しない
+        # (承認ダイアログでボスが正体を判別できるようにする契約変更)
         self.assertEqual(
             DeskPetSyncHandler._infer_device_name("UnknownCustomClient/1.0"),
-            "スマホブラウザ"
+            "⚠️ 非ブラウザ端末"
         )
 
 

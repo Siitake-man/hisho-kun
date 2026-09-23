@@ -34,11 +34,33 @@ from sync_config import SERVER_PORT
 # ローカル同期サーバーのBearer認証トークン (.sync_token)
 import app_paths
 
-SYNC_TOKEN_FILE = app_paths.get_app_root() / ".sync_token"
+# 🛡️ P0-4 (2026-09-23 / ADR-2): マスタートークンはデータ境界 (非同期領域) を正とする。
+SYNC_TOKEN_FILE = app_paths.get_sync_token_path()
+
+# 移行過渡期の互換読取先 (旧配置: リポジトリ/exe 直下)。
+# migrate_legacy_data() 完了までの間、旧ファイルしか無い環境でも
+# Agent Bridge (MCPツール) が停止しないための読み取り専用フォールバック。
+_LEGACY_SYNC_TOKEN_FILE = app_paths.get_app_root() / app_paths.SYNC_TOKEN_FILENAME
+
+
+def _candidate_token_files() -> List[Path]:
+    """トークン読み取りの候補ファイル一覧を優先順に返す。
+
+    Returns:
+        List[Path]: データルート (正) → 旧配置 (互換) の順。
+    """
+    candidates = [SYNC_TOKEN_FILE]
+    if _LEGACY_SYNC_TOKEN_FILE != SYNC_TOKEN_FILE:
+        candidates.append(_LEGACY_SYNC_TOKEN_FILE)
+    return candidates
 
 
 def get_sync_token() -> str:
     """ローカル同期サーバー用のBearerトークン (.sync_token) を読み込む。
+
+    読み取り先はデータルート (P0-4 / ADR-2)。移行過渡期に限り旧配置
+    (アプリルート直下) も読み取り専用フォールバックとして参照し、
+    その場合は警告ログで境界違反運用の継続を可視化する。
 
     書き込み中の競合を避けるため、空文字列取得時は最大3回リトライする。
     ファイルが存在しない場合の空文字列返却は正常動作（ペアリング前）。
@@ -46,19 +68,26 @@ def get_sync_token() -> str:
     Returns:
         str: トークン文字列。ファイル未作成の場合は空文字列。
     """
-    for attempt in range(3):
-        try:
-            if SYNC_TOKEN_FILE.exists():
-                token = SYNC_TOKEN_FILE.read_text(encoding="utf-8").strip()
-                if token:
-                    return token
-                # 空文字 → 競合の可能性。少し待ってリトライ
-                if attempt < 2:
-                    time.sleep(0.05)
-                    continue
-        except Exception as e:
-            logger.error(f".sync_token の読み込みに失敗しました: {e}")
-            return ""
+    for token_file in _candidate_token_files():
+        for attempt in range(3):
+            try:
+                if token_file.exists():
+                    token = token_file.read_text(encoding="utf-8").strip()
+                    if token:
+                        if token_file == _LEGACY_SYNC_TOKEN_FILE:
+                            logger.warning(
+                                "⚠️ 旧配置の .sync_token を互換読み取り中です "
+                                f"(P0-4/ADR-2 の移行未完了。アプリを起動して移行してください): {token_file}"
+                            )
+                        return token
+                    # 空文字 → 競合の可能性。少し待ってリトライ
+                    if attempt < 2:
+                        time.sleep(0.05)
+                        continue
+            except Exception as e:
+                # 第1候補の読取失敗で第2候補（旧配置）を放棄しない (可用性優先・Fail-Safe)
+                logger.warning(f".sync_token の読み込みに失敗しました (次候補を試行): {e}")
+                break
     return ""
 
 def resolve_hub_port(explicit: Optional[int] = None) -> int:

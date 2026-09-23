@@ -16,14 +16,27 @@ logger = logging.getLogger(__name__)
 
 def create_user_insight(insight: UserInsight, db_path: str = "neo_secretary.db") -> int:
     """ユーザーに関する知見（制約・好み・習慣・PJルール）を追加します。
+    ※蒸留蔵（distill-kura）思想の引用検証ゲート：AIの主観推測や曖昧表現を排除し、確定事実のみを永続化。
 
     Args:
         insight: 追加する知見オブジェクト
         db_path: データベースファイルのパス
 
     Returns:
-        作成された知見のID
+        作成された知見のID（拒絶時は -1）
     """
+    # 🛡️ 蒸留蔵思想のエビデンス検証ゲート (Distill Verification Gate)
+    content_clean = (insight.content or "").strip()
+    if not content_clean or len(content_clean) < 5:
+        logger.warning(f"知見の保存を拒絶: 短すぎるか空のコンテンツです ({content_clean})")
+        return -1
+
+    # AIの主観・曖昧な当て推量を正規表現で遮断（波ダッシュ依存の解消）
+    import re
+    if re.search(r"(?:と考えられる|と思われる|かもしれない|AIの推測|推測される|たぶん|おそらく)", content_clean):
+        logger.warning(f"知見の保存を拒絶（エビデンス検証違反）: AIの主観・推測が含まれています: {content_clean[:40]}...")
+        return -1
+
     with get_db_connection(db_path) as conn:
         cursor = conn.cursor()
         cursor.execute("""
@@ -50,6 +63,7 @@ def add_user_insight(
     db_path: str = "neo_secretary.db"
 ) -> int:
     """新しいユーザー知見を user_insights テーブルに登録します。
+    ※ create_user_insight() を経由してエビデンス検証ゲートを一元適用。
 
     Args:
         category: 知見カテゴリ ('Constraint', 'Preference', 'Habit', 'Project')
@@ -59,7 +73,7 @@ def add_user_insight(
         db_path: データベースファイルのパス
 
     Returns:
-        作成された知見のID
+        作成された知見のID（検証失敗時は -1）
     """
     insight = UserInsight(
         category=category,
@@ -67,22 +81,7 @@ def add_user_insight(
         context_tags=context_tags,
         importance=importance
     )
-    with get_db_connection(db_path) as conn:
-        cursor = conn.cursor()
-        cursor.execute("""
-            INSERT INTO user_insights (category, content, context_tags, importance, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?)
-        """, (
-            insight.category,
-            insight.content,
-            insight.context_tags or "",
-            insight.importance,
-            insight.created_at,
-            insight.updated_at
-        ))
-        insight_id = cursor.lastrowid or 0
-        logger.info(f"ユーザー知見を登録しました: ID={insight_id}, category={insight.category}")
-        return insight_id
+    return create_user_insight(insight, db_path=db_path)
 
 
 def get_user_insights(

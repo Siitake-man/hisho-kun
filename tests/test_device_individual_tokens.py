@@ -420,17 +420,26 @@ class TestDeviceIndividualTokens(unittest.TestCase):
                 self.assertEqual(data2.get("status"), "forbidden")
 
     def test_cleanup_loopback_devices(self):
-        """ループバック端末 (127.0.0.1) のみが台帳から削除され、実スマホは残る。"""
-        issue_device_token("Local Test 1", ip_address="127.0.0.1", db_path=self.db_path)
-        issue_device_token("Local Test 2", ip_address="::1", db_path=self.db_path)
+        """**失効済み**ループバック端末のみ削除され、有効行・実スマホは残る (P2-N6 改定)。"""
+        local1 = issue_device_token("Local Test 1", ip_address="127.0.0.1", db_path=self.db_path)
+        local2 = issue_device_token("Local Test 2", ip_address="::1", db_path=self.db_path)
         issue_device_token("Boss Real iPhone", ip_address="192.168.1.50", db_path=self.db_path)
+        issue_device_token("Active Local", ip_address="127.0.0.2", db_path=self.db_path)
+
+        # ループバック2件のみ失効させる (有効な Active Local は保護対象)
+        for token in (local1, local2):
+            dev = verify_device_token(token, db_path=self.db_path)
+            revoke_device(dev.id, db_path=self.db_path)
 
         count = cleanup_loopback_devices(db_path=self.db_path)
-        self.assertEqual(count, 2, "127.0.0.1 と ::1 の2件が削除されること")
+        self.assertEqual(count, 2, "失効済みの 127.0.0.1 と ::1 の2件のみ削除されること")
 
-        remaining = get_all_devices(db_path=self.db_path)
-        self.assertEqual(len(remaining), 1)
-        self.assertEqual(remaining[0].device_name, "Boss Real iPhone")
+        remaining_names = {d.device_name for d in get_all_devices(db_path=self.db_path)}
+        self.assertEqual(
+            remaining_names,
+            {"Boss Real iPhone", "Active Local"},
+            "有効なループバック行は物理削除しない (Fail-Safe)",
+        )
 
     def test_pairing_error_fails_closed_without_leaking_global_token(self):
         """個別トークン発行でDBエラー等の例外が起きた際、グローバルトークンを返さず500を返す (P1-2)。"""

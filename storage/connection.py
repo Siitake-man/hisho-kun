@@ -13,10 +13,107 @@ from datetime import datetime
 from pathlib import Path
 from typing import Generator, Optional
 
+import app_paths
+
 logger = logging.getLogger(__name__)
 
 # init_db の実行時間がこの閾値を超えたら警告する (P2: 起動時ブロックの可視化・2026-09-16)
 DB_INIT_SLOW_THRESHOLD_MS = 2000.0
+
+# データ境界 (ADR-2 / P0-4): 既定の相対名はデータルート (%LOCALAPPDATA% 等) へ解決する
+DEFAULT_DB_FILENAME: str = app_paths.DB_FILENAME
+DEFAULT_BACKUPS_DIR_NAME: str = app_paths.BACKUPS_DIR_NAME
+
+# 旧配置フォールバック（移行未完了）の ERROR ログを初回のみに抑えるフラグ
+_LEGACY_FALLBACK_WARNED: bool = False
+
+
+# =============================================================================
+# データ境界の単一チョークポイント (ADR-2 / P0-4 2026-09-23)
+# =============================================================================
+
+def _is_default_relative_reference(path: Path, default_filename: str) -> bool:
+    """パスが「既定名のカレントディレクトリ直下参照」かどうかを判定する。
+
+    大文字小文字違い（``NEO_SECRETARY.DB``）・冗長な相対表記
+    （``sub/../neo_secretary.db``）・``./neo_secretary.db`` を同一視する。
+    明示的なサブディレクトリ・絶対パス・別名は False（呼び出し元の指定を尊重）。
+
+    Args:
+        path: 判定対象パス。
+        default_filename: 既定ファイル名（例: ``neo_secretary.db``）。
+
+    Returns:
+        bool: 既定名の CWD 直下参照と判定した場合 True。
+    """
+    if path.name.casefold() != default_filename.casefold():
+        return False
+    try:
+        resolved = path.resolve()
+    except OSError:
+        return False
+    return resolved.parent == Path.cwd().resolve()
+
+
+def resolve_db_path(db_path: str = DEFAULT_DB_FILENAME) -> str:
+    """DB パスの既定相対名のみを非同期データルートへ解決する (単一チョークポイント)。
+
+    解決規則:
+        - ディレクトリ部を持つパス (``tmp/x.db`` / 絶対パス) は**一切変更しない**
+          (テスト・運用の明示指定を尊重する)。
+        - 既定名 ``neo_secretary.db`` (ベア相対名・大文字小文字違い・冗長表記) は
+          ``app_paths.get_db_path()`` へ解決する。
+        - ただし移行先 DB が未作成で旧配置 DB が存在する間は旧パスを返す
+          (**プロセス間の DB 分裂防止**。アプリ起動時の ``migrate_legacy_data()``
+          完了後は自動的に新パスへ切り替わる)。この間は ADR-2 未達である旨を
+          初回のみ ERROR ログで可視化する。
+
+    Args:
+        db_path: 呼び出し元が指定した DB パス (既定は ``neo_secretary.db``)。
+
+    Returns:
+        str: 解決後の DB パス文字列。
+    """
+    path = Path(db_path)
+    if not _is_default_relative_reference(path, DEFAULT_DB_FILENAME):
+        return str(path)
+
+    target = app_paths.get_db_path()
+    if target.exists():
+        return str(target)
+
+    # 旧配置フォールバック（未移行時の暫定運用）は、データルートが明示上書きされて
+    # いない場合のみ有効。上書き時は常にデータルートを権威とする（テスト隔離・
+    # 運用切替の決定論を守る / 2026-09-23: 本番DBへのテスト書込み障害の再発防止）。
+    if not app_paths.is_data_root_overridden():
+        legacy = app_paths.get_app_root() / DEFAULT_DB_FILENAME
+        if legacy.exists():
+            global _LEGACY_FALLBACK_WARNED
+            if not _LEGACY_FALLBACK_WARNED:
+                _LEGACY_FALLBACK_WARNED = True
+                logger.error(
+                    "⚠️ データ境界の移行が未完了のため旧配置 DB で運用中です "
+                    f"(ADR-2: クラウド同期領域に機密が残存): {legacy}"
+                )
+            return str(legacy)
+    return str(target)
+
+
+def resolve_backups_dir(backup_dir: str = DEFAULT_BACKUPS_DIR_NAME) -> str:
+    """自動バックアップ先の既定相対名 ``backups`` をデータルート配下へ解決する。
+
+    明示指定 (ディレクトリ部を持つパス) は変更しない。
+
+    Args:
+        backup_dir: 呼び出し元が指定したバックアップ先 (既定は ``backups``)。
+
+    Returns:
+        str: 解決後のバックアップ先パス文字列。
+    """
+    path = Path(backup_dir)
+    if not _is_default_relative_reference(path, DEFAULT_BACKUPS_DIR_NAME):
+        return str(path)
+    return str(app_paths.get_backups_dir())
 
 
 # =============================================================================
@@ -24,7 +121,7 @@ DB_INIT_SLOW_THRESHOLD_MS = 2000.0
 # =============================================================================
 
 @contextmanager
-def get_db_connection(db_path: str = "neo_secretary.db") -> Generator[sqlite3.Connection, None, None]:
+def get_db_connection(db_path: str = DEFAULT_DB_FILENAME) -> Generator[sqlite3.Connection, None, None]:
     """
     SQLiteデータベース接続を一元管理するコンテキストマネージャ。
     
@@ -32,14 +129,19 @@ def get_db_connection(db_path: str = "neo_secretary.db") -> Generator[sqlite3.Co
     同時読み書きによるロック競合（database is locked）を防止します。
     ブロックを正常に抜けた場合は自動的に commit() を行い、
     例外が発生した場合は自動的に rollback() を実行して安全に close() します。
-    
+
+    Notes:
+        ``db_path`` は :func:`resolve_db_path` を通すため、既定の相対名を渡した
+        呼び出し元 (100超) は無改修で非同期データルート (ADR-2) へ到達する。
+
     Args:
         db_path: データベースファイルのパス
         
     Yields:
         sqlite3.Connection: データベース接続オブジェクト
     """
-    conn = sqlite3.connect(db_path, timeout=30.0)
+    resolved_path = resolve_db_path(db_path)
+    conn = sqlite3.connect(resolved_path, timeout=30.0)
     try:
         # WALモード & 同期レベル設定で並行性と整合性を両立
         conn.execute("PRAGMA journal_mode=WAL;")
@@ -64,7 +166,7 @@ def get_db_connection(db_path: str = "neo_secretary.db") -> Generator[sqlite3.Co
 # データベース初期化 ＆ スキーママイグレーション
 # =============================================================================
 
-def init_db(db_path: str = "neo_secretary.db") -> None:
+def init_db(db_path: str = DEFAULT_DB_FILENAME) -> None:
     """
     SQLiteデータベースを初期化し、全テーブル・インデックスを作成・検証します。
     既存データベースに対するカラム追加マイグレーションも冪等に実行します。
@@ -76,6 +178,7 @@ def init_db(db_path: str = "neo_secretary.db") -> None:
         実行時間を実測して閾値超過時に警告する（バックグラウンド化は起動直後の
         書き込みロック競合リスクが高いため、まず可視化で判断材料を残す方針）。
     """
+    db_path = resolve_db_path(db_path)
     started_at = time.perf_counter()
     with get_db_connection(db_path) as conn:
         cursor = conn.cursor()
@@ -380,8 +483,8 @@ def init_db(db_path: str = "neo_secretary.db") -> None:
 # =============================================================================
 
 def backup_database(
-    db_path: str = "neo_secretary.db",
-    backup_dir: str = "backups",
+    db_path: str = DEFAULT_DB_FILENAME,
+    backup_dir: str = DEFAULT_BACKUPS_DIR_NAME,
     max_generations: int = 7
 ) -> Optional[str]:
     """SQLiteのOnline Backup API (`conn.backup()`) を使用して、
@@ -395,6 +498,8 @@ def backup_database(
     Returns:
         Optional[str]: 作成されたバックアップファイルのパス（失敗時はNone）
     """
+    db_path = resolve_db_path(db_path)
+    backup_dir = resolve_backups_dir(backup_dir)
     source_file = Path(db_path)
     if not source_file.exists():
         logger.warning(f"バックアップ元DBファイルが存在しません: {db_path}")

@@ -791,6 +791,11 @@ def run_fallback_jsonrpc_server() -> None:
 
 def main() -> None:
     """サーバー起動エントリーポイント"""
+    # 🛡️ P0-4 (ADR-2): データ所有者はデスクトップアプリただ1つ。MCP サーバーは
+    # **移行を実行しない**（アプリ稼働中の移行は DB 分裂を生むため）。未移行なら
+    # 警告のみ行い、旧配置フォールバックで一貫して旧DBを使用する。
+    import app_paths
+    app_paths.warn_if_legacy_data_pending()
     database.init_db()
 
     try:

@@ -116,17 +116,21 @@ def build_device_rows(devices: Optional[Iterable[Any]]) -> List[DeviceRow]:
     rows: List[DeviceRow] = []
     for device in devices or []:
         ip = str(getattr(device, "ip_address", "") or "").strip() or IP_PLACEHOLDER
-        # 🛡️ ループバック (PC自身) は端末台帳の表示対象外 (外部スマホ専用)
-        if ip in ("127.0.0.1", "::1", "localhost") or ip.startswith("127."):
-            continue
+        # 🛡️ P1-N2 (2026-09-23): 中継以前に記録されたループバック行（ID 53 障害の残存行）も
+        # 一覧へ表示し、失効・削除できるようにする。不可視の有効資格情報を残さない
+        # （自動物理削除は行わない: 旧 auto-cleanup の再発防止）。
+        is_legacy_relay_row = ip.startswith("127.") or ip in ("::1", "localhost")
         is_revoked = bool(getattr(device, "is_revoked", 0))
         ua_label = summarize_user_agent(getattr(device, "user_agent", None))
         name = str(getattr(device, "device_name", "") or "").strip() or ua_label
+        subtitle = f"{ua_label} · {ip}"
+        if is_legacy_relay_row:
+            subtitle = f"{subtitle} ⚠️ 中継以前の残存行"
         rows.append(
             DeviceRow(
                 device_id=int(getattr(device, "id", 0) or 0),
                 title=name,
-                subtitle=f"{ua_label} · {ip}",
+                subtitle=subtitle,
                 status_label=(
                     DEVICE_STATUS_REVOKED_LABEL if is_revoked else DEVICE_STATUS_ACTIVE_LABEL
                 ),
@@ -142,14 +146,17 @@ def build_device_rows(devices: Optional[Iterable[Any]]) -> List[DeviceRow]:
 def list_device_rows() -> List[DeviceRow]:
     """ゼロトラスト端末台帳を読み、表示用DTOのリストを返す Seam。
 
+    Notes:
+        🛡️ ID 51/53 (2026-09-23): 一覧表示は台帳を**変更しない**。旧実装は表示の
+        たびに ``cleanup_loopback_devices()`` を呼んで物理削除しており、
+        Tailscale Serve 経由のスマホ行（当時は 127.0.0.1 として記録）を「PCのゴミ」
+        と誤認して個別トークンを即死させていた（再ペアリング地獄の真因）。
+        ループバック行は ``build_device_rows`` が表示から除外するに留める。
+
     Returns:
         List[DeviceRow]: 最終接続が新しい順の端末一覧 (取得失敗時は空リスト)。
     """
     try:
-        try:
-            database.cleanup_loopback_devices()
-        except Exception:
-            pass
         return build_device_rows(database.get_all_devices())
     except Exception as e:
         logger.error(f"接続端末一覧の取得に失敗しました: {e}")

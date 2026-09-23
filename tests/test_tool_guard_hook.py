@@ -81,8 +81,9 @@ class TestToolGuardHook(unittest.TestCase):
 
         with mock.patch("tool_guard_hook._load_state", return_value={}), \
              mock.patch("tool_guard_hook._save_state") as mock_save, \
+             mock.patch("urllib.request.urlopen", side_effect=OSError("test isolation: 実ハブへ送らない")), \
              mock.patch("agent_bridge_client._post_to_hub") as mock_post:
-            
+
             mock_post.return_value = {"status": "queued", "request_id": "req_123"}
 
             # 1回目の呼び出し: 正常に送信されること
@@ -102,6 +103,7 @@ class TestToolGuardHook(unittest.TestCase):
         # 2回目の呼び出し（直後）: クールダウンにより抑止されること
         digest = tgh._calc_command_digest("git status")
         with mock.patch("tool_guard_hook._load_state", return_value={digest: time.time()}), \
+             mock.patch("urllib.request.urlopen", side_effect=OSError("test isolation: 実ハブへ送らない")), \
              mock.patch("agent_bridge_client._post_to_hub") as mock_post2:
             
             tgh.notify_waiting("git status", reason="承認待ち")

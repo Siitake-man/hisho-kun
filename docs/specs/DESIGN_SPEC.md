@@ -1,7 +1,7 @@
 # ネオ秘書くん システム設計書 (DESIGN_SPEC.md)
 
 - **バージョン**: 1.5.4-dev (🛡️ P0-1 失効の実効性強化 ＋ 🛡️ P0-3 loopback 信頼の3条件化 ＋ 🛡️ P0-2 承認ポリシー構造パース化 ＆ 📲 Web Push 導入)
-- **最終更新日時**: 2026-09-22 23:05 (🛡️ P0-2 完了 §10 承認ポリシー節（shlex 構造判定・shlex 既定値の罠封鎖・過剰STRICT防止）／🛡️ P0-3 完了 §10.2（loopback 3条件＋追加硬化 N1〜N4）／P0-1 は同日 v1.1.7)
+- **最終更新日時**: 2026-09-23 18:10 (🛡️ **P0-4 完了** §10.2.1 データ境界（暗号鍵・DB の %LOCALAPPDATA% 退避・安全移行・テスト隔離）／🛡️ **ID 53 完了** §10.2.1 端末台帳アイデンティティ（Serve 実IP採用・毒値排除・cleanup 失効限定）／P0-1〜P0-3 は 2026-09-22 v1.1.7)
 - **アーキテクチャ方針**: 完全ローカル完結型 非ブロッキング並行システム (Tkinter Desktop Overlay × Mobile PWA × LangGraph Agent × Zero-Trust Local Bridge ＆ Cross-Platform Headless CI/CD)
 
 
@@ -442,6 +442,15 @@ MiniCPM-Petの秀逸な着眼点をネオ秘書くんのクリーンアーキテ
   - **人間承認済み再ペアリング = 明示的な復帰操作**: `_handle_auth_token` は承認ダイアログ許可後にのみ `restore_device` を呼び、監査ログ `source="pairing"`（`client_ip` 付き）へ記録する。復帰失敗時は失効を維持し warning を残す（UI の嘘を作らない）。
   - **失効は端末識別単位で実効**: 失効端末は個別トークン・マスタートークンのいずれを提示しても拒絶される。
 - **残余リスク（バックログ起票済み / 機能ロードマップ §13.19）**: ① Tailscale Serve 経由の `client_ip` 同一性（P0-3: トークン種別ベース信頼設計）② `Host` ヘッダー未検証（DNS Rebinding・ID 47）③ 失効×復帰レース・ペアリング600秒窓・403自動再ペアリング（ID 48）④ 承認1クリック横取り・行マッチ属性依存（ID 50）⑤ UI暗黙削除・DTO deny-list 浅さ・Webhook Fail-Open（ID 51）⑥ `.sync_token` 書込失敗時の旧キー復活。
+
+### 10.2.1 データ境界（暗号鍵・DB の非同期領域化）と端末台帳アイデンティティ (P0-4 / ID 53 / 2026-09-23)
+
+- **データ境界 (ADR-2 実装)**: 暗号鍵・DB・マスタートークン・自動バックアップは `%LOCALAPPDATA%\NeoHisho`（`app_paths.get_data_root()`／env `NEO_HISHO_DATA_DIR` で上書き可）のみに配置する。`storage.connection.resolve_db_path` / `resolve_backups_dir` が**単一チョークポイント**として既定相対名（大文字小文字・冗長相対表記を同一視）をデータルートへ解決し、100超の呼び出し元は無改修で到達する。**クラウド同期フォルダ配下のデータルートは Fail-Closed で拒否**（ADR-2 違反）。
+- **安全移行 (`app_paths.migrate_legacy_data`)**: SQLite Online Backup API（WAL 込みの一貫スナップショット）→ `PRAGMA quick_check` → 一意名 `*.migrating` → 本採用（`os.replace`）。旧ファイルは `migration_archive/<timestamp>/` へ**退避（移動・削除しない）**。`-wal`/`-shm` は本体と運命共同体（オール・オア・ナッシング）。移行先既存時は上書きせず、残存旧DBの退避を再試行し失敗時は「機密残存」を ERROR で明示。起動時配線: **`main.py` のみ（データ所有者）**。`hisho_mcp_server.py` は**移行せず警告のみ**（`warn_if_legacy_data_pending()`）＝アプリ稼働中の移行は「アプリは旧DB・クライアントは新DB」の**DB分裂**を生むため、クライアントは旧配置フォールバックで一貫して旧DBを使用する。
+- **テスト隔離（障害からの学び）**: 2026-09-23、旧配置フォールバックが `NEO_HISHO_DATA_DIR` 上書きを無視したため pytest が**本番台帳へ端末行を作成**する障害が発生（「AIが作業中に承認要求が来る」の正体）。**データルート上書き時は旧配置フォールバックを無効化**し、`tests/conftest.py` が「既定DBパスがデータルート外へ解決したら即失敗」を全テストへ強制する。実測: 修正後の全回帰894件で本番DBへの新規書込みゼロ。
+- **端末台帳アイデンティティ (ID 53)**: 中継経由（Tailscale Serve 等＝TCPピア loopback かつ loopback 信頼3条件の不成立）では `X-Forwarded-For` の**単一・非loopback・有効IPのみ**を実IPとして採用し、台帳登録・監査 actor・`last_seen` 更新・**レートリミットのキー**に使用する。XFF 欠落/複数/不正/loopback値は `None`（IP不明）とし、**毒値 127.0.0.1 を台帳へ書かない**。IP不明時も `reuse_identity`（人間承認済みペアリング経路限定）が (端末名, UA) で同一端末を再利用し、行の増殖を防ぐ。
+- **台帳の保守性**: `cleanup_loopback_devices` は**失効済み行のみ**を物理削除（有効資格情報の即死を構造的に防止）し、一覧表示からの自動呼び出しは撤去。中継以前の残存ループバック行は「⚠️ 中継以前の残存行」として表示し失効・削除できる（不可視の有効資格情報を残さない）。非ブラウザUA（Python クライアント等）は「⚠️ 非ブラウザ端末」と正直に表示する。
+- **残余（バックログ）**: ① 端末識別の恒久化＝PWA 自己生成 UUID（**ID 50**・次セッション先頭。IP変更・Serve/LAN 併用でも1行に集約）② `.env`（APIキー）は依然リポジトリ配置（別チケット）③ OneDrive クラウド版歴に残る旧DB（VAPID PEM）はローカル退避では消えない（ボス手動パージ案内）④ Link Monitor / ApiContext の IP は TCPピアのままで台帳IPと不整合（監査統一は別チケット）。
 - **管理用エンドポイント**:
   - `GET /api/devices`: 登録済み端末一覧（認証必須）。
   - `POST /api/devices/revoke`: 端末失効（管理者・同一PC/ループバックからの呼び出しに限定し、外部クライアントからの他端末キック DoS を完全防止）。

@@ -144,11 +144,23 @@ class NeoSecretaryApp:
         NeoSecretaryApp._instance = self
         # 0. 自動起動ヘルパー（Tailscale serve / DBバックアップ）
         _auto_tailscale_serve()
-        # 0.1. データベース初期化 ＆ 起動時自動オンラインバックアップ
+        # 0.1. データ境界の移行 (P0-4 / ADR-2): 旧配置 (OneDrive 等) の DB・
+        # マスタートークン・旧バックアップを非同期データルート (%LOCALAPPDATA%) へ
+        # 退避してから DB を開く (VAPID 秘密鍵のクラウド同期を構造的に遮断する)
+        import app_paths
+        migration = app_paths.migrate_legacy_data()
+        if migration.warnings or migration.errors:
+            logger.warning(
+                "⚠️ データ境界の移行で注意が発生しました"
+                f" (warnings={migration.warnings} / errors={migration.errors})"
+            )
+        elif migration.skipped:
+            logger.debug(f"データ境界の移行スキップ: {migration.skipped}")
+        # 0.2. データベース初期化 ＆ 起動時自動オンラインバックアップ
         import database
         database.init_db()
         database.auto_backup()
-        # 0.2. 地域設定の読み込み
+        # 0.3. 地域設定の読み込み
         import weather_tools
         weather_tools.load_location_from_env()
 

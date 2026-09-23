@@ -17,6 +17,13 @@ from storage.models import Device
 logger = logging.getLogger(__name__)
 
 
+def _is_loopback_ip(ip_address: Optional[str]) -> bool:
+    """IPアドレス文字列がループバック相当かを判定する (Fail-Safe)。"""
+    if not ip_address:
+        return False
+    return ip_address.startswith("127.") or ip_address in ("::1", "localhost")
+
+
 def register_device(
     device_name: str,
     token_hash: str,
@@ -59,14 +66,22 @@ def register_device(
             SELECT id FROM devices WHERE token_hash = ?
         """, (token_hash,))
         row = cursor.fetchone()
-        if row is None and reuse_identity and ip_address and not ip_address.startswith("127.") and ip_address not in ("::1", "localhost"):
-            # 同一IPかつ同一端末名の既存レコードがあれば更新再利用 (重複行の増殖防止)。
-            # 🛡️ P0-1: 人間承認済みペアリング経路のみに限定する。認証経路で許すと
-            # マスタートークン保持端末が他端末の資格情報を上書きして失効を回避できる。
-            cursor.execute("""
-                SELECT id FROM devices WHERE ip_address = ? AND device_name = ?
-                ORDER BY last_seen DESC LIMIT 1
-            """, (ip_address, device_name))
+        if row is None and reuse_identity:
+            # 🛡️ P1-N1 (2026-09-23): IP が判明している場合は「同一IP + 同一端末名」、
+            # IP不明/loopback（Serve 中継で実IPを特定できない場合）は「同一端末名 + 同一UA」で
+            # 再利用する。認証経路 (sync_device_session) では reuse_identity 自体が無効
+            # （人間承認済みペアリング経路専用）のため、なりすましは成立しない。
+            if ip_address and not _is_loopback_ip(ip_address):
+                cursor.execute("""
+                    SELECT id FROM devices WHERE ip_address = ? AND device_name = ?
+                    ORDER BY last_seen DESC LIMIT 1
+                """, (ip_address, device_name))
+            else:
+                cursor.execute("""
+                    SELECT id FROM devices WHERE device_name = ?
+                      AND COALESCE(user_agent, '') = COALESCE(?, '')
+                    ORDER BY last_seen DESC LIMIT 1
+                """, (device_name, user_agent))
             row = cursor.fetchone()
 
         if row:
@@ -397,10 +412,14 @@ def verify_device_token(bearer: str, db_path: str = "neo_secretary.db") -> Optio
 
 
 def cleanup_loopback_devices(db_path: str = "neo_secretary.db") -> int:
-    """ループバックアドレス (127.0.0.1 / ::1 / localhost) の不要な端末レコードを台帳から一括削除する。
+    """**失効済み**のループバック端末レコードのみを台帳から一括削除する。
 
-    PC内部通信やテスト実行によって誤って登録されたゴミレコードを一掃し、
-    端末台帳を純粋に外部スマホ・タブレット専用に保つ。
+    Notes:
+        🛡️ P2-N6 (2026-09-23): 旧実装は有効トークン保有行も無条件に物理削除しており、
+        Tailscale Serve 中継のスマホ行（当時は 127.0.0.1 記録）の個別トークンを即死させる
+        ID 53 障害の原因だった。失効済み (``is_revoked = 1``) に限定することで、
+        将来の誤呼び出しでも有効資格情報は消えない (Fail-Safe)。
+        現在この関数を自動で呼ぶ箇所は存在しない (明示的な保守操作専用)。
 
     Args:
         db_path: データベースファイルのパス
@@ -412,8 +431,11 @@ def cleanup_loopback_devices(db_path: str = "neo_secretary.db") -> int:
         cursor = conn.cursor()
         cursor.execute("""
             DELETE FROM devices
-            WHERE ip_address IN ('127.0.0.1', '::1', 'localhost')
-               OR ip_address LIKE '127.%'
+            WHERE is_revoked = 1
+              AND (
+                    ip_address IN ('127.0.0.1', '::1', 'localhost')
+                 OR ip_address LIKE '127.%'
+              )
         """)
         conn.commit()
         return cursor.rowcount
