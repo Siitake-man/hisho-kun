@@ -19,7 +19,7 @@ from typing import Dict, List, Any, Optional, Tuple
 
 HOME = Path.home()
 SKILLS_DIR = HOME / ".gemini" / "config" / "skills"
-REPORT_FILE = Path(r"c:\Users\bonob\OneDrive\ドキュメント\AntiGlavity\ネオ秘書くん\docs\reports\SKILLS_AUDIT_REPORT.md").resolve()
+REPORT_FILE = (Path(__file__).resolve().parent.parent / "docs" / "reports" / "SKILLS_AUDIT_REPORT.md")
 
 # Jev クライアントのパスを追加
 JEV_DIR = HOME / ".gemini" / "tools" / "jev_router"
@@ -32,7 +32,13 @@ except ImportError:
     local_jev = Path(__file__).resolve().parent / "jev_router"
     if str(local_jev) not in sys.path:
         sys.path.insert(0, str(local_jev))
-    from jev_client import JevClient
+    try:
+        from jev_client import JevClient
+    except ImportError:
+        # 🛡️ 2026-09-23: Jev クライアントはボスのローカル専用（~/.gemini/tools/jev_router）。
+        # CI・配布環境には存在しないため、モジュール自体は import 可能に保ち、
+        # Jev を使用する箇所（main）で明示エラーにする（テスト収集エラーの根治）。
+        JevClient = None
 
 # ボス指定の6大スキル（絶対温存・一軍確定ガード）
 BOSS_RETAIN_MASTERS = {
@@ -400,6 +406,12 @@ audit_domain_relative_with_jev = audit_domain_with_jev
 
 
 def main():
+    if JevClient is None:
+        raise SystemExit(
+            "❌ Jev クライアントが見つかりません "
+            "(~/.gemini/tools/jev_router または tools/jev_router を確認してください。"
+            "CI・配布環境では本ツールは使用できません)"
+        )
     if not SKILLS_DIR.exists():
         print(f"Skills dir not found: {SKILLS_DIR}")
         return

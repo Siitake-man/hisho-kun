@@ -14,9 +14,17 @@ TOOLS_DIR = REPO_ROOT / "tools"
 if str(TOOLS_DIR) not in sys.path:
     sys.path.insert(0, str(TOOLS_DIR))
 
-import audit_skills_with_jev as audit_mod
+try:
+    import audit_skills_with_jev as audit_mod
+except ImportError:  # pragma: no cover - CI等で依存が無い場合
+    audit_mod = None
+
+# 🛡️ 2026-09-23: Jev クライアントはボスのローカル専用（~/.gemini/tools/jev_router）。
+# CI・配布環境には存在しないため、Jev 依存の検証はスキップする（PR #7 と同じ方針）。
+_JEV_AVAILABLE = audit_mod is not None and getattr(audit_mod, "JevClient", None) is not None
 
 
+@unittest.skipUnless(_JEV_AVAILABLE, "JevClient が未実装の環境 (CI等) のためスキップします")
 class TestAuditSkillsWithJev(unittest.TestCase):
     """audit_skills_with_jev の抽出、State構築、Jev API適合性、ボス指定ガードを検証"""
 
