@@ -282,10 +282,20 @@ def audit_domain_with_jev(
     domain_skills: List[Dict[str, str]]
 ) -> Dict[str, Any]:
     """ドメイン内の全スキルを直接突き合わせ、Jevに相対比較（代表、重複、温存）を判定させる"""
-    skill_names = [s["name"] for s in domain_skills]
-    
+    # 🛡️ 2026-09-23: 呼び出し元の辞書キー揺れ（desc / description）を後方互換で吸収する。
+    # 旧API（parse_skill_detailed 系）は "description"、内部パイプラインは "desc" を
+    # 使っていたため、リファクタ後の統合で KeyError にならないよう正規化する。
+    normalized_skills: List[Dict[str, str]] = [
+        {
+            "name": str(s.get("name", "")),
+            "desc": str(s.get("desc") or s.get("description") or ""),
+        }
+        for s in domain_skills
+    ]
+    skill_names = [s["name"] for s in normalized_skills]
+
     # 選択肢をコンパクトに整形（APIのペイロード爆発を防ぐ）
-    choices_map = {name: f"{name} ({s['desc'][:35]})" for name, s in zip(skill_names[:30], domain_skills[:30])}
+    choices_map = {name: f"{name} ({s['desc'][:35]})" for name, s in zip(skill_names[:30], normalized_skills[:30])}
     choices_map_with_none = dict(choices_map)
     choices_map_with_none["none"] = "なし（全件独立またはスタック外）"
 
@@ -334,18 +344,32 @@ Skills in Domain ({len(domain_skills)} items): {', '.join([f'`{n}`' for n in ski
                 "canonical_master": "none",
                 "redundancy_level": "moderate_overlap",
                 "domain_action": "keep_and_prune",
-                "skill_count": len(domain_skills)
+                "skill_count": len(domain_skills),
+                "confidence": 0.0,
             }
             
         answers = res.get("answers", {})
         master_choice = answers.get("canonical_master", {}).get("choice", "none")
         redundancy_choice = answers.get("redundancy_level", {}).get("choice", "moderate_overlap")
         domain_action_choice = answers.get("domain_action", {}).get("choice", "keep_and_prune")
+        confidence = float(res.get("confidence", 0.0) or 0.0)
     except Exception as e:
         print(f"\n    ⚠️ Exception: {e}")
         master_choice = "none"
         redundancy_choice = "moderate_overlap"
         domain_action_choice = "keep_and_prune"
+        confidence = 0.0
+
+    # 🛡️ 2026-09-23: リファクタ時に末尾の return が欠落し暗黙 None を返していた
+    # （テスト test_jev_decisions_api_format_compatibility が検出）。契約を復元する。
+    return {
+        "domain_id": domain_id,
+        "canonical_master": master_choice,
+        "redundancy_level": redundancy_choice,
+        "domain_action": domain_action_choice,
+        "skill_count": len(domain_skills),
+        "confidence": confidence,
+    }
 
 # -----------------------------------------------------------------------------
 # テスト互換用エイリアス (Backward-Compatibility Aliases for Tests)

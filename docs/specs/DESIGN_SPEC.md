@@ -1,7 +1,7 @@
 # ネオ秘書くん システム設計書 (DESIGN_SPEC.md)
 
-- **バージョン**: 1.5.4-dev (🛡️ P0-1 失効の実効性強化 ＋ 🛡️ P0-3 loopback 信頼の3条件化 ＋ 🛡️ P0-2 承認ポリシー構造パース化 ＆ 📲 Web Push 導入)
-- **最終更新日時**: 2026-09-23 18:10 (🛡️ **P0-4 完了** §10.2.1 データ境界（暗号鍵・DB の %LOCALAPPDATA% 退避・安全移行・テスト隔離）／🛡️ **ID 53 完了** §10.2.1 端末台帳アイデンティティ（Serve 実IP採用・毒値排除・cleanup 失効限定）／P0-1〜P0-3 は 2026-09-22 v1.1.7)
+- **バージョン**: 1.5.5-dev (⚡ 開発スタイル全面刷新 ＆ 認知負荷の引き算 ＆ MentisDB完全撤去 ＆ Jev 29k二分探索 ＆ P0×4 全封鎖)
+- **最終更新日時**: 2026-09-23 18:50 (⚡ MentisDB完全撤去・用語境界確定／Jev 29k二分探索棚卸し・38件安全退避／Jev Harness 4大進化／P0-4 データ境界・ID 53 端末台帳・ID 50 端末UUID恒久化)
 - **アーキテクチャ方針**: 完全ローカル完結型 非ブロッキング並行システム (Tkinter Desktop Overlay × Mobile PWA × LangGraph Agent × Zero-Trust Local Bridge ＆ Cross-Platform Headless CI/CD)
 
 
