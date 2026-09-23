@@ -110,7 +110,12 @@ class TestAfterCancellationAndQuietDestroy(unittest.TestCase):
     """未消化 after のキャンセルと静かな破棄の契約検証 (実 Tk を使用)"""
 
     def setUp(self) -> None:
-        self.root = tk.Tk()
+        try:
+            self.root = tk.Tk()
+        except tk.TclError:
+            # 🛡️ 2026-09-23: CI等で Tcl/Tk ライブラリが無い環境は環境依存で赤にせずスキップ
+            # (test_calendar_ui_smoke.py と同じ方針)。
+            self.skipTest("Tk を初期化できない環境 (TCL_LIBRARY未設定またはheadless) のためスキップします")
         self.root.withdraw()
         self.addCleanup(self._safe_destroy)
 
