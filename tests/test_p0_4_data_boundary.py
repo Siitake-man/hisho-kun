@@ -172,9 +172,14 @@ class TestResolveDbPath(_DataRootIsolatedTest):
         with tempfile.TemporaryDirectory() as legacy_td:
             legacy_db = Path(legacy_td) / "neo_secretary.db"
             legacy_db.write_bytes(b"legacy")
-            # 上書きを空にして「明示なし」を再現し、旧配置を app_root とみなす
+            # 上書きを空にして「明示なし」を再現し、旧配置を app_root・未作成のデータルートを get_db_path で模擬
             with patch.dict(os.environ, {"NEO_HISHO_DATA_DIR": ""}), \
-                    patch.object(app_paths, "get_app_root", return_value=Path(legacy_td)):
+                    patch.object(app_paths, "get_app_root", return_value=Path(legacy_td)), \
+                    patch.object(
+                        app_paths,
+                        "get_db_path",
+                        return_value=Path(legacy_td) / "unmigrated" / "neo_secretary.db",
+                    ):
                 app_paths.reset_path_caches()
                 self.assertEqual(storage_connection.resolve_db_path(), str(legacy_db))
 

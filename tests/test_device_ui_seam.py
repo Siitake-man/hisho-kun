@@ -406,24 +406,42 @@ class TestDevicePanelAsyncRefresh(unittest.TestCase):
         self.assertIn("database is locked", result.error or "")
 
     def test_constructor_does_not_block_on_slow_registry(self) -> None:
-        """読み出しが遅くてもコンストラクタ（＝設定画面表示）がブロックしないこと"""
+        """読み出しが遅くてもコンストラクタ（＝設定画面表示）がブロックしないこと。
+
+        Notes:
+            2026-09-23: 旧実装は「コンストラクタの所要時間 < 0.3秒」で判定していたが、
+            Tk/CustomTkinter のウィジェット生成自体が高負荷環境で 1〜2秒かかるため
+            偽陽性（環境依存の失敗）になった。本質（台帳読み出しがメインスレッドを
+            塞がない）を**実行スレッド名**で決定論的に検証する。
+        """
         captured: list = []
+        caller_threads: list = []
 
         def slow_registry():
+            caller_threads.append(threading.current_thread().name)
             time.sleep(0.4)
             return [_device(1)]
 
         with mock.patch.object(panel.database, "get_all_devices", side_effect=slow_registry):
-            start = time.perf_counter()
             section = panel.DeviceManagerSection(
                 self.root,
                 confirm_callback=lambda _row: True,
                 dispatch=lambda callback: captured.append(callback),
             )
-            elapsed = time.perf_counter() - start
 
-            self.assertLess(elapsed, 0.3, "読み出し中にコンストラクタがブロックしています")
             self.assertEqual(section.rows, [], "ワーカー完了前にメインスレッドで反映されています")
+
+            # 読み出しがワーカースレッド（メインスレッド以外）で実行されること
+            for _ in range(40):
+                if caller_threads:
+                    break
+                time.sleep(0.05)
+            self.assertTrue(caller_threads, "台帳読み出しが実行されていません")
+            self.assertNotEqual(
+                caller_threads[0],
+                threading.main_thread().name,
+                "台帳読み出しがメインスレッドを塞いでいます",
+            )
 
             for _ in range(60):
                 if captured:

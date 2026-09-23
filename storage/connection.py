@@ -400,12 +400,23 @@ def init_db(db_path: str = DEFAULT_DB_FILENAME) -> None:
                 user_agent TEXT,
                 created_at INTEGER NOT NULL,
                 last_seen INTEGER NOT NULL,
-                is_revoked INTEGER NOT NULL DEFAULT 0
+                is_revoked INTEGER NOT NULL DEFAULT 0,
+                device_uuid TEXT
             )
         """)
         cursor.execute(
             "CREATE INDEX IF NOT EXISTS idx_devices_token_hash "
             "ON devices (token_hash)"
+        )
+        # devices.device_uuid マイグレーション (ID 50: 端末自己生成UUIDによる識別恒久化)
+        cursor.execute("PRAGMA table_info(devices)")
+        device_columns = {row[1] for row in cursor.fetchall()}
+        if "device_uuid" not in device_columns:
+            cursor.execute("ALTER TABLE devices ADD COLUMN device_uuid TEXT")
+            logger.info("devices.device_uuid カラムを追加しました (ID 50)")
+        cursor.execute(
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_devices_device_uuid "
+            "ON devices (device_uuid)"
         )
         logger.info("devicesテーブルを確認/作成しました")
 

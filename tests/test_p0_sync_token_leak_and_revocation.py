@@ -598,7 +598,9 @@ class TestPwaDoesNotOverwriteTokenFromStatus(unittest.TestCase):
         """トークン更新の唯一の経路 (requestSyncToken → /api/auth/token) が維持されていること。"""
         content = (PROJECT_ROOT / "web_pet" / "pet_auth.js").read_text(encoding="utf-8")
         self.assertIn("async function requestSyncToken()", content)
-        self.assertIn("fetch('/api/auth/token')", content)
+        # 🛡️ ID 50 (2026-09-23): 端末自己生成UUIDヘッダを付与するため fetch はオプション付きへ拡張
+        self.assertIn("fetch('/api/auth/token'", content)
+        self.assertIn("X-Device-UUID", content)
         self.assertIn("setSyncToken(tokenData.token)", content)
 
 

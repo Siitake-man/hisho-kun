@@ -290,6 +290,8 @@ class Device(BaseModel):
         created_at: 登録時刻（Unix Timestamp ミリ秒）
         last_seen: 最終アクセス時刻（Unix Timestamp ミリ秒）
         is_revoked: 失効フラグ（0: 有効, 1: 失効）
+        device_uuid: 端末自己生成UUID（MACの代替。ID 50 / 2026-09-23。
+            行再利用の主キーとして使用し、IP・UA・経路の変化で行が増殖しないようにする）
     """
     id: Optional[int] = None
     device_name: str = Field(..., min_length=1, max_length=100)
@@ -299,6 +301,7 @@ class Device(BaseModel):
     created_at: int = Field(default_factory=lambda: int(datetime.now().timestamp() * 1000))
     last_seen: int = Field(default_factory=lambda: int(datetime.now().timestamp() * 1000))
     is_revoked: int = 0
+    device_uuid: Optional[str] = None
 
 
 # =============================================================================

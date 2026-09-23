@@ -126,6 +126,10 @@ def build_device_rows(devices: Optional[Iterable[Any]]) -> List[DeviceRow]:
         subtitle = f"{ua_label} · {ip}"
         if is_legacy_relay_row:
             subtitle = f"{subtitle} ⚠️ 中継以前の残存行"
+        device_uuid_raw = getattr(device, "device_uuid", None)
+        device_uuid = device_uuid_raw.strip() if isinstance(device_uuid_raw, str) else ""
+        if device_uuid:
+            subtitle = f"{subtitle} ・端末ID: {device_uuid[:8]}"
         rows.append(
             DeviceRow(
                 device_id=int(getattr(device, "id", 0) or 0),

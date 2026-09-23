@@ -836,6 +836,11 @@ class DeskPetSyncHandler(SimpleHTTPRequestHandler):
             approval_ip_label = f"{ledger_ip}（中継経由・推定）"
         else:
             approval_ip_label = ledger_ip
+        # 🛡️ ID 50 (2026-09-23): 端末自己生成UUID（X-Device-UUID ヘッダ）を台帳の行再利用キーに使用。
+        # 不正値は無視して従来キーへフォールバックする（後方互換）。認証の根拠にはしない。
+        from storage.device_repo import normalize_device_uuid as _normalize_device_uuid
+
+        device_uuid = _normalize_device_uuid(headers.get("X-Device-UUID"))
         if not (tm.pairing_open or trusted_loopback):
             logger.warning(f"🚫 [SyncAuth] 外部IPからのトークン要求を拒否 (IP: {client_ip})")
             self.send_response(403)
@@ -888,10 +893,15 @@ class DeskPetSyncHandler(SimpleHTTPRequestHandler):
 
             logger.warning(
                 f"🔐 [SyncAuth] 端末接続承認を通過: {dev_name} (実IP: {ledger_ip or '不明（中継経由）'} / "
-                f"TCPピア: {client_ip} / UA: {user_agent[:80]})"
+                f"TCPピア: {client_ip} / 端末ID: {(device_uuid or '-')[:8]} / UA: {user_agent[:80]})"
             )
             try:
-                token = database.issue_device_token(dev_name, ip_address=ledger_ip, user_agent=user_agent)
+                token = database.issue_device_token(
+                    dev_name,
+                    ip_address=ledger_ip,
+                    user_agent=user_agent,
+                    device_uuid=device_uuid,
+                )
             except Exception as e:
                 logger.error(f"個別トークン発行エラー (Fail-Closed: 500返却): {e}")
                 self.send_response(500)

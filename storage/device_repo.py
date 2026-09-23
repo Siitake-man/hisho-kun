@@ -8,6 +8,8 @@ Neo-Secretary ストレージ層 - 端末台帳リポジトリ (storage/device_r
 import hashlib
 import logging
 import secrets
+import sqlite3
+import uuid
 from datetime import datetime
 from typing import List, Optional
 
@@ -24,6 +26,35 @@ def _is_loopback_ip(ip_address: Optional[str]) -> bool:
     return ip_address.startswith("127.") or ip_address in ("::1", "localhost")
 
 
+def normalize_device_uuid(raw: Optional[str]) -> Optional[str]:
+    """端末自己生成UUID（X-Device-UUID ヘッダ）を正規化・検証する (ID 50 / 2026-09-23)。
+
+    PWA が ``crypto.randomUUID()`` で生成し localStorage に永続化する UUID を、
+    台帳の行再利用キーとして受け入れる。**推測不能性**が同一性の前提のため、
+    厳格な UUID 形式のみを受け付け、それ以外（空・不正・過大長）は None を返す
+    （呼び出し側は従来キーへフォールバックする＝後方互換）。
+
+    Notes:
+        UUID は「行の同一性」にのみ使用し、**認証の根拠にはしない**
+        （資格情報の束縛は人間承認済みペアリング経路のみ＝AD-3 不変）。
+
+    Args:
+        raw: ヘッダ等から受け取った生文字列。
+
+    Returns:
+        Optional[str]: 正規形（小文字・ハイフン付き）の UUID。不正時は None。
+    """
+    if not raw:
+        return None
+    candidate = str(raw).strip()
+    if not candidate or len(candidate) > 64:
+        return None
+    try:
+        return str(uuid.UUID(candidate))
+    except (ValueError, AttributeError, TypeError):
+        return None
+
+
 def register_device(
     device_name: str,
     token_hash: str,
@@ -31,7 +62,8 @@ def register_device(
     user_agent: Optional[str] = None,
     db_path: str = "neo_secretary.db",
     *,
-    reuse_identity: bool = False
+    reuse_identity: bool = False,
+    device_uuid: Optional[str] = None
 ) -> int:
     """
     新規端末を登録、または同一token_hashの端末情報を更新します。
@@ -55,31 +87,47 @@ def register_device(
         db_path: データベースファイルのパス
         reuse_identity: 同一IP+端末名の既存行の再利用 (資格情報の束縛) を許可するか。
             ペアリング経路のみ True。既定 False。
+        device_uuid: 端末自己生成UUID（X-Device-UUID ヘッダ。ID 50 / 2026-09-23）。
+            提示時は UUID 一致を最優先の行再利用キーとする。フォールバックは
+            ``device_uuid IS NULL`` の行に限定され、UUID 記名済み行は乗っ取れない。
 
     Returns:
         登録または更新されたデバイスID
     """
     now = int(datetime.now().timestamp() * 1000)
+    normalized_uuid = normalize_device_uuid(device_uuid)
     with get_db_connection(db_path) as conn:
         cursor = conn.cursor()
         cursor.execute("""
             SELECT id FROM devices WHERE token_hash = ?
         """, (token_hash,))
         row = cursor.fetchone()
+        if row is None and reuse_identity and normalized_uuid:
+            # 🛡️ ID 50 (2026-09-23): 端末自己生成UUID（MACの代替）を**最優先**の行再利用キーとする。
+            # UUID 一致＝同一端末として扱い、IP・UA・経路（Serve/LAN）が変わっても1行に集約する。
+            cursor.execute("""
+                SELECT id FROM devices WHERE device_uuid = ?
+                ORDER BY last_seen DESC LIMIT 1
+            """, (normalized_uuid,))
+            row = cursor.fetchone()
         if row is None and reuse_identity:
-            # 🛡️ P1-N1 (2026-09-23): IP が判明している場合は「同一IP + 同一端末名」、
-            # IP不明/loopback（Serve 中継で実IPを特定できない場合）は「同一端末名 + 同一UA」で
-            # 再利用する。認証経路 (sync_device_session) では reuse_identity 自体が無効
-            # （人間承認済みペアリング経路専用）のため、なりすましは成立しない。
+            # 🛡️ P1-1 (2026-09-23 査読): フォールバックは **device_uuid IS NULL の行のみ**を対象とする。
+            # 攻撃者はヘッダを自由に外せるため、「UUID を送らないクライアント」から
+            # UUID 記名済み行（＝真の構造排除の対象）へ到達できると排除が形骸化する。
+            # また UUID 記名済みクライアントにも開放することで、UUID 導入前の旧行
+            # （NULL 行）を採用して UUID を束縛でき、移行ゾンビ行の発生も防ぐ (P2-1)。
             if ip_address and not _is_loopback_ip(ip_address):
                 cursor.execute("""
-                    SELECT id FROM devices WHERE ip_address = ? AND device_name = ?
+                    SELECT id FROM devices
+                    WHERE ip_address = ? AND device_name = ? AND device_uuid IS NULL
                     ORDER BY last_seen DESC LIMIT 1
                 """, (ip_address, device_name))
             else:
                 cursor.execute("""
-                    SELECT id FROM devices WHERE device_name = ?
+                    SELECT id FROM devices
+                    WHERE device_name = ?
                       AND COALESCE(user_agent, '') = COALESCE(?, '')
+                      AND device_uuid IS NULL
                     ORDER BY last_seen DESC LIMIT 1
                 """, (device_name, user_agent))
             row = cursor.fetchone()
@@ -99,18 +147,44 @@ def register_device(
                     token_hash = ?,
                     ip_address = COALESCE(?, ip_address),
                     user_agent = COALESCE(?, user_agent),
+                    device_uuid = COALESCE(?, device_uuid),
                     last_seen = ?
                 WHERE id = ?
-            """, (device_name, token_hash, ip_address, user_agent, now, dev_id))
+            """, (device_name, token_hash, ip_address, user_agent, normalized_uuid, now, dev_id))
             logger.info(f"デバイス台帳更新: ID={dev_id}, name={device_name}")
             return dev_id
         else:
-            cursor.execute("""
-                INSERT INTO devices (
-                    device_name, token_hash, ip_address, user_agent,
-                    created_at, last_seen, is_revoked
-                ) VALUES (?, ?, ?, ?, ?, ?, 0)
-            """, (device_name, token_hash, ip_address, user_agent, now, now))
+            try:
+                cursor.execute("""
+                    INSERT INTO devices (
+                        device_name, token_hash, ip_address, user_agent,
+                        created_at, last_seen, is_revoked, device_uuid
+                    ) VALUES (?, ?, ?, ?, ?, ?, 0, ?)
+                """, (device_name, token_hash, ip_address, user_agent, now, now, normalized_uuid))
+            except sqlite3.IntegrityError:
+                # 🛡️ P3-1 (2026-09-23 査読): 並列ペアリングで同一UUIDが競合した場合は
+                # **先着行を採用**して資格情報を更新する (ThreadingHTTPServer の並列受理対策)。
+                # 注意: 行は先着・資格情報 (token_hash) は後着が勝つため、先着側のトークンは
+                # 無効化される (Fail-Closed 側。手動再承認で復帰可能)。発生条件は
+                # 「同一UUIDの2並列ペアリング＋人間承認2回」と狭い。
+                if not normalized_uuid:
+                    raise
+                cursor.execute("""
+                    SELECT id FROM devices WHERE device_uuid = ?
+                    ORDER BY last_seen DESC LIMIT 1
+                """, (normalized_uuid,))
+                existing = cursor.fetchone()
+                if existing is None:
+                    raise
+                dev_id = int(existing[0])
+                cursor.execute("""
+                    UPDATE devices
+                    SET device_name = ?, token_hash = ?, ip_address = COALESCE(?, ip_address),
+                        user_agent = COALESCE(?, user_agent), last_seen = ?
+                    WHERE id = ?
+                """, (device_name, token_hash, ip_address, user_agent, now, dev_id))
+                logger.info(f"デバイス台帳更新 (UUID競合の先着採用): ID={dev_id}, name={device_name}")
+                return dev_id
             dev_id = int(cursor.lastrowid)
             logger.info(f"新規デバイス登録: ID={dev_id}, name={device_name}")
             return dev_id
@@ -131,7 +205,7 @@ def get_device_by_token_hash(token_hash: str, db_path: str = "neo_secretary.db")
         cursor = conn.cursor()
         cursor.execute("""
             SELECT id, device_name, token_hash, ip_address, user_agent,
-                   created_at, last_seen, is_revoked
+                   created_at, last_seen, is_revoked, device_uuid
             FROM devices
             WHERE token_hash = ?
         """, (token_hash,))
@@ -147,6 +221,7 @@ def get_device_by_token_hash(token_hash: str, db_path: str = "neo_secretary.db")
             created_at=row[5],
             last_seen=row[6],
             is_revoked=row[7],
+            device_uuid=row[8],
         )
 
 
@@ -231,7 +306,7 @@ def get_all_devices(db_path: str = "neo_secretary.db") -> List[Device]:
         cursor = conn.cursor()
         cursor.execute("""
             SELECT id, device_name, token_hash, ip_address, user_agent,
-                   created_at, last_seen, is_revoked
+                   created_at, last_seen, is_revoked, device_uuid
             FROM devices
             ORDER BY last_seen DESC, id DESC
         """)
@@ -246,6 +321,7 @@ def get_all_devices(db_path: str = "neo_secretary.db") -> List[Device]:
                 created_at=row[5],
                 last_seen=row[6],
                 is_revoked=row[7],
+                device_uuid=row[8],
             )
             for row in rows
         ]
@@ -358,7 +434,8 @@ def issue_device_token(
     device_name: str,
     ip_address: Optional[str] = None,
     user_agent: Optional[str] = None,
-    db_path: str = "neo_secretary.db"
+    db_path: str = "neo_secretary.db",
+    device_uuid: Optional[str] = None
 ) -> str:
     """新規の暗号論的乱数トークン（64文字hex）を発行し、デバイス台帳に登録します。
 
@@ -372,11 +449,15 @@ def issue_device_token(
         失効中の端末は復帰判定 (is_revoked=1 のまま返る → 呼び出し側で明示 restore) に回せます。
         認証経路 (sync_device_session) は書き込みを行わないため、身元の乗っ取りは成立しません。
 
+        🛡️ ID 50 (2026-09-23): ``device_uuid``（PWA 自己生成UUID）が提示された場合は
+        それを**最優先の行再利用キー**として使用し、IP・UA・経路の変化で行が増殖しない。
+
     Args:
         device_name: デバイス表示名
         ip_address: 接続元IP
         user_agent: 接続元User-Agent
         db_path: データベースファイルのパス
+        device_uuid: 端末自己生成UUID（X-Device-UUID ヘッダ。省略可）
 
     Returns:
         発行された平文トークン文字列 (64文字hex)
@@ -390,6 +471,7 @@ def issue_device_token(
         user_agent=user_agent,
         db_path=db_path,
         reuse_identity=True,
+        device_uuid=device_uuid,
     )
     logger.info(f"🔐 [DeviceAuth] 端末固有トークンを発行・登録しました: {device_name}")
     return raw_token
