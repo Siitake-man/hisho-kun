@@ -124,7 +124,10 @@ def is_cloud_synced_path(path: Union[str, Path]) -> bool:
     Returns:
         bool: クラウド同期フォルダ配下と判定した場合 True。
     """
-    text_path = Path(str(path))
+    # 🛡️ 2026-09-23 (CI移植性): Windows形式の区切り（\）を正規化してから分割する。
+    # これによりホストOS（Windows/Linux）に依存せず、Windows形式のパス文字列でも
+    # 構成要素ベースの検知（OneDrive 等）が正しく機能する。
+    text_path = Path(str(path).replace("\\", "/"))
     parts = [part.lower() for part in text_path.parts]
     for part in parts:
         if part in _CLOUD_SYNC_PART_MARKERS:
