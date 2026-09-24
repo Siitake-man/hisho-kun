@@ -295,6 +295,8 @@
     if (overlay) overlay.classList.remove('open');
     currentSheetItem = null;
     window.currentSheetItem = null;
+    // 開いていたモーダル種別の陳腐化を防ぐ（言語切替リスナーの誤再描画防止・2026-09-24 V2 査読 P2-4）
+    window._currentOpenModalName = null;
   }
 
   // 👾 秘密の部屋（サークル暗転トランジション）

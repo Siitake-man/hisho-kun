@@ -1,5 +1,5 @@
 /**
- * ネオ秘書くん Desk Pet ＆ Agent Bridge Cockpit ロジック (pet.js v7.3 - Voice Edition)
+ * ネオ秘書くん Desk Pet ＆ Agent Bridge Cockpit ロジック (pet.js v7.4)
  * 5大背景環境 ＆ Glass Bottom Sheetニュースリーダー ＆ なでなでパーティクル
  */
 
@@ -1553,3 +1553,21 @@ function escapeJsString(str) {
   return (str || "").replace(/'/g, "\\'").replace(/"/g, '&quot;').replace(/\n/g, ' ');
 }
 
+// 🌐 言語切り替え時のモーダル自動再描画
+// 注: 承認/質問シート（pet_ui.js 管轄・window.currentApprovalRequest 使用）の表示中は
+//     上書き破壊を避けるため何もしない（2026-09-24 V2 査読 P2-4 の最小修正）
+window.addEventListener('neolang:changed', function () {
+  if (window.currentApprovalRequest) return;
+  const sheet = document.getElementById('bottom-sheet');
+  if (sheet && sheet.classList.contains('open')) {
+    if (window._currentOpenModalName === 'todo') {
+      renderTodoModal();
+    } else if (window._currentOpenModalName === 'events') {
+      openEventsModal();
+    } else if (window._currentOpenModalName === 'notes') {
+      openNotesModal();
+    } else if (window._currentOpenModalName === 'settings') {
+      openSettingsModal();
+    }
+  }
+});

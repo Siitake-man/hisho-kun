@@ -1,9 +1,0 @@
-# ネオ秘書くん - PC Whisper 音声文字起こし依存パッケージ (requirements_whisper.txt)
-# 
-# 高速・軽量な CTranslate2 バックエンドの faster-whisper を使用します。
-# ※ 通常利用時は未インストールでもフォールバック（動作継続）する設計です。
-#
-# インストールコマンド:
-#   venv\Scripts\pip install -r requirements_whisper.txt
-
-faster-whisper>=1.0.0

@@ -408,19 +408,21 @@ class NeoSecretaryApp:
         self.gui.post_action(self.gui.set_pet_state, "alarm_ask", duration_ms=8000)
 
     def post_human_message(self, text: str) -> None:
-        """スマホPWAからの音声入力テキストをエージェントへ投入する。
+        """`voice_command` アクション経由で投入された入力テキストをエージェントへ渡す。
 
-        スマホPWAの🎤マイクボタンから送信された音声認識テキストを、
-        LangGraphエージェントのチャットパイプラインへ投入する（K2音声ウェイクワード布石）。
+        本メソッドの呼び出し元は `api_agent_bridge.action_voice_command` の1箇所のみ
+        （現行の web_pet クライアントからは未使用。スマホの自由文チャットを正式機能化
+        する場合は `send_message` へのリネームを含めて別途設計する）。
+        LangGraph エージェントのチャットパイプラインへテキストを投入する。
 
         Args:
-            text: 音声認識されたテキスト。
+            text: 入力されたテキスト。
         """
         if not text or not text.strip():
             return
-        logger.info(f"🎤 音声入力テキストをエージェントへ投入: {text}")
+        logger.info(f"💬 入力テキストをエージェントへ投入: {text}")
         # GUIにメッセージを表示してからエージェント推論へ
-        self.gui.post_action(self.gui.update_message, f"🎤 {text}")
+        self.gui.post_action(self.gui.update_message, f"💬 {text}")
         self.gui.post_action(self.gui.set_pet_state, "thinking")
         # asyncio タスクとしてエージェント推論を実行 (ワーカースレッドからの安全なディスパッチ)
         import asyncio

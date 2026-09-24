@@ -1,7 +1,7 @@
 # ネオ秘書くん システム設計書 (DESIGN_SPEC.md)
 
-- **バージョン**: 1.5.5-dev (⚡ 開発スタイル全面刷新 ＆ 認知負荷の引き算 ＆ MentisDB完全撤去 ＆ Jev 29k二分探索 ＆ P0×4 全封鎖)
-- **最終更新日時**: 2026-09-23 18:50 (⚡ MentisDB完全撤去・用語境界確定／Jev 29k二分探索棚卸し・38件安全退避／Jev Harness 4大進化／P0-4 データ境界・ID 53 端末台帳・ID 50 端末UUID恒久化)
+- **バージョン**: 1.5.6-dev (✂️ Whisper 音声認識 全撤去完了（PR #8＋ID 38）＆ 通知系データ境界追随（OpenCode/Antigravity/Jev）＆ ID 43 DRギャップ修理)
+- **最終更新日時**: 2026-09-24 23:59 (✂️ Whisper 全撤去完了（§26 完了化・§9.5 更新）／通知系トークン解決のデータ境界追随／ID 43 実修理／ID 57 完了)
 - **アーキテクチャ方針**: 完全ローカル完結型 非ブロッキング並行システム (Tkinter Desktop Overlay × Mobile PWA × LangGraph Agent × Zero-Trust Local Bridge ＆ Cross-Platform Headless CI/CD)
 
 
@@ -20,7 +20,7 @@ Claude Code, Cline, Codex, Cursor, Antigravity などの自律型コーディン
 | **コア (A)** | **主役・独自の痛点解決** | `api_agent_bridge.py`, `hisho_mcp_server.py`, `agent_watcher.py`, スマホ承認PWA | 🚀 **最優先投資**。エージェント承認の中継・失敗モード（タイムアウト/オフライン/再送）の堅牢化・Agent Adapterによる規格統一。 |
 | **世界観 (B)** | **愛着装置・ブランド** | `character_manager.py`, `pet_animator.py`, `web_pet/`, 自作Mod基盤 | 🔨 **自作Mod基盤（フォルダ配置による動的登録）のみ最小実装**。キャラ量産はコミュニティへ開放。既存ミニゲーム・演出は現状凍結。 |
 | **居場所 (C)** | **常駐の理由・背景** | `api_tasks.py`, `api_calendar.py`, `ui/calendar_window.py`, `database.py` | 🧊 **現状維持**。承認リモコンを机上に常駐させるための背景（TODO・習慣・iCal）。TickTick/Notionと戦わない。 |
-| **保留 (Backlog)** | **開発リソース浪費の回避** | 音声対話 (Whisper/TTS), Google/LINE/Notion双方向同期, Life Coach L2/L3 | 💤 **完全凍結**。v1.xでは触らず、使われてから需要に応じて再評価。 |
+| **保留 (Backlog)** | **開発リソース浪費の回避** | 音声対話 (TTS 読み上げのみ), Google/LINE/Notion双方向同期, Life Coach L2/L3 | 💤 **完全凍結**。v1.xでは触らず、使われてから需要に応じて再評価。※Whisper 音声認識は 2026-09-24 に全撤去済み（§26） |
 
 ### コア・コンセプト
 1. **Approval Remote First (承認リモコン最優先):** PCでエージェントがコマンド承認待ちになった瞬間、スマホ画面にレッドパルスバナーとワンタップ承認ボタン（✅承認 / 🛑却下）を即時発火。コーヒー片手にノールックで開発を進められる。
@@ -390,9 +390,9 @@ MiniCPM-Petの秀逸な着眼点をネオ秘書くんのクリーンアーキテ
 - **設計制約**: ロードマップ 7.8「朝の挨拶・日次ブリーフィング」と統合実装。1分以内。ガチな業務日報にしない
 
 ### 9.5 音声入力導線 ＆ 機能解放UI（地ならし）
-- **音声入力**: 「話しかける」ボタン配置のみ。録音はスマホ、Whisper等の重い処理はPC側で受ける（PC本拠地主義の固定）。本実装は B20
+- **音声入力**: ❌ **全撤去済み (2026-09-24 / PR #8・ID 38)**。内蔵の音声認識（Whisper＋休眠中だった Web Speech 導線）を撤去し、**スマホOS標準のキーボードマイクで代替**する（TTS 読み上げ `toggleBriefingSpeech` のみ残存・§26.2）
 - **Google予定追加**: 「将来解放される能力」としてのロック表示。BYO認証（ユーザー自身のClient ID）前提のオンボーディング導線。本実装は B19
-- **機能解放UI**: 未解放機能は「ロック」表示＋「3分で設定できます」形式の導線。Client ID読み込み・Whisper有効化はPC側設定画面から
+- **機能解放UI**: 未解放機能は「ロック」表示＋「3分で設定できます」形式の導線。Client ID 読み込みは PC 側設定画面から（Whisper 有効化の導線は撤去済み）
 
 ### 9.6 直近Non-Goals
 - 多言語展開 / ミニゲーム複数本展開 / 全部入り化 / Google OAuth本実装の全面公開 / ネイティブアプリ化
@@ -1216,14 +1216,14 @@ OpenCode Desktop (v2.0.11) へ **同一の開発体験・安全規約・品質�
 - 独立検証（`agent-tester`, `ses_f37d4c53bffe7PSGbsxEuFqXK3`）: **PASSED**。実測で未設定7プロバイダのスキップ＆ERROR 0件を確認
 - Gotcha: `_compute_provider_configured` は `load_dotenv(override=True)` で実 .env を読み戻すため、テストでは `llm_factory.load_dotenv` も遮断する必要がある
 
-## 26. スコープ縮小（引き算）決定 — Whisper / LifeCoach 撤去予定 (2026-09-22 ボス決定 / 計画)
+## 26. スコープ縮小（引き算）決定 — Whisper【✅撤去完了 2026-09-24】/ LifeCoach【撤去予定】 (2026-09-22 ボス決定)
 
 ### 26.1 背景と設計判断（Why）
 総合コードレビュー（`ruthless-code-evaluation`: 引き算 D評価 / `codebase-design`: shallow 分析）が「コアバリュー（Agent Bridge + Desk Pet）以外の百貨店化」を指摘。ボスはこれを受け、以下2機能の撤去を決定した（AGENTS.md §1.4 引き算の美学の実践第1号）。実施は **P0 セキュリティ修正完了後**（手帳 TODO ID 35 / 36・ロードマップ §13.19 第8/9項に同時起票）。
 
 | 対象 | 撤去理由（ボス判断） | 主なフットプリント |
 |:---|:---|:---|
-| **Whisper 音声認識（＋休眠中の Web Speech 音声入力）** | 実測で認識精度が低すぎた。**スマホOS標準の音声入力（キーボードのマイク）** で代替可能となり、内蔵する必然性が消滅。ボス実使用でも「音声機能が欲しい場面がほぼ無かった」ことを確認（2026-09-22 全撤去決定） | `whisper_transcriber.py`（199行・faster-whisper は optional import で requirements 未記載）／`api_tasks.action_transcribe_voice`／`web_pet/pet.js` の `startVoiceInput`＋`_sendVoiceToWhisper`（Web Speech 認識も含む）／`tools/e2e_voice_check.py`／設定トグル（`voice_input_enabled`）／関連テスト・CHEAT_SHEETS |
+| **Whisper 音声認識（＋休眠中の Web Speech 音声入力）** ✅ **撤去完了 (2026-09-24)** | 実測で認識精度が低すぎた。**スマホOS標準の音声入力（キーボードのマイク）** で代替可能となり、内蔵する必然性が消滅。ボス実使用でも「音声機能が欲しい場面がほぼ無かった」ことを確認（2026-09-22 全撤去決定） | `whisper_transcriber.py`（199行・faster-whisper は optional import で requirements 未記載）／`api_tasks.action_transcribe_voice`／`web_pet/pet.js` の `startVoiceInput`＋`_sendVoiceToWhisper`（Web Speech 認識も含む）／`tools/e2e_voice_check.py`／設定トグル（`voice_input_enabled`）／関連テスト・CHEAT_SHEETS |
 | **LifeCoachEngine** | 2時間ごとの LLM 呼び出しコストに対し、ボスの行動変容に寄与していない（＝通知ノイズ） | `life_coach_engine.py`（511行・LLM/テーブル/スケジューラ/サジェスト連携）／`main.py` 配線／status payload の `life_coach` フィールド／関連テスト・i18n |
 
 ### 26.2 誤削除の禁止事項（Important）
@@ -1250,8 +1250,9 @@ OpenCode Desktop (v2.0.11) へ **同一の開発体験・安全規約・品質�
 | **第2防壁: 確信度安全フォールバック** | 確信度 0.95 未満のグレーゾーンは自動処理せず、安全側に倒してLLM（System Two）へエスカレーション | `tools/jev_triage_runner.py` (`evaluate_signals`) |
 | **第3防壁: シャドーモード検証** | 自動修正は行わず、テスト失敗累計10回までログ記録と目視検証を先行（誤診率0%が本番昇格基準） | `config/jev_triage.json` / `logs/jev_triage/` |
 
-### 27.3 品質ゲート
-- TDD: `tests/test_jev_triage.py`（8件 PASSED）
+### 27.3 品質ゲートと配置境界（引き算の美学）
+- **配置境界**: 本ツール群は秘書くんアプリ本体（OSS）のコードではなく、ボスの全エージェント共通AI開発基盤（`C:/Users/bonob/.gemini/tools/jev_triage/`）へ正式配備された。秘書くん本体のコードベースは1行も汚さず、OSSとしての純度と軽量性を100%死守する（AGENTS.md §2.11 遵守）。
+- TDD: 全8件 PASSED（0.17秒実測）
 - 独立検証（`agent-tester`, `703a2c81-50cc-4c32-8f23-a02f479221f0`）: **PASSED**
 
 

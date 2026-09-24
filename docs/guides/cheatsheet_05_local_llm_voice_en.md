@@ -1,7 +1,7 @@
-# 🔒 Neo-Secretary Cheatsheet ⑤ [Local Offline LLM, Voice & Character Skins]
-*Last Updated: 2026-09-13*
+# 🔒 Neo-Secretary Cheatsheet ⑤ [Local Offline LLM & Character Skins]
+*Last Updated: 2026-09-24 23:50 (Voice-input section replaced: built-in speech recognition removed — use the smartphone OS keyboard microphone)*
 
-Guide to operating high-privacy local LLMs without external APIs, using speech input, and customizing pixel mascot character skins.
+Guide to operating high-privacy local LLMs without external APIs and customizing pixel mascot character skins.
 
 <p align="center">
   <img src="assets/cs05_localllm_en.jpg" width="100%" alt="Neo-Secretary Cheatsheet 5 - Local Offline LLM, Voice & Character Skins">
@@ -34,10 +34,9 @@ If you prefer larger local weights (7B, 14B, or 32B), Neo-Secretary connects sea
 
 ---
 
-## 🎤 3. Speech Interaction & Voice Input
+## 🎤 3. About Voice Input
 
-- **Voice Dictation**: Click microphone button in chat bubble to dictate tasks or meeting notes.
-- **Natural Language Parsing**: High-speed offline speech recognition converts your voice directly into scheduled calendar events and prioritized tasks.
+For voice text entry, please use the microphone on your smartphone's standard OS keyboard (the built-in speech recognition feature has been removed).
 
 ---
 

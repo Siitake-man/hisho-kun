@@ -89,7 +89,6 @@ a = Analysis(
         'web_assets',
         'webhook_tools',
         'web_tools',
-        'whisper_transcriber',
         'ui.settings_window',
         'ui.calendar_window',
         'ui.db_viewer',
@@ -103,9 +102,9 @@ a = Analysis(
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
-    # 音声文字起こし (faster-whisper) は内部課題化中 (VOICE_INPUT_ENABLED=false) の
-    # ため配布から除外する。whisper_transcriber は未導入環境を is_available()=False
-    # で優雅に処理するため除外しても安全 (zip を数百MB〜数GB圧縮できる)。
+    # 音声文字起こし機能 (Whisper) は 2026-09-22 の全撤去決定 (PR #8) により
+    # コード実装ごと完全削除済みのため配布から除外。候補ライブラリが依存で
+    # 引き込まれないよう防御的に除外指定を維持する (zip を数百MB〜数GB圧縮)。
     excludes=[
         'faster_whisper',
         'ctranslate2',
