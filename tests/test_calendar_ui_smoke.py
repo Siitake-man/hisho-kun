@@ -15,6 +15,20 @@ from ui.calendar_window import CalendarWindow
 from ui.tk_teardown import quiet_destroy
 
 
+def _check_tk_available() -> bool:
+    """Tk 画面が初期化可能かどうかを決定論的に判定します。"""
+    try:
+        root = tk.Tk()
+        root.withdraw()
+        root.destroy()
+        return True
+    except Exception:
+        return False
+
+
+_TK_AVAILABLE: bool = _check_tk_available()
+
+
 class _FakeParentGui:
     """CalendarWindow が要求する最小限の親GUIインターフェース"""
 
@@ -22,14 +36,12 @@ class _FakeParentGui:
         self.root = root
 
 
+@unittest.skipUnless(_TK_AVAILABLE, "Tk を初期化できない環境 (TCL_LIBRARY未設定またはheadless) のためスキップします")
 class TestCalendarWindowRendering(unittest.TestCase):
     """3表示モードの描画とナビゲーションを検証する"""
 
     def setUp(self):
-        try:
-            self.root = tk.Tk()
-        except tk.TclError:
-            self.skipTest("Tk を初期化できない環境 (TCL_LIBRARY未設定またはheadless) のためスキップします")
+        self.root = tk.Tk()
         self.root.withdraw()
         # 新しいテーブル（calendar_sources）を含むDBスキーマを初期化
         database.init_db()

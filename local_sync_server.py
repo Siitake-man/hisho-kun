@@ -710,7 +710,6 @@ ACTION_HANDLERS_TASKS = {
     "toggle_habit": api_tasks.action_toggle_habit,
     "add_habit": api_tasks.action_add_habit,
     "quick_add_task": api_tasks.action_quick_add_task,
-    "transcribe_voice": api_tasks.action_transcribe_voice,
     "update_task": api_tasks.action_update_task,
     "delete_task": api_tasks.action_delete_task,
     "list_task_lists": api_tasks.action_list_task_lists,
