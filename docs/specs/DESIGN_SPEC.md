@@ -1237,6 +1237,24 @@ OpenCode Desktop (v2.0.11) へ **同一の開発体験・安全規約・品質�
 3. PWA 側撤去（マイクUI・関連i18n）
 4. ドキュメント4点セット同期（本節の「予定」→「完了」更新・ロードマップ・一覧・active_context）
 
+## 27. Jev System One テスト失敗トリアージ ＆ シャドーモード検証規律 (As-Built 2026-09-24 / ロードマップ §13.20)
+
+### 27.1 背景と設計判断（Why）
+従来のLLM（Gemini/Claude等）によるテスト失敗分析は、数千行の生スタックトレースを全文読み込むため推論トークンと時間を大量に消費していた。TypeSafe Jev（System Oneモデル）によるミリ秒・型付き判定（Choice/Confidence）を導入することで、軽微なタイポや未定義属性への即時対応とルーティングを実現する。
+ただし、情報の削ぎ落としによる誤診（False Positive/Negative）を防ぐため、**「4大シグナルへの蒸留」「確信度95%未満の安全フォールバック」「10回サンプルのシャドーモード検証（誤診率0%受入基準）」**の3重防壁を必須仕様とする（知識の宝庫 知見ID: 18）。
+
+### 27.2 3重防壁アーキテクチャ
+| 防壁 | 役割 | 実装コンポーネント |
+|:---|:---|:---|
+| **第1防壁: 4大シグナル蒸留** | 生ログのノイズを除去し、`exception_type`, `error_message`, `failed_location`, `changed_files` のみに構造化 | `tools/jev_triage_extractor.py` |
+| **第2防壁: 確信度安全フォールバック** | 確信度 0.95 未満のグレーゾーンは自動処理せず、安全側に倒してLLM（System Two）へエスカレーション | `tools/jev_triage_runner.py` (`evaluate_signals`) |
+| **第3防壁: シャドーモード検証** | 自動修正は行わず、テスト失敗累計10回までログ記録と目視検証を先行（誤診率0%が本番昇格基準） | `config/jev_triage.json` / `logs/jev_triage/` |
+
+### 27.3 品質ゲート
+- TDD: `tests/test_jev_triage.py`（8件 PASSED）
+- 独立検証（`agent-tester`, `703a2c81-50cc-4c32-8f23-a02f479221f0`）: **PASSED**
+
+
 
 
 
