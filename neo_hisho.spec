@@ -69,7 +69,6 @@ a = Analysis(
         'hisho_mcp_server',
         'i18n',
         'ics_tools',
-        'life_coach_engine',
         'life_dreamer',
         'llm_factory',
         'local_sync_server',
