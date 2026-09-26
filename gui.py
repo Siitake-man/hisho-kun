@@ -37,6 +37,55 @@ ctk.set_appearance_mode("light")  # レトロモダンなクリーム色をベ�
 ctk.set_default_color_theme("green") # デフォルトテーマ
 
 
+#: Windows の透過色キー（この色で塗った領域が透明になる）
+WINDOWS_TRANSPARENT_COLOR = "#FF00FF"
+#: 透過非対応環境（Linux 等）で透過色の代わりに使う背景色（マゼンタ露出を防ぐ）
+FALLBACK_BACKGROUND_COLOR = "#F5F0E6"
+
+
+def apply_window_transparency(root, platform: Optional[str] = None) -> str:
+    """OS に応じてウィンドウ背景透過を適用し、子ウィジェットの背景に使う色を返す。
+
+    - Windows: 従来どおり `-transparentcolor` で透過色キー (#FF00FF) を透明化する。
+    - macOS: `-transparent` + `systemTransparent` を試み、失敗したら透過なしで続行する。
+    - Linux 等: `-transparentcolor` 非対応のため透過をスキップし、無地の背景色で起動する。
+
+    どの経路でも例外で起動を止めない（失敗時は透過なしのフォールバック色を返す）。
+
+    Args:
+        root: Tk / CTk のルートウィンドウ。
+        platform: 判定に使う sys.platform 値（テスト用。省略時は実行環境）。
+
+    Returns:
+        str: 子ウィジェット (tk.Frame / tk.Canvas) の背景に使う色。
+    """
+    import sys
+
+    platform = platform or sys.platform
+    if platform == "win32":
+        try:
+            root.config(bg=WINDOWS_TRANSPARENT_COLOR)
+            root.attributes("-transparentcolor", WINDOWS_TRANSPARENT_COLOR)
+            return WINDOWS_TRANSPARENT_COLOR
+        except tk.TclError as e:
+            logger.warning(f"背景透過を適用できませんでした (透過なしで続行): {e}")
+    elif platform == "darwin":
+        try:
+            root.attributes("-transparent", True)
+            root.config(bg="systemTransparent")
+            return "systemTransparent"
+        except tk.TclError as e:
+            logger.info(f"macOS の背景透過をスキップします (透過なしで続行): {e}")
+    else:
+        logger.info("このOSではウィンドウ背景透過 (-transparentcolor) 非対応のため、透過なしで起動します")
+
+    try:
+        root.config(bg=FALLBACK_BACKGROUND_COLOR)
+    except tk.TclError:
+        pass
+    return FALLBACK_BACKGROUND_COLOR
+
+
 class NeoSecretaryGUI(PomodoroMixin, RadialMenuMixin, TourOverlayMixin):
     def __init__(self):
         # 1. メインウィンドウの設定 (スマートコックピット 2.0)
@@ -57,10 +106,10 @@ class NeoSecretaryGUI(PomodoroMixin, RadialMenuMixin, TourOverlayMixin):
         # 常に最前面に表示
         self.root.attributes('-topmost', True)
         
-        # 背景透過の検証 (Windows環境での透過色設定)
-        transparent_color = "#FF00FF"
-        self.root.config(bg=transparent_color)
-        self.root.attributes('-transparentcolor', transparent_color)
+        # 背景透過 (OS別分岐: Windows=透過色キー / macOS=systemTransparent / Linux=透過なし)
+        #   -transparentcolor は Windows 専用属性で、Linux/macOS では TclError で起動不能になるため
+        #   apply_window_transparency() で OS ごとに安全に適用する。
+        transparent_color = apply_window_transparency(self.root)
         
         # タイトルバーを消して完全なフローティングウィンドウにする
         self.root.overrideredirect(True)
