@@ -41,6 +41,10 @@ let wakeLock = null;
 if (typeof currentCharacterId === 'undefined') {
   var currentCharacterId = window.currentCharacterId || 'hisho';
 }
+// 🐛 S3 (2026-09-26): 初回 status 同期時に sprite を必ず再確定するフラグ。
+// index.html 静的初期 src（誤キャラの可能性）を、最初の /api/status 応答で正規キャラへ自己修復させる。
+// キャラ ID 一致でも初回だけは preloadSprites を発火させるために存在する。
+let spriteSynced = false;
 
 // 🌈 自律生活ドリーマー状態（/api/status の life_state から更新）
 const WEATHER_LABELS_JS = {
@@ -232,12 +236,18 @@ async function fetchStatus() {
     }
 
     // 2. キャラクター
-    if (data.character && data.character.id !== currentCharacterId) {
-      currentCharacterId = data.character.id;
-      window.currentCharacterId = currentCharacterId;
-      const emojiEl = document.getElementById('char-emoji');
-      if (emojiEl) emojiEl.innerText = data.character.emoji;
-      preloadSprites(currentCharacterId);
+    if (data.character) {
+      // 🐛 S3 (2026-09-26): 初回同期時はキャラ ID 一致でも sprite を再確定する。
+      // HTML 静的初期 src が誤キャラ (ロースター除外中の seal 等) のまま残る事故の恒久修理。
+      const needsSpriteResync = !spriteSynced || data.character.id !== currentCharacterId;
+      spriteSynced = true;
+      if (needsSpriteResync) {
+        currentCharacterId = data.character.id;
+        window.currentCharacterId = currentCharacterId;
+        const emojiEl = document.getElementById('char-emoji');
+        if (emojiEl) emojiEl.innerText = data.character.emoji;
+        preloadSprites(currentCharacterId);
+      }
     }
 
     // 3. サジェストデータ
