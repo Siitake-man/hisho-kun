@@ -463,6 +463,7 @@ class AgentBridgeRequest:
         choices: Optional[List[str]] = None,
         timeout_sec: int = 180,
         requester_ip: str = "",
+        requester_identity: str = "",
         risk_level: str = "prompt",
         agent_type: str = "generic",
         summary: str = "",
@@ -483,8 +484,20 @@ class AgentBridgeRequest:
         self.timeout_at = self.created_at + timeout_sec
         self.status = "pending"  # 'pending', 'approved', 'rejected', 'answered', 'expired'
         self.decision_message = ""
-        # 承認要請を作成したクライアントのIP。自己承認(RCE)防止のために記録する。
+        # 承認要請を作成したクライアントのIP。従来の自己承認(RCE)防止のために記録する。
+        # 手帳 ID 52 以降、同一性判定の主軸は requester_identity (認証主体) へ移行し、
+        # requester_ip は identity 不明応答時の後方互換フォールバック用に維持する。
         self.requester_ip = requester_ip
+        # 承認要請を作成した認証主体 (identity)。
+        # "agent" (PC内エージェント) / "device:<uuid>" (ペアリング済み端末) /
+        # "pc-loopback" (PC内ブラウザ) / "" (unknown)。Tailscale Serve 等のプロキシが
+        # IP を 127.0.0.1 へ同一化するため、同一性判定は IP ではなく identity で行う。
+        self.requester_identity = requester_identity
+        # 応答者 (決定者) の同一性。respond_checked が解決前に記録し、監査ログ
+        # (decision_by / client_ip) の単一情報源となる (紅組指摘3: 応答側 identity を
+        # 廃棄せず保持する)。未解決の間は空文字。
+        self.responder_identity: str = ""
+        self.responder_ip: str = ""
         self._event = threading.Event()
 
     def resolve(self, decision: str, message: str = "") -> None:
@@ -513,11 +526,28 @@ class AgentBridgeRequest:
             "command": self.command,
             "choices": self.choices,
             "risk_level": self.risk_level,
+            "requester_ip": self.requester_ip,
+            "requester_identity": self.requester_identity,
+            "responder_identity": self.responder_identity,
+            "responder_ip": self.responder_ip,
             "created_at": self.created_at,
             "timeout_at": self.timeout_at,
             "status": self.status,
             "decision_message": self.decision_message
         }
+
+
+# 🛡️ PC ローカル信頼ドメイン規則 (紅組査読 2026-09-26 / ADR 対象:
+# codebase-memory-mcp manage_adr での正式化を推奨):
+# PC 内で完結する認証主体 ("agent" = マスタートークン + trusted_loopback /
+# "pc-loopback" = loopback 専用トークン) は同一物理マシン上の主体であり、
+# 承認関係を結んではならない。identity 完全一致判定だけでは
+# 「ask をマスタートークン → respond を loopback トークン」の組合せで
+# 自己承認が通る抜け穴 (旧 IP チェックでは 127.0.0.1==127.0.0.1 で拒否されて
+# いた経路の新規開通) が生じるため、両者が PC ローカル語彙に属する場合は
+# 異なる identity であっても無条件で拒否する。PC ブラウザ PWA からの承認は
+# 正規経路外とし、デスクトップ GUI のネイティブ承認ダイアログを使用する。
+_PC_LOCAL_IDENTITIES: frozenset[str] = frozenset({"agent", "pc-loopback"})
 
 
 class AgentBridgeHub:
@@ -536,6 +566,7 @@ class AgentBridgeHub:
         details: str = "",
         timeout_sec: int = 180,
         requester_ip: str = "",
+        requester_identity: str = "",
         risk_level: str = "prompt",
         agent_type: str = "generic",
         safety_level: Optional[str] = None
@@ -549,16 +580,26 @@ class AgentBridgeHub:
             command=command,
             timeout_sec=timeout_sec,
             requester_ip=requester_ip,
+            requester_identity=requester_identity,
             risk_level=risk_level,
             agent_type=agent_type,
             safety_level=safety_level
         )
         with self._lock:
             self.pending_requests[req.request_id] = req
-        logger.info(f"🤖 [Agent Bridge] 新規承認要請: {agent_name} -> '{command}' (ID: {req.request_id}, 要求元IP: {requester_ip})")
+        logger.info(f"🤖 [Agent Bridge] 新規承認要請: {agent_name} -> '{command}' (ID: {req.request_id}, 要求元IP: {requester_ip}, 認証主体: {requester_identity or 'unknown'})")
         return req
 
-    def create_question_request(self, agent_name: str, question: str, choices: Optional[List[str]] = None, details: str = "", timeout_sec: int = 180, requester_ip: str = "") -> AgentBridgeRequest:
+    def create_question_request(
+        self,
+        agent_name: str,
+        question: str,
+        choices: Optional[List[str]] = None,
+        details: str = "",
+        timeout_sec: int = 180,
+        requester_ip: str = "",
+        requester_identity: str = "",
+    ) -> AgentBridgeRequest:
         req = AgentBridgeRequest(
             req_type="question",
             agent_name=agent_name,
@@ -566,11 +607,12 @@ class AgentBridgeHub:
             content=details,
             choices=choices or [],
             timeout_sec=timeout_sec,
-            requester_ip=requester_ip
+            requester_ip=requester_ip,
+            requester_identity=requester_identity
         )
         with self._lock:
             self.pending_requests[req.request_id] = req
-        logger.info(f"🤖 [Agent Bridge] 新規質問・確認要請: {agent_name} -> '{question}' (選択肢: {choices})")
+        logger.info(f"🤖 [Agent Bridge] 新規質問・確認要請: {agent_name} -> '{question}' (選択肢: {choices}, 要求元IP: {requester_ip}, 認証主体: {requester_identity or 'unknown'})")
         return req
 
     def set_completed_event(self, agent_name: str, title: str, summary: str, details: str = "") -> None:
@@ -630,28 +672,141 @@ class AgentBridgeHub:
                     self.latest_completed = None
             return None
 
-    def respond_checked(self, request_id: str, decision: str, message: str = "", responder_ip: Optional[str] = None) -> tuple:
+    def _is_self_approval_hit(
+        self,
+        request_id: str,
+        requester_identity: str,
+        requester_ip: str,
+        responder_identity: str,
+        responder_ip: Optional[str],
+    ) -> bool:
+        """自己承認 (RCE) の成立を認証主体 (identity) ベースで判定する。
+
+        判定規則 (紅組査読 2026-09-26 対応):
+        1. PC ローカル信頼ドメイン規則: 両者 identity が ``_PC_LOCAL_IDENTITIES``
+           に属するなら異なる identity であっても無条件で自己承認とみなす
+           (agent → pc-loopback 等の組合せ抜け穴を塞ぐ)。
+        2. identity 完全一致: 両者非空かつ一致なら自己承認
+           (agent の自己応答 / 同一端末の自己承認 を両方遮断)。
+        3. requester_identity 不明 (空) の場合は IP 一致チェックを併用する
+           (Fail-Open 防止・responder_identity の空・非空を問わず適用)。
+           IP 不一致で通過させる場合も identity 解決が不完全であることを
+           warning ログで可視化する。
+        4. responder_identity のみ不明の場合は従来の IP 一致チェックへ
+           フォールバックする (後方互換)。
+
+        Args:
+            request_id: 対象リクエストID (ログ識別用)。
+            requester_identity: 承認要請を作成した認証主体。
+            requester_ip: 承認要請を作成したクライアントIP。
+            responder_identity: 応答者の認証主体 (不明なら空文字)。
+            responder_ip: 応答元クライアントIP (未指定なら None)。
+
+        Returns:
+            bool: 自己承認と判定した場合 True。
+        """
+        # 1. PC ローカル信頼ドメイン規則 (無条件拒否・ADR 対象)
+        if (
+            requester_identity in _PC_LOCAL_IDENTITIES
+            and responder_identity in _PC_LOCAL_IDENTITIES
+        ):
+            logger.warning(
+                f"🚫 [Security] 自己承認を検知して拒否 (PC ローカル信頼ドメイン): "
+                f"ID={request_id} (requester={requester_identity}, responder={responder_identity})"
+            )
+            return True
+        # 2. identity 完全一致 (agent の自己応答 / 同一端末の自己承認)
+        if requester_identity and responder_identity and requester_identity == responder_identity:
+            logger.warning(
+                f"🚫 [Security] 自己承認を検知して拒否 (identity 一致): "
+                f"ID={request_id} (identity={responder_identity})"
+            )
+            return True
+        # 3. requester_identity 不明 → IP 一致チェックを併用 (Fail-Open 防止)
+        if not requester_identity:
+            if responder_ip and requester_ip and responder_ip == requester_ip:
+                logger.warning(
+                    f"🚫 [Security] 自己承認を検知して拒否 (requester identity 不明・IP 一致): "
+                    f"ID={request_id} (IP: {responder_ip})"
+                )
+                return True
+            if responder_identity or responder_ip:
+                logger.warning(
+                    f"⚠️ [Security] requester identity 不明のため IP 一致チェックのみで成立判定: "
+                    f"ID={request_id} (responder={responder_identity or 'unknown'}, IP: {responder_ip})"
+                )
+            return False
+        # 4. responder_identity のみ不明 → 従来 IP 一致チェックへフォールバック
+        if not responder_identity:
+            if responder_ip and requester_ip and responder_ip == requester_ip:
+                logger.warning(
+                    f"🚫 [Security] 自己承認を検知して拒否 (IP 一致・responder identity 不明): "
+                    f"ID={request_id} (IP: {responder_ip})"
+                )
+                return True
+        return False
+
+    def respond_checked(
+        self,
+        request_id: str,
+        decision: str,
+        message: str = "",
+        responder_ip: Optional[str] = None,
+        responder_identity: str = "",
+    ) -> tuple:
         """承認応答を処理し、自己承認(RCE)防止チェックと期限切れ検知を行う拡張版。
 
-        要求元IP(requester_ip)と同一IPからの応答は人間による承認とみなさず拒否する。
-        これにより「攻撃者が自作した承認要請を自分で承認する」RCEチェーンを遮断する。
-        また、タイムアウト（timeout_at）を超過したリクエストは期限切れとして拒否する。
+        同一性判定は認証主体 (identity) ベースで行う (手帳 ID 52 / 2026-09-26 実機事故の
+        根治 + 紅組査読 2026-09-26 の強化)。Tailscale Serve 等の PC内プロキシは応答元を
+        127.0.0.1 へ同一化するため、旧来の requester_ip == responder_ip 比較では
+        「スマホの人間の正当な承認」が「自己承認」と誤爆した。identity
+        ("agent" / "device:<uuid>" / "pc-loopback") は認証経路 (_check_auth) で
+        確定するため、プロキシ同一化の影響を受けない。
+
+        設計意図 (RCE 防止思想は維持・詳細規則は _is_self_approval_hit 参照):
+        - PC ローカル信頼ドメイン ({"agent", "pc-loopback"}) 内の組合せは無条件拒否。
+        - identity 完全一致 (両者非空) は拒否。
+        - requester_identity 不明時は IP 一致チェックを併用 (Fail-Open 防止)。
+        - responder_identity のみ不明時は旧 IP 一致チェックへフォールバック。
+        - 両者 identity が非空かつ異なる場合のみ IP を無視して成立させる
+          (Serve スマホ承認シナリオ: requester="agent"/ip=127.0.0.1 vs
+          responder="device:uuid"/ip=127.0.0.1 は正当な人間承認として成立する)。
+
+        チェック順序 (紅組指摘4): 自己承認判定を冪等 (already_resolved) チェックおよび
+        期限切れ・状態チェックより**前方**で実施する。盗難トークン等の自己承認者には
+        要求の存在・状態 (解決済み/期限切れ/pending) を一切開示しない。
 
         Args:
             request_id (str): 対象リクエストID。
             decision (str): 承認判定 ('approve' / 'reject' / 'answered' 等)。
             message (str): ユーザーからの添付メッセージ。
-            responder_ip (Optional[str]): 応答元クライアントのIPアドレス。Noneの場合チェックをスキップする。
+            responder_ip (Optional[str]): 応答元クライアントのIPアドレス。
+                identity 不明時のフォールバック判定と監査記録に使用する。
+            responder_identity (str): 応答者の認証主体。
+                _check_auth が解決した ctx.auth_identity を渡す。空の場合は
+                旧 IP 一致チェックへフォールバックする。
 
         Returns:
-            tuple[bool, str]: (処理成功可否, 理由コード)。理由コードは 'ok' / 'not_found' / 'self_approve_denied' / 'expired'。
+            tuple[bool, str]: (処理成功可否, 理由コード)。
+            理由コードは 'ok' / 'not_found' / 'self_approve_denied' / 'expired'。
         """
         with self._lock:
             req = self.pending_requests.get(request_id)
             if not req:
-                # 冪等性チェック: 既に history に存在し、同一の判定であれば成功（already_resolved）を返す
+                # 冪等性チェックの**前**に自己承認判定を実施する (紅組指摘4):
+                # requester と同一の認証主体からの応答は、解決済み要求の状態照会
+                # (already_resolved 応答) をさせない。history の記録には requester
+                # 側の同一性が to_dict 経由で保持されているため判定可能。
                 for hist in reversed(self.history):
                     if hist.get("request_id") == request_id:
+                        if self._is_self_approval_hit(
+                            request_id,
+                            str(hist.get("requester_identity", "") or ""),
+                            str(hist.get("requester_ip", "") or ""),
+                            responder_identity,
+                            responder_ip,
+                        ):
+                            return False, "self_approve_denied"
                         prev_status = hist.get("status")
                         is_match = (
                             prev_status == decision
@@ -664,6 +819,16 @@ class AgentBridgeHub:
                             )
                             return True, "already_resolved"
                 return False, "not_found"
+            # 自己承認防止 (identity ベース) — 期限切れ・状態チェックより前方で実施し、
+            # 自己承認者へは要求の存在・状態を一切開示しない (紅組指摘4)。
+            if self._is_self_approval_hit(
+                request_id,
+                getattr(req, "requester_identity", ""),
+                req.requester_ip,
+                responder_identity,
+                responder_ip,
+            ):
+                return False, "self_approve_denied"
             # 期限切れ検知: timeout_at を超過している場合は拒否する
             # wait_decision=False の非同期質問でもタイムアウト後にタップされるとここで検知される
             if req.timeout_at is not None and time.time() > req.timeout_at:
@@ -674,12 +839,10 @@ class AgentBridgeHub:
                 return False, "expired"
             if req.status != "pending":
                 return False, "not_found"
-            # 自己承認防止: 承認要請を作成したクライアントと同一IPからの応答を拒否する
-            if responder_ip and req.requester_ip and responder_ip == req.requester_ip:
-                logger.warning(
-                    f"🚫 [Security] 自己承認を検知して拒否: ID={request_id} (要求元=応答元IP: {responder_ip})"
-                )
-                return False, "self_approve_denied"
+            # 応答者 (決定者) の同一性を解決前に記録する (紅組指摘3: 監査喪失防止)。
+            # 監査ログの decision_by / client_ip と冪等判定の単一情報源となる。
+            req.responder_identity = responder_identity
+            req.responder_ip = responder_ip or getattr(req, "responder_ip", "")
             req.resolve(decision, message)
             self.history.append(req.to_dict())
             del self.pending_requests[request_id]
@@ -767,6 +930,10 @@ class DeskPetSyncHandler(SimpleHTTPRequestHandler):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=str(WEB_PET_DIR), **kwargs)
+        # 認証主体 (identity) のプレースホルダ。_check_auth() がトークン検証に
+        # 成功した際に確定値へ更新する (手帳 ID 52: IP ではなく identity で
+        # 自己承認を判定するための属性。未認証・検証前は unknown = 空文字)。
+        self.auth_identity: str = ""
 
     def _set_cors_headers(self):
         """CORS 許可ヘッダーを一切発行しない (ゼロトラスト強化・2026-09-02確定)。
@@ -974,7 +1141,12 @@ class DeskPetSyncHandler(SimpleHTTPRequestHandler):
         if not self._check_auth():
             return True
         user_agent = self.headers.get("User-Agent", "") if hasattr(self, "headers") and self.headers else ""
-        return api_devices.handle_get_devices(ApiContext(self, b"", client_ip, user_agent))
+        return api_devices.handle_get_devices(
+            ApiContext(
+                self, b"", client_ip, user_agent,
+                auth_identity=getattr(self, "auth_identity", ""),
+            )
+        )
 
     def _get_bearer_token(self) -> str:
         """AuthorizationヘッダーからBearerトークンを抽出する。"""
@@ -1043,6 +1215,9 @@ class DeskPetSyncHandler(SimpleHTTPRequestHandler):
         user_agent = self.headers.get("User-Agent", "")
         headers = getattr(self, "headers", None) or {}
         rate_limiter = get_auth_rate_limiter()
+        # 認証主体の毎リクエストリセット (手帳 ID 52): 前リクエストの identity 残留を
+        # 排除し、未認証経路 (identity 不明 = 空文字) を決定論的に初期化する。
+        self.auth_identity = ""
         # 🛡️ ID 53 / P2-N5 (2026-09-23): 中継経由 (Tailscale Serve 等) は TCPピアが
         # 127.0.0.1 になるため、台帳照会とレートリミットのキーを実IP (ledger_ip) へ統一する。
         ledger_ip = DeskPetSyncHandler._resolve_ledger_client_ip(
@@ -1097,6 +1272,8 @@ class DeskPetSyncHandler(SimpleHTTPRequestHandler):
                 # 盗まれても非ループバック（Serve 経由・LAN）からは一切使えない。
                 if trusted_loopback:
                     is_valid_token = True
+                    # 認証主体: PC内ブラウザ (loopback 専用トークン)
+                    self.auth_identity = "pc-loopback"
                 else:
                     logger.warning(
                         f"🚫 [SyncAuth] loopback 専用トークンを非ループバック({client_ip})から拒否しました"
@@ -1105,6 +1282,8 @@ class DeskPetSyncHandler(SimpleHTTPRequestHandler):
                 # 🛡️ マスタートークン（PCマスターキー）は信頼できる loopback 専用（Agent Bridge・MCPサーバー）
                 if trusted_loopback:
                     is_valid_token = True
+                    # 認証主体: PC内エージェント (マスタートークン + trusted_loopback)
+                    self.auth_identity = "agent"
                 else:
                     try:
                         dev = database.sync_device_session(
@@ -1152,6 +1331,14 @@ class DeskPetSyncHandler(SimpleHTTPRequestHandler):
                     except Exception:
                         pass
                     return False
+                # 認証主体: 台帳照合に成功した端末 (手帳 ID 52: identity ベース自己承認判定用)。
+                # device_uuid 未記名の旧行は走査 ID で代替する (ID 50: 行再利用の主キー方針に準拠)。
+                if dev is not None:
+                    device_uuid = getattr(dev, "device_uuid", None)
+                    if device_uuid:
+                        self.auth_identity = f"device:{device_uuid}"
+                    else:
+                        self.auth_identity = f"device:#{dev.id}"
                 return True
 
         # 3. GETリクエストの閲覧許可は「同一PC内 (ループバック)」のみ (ゼロトラスト強化 2026-09-12)
@@ -1412,7 +1599,12 @@ class DeskPetSyncHandler(SimpleHTTPRequestHandler):
         if get_path_handler:
             if not self._check_auth():
                 return
-            get_path_handler(ApiContext(self, b"", client_ip, user_agent))
+            get_path_handler(
+                ApiContext(
+                    self, b"", client_ip, user_agent,
+                    auth_identity=getattr(self, "auth_identity", ""),
+                )
+            )
             return
 
         # 0.5 ミニゲームハイスコア取得 (GET /api/minigame/high?game_id=xxx)
@@ -1816,7 +2008,12 @@ class DeskPetSyncHandler(SimpleHTTPRequestHandler):
         # パス系APIのディスパッチ (P2③: api_agent_bridge モジュールへ委譲)
         path_handler = POST_PATH_HANDLERS.get(self.path)
         if path_handler:
-            path_handler(ApiContext(self, body, client_ip, user_agent))
+            path_handler(
+                ApiContext(
+                    self, body, client_ip, user_agent,
+                    auth_identity=getattr(self, "auth_identity", ""),
+                )
+            )
 
         # 3.5 デバイス個別失効API (POST /api/devices/revoke) — 管理者/同一PC操作に限定
         #     処理本体（監査ログ記録を含む）は api_devices.handle_post_devices_revoke へ委譲 (P1-4)
@@ -1829,7 +2026,12 @@ class DeskPetSyncHandler(SimpleHTTPRequestHandler):
                 self.end_headers()
                 self.wfile.write(json.dumps({"status": "error", "message": "Device revoke is restricted to localhost."}, ensure_ascii=False).encode("utf-8"))
                 return
-            api_devices.handle_post_devices_revoke(ApiContext(self, body, client_ip, user_agent))
+            api_devices.handle_post_devices_revoke(
+                ApiContext(
+                    self, body, client_ip, user_agent,
+                    auth_identity=getattr(self, "auth_identity", ""),
+                )
+            )
             return
 
         # 3.5b デバイス個別復帰API (POST /api/devices/restore) — 管理者/同一PC操作に限定
@@ -1842,7 +2044,12 @@ class DeskPetSyncHandler(SimpleHTTPRequestHandler):
                 self.end_headers()
                 self.wfile.write(json.dumps({"status": "error", "message": "Device restore is restricted to localhost."}, ensure_ascii=False).encode("utf-8"))
                 return
-            api_devices.handle_post_devices_restore(ApiContext(self, body, client_ip, user_agent))
+            api_devices.handle_post_devices_restore(
+                ApiContext(
+                    self, body, client_ip, user_agent,
+                    auth_identity=getattr(self, "auth_identity", ""),
+                )
+            )
             return
 
         # 3.6 AIエージェント稼働状態更新 (POST /api/agent/activity) — Phase H
@@ -1892,7 +2099,10 @@ class DeskPetSyncHandler(SimpleHTTPRequestHandler):
         #   - 監査: 全アクションの呼び出しを client_ip 付きでログ出力する。
         elif self.path == "/api/action":
             get_link_monitor().record_heartbeat(client_ip, user_agent)
-            ctx = ApiContext(self, body, client_ip, user_agent)
+            ctx = ApiContext(
+                self, body, client_ip, user_agent,
+                auth_identity=getattr(self, "auth_identity", ""),
+            )
 
             try:
                 data = json.loads(body.decode("utf-8"))

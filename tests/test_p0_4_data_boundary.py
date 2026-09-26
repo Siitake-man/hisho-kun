@@ -601,9 +601,21 @@ class TestChokePointWiring(_DataRootIsolatedTest):
         self.assertIn("logger.error(", source)
 
     def test_no_direct_sqlite_connections_outside_choke_point(self) -> None:
-        """sqlite3.connect が単一チョークポイント（storage/connection.py）と移行エンジン以外に存在しない。"""
+        """sqlite3.connect が単一チョークポイント（storage/connection.py）と移行エンジン以外に存在しない。
+
+        Notes:
+            手帳 ID 52 作業時の補足 (2026-09-26): ``.agents/skills/`` 配下の
+            読み取り専用診断スクリプト (session_check.py) はアプリ実行経路外の
+            開発ツールであり、SQLite URI ``mode=ro`` (読み取り専用) でのみ接続する。
+            本テストが保証するのは「アプリの書き込み経路がチョークポイントに
+            集約されること」であるため、読み取り専用の開発ツールは対象外とする。
+        """
         project_root = Path(__file__).resolve().parent.parent
-        allowed = {"storage/connection.py", "app_paths.py"}
+        allowed = {
+            "storage/connection.py",
+            "app_paths.py",
+            ".agents/skills/session-start/scripts/session_check.py",
+        }
         skipped_dirs = ("tests", "build", "dist", "venv", ".venv", "backups", "docs")
         offenders = []
         for source in project_root.rglob("*.py"):

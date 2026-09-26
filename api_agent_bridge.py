@@ -86,6 +86,7 @@ def handle_agent_ask(ctx: ApiContext) -> None:
             details=req_dto.details,
             timeout_sec=req_dto.timeout_sec,
             requester_ip=ctx.client_ip,
+            requester_identity=getattr(ctx, "auth_identity", ""),
             risk_level=req_dto.risk_level.value,
             agent_type=req_dto.agent_type,
             safety_level=safety_level
@@ -134,7 +135,16 @@ def handle_agent_ask(ctx: ApiContext) -> None:
 
             # 3. 監査ログの記録 (Node C: Audit Log, PROMPT/STRICT用)
             if not decision_policy.is_auto_allowed:
-                decision_by = "human" if decision in ("approve", "approved", "rejected") else "timeout"
+                # 監査の decision_by は「決定者」の identity を記録する (紅組指摘3):
+                # 依頼者側 identity は requester_ip 側に既に記録済みのため重複させない。
+                # 人間の承認・却下では respond_checked が解決前に記録した
+                # req.responder_identity ("agent" / "device:<uuid>" / "pc-loopback")
+                # を優先し、identity 不明の旧経路のみ従来語彙 "human" へフォールバック。
+                # タイムアウト等の非決定は従来語彙 "timeout" を維持する。
+                if decision in ("approve", "approved", "rejected"):
+                    decision_by = (getattr(req, "responder_identity", "") or "human")
+                else:
+                    decision_by = "timeout"
                 audit_logger.log(AuditLogEntry(
                     request_id=req.request_id,
                     agent_type=req_dto.agent_type,
@@ -186,7 +196,15 @@ def handle_agent_ask_input(ctx: ApiContext) -> None:
         timeout = int(data.get("timeout", 180))
 
         hub = get_bridge_hub()
-        req = hub.create_question_request(agent_name, question, choices, details, timeout_sec=timeout, requester_ip=ctx.client_ip)
+        req = hub.create_question_request(
+            agent_name,
+            question,
+            choices,
+            details,
+            timeout_sec=timeout,
+            requester_ip=ctx.client_ip,
+            requester_identity=getattr(ctx, "auth_identity", ""),
+        )
         get_link_monitor().trigger_buzz()
 
         # 📲 Web Push: スマホへ質問を通知する (ノンブロッキング fire-and-forget)
@@ -243,7 +261,16 @@ def handle_agent_respond(ctx: ApiContext) -> None:
         message = data.get("message", "")
 
         hub = get_bridge_hub()
-        success, reason = hub.respond_checked(request_id, decision, message, responder_ip=ctx.client_ip)
+        success, reason = hub.respond_checked(
+            request_id,
+            decision,
+            message,
+            responder_ip=ctx.client_ip,
+            # 応答者の認証主体 (identity) を渡す (手帳 ID 52): Serve 経由スマホは
+            # IP が 127.0.0.1 へ同一化されるため、identity ("device:<uuid>") でのみ
+            # 自己承認誤爆を回避できる。identity 不明時は Hub 側で旧 IP 判定へフォールバック。
+            responder_identity=getattr(ctx, "auth_identity", ""),
+        )
         status_payload: Dict[str, Any] = {"status": "success", "reason": reason}
         if not success:
             if reason == "self_approve_denied":

@@ -35,12 +35,19 @@ class ApiContext:
         body: リクエストボディの生バイト列。
         client_ip: 接続元クライアントIP。
         user_agent: リクエストの User-Agent ヘッダー値。
+        auth_identity: _check_auth が解決した認証主体の識別子。
+            ``"pc-loopback"`` (loopback 専用トークン) / ``"agent"`` (マスター
+            トークン + trusted_loopback) / ``"device:<uuid>"`` (端末個別トークン
+            および台帳照合成功のマスタートークン行) / ``""`` (未認証・unknown)。
+            自己承認防止チェックの同一性判定に使用する (Tailscale Serve 等の
+            プロキシが IP を 127.0.0.1 へ同一化するため IP 比較は不能)。
     """
 
     handler: Any
     body: bytes = b""
     client_ip: str = "unknown"
     user_agent: str = ""
+    auth_identity: str = ""
     _headers_sent: bool = field(default=False, init=False)
 
     def begin_json_response(self, status_code: int = 200) -> None:
