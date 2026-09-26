@@ -1,7 +1,7 @@
 # ネオ秘書くん システム設計書 (DESIGN_SPEC.md)
 
-- **バージョン**: 1.5.6-dev (✂️ Whisper 音声認識 全撤去完了（PR #8＋ID 38）＆ 通知系データ境界追随（OpenCode/Antigravity/Jev）＆ ID 43 DRギャップ修理)
-- **最終更新日時**: 2026-09-24 23:59 (✂️ Whisper 全撤去完了（§26 完了化・§9.5 更新）／通知系トークン解決のデータ境界追随／ID 43 実修理／ID 57 完了)
+- **バージョン**: 1.5.7-dev (📱 スマホ承認ループ完全復旧： 自己承認防止を identity ベースへ (§23.5・ID 52) ＆ web_pet UX 仕上げ (初期sprite修理・接続可視化・選択肢クリップ修理・質問シート自動オープン))
+- **最終更新日時**: 2026-09-26 13:00 (🤖 OpenCode: §23.5 新設（auth_identity 同一性判定・PC ローカル信頼ドメイン）／ID 52 完了／PR #9 マージ（ID 36/38 達成）／web_pet v1.1.14。詳細: `docs/handover/20260926_opencode_smahophone_approval_sprint.md`)
 - **アーキテクチャ方針**: 完全ローカル完結型 非ブロッキング並行システム (Tkinter Desktop Overlay × Mobile PWA × LangGraph Agent × Zero-Trust Local Bridge ＆ Cross-Platform Headless CI/CD)
 
 
@@ -1150,7 +1150,15 @@ OpenCode Desktop (v2.0.11) へ **同一の開発体験・安全規約・品質�
    （`Cannot find package '@opencode/plugin'`）。`Plugin.define` の実体は素通し関数（`return plugin`）であるため、
    **import を省いて素のオブジェクトを default export** すれば等価（実測で解決・ホットリロードで反映）。
 
-### 23.5 Antigravity への技術移管
+### 23.5 自己承認防止の同一性判定 — auth_identity ベース（2026-09-26 / 手帳 ID 52 完了）
+
+- **障害**: `respond_checked` が `requester_ip == responder_ip` の**IP 文字列一致**で自己承認を拒否していたため、Tailscale Serve（PC内プロキシが全外部接続をループバックに正規化）経由の正規スマホの承認が常に `self_approve_denied` で拒否されていた（コアバリューのデグレ・2026-09-26 実機で発覚）。未解決の要求は pending 残存し、/api/status ポーリングがバナーを再描画し続ける「ゾンビバナー」を派生させた。
+- **設計（Why）**: 同一性の判定材料を IP から**認証主体（auth_identity）へ変更**。`_check_auth` がトークン検証時に identity を解決する: `loopback 専用トークン`→`"pc-loopback"` / `マスタートークン×trusted_loopback`→`"agent"` / `台帳照合成功（個別トークン・非ループバック・マスター）`→`"device:<uuid または #行ID>"` / 未認証→`""`。
+- **拒否規則**: ①requester/responder が**両方 PC ローカル語彙 `{agent, pc-loopback}` なら無条件拒否**（PC内 RCE チェーンの旧 IP 拒否水準を復元・PC ブラウザからの web 承認は正規経路外＝GUI ネイティブ承認ダイアログが正統）②identity 完全一致で拒否 ③requester_identity 空時は IP 併用チェック（一致拒否・不一致は warning 付き通過）④自己承認判定を冪等チェックより前に実施（盗難トークンに状態照会させない）⑤決定者の identity/IP を `AgentBridgeRequest` へ記録し監査 `decision_by`/`client_ip` に反映（依頼者誤記録の廃止）。
+- **検証**: TDD Red→Green（identity テスト19件）＋ 紅組査読5項目是正 ＋ **全回帰 929 passed** ＋ 実機成立（audit ID 130: `decision_by=device:d318aa25...`）。commit `c09d43a`。
+- **残余**: ask_input（質問）経路の監査記録・`client_ip` への ledger_ip (XFF 実IP) 反映は **ID 64**。通知専業経路（Antigravity フック/OpenCode plugin の 5秒バナー）の双方向化は **ID 63**。
+
+### 23.6 Antigravity への技術移管
 同じ痛点を Antigravity 側でも解消するため、実測済みのAPI契約と落とし穴
 （**`wait_decision:false` 必須**／Bearer認証／`_post_to_hub` の再利用／`PreToolUse` には allow/ask の区別が無いため逆allowlist方式）
 を指示文として提供し、Antigravity 側の実装完了を確認した（2026-09-21）。
