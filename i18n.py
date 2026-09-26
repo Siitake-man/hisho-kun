@@ -42,17 +42,6 @@ _NO_CHINESE_INSTRUCTION_EN: str = (
 # 翻訳辞書 (キーはドメインプレフィックス方式: "<domain>.<key>")
 _TRANSLATIONS: Dict[str, Dict[str, str]] = {
     "ja": {
-        "coach.analysis_title": "📊 今日の生活分析",
-        "coach.fallback_analysis": (
-            "未完了タスクが{unfinished}件、うち期限切れが{overdue}件です。"
-            "習慣達成は今日で{habits_done}/{habits_total}でした。"
-        ),
-        "coach.fallback_action_rest": "まずは15分だけ、いちばん軽いタスクから着手してみましょう。",
-        "coach.fallback_action_overdue": "期限切れタスクを1件、今日の最優先に据え置きましょう。",
-        "coach.fallback_action_habit": "未達成の習慣「{habit}」を寝る前に済ませてしまいましょう。",
-        "coach.fallback_encouragement": "きちんと観測していますよ、ボス。小さな一歩を一緒に積み上げましょう。",
-        "coach.fallback_risk_overdue": "期限切れタスクの滞留",
-        "coach.fallback_risk_habit": "習慣達成率の低下",
         # UI ドメイン辞書 (Sprint Global)
         "ui.settings.title": "⚙️ ネオ秘書くん 設定",
         "ui.settings.general": "一般",
@@ -326,17 +315,6 @@ _TRANSLATIONS: Dict[str, Dict[str, str]] = {
         "briefing.char.common.night.encouragement": "無理は禁物ですよ。明日のために、そろそろお布団に入りましょうね。🌌"
     },
     "en": {
-        "coach.analysis_title": "📊 Today's Life Analysis",
-        "coach.fallback_analysis": (
-            "You have {unfinished} unfinished tasks, {overdue} of them overdue. "
-            "Habit completion today: {habits_done}/{habits_total}."
-        ),
-        "coach.fallback_action_rest": "Start with just 15 minutes on the lightest task.",
-        "coach.fallback_action_overdue": "Pick one overdue task and make it today's top priority.",
-        "coach.fallback_action_habit": "Finish the pending habit \"{habit}\" before bedtime.",
-        "coach.fallback_encouragement": "I'm watching your progress, Boss. Let's stack small steps together.",
-        "coach.fallback_risk_overdue": "Overdue task backlog",
-        "coach.fallback_risk_habit": "Declining habit completion",
         # UI domain dictionary (Sprint Global)
         "ui.settings.title": "⚙️ Neo-Secretary Settings",
         "ui.settings.general": "General",
@@ -726,7 +704,7 @@ def t(key: str, **params: Any) -> str:
     """翻訳キーに対応する文字列を取得する。
 
     Args:
-        key: 翻訳キー (例: "coach.analysis_title")
+        key: 翻訳キー (例: "ui.settings.title")
         **params: 文字列整形用パラメータ ({name} プレースホルダ)
 
     Returns:

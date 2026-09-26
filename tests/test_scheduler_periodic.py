@@ -19,7 +19,6 @@ from typing import List
 import database
 from proactive_scheduler import PeriodicThrottle, get_proactive_scheduler
 from reminder_engine import ReminderEngine
-from life_coach_engine import LifeCoachEngine
 
 
 class PeriodicThrottleTest(unittest.TestCase):
@@ -125,31 +124,6 @@ class ReminderEngineSchedulerMigrationTest(unittest.TestCase):
         """start() 前の stop() は例外を投げない (冪等)。"""
         engine = ReminderEngine(db_path=self.db_path)
         engine.stop()
-        self.assertFalse(engine.is_running())
-
-
-class LifeCoachEngineSchedulerMigrationTest(unittest.TestCase):
-    """LifeCoachEngine の専用スレッド廃止・スケジューラ移管テスト。"""
-
-    def setUp(self) -> None:
-        """テスト用一時DBとスケジューラの初期化。"""
-        self.temp_dir = tempfile.TemporaryDirectory()
-        self.db_path = os.path.join(self.temp_dir.name, "test_coach_sched.db")
-        database.init_db(self.db_path)
-        get_proactive_scheduler().stop()
-        self.addCleanup(get_proactive_scheduler().stop)
-        self.addCleanup(self.temp_dir.cleanup)
-
-    def test_start_registers_plugin_without_own_thread(self) -> None:
-        """start() はスケジューラへ登録し、LifeCoachEngine 名の専用スレッドを生成しない。"""
-        engine = LifeCoachEngine(db_path=self.db_path)
-        engine.start()
-        try:
-            self.assertTrue(engine.is_running())
-            thread_names = [t.name for t in threading.enumerate()]
-            self.assertNotIn("LifeCoachEngine", thread_names)
-        finally:
-            engine.stop()
         self.assertFalse(engine.is_running())
 
 
