@@ -222,8 +222,34 @@ def handle_agent_ask_input(ctx: ApiContext) -> None:
             gui.post_action(gui.update_message, f"【{agent_name}】{question}")
             gui.post_action(gui.set_pet_state, "alarm_ask", 6000)
 
+        from audit_logger import get_global_audit_logger, AuditLogEntry
+        audit_logger = get_global_audit_logger()
+        start_time = time.time()
+
         if data.get("wait_decision", True):
             decision = req.wait(timeout=timeout)
+            duration = time.time() - start_time
+            if decision not in ("timeout", "expired"):
+                decision_by = getattr(req, "responder_identity", "") or "human"
+            else:
+                decision_by = "timeout"
+
+            audit_logger.log(AuditLogEntry(
+                request_id=req.request_id,
+                agent_type=data.get("agent_type", "generic"),
+                agent_name=agent_name,
+                command=f"[question] {question}",
+                summary=question,
+                risk_level="prompt",
+                decision=decision,
+                decision_by=decision_by,
+                decision_message=req.decision_message,
+                requester_ip=ctx.client_ip,
+                client_ip=getattr(req, "responder_ip", ""),
+                duration_sec=round(duration, 2),
+                created_at=int(req.created_at),
+            ))
+
             ctx.write_json({
                 "status": "success",
                 "request_id": req.request_id,
