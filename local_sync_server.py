@@ -1642,13 +1642,8 @@ class DeskPetSyncHandler(SimpleHTTPRequestHandler):
                 # 端末個別トークンしか持たないスマホが /api/status 経由でマスターキーを入手し、
                 # 以降その端末を失効させても通信が通り続ける権限昇格 (漏洩×失効巻き戻し) の温床だった。
                 # スマホ側のトークン取得は /api/auth/token (ペアリング開放 + 人間承認) の一本道のみ。
-                # AI生活コーチの最新分析レポート (Phase L1: life_coach フィールド)
-                try:
-                    from life_coach_engine import get_life_coach_engine
-                    coach_report = get_life_coach_engine().get_latest_report()
-                except Exception as coach_err:
-                    logger.debug(f"生活コーチ状態取得スキップ: {coach_err}")
-                    coach_report = None
+                # AI生活コーチ機能は ID 36 (2026-09-25) にて撤去済み (互換性維持のため None 固定)
+                coach_report = None
                 payload = {
                     "status": "ok",
                     "pet_state": pet_state,

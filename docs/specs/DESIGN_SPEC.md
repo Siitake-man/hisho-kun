@@ -1216,7 +1216,7 @@ OpenCode Desktop (v2.0.11) へ **同一の開発体験・安全規約・品質�
 - 独立検証（`agent-tester`, `ses_f37d4c53bffe7PSGbsxEuFqXK3`）: **PASSED**。実測で未設定7プロバイダのスキップ＆ERROR 0件を確認
 - Gotcha: `_compute_provider_configured` は `load_dotenv(override=True)` で実 .env を読み戻すため、テストでは `llm_factory.load_dotenv` も遮断する必要がある
 
-## 26. スコープ縮小（引き算）決定 — Whisper【✅撤去完了 2026-09-24】/ LifeCoach【撤去予定】 (2026-09-22 ボス決定)
+## 26. スコープ縮小（引き算）決定 — Whisper【✅撤去完了 2026-09-24】/ LifeCoach【✅撤去完了 2026-09-25】 (2026-09-22 ボス決定)
 
 ### 26.1 背景と設計判断（Why）
 総合コードレビュー（`ruthless-code-evaluation`: 引き算 D評価 / `codebase-design`: shallow 分析）が「コアバリュー（Agent Bridge + Desk Pet）以外の百貨店化」を指摘。ボスはこれを受け、以下2機能の撤去を決定した（AGENTS.md §1.4 引き算の美学の実践第1号）。実施は **P0 セキュリティ修正完了後**（手帳 TODO ID 35 / 36・ロードマップ §13.19 第8/9項に同時起票）。

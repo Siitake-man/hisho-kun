@@ -98,9 +98,9 @@ class JevTriageExtractor:
         if exception_type == "UnknownError":
             for line in lines:
                 stripped = line.strip()
-                if stripped.startswith("E   assert ") or stripped.startswith("E assert "):
+                if re.match(r"^E\s+assert\b", stripped):
                     exception_type = "AssertionError"
-                    error_message = stripped.replace("E   ", "").replace("E ", "")
+                    error_message = re.sub(r"^E\s+", "", stripped)
                     break
 
         # 3. AssertionError の特殊ハンドリング
@@ -109,12 +109,8 @@ class JevTriageExtractor:
             # assert 条件の行を探す
             for line in reversed(lines):
                 stripped = line.strip()
-                if (
-                    stripped.startswith("E   assert ")
-                    or stripped.startswith("E assert ")
-                    or stripped.startswith("assert ")
-                ):
-                    error_message = stripped.replace("E   ", "").replace("E ", "")
+                if re.match(r"^(E\s+)?assert\b", stripped):
+                    error_message = re.sub(r"^E\s+", "", stripped)
                     break
 
         # 4. 主要スニペットのトリミング（最大3行）
