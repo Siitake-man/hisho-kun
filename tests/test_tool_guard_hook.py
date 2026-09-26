@@ -1,5 +1,6 @@
 """Unit tests for Antigravity Tool Guard Hook (tool_guard_hook.py)"""
 
+import os
 import unittest
 import sys
 from pathlib import Path
@@ -9,7 +10,9 @@ repo_root = Path(__file__).resolve().parent.parent
 if str(repo_root) not in sys.path:
     sys.path.insert(0, str(repo_root))
 
-hook_dir = Path("C:/Users/bonob/.gemini/tools/jev_router")
+# tool_guard_hook.py は本リポジトリ外（利用者の ~/.gemini/tools/jev_router）に置かれるグローバル資産。
+# 配置先は環境変数 JEV_ROUTER_DIR で上書きできる（個人環境の絶対パスは埋め込まない）。
+hook_dir = Path(os.environ.get("JEV_ROUTER_DIR") or (Path.home() / ".gemini" / "tools" / "jev_router"))
 if str(hook_dir) not in sys.path:
     sys.path.insert(0, str(hook_dir))
 try:
@@ -18,10 +21,16 @@ except ImportError:
     tgh = None
 
 
+#: ワークスペース外パスの例（実行ユーザーのホーム配下。個人環境の絶対パスは埋め込まない）
+HOME_POSIX = Path.home().as_posix()
+
+
 class TestToolGuardHook(unittest.TestCase):
     def setUp(self):
         if tgh is None:
-            self.skipTest("tool_guard_hook module not available")
+            self.skipTest(
+                f"tool_guard_hook はリポジトリ外のグローバル資産のため、未配置の環境ではスキップ ({hook_dir})"
+            )
     """Tool Guard Hook の allow/deny 判定と承認通知・フェイルセーフ契約を検証する。
 
     日本語文言検索は許可し、識別子・禁止コマンドは遮断、通信例外時は
@@ -132,7 +141,7 @@ class TestToolGuardHook(unittest.TestCase):
         self.assertFalse(tgh.is_external_workspace_path(workspace_file))
 
         # ワークスペース外（~/.gemini や C:\Windows 等）は外部判定
-        self.assertTrue(tgh.is_external_workspace_path("C:/Users/bonob/.gemini/config/hooks.json"))
+        self.assertTrue(tgh.is_external_workspace_path(f"{HOME_POSIX}/.gemini/config/hooks.json"))
         self.assertTrue(tgh.is_external_workspace_path("C:/Windows/System32"))
 
     def test_external_path_write_tool_triggers_notify(self):
@@ -152,7 +161,7 @@ class TestToolGuardHook(unittest.TestCase):
                 "toolCall": {
                     "name": "write_to_file",
                     "args": {
-                        "TargetFile": "C:/Users/bonob/.config/settings.json"
+                        "TargetFile": f"{HOME_POSIX}/.config/settings.json"
                     }
                 }
             }
@@ -165,7 +174,7 @@ class TestToolGuardHook(unittest.TestCase):
                 self.assertTrue(mock_notify.called, "ワークスペース外書き込みは通知され아야 합니다")
                 args, _ = mock_notify.call_args
                 self.assertIn("write_to_file", args[0])
-                self.assertIn("C:/Users/bonob/.config", args[0])
+                self.assertIn(f"{HOME_POSIX}/.config", args[0])
 
     def test_external_path_read_tool_does_not_notify(self):
         """ワークスペース外の読み取り系ツールでは通知しないこと（通知スパム防止）
@@ -188,7 +197,7 @@ class TestToolGuardHook(unittest.TestCase):
                     payload = {
                         "toolCall": {
                             "name": tool_name,
-                            "args": {arg_key: "C:/Users/bonob/.config"}
+                            "args": {arg_key: f"{HOME_POSIX}/.config"}
                         }
                     }
                     mock_stdin.read.return_value = json.dumps(payload)
