@@ -1661,12 +1661,19 @@ window.addEventListener('neolang:changed', function () {
 // OS 通知タップ等で PWA が前面復帰した瞬間に、未回答の質問 (type: 'question')
 // が残っていればシートを自動で開き「通知 → タップ → 選択肢が見える」を1段に削減する。
 // ガード: ①質問型のみ (承認要請はバナーのボタンで回答するため割り込ませない)
-//        ②同一 request_id で1回のみ ③シートが未オープンのときのみ。
+//        ②選択肢付きのみ (choices=[] の通知型質問はスマホから回答不能なため除外)
+//        ③同一 request_id で1回のみ ④シートが未オープンのときのみ。
 // ※ _autoOpenedQuestionId の宣言はファイル先頭 (TDZ 対策・v1.1.14)。
 function maybeAutoOpenQuestionSheet() {
   try {
     const req = window.currentApprovalRequest;
     if (!req || req.type !== 'question' || !req.request_id) return;
+    // 📵 選択肢なし質問（通知型）はスマホから回答できないため自動オープンしない:
+    //    Antigravity tool_guard_hook / OpenCode plugin の「承認待ち heads-up」は
+    //    choices=[] で届く。これを開くと「自由回答はPC側で」の回答不能カードが
+    //    強制展開される割り込みになるため、選択肢付き質問のみ自動オープンする
+    //    （バナー表示は従来どおり・2026-09-26 ボス実感を契機としたガード）。
+    if (!(req.choices && req.choices.length > 0)) return;
     if (_autoOpenedQuestionId === req.request_id) return;
     const sheet = document.getElementById('bottom-sheet');
     if (sheet && sheet.classList.contains('open')) return;

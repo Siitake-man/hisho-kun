@@ -8,7 +8,7 @@
 from typing import Final
 
 # アプリケーションのセマンティックバージョン (major.minor.patch)
-__version__: Final[str] = "1.1.14"
+__version__: Final[str] = "1.1.15"
 
 # 表示用アプリケーション名
 APP_NAME: Final[str] = "ネオ秘書くん (Neo-Secretary)"

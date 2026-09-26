@@ -135,20 +135,24 @@ class TestToolGuardHook(unittest.TestCase):
         self.assertTrue(tgh.is_external_workspace_path("C:/Users/bonob/.gemini/config/hooks.json"))
         self.assertTrue(tgh.is_external_workspace_path("C:/Windows/System32"))
 
-    def test_external_path_tool_triggers_notify(self):
-        """外部パスへのアクセスツール呼び出し時に notify_waiting がトリガーされること"""
+    def test_external_path_write_tool_triggers_notify(self):
+        """ワークスペース外の書き込み系ツールで notify_waiting がトリガーされること
+
+        2026-09-26 ボス承認方針: 「書き込み系と危険操作のみ通知」。
+        読み取り系 (view_file / list_dir) は自動実行されるため通知しない。
+        """
         from unittest import mock
 
         with mock.patch("tool_guard_hook.notify_waiting") as mock_notify, \
              mock.patch("sys.stdin") as mock_stdin:
             import io
             import json
-            
+
             payload = {
                 "toolCall": {
-                    "name": "list_dir",
+                    "name": "write_to_file",
                     "args": {
-                        "DirectoryPath": "C:/Users/bonob/.config"
+                        "TargetFile": "C:/Users/bonob/.config/settings.json"
                     }
                 }
             }
@@ -158,10 +162,45 @@ class TestToolGuardHook(unittest.TestCase):
                 tgh.main()
                 output = json.loads(mock_stdout.getvalue())
                 self.assertEqual(output["decision"], "allow")
-                self.assertTrue(mock_notify.called)
+                self.assertTrue(mock_notify.called, "ワークスペース外書き込みは通知され아야 합니다")
                 args, _ = mock_notify.call_args
-                self.assertIn("list_dir", args[0])
+                self.assertIn("write_to_file", args[0])
                 self.assertIn("C:/Users/bonob/.config", args[0])
+
+    def test_external_path_read_tool_does_not_notify(self):
+        """ワークスペース外の読み取り系ツールでは通知しないこと（通知スパム防止）
+
+        2026-09-26 実測: 別ファイルを 1 個読むごとに 1 件の通知が飛び、
+        承認ダイアログも出ないままスマホが連呼されていた（待ちぼうけではなくノイズ）。
+        """
+        from unittest import mock
+
+        for tool_name, arg_key in (
+            ("view_file", "AbsolutePath"),
+            ("list_dir", "DirectoryPath"),
+        ):
+            with self.subTest(tool=tool_name):
+                with mock.patch("tool_guard_hook.notify_waiting") as mock_notify, \
+                     mock.patch("sys.stdin") as mock_stdin:
+                    import io
+                    import json
+
+                    payload = {
+                        "toolCall": {
+                            "name": tool_name,
+                            "args": {arg_key: "C:/Users/bonob/.config"}
+                        }
+                    }
+                    mock_stdin.read.return_value = json.dumps(payload)
+
+                    with mock.patch("sys.stdout", new_callable=io.StringIO) as mock_stdout:
+                        tgh.main()
+                        output = json.loads(mock_stdout.getvalue())
+                        self.assertEqual(output["decision"], "allow")
+                        self.assertFalse(
+                            mock_notify.called,
+                            f"読み取り系 {tool_name} は通知対象外（ボス承認 2026-09-26）",
+                        )
 
 
 if __name__ == "__main__":

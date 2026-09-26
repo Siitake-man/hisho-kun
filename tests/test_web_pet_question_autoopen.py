@@ -50,6 +50,33 @@ class TestQuestionSheetAutoOpen(unittest.TestCase):
             "自動オープンが質問型 (type: 'question') に限定されていません",
         )
 
+    def test_auto_open_skips_choiceless_notification(self) -> None:
+        """選択肢を持たない通知型質問は自動オープンしないこと.
+
+        Antigravity tool_guard_hook や OpenCode plugin の「承認待ち heads-up」は
+        choices=[] で送られ、スマホから回答できない（自由回答はPC側）。
+        このようなカードが自動展開すると回答不能なシートが開いて割り込みになる
+        （2026-09-26 ボス実感・スクショ報告）。自動オープンは「スマホで回答できる
+        選択肢付き質問」に限定し、選択肢なしは従来どおりバナーのみにする。
+
+        検証は pet.js 全文ではなく maybeAutoOpenQuestionSheet 関数本体に
+        限定する（バナー表示側の同名比較で誤検知させない・Red 保証）。
+        """
+        start = self.pet_js.find("function maybeAutoOpenQuestionSheet")
+        self.assertGreaterEqual(
+            start,
+            0,
+            "pet.js に自動オープン関数 maybeAutoOpenQuestionSheet がありません",
+        )
+        fn_body = self.pet_js[start : start + 1500]
+        self.assertIn(
+            "choices.length > 0",
+            fn_body,
+            "maybeAutoOpenQuestionSheet に選択肢ガード (choices.length > 0) がありません。"
+            "choices=[] の通知型質問 (Antigravity 承認待ち通知等) の自動展開は"
+            "回答不能な割り込みになるため禁止します",
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
