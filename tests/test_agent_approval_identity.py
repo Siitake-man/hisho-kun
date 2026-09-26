@@ -719,6 +719,77 @@ class TestAuditDecisionByIdentity(unittest.TestCase):
             "監査 requester_ip は依頼元IPを維持すること",
         )
 
+    def test_ask_input_decision_by_records_responder_identity(self) -> None:
+        """ask_input フローでも決定者の identity 及び responder_ip が監査ログに記録されること。"""
+        from api_agent_bridge import handle_agent_ask_input
+        from audit_logger import get_audit_logs
+
+        hub = AgentBridgeHub()
+
+        def late_respond() -> None:
+            deadline = time.time() + 5.0
+            while time.time() < deadline:
+                with hub._lock:
+                    pendings = [
+                        r for r in hub.pending_requests.values() if r.status == "pending"
+                    ]
+                if pendings:
+                    hub.respond_checked(
+                        pendings[0].request_id,
+                        "answer_a",
+                        "選択肢A回答",
+                        responder_ip="192.168.1.105",
+                        responder_identity="device:uuid-askinput",
+                    )
+                    return
+                time.sleep(0.05)
+
+        responder_thread = threading.Thread(target=late_respond, daemon=True)
+        responder_thread.start()
+        try:
+            ctx_ask_input = make_ctx(
+                {
+                    "agent_name": "AskInputAgent",
+                    "question": "どちらを選択しますか？",
+                    "choices": ["A", "B"],
+                    "timeout": 10,
+                    "wait_decision": True,
+                },
+                client_ip="127.0.0.1",
+                auth_identity="agent",
+            )
+            with patch("local_sync_server.get_bridge_hub", return_value=hub):
+                handle_agent_ask_input(ctx_ask_input)
+        finally:
+            responder_thread.join(timeout=5.0)
+
+        payload = ctx_ask_input.handler.get_json_response()
+        self.assertEqual(payload.get("status"), "success", f"ask_input フローが成功すること (res={payload})")
+
+        time.sleep(0.3)
+        logs = get_audit_logs(db_path=self.db_path)
+        self.assertEqual(len(logs), 1, f"ask_input の監査ログが1件記録されること (logs={logs})")
+        self.assertEqual(
+            logs[0].decision_by,
+            "device:uuid-askinput",
+            "ask_input 監査の decision_by は決定者 identity を記録すること",
+        )
+        self.assertEqual(
+            logs[0].client_ip,
+            "192.168.1.105",
+            "ask_input 監査の client_ip は応答元IPを記録すること",
+        )
+        self.assertEqual(
+            logs[0].requester_ip,
+            "127.0.0.1",
+            "ask_input 監査の requester_ip は依頼元IPを維持すること",
+        )
+        self.assertEqual(
+            logs[0].command,
+            "[question] どちらを選択しますか？",
+            "ask_input 監査の command は [question] プレフィックス付き質問本文であること",
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
