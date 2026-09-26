@@ -45,6 +45,10 @@ if (typeof currentCharacterId === 'undefined') {
 // index.html 静的初期 src（誤キャラの可能性）を、最初の /api/status 応答で正規キャラへ自己修復させる。
 // キャラ ID 一致でも初回だけは preloadSprites を発火させるために存在する。
 let spriteSynced = false;
+// 📱 案α (ID 63・2026-09-26): 質問シート自動オープンの重複防止ガード。
+// ※ 宣言はファイル先頭に置くこと (fetchStatus はページ初期化直後に走るため、
+//   末尾での let 宣言は TDZ ReferenceError で初回発火が必ず失敗する — 2026-09-26 実測)。
+let _autoOpenedQuestionId = null;
 
 // 🌈 自律生活ドリーマー状態（/api/status の life_state から更新）
 const WEATHER_LABELS_JS = {
@@ -1658,8 +1662,7 @@ window.addEventListener('neolang:changed', function () {
 // が残っていればシートを自動で開き「通知 → タップ → 選択肢が見える」を1段に削減する。
 // ガード: ①質問型のみ (承認要請はバナーのボタンで回答するため割り込ませない)
 //        ②同一 request_id で1回のみ ③シートが未オープンのときのみ。
-let _autoOpenedQuestionId = null;
-
+// ※ _autoOpenedQuestionId の宣言はファイル先頭 (TDZ 対策・v1.1.14)。
 function maybeAutoOpenQuestionSheet() {
   try {
     const req = window.currentApprovalRequest;
@@ -1670,6 +1673,8 @@ function maybeAutoOpenQuestionSheet() {
     if (typeof window.openQuestionSheet !== 'function') return;
     _autoOpenedQuestionId = req.request_id;
     window.openQuestionSheet();
+    // 📡 観測可能性: 自動オープンが発火したことを可視化 (動作検証・将来のトラブルシュート用)
+    if (typeof showToast === 'function') showToast('📱 質問シートを自動で開きました', 2500);
   } catch (e) {
     console.warn('auto open question sheet failed:', e);
   }
