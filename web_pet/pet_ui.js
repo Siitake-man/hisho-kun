@@ -598,7 +598,7 @@
       choicesHtml = '<div class="note-item"><div class="note-desc">自由回答はPC側でお願いします</div></div>';
     }
     var html = '<div class="note-item"><div class="note-title">❓ ' + escapeHtml(req.title || req.question || '') + '</div></div>' +
-      '<div class="approval-sheet-actions" style="flex-direction:column;gap:6px;">' +
+      '<div class="approval-sheet-actions column" style="flex-direction:column;gap:6px;">' +
       choicesHtml +
       '</div>';
     openBottomSheet({ icon: '❓', tag: '質問', title: (req.agent_name || 'AI Agent') + ' からの質問' }, html);

@@ -115,6 +115,24 @@
 }
 
 /* =============================================================================
+   3.5 選択肢ボタンの縦並びモード (Question Choices Column Guard / S3.6・2026-09-26)
+   縦並び (質問の選択肢) では 2-Button Parallel Guard の高さ圧縮を適用しない。
+   flex: 1 1 0 が column で効くとボタン高さが均等圧縮され、overflow: hidden が
+   文字の下端をクリップする (3選択肢以上で発症を実機確認)。
+   ============================================================================= */
+.approval-sheet-actions.column button {
+  flex: 0 0 auto;
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+  min-height: 48px;
+  line-height: 1.4;
+  padding: 12px 14px;
+  text-align: center;
+  word-break: break-word;
+}
+
+/* =============================================================================
    4. Jev安全審査バッジの1行完結耐性
    ============================================================================= */
 .jev-safety-badge {
