@@ -1,7 +1,7 @@
 # ネオ秘書くん システム設計書 (DESIGN_SPEC.md)
 
-- **バージョン**: 1.5.7-dev (📱 スマホ承認ループ完全復旧： 自己承認防止を identity ベースへ (§23.5・ID 52) ＆ web_pet UX 仕上げ (初期sprite修理・接続可視化・選択肢クリップ修理・質問シート自動オープン))
-- **最終更新日時**: 2026-09-26 13:00 (🤖 OpenCode: §23.5 新設（auth_identity 同一性判定・PC ローカル信頼ドメイン）／ID 52 完了／PR #9 マージ（ID 36/38 達成）／web_pet v1.1.14。詳細: `docs/handover/20260926_opencode_smahophone_approval_sprint.md`)
+- **バージョン**: 1.5.8-dev (🔌 plugin v1.3 双方向化： OpenCode 権限要求のスマホ決定注入 (§23.4 更新・ID 63 完達) ＆ 通知スパム是正 (フック deny限定・channel write・読み取りゼロ) ＆ cp932 Fail-Open 恒久修理 ＆ 案αガード v1.1.15)
+- **最終更新日時**: 2026-09-26 16:55 (🤖 OpenCode: §23.4 更新（plugin v1.3 双方向化・実機 opencode-cli 2.0.18 で once/always 注入成功 4件・`ctx.permission.reply` 実測）／Jules PR #10 マージ（ID 64 一部・ID 62 ドキュメント整理）／tool_guard_hook 通知絞り込み＋cp932 Fail-Open 修理／案αガード v1.1.15。詳細: `docs/handover/20260926_opencode_plugin_v13_bidirectional_sprint.md`)
 - **アーキテクチャ方針**: 完全ローカル完結型 非ブロッキング並行システム (Tkinter Desktop Overlay × Mobile PWA × LangGraph Agent × Zero-Trust Local Bridge ＆ Cross-Platform Headless CI/CD)
 
 
@@ -1149,6 +1149,17 @@ OpenCode Desktop (v2.0.11) へ **同一の開発体験・安全規約・品質�
 6. **Gotcha（重要）**: `import { Plugin } from "@opencode/plugin"` は**この環境では解決できない**
    （`Cannot find package '@opencode/plugin'`）。`Plugin.define` の実体は素通し関数（`return plugin`）であるため、
    **import を省いて素のオブジェクトを default export** すれば等価（実測で解決・ホットリロードで反映）。
+
+### 23.4.1 plugin v1.3 双方向化 — スマホ決定の権限注入（2026-09-26 / 手帳 ID 63 完達）
+
+- **設計（Why）**: 通知専業（v1.2）では「スマホで気づける」だけで、**PC に戻ってから承認ダイアログを押す**まで AI が停止したまま。コアバリュー（席を外しても止まらない）を完全化するため、スマホ決定を OpenCode 権限システムへ**注入**する。
+- **実機ファクト（opencode-cli 2.0.18・推測ゼロ）**: ①実機 SDK 型定義に `permission.ask(input: Permission, output: { status })` フックが実在（`output.status` は書き換え可能）②**legacy `setup(ctx)` 形式のまま `ctx.permission.reply({ sessionID, requestID, decision, message })` が実在**（HTTP 相当: `POST /api/session/:sessionID/permission/:requestID/reply`、payload `{ decision: "once" | "always" | "reject", message? }`）③**PC の承認ダイアログ自身が同一 API を呼ぶ**ため、スマホ決定は「PC でボタンを押したのと完全に同じ経路」。
+- **通知→注入の二段構え**: ①evaluate フックが `effect:"ask"` を検知 → **選択肢付き `ask_input`（choices=[今回のみ許可/常に許可/拒否], wait_decision:true, timeout 120s）でスマホへ転送** → ②ボス回答取得 → `mapAnswerToReply`（**APPROVAL_CHOICES との完全一致（trim 後）のみ**受理・不一致は PC ダイアログに委ねる Fail-Safe）→ ③`ctx.permission.reply` で注入。question アクションは回答注入 API 未搭載のため通知専業維持。
+- **通知スパム抑止**: クールダウンキーを evaluate/poll 双方で **`perm:` に統一**し、進行中ラウンドトリップ（inFlight Map）と共用 → **1要求=スマホ1枚**（quality-reviewer P1 二重カードの根治）。`fetch` は `AbortSignal.timeout(timeoutSec + 15s)` でハング時の inFlight 永久ウェッジを防止。クールダウン 300 秒・`lastNotified` Map は 200 件超で失効キー prune。
+- **可読性**: 承認カードは**対象コマンド（resources 改行区切り）を冒頭に表示**（見出し先頭80字＋details「種別/対象/生データ」3段構成）。ボス実感「どんなコマンドの承認か分かりにくい」を恒久規約化（知識の宝庫 ID 26）。
+- **検証**: 実機成立 — **注入成功ログ 4件**（`decision=once`×1・`always`×3・2026-09-26 実測）＋ ボススクショ（スマホ 3 択カード・自動展開・1枚着信）＋ Fan-in 2 体（Verifier 9/9 PASS・5/5 PASS）＋ quality-reviewer 査読（P1×1・P2×5 全是正）＋ 全回帰 **935 passed**。
+- **残余**: 「常に許可」の恒久権限昇格リスク → 将来的に PC 側限定にする P3 議論（quality-reviewer P3-5）。question ツール回答注入は OpenCode ランタイム 2.0.18 未搭載のため、ランタイム更新時に再調査。
+- **v1.2 バックアップ**: `~/.config/opencode/hisho-approval-notify_v1.2.bak.ts`（セーブポイント規約・復旧可能）。
 
 ### 23.5 自己承認防止の同一性判定 — auth_identity ベース（2026-09-26 / 手帳 ID 52 完了）
 
