@@ -187,7 +187,17 @@ async function authFetch(url, options = {}) {
   
   let res;
   try {
-    res = await fetch(url, Object.assign({}, options, { headers }));
+    // 🐛 S3.5 (2026-09-26): 取得タイムアウト (10秒) を導入。
+    // Tailscale Serve 経由の cold start や回線揺れで fetch がいつまでも続くことを防ぎ、
+    // 上位層 (fetchStatus) の再試行・可視化ロジックを確実に発火させる。
+    const FETCH_TIMEOUT_MS = 10000;
+    const timeoutController = new AbortController();
+    const timeoutId = setTimeout(() => timeoutController.abort(), FETCH_TIMEOUT_MS);
+    try {
+      res = await fetch(url, Object.assign({}, options, { headers, signal: options.signal || timeoutController.signal }));
+    } finally {
+      clearTimeout(timeoutId);
+    }
   } catch (err) {
     throw err;
   }

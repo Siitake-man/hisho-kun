@@ -99,6 +99,8 @@ function initDeskPetApp() {
     }
   } catch (e) { console.warn('particleLoop error:', e); }
   try { if (typeof preloadSprites === 'function') preloadSprites(window.currentCharacterId || currentCharacterId); } catch (e) { console.warn('preloadSprites error:', e); }
+  // 📡 S3.5 (2026-09-26): 初回 status 到達前から「接続中」を明示し、既定表示を見せかけの正常状態にさせない
+  try { markConnectionState('connecting'); } catch (e) { console.warn('conn badge init error:', e); }
   
   // 🐛 バグ修正 (2026-08-31): 通知キーをsessionStorageに永続化
   try {
@@ -188,11 +190,77 @@ document.addEventListener('visibilitychange', () => {
 //    は先行読み込みされる pet_ui.js で定義および window に公開されています。
 
 
+// =============================================================================
+// 1.2 接続状態バッジ (S3.5・2026-09-26): status 取得失敗を沈黙させない
+// =============================================================================
+let connBadgeEl = null;
+
+/** 接続状態バッジの DOM 要素を遅延生成して取得する。 */
+function ensureConnStateBadge() {
+  if (connBadgeEl) return connBadgeEl;
+  connBadgeEl = document.createElement('div');
+  connBadgeEl.id = 'conn-state-badge';
+  connBadgeEl.style.cssText = 'position:fixed;top:8px;left:50%;transform:translateX(-50%);z-index:9999;padding:3px 10px;border-radius:10px;font-size:11px;font-weight:bold;background:rgba(255,184,0,0.85);color:#1E140E;display:none;box-shadow:0 2px 6px rgba(0,0,0,0.4);pointer-events:none;';
+  document.body.appendChild(connBadgeEl);
+  return connBadgeEl;
+}
+
+/**
+ * 接続状態を画面上部バッジへ反映する (S3.5)。
+ * 従来は /api/status 失敗時に既定表示のまま沈黙し、「壊れた画面」と「読み込み中」の区別が付かなかった。
+ *
+ * @param {string} state 'connecting' | 'ok' | 'error'
+ * @param {string} [detail] エラー時の補足情報 (HTTP ステータス等)
+ * @returns {void}
+ */
+function markConnectionState(state, detail) {
+  try {
+    const el = ensureConnStateBadge();
+    if (state === 'ok') {
+      el.style.display = 'none';
+      return;
+    }
+    if (state === 'connecting') {
+      el.textContent = '📡 接続中…';
+      el.style.background = 'rgba(255,184,0,0.85)';
+      el.style.color = '#1E140E';
+      el.style.display = 'block';
+      return;
+    }
+    el.textContent = `🔴 接続できません (${detail || 'error'})・自動再試行中…`;
+    el.style.background = 'rgba(200,50,50,0.9)';
+    el.style.color = '#FFF';
+    el.style.display = 'block';
+  } catch (e) {
+    console.warn('conn badge error:', e);
+  }
+}
+
+/** 連続失敗の計上とバックオフ移行（fetchStatus の !res.ok と catch から共通利用）。 */
+function handleFetchFailure() {
+  fetchFailCount++;
+  if (fetchFailCount >= FETCH_BACKOFF_THRESHOLD && !fetchBackoffActive) {
+    fetchBackoffActive = true;
+    // 連続失敗 → 30秒バックオフ (バッテリー・発熱対策)
+    showToast('📡 サーバーとの接続が不安定です。バックオフ中…');
+  }
+}
+
 async function fetchStatus() {
   try {
     const res = await authFetch('/api/status');
-    if (!res.ok) return;
+    if (!res.ok) {
+      // 🐛 S3.5 (2026-09-26): サイレント撤退 (`if (!res.ok) return;`) を廃止。
+      // 失敗を接続バッジへ可視化し、失敗回数にも数える（429 はレートリミット案内を追加）。
+      if (res.status === 429 && !fetchBackoffActive) {
+        showToast('⏳ 認証の試行制限中です。まもなく自動再試行します');
+      }
+      markConnectionState('error', `HTTP ${res.status}`);
+      handleFetchFailure();
+      return;
+    }
     const data = await res.json();
+    markConnectionState('ok');
 
     // 成功時はバックオフを即座に解除
     if (fetchBackoffActive || fetchFailCount > 0) {
@@ -527,12 +595,8 @@ async function fetchStatus() {
 
   } catch (err) {
     console.debug("Status fetch error:", err);
-    fetchFailCount++;
-    if (fetchFailCount >= FETCH_BACKOFF_THRESHOLD && !fetchBackoffActive) {
-      fetchBackoffActive = true;
-      // 連続失敗 → 30秒バックオフ (バッテリー・発熱対策)
-      showToast('📡 サーバーとの接続が不安定です。バックオフ中…');
-    }
+    markConnectionState('error', (err && err.name === 'AbortError') ? 'timeout' : 'network');
+    handleFetchFailure();
   }
 }
 
