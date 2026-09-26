@@ -3,8 +3,8 @@
 // local_sync_server.py から動的配信されます。
 // 本ファイルはオフライン時・開発環境・フォールバック用の静的実体です。
 
-self.APP_VERSION = "1.1.12";
-self.WEB_PET_CACHE_NAME = "neo-pet-v1.1.12";
+self.APP_VERSION = "1.1.13";
+self.WEB_PET_CACHE_NAME = "neo-pet-v1.1.13";
 
 if (typeof window !== "undefined") {
     window.APP_VERSION = self.APP_VERSION;

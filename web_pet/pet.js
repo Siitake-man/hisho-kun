@@ -417,6 +417,11 @@ async function fetchStatus() {
         }
         // 重複防止: 中央バナー（active-event-banner）に操作面を一本化しトーストは出さない
       }
+      // 📱 案α (ID 63・2026-09-26): 質問着信時にシートを自動オープン
+      // (PWA 既定表示のまま「タップで回答」を見失くさない。ガードは関数内・同一 request_id 1回のみ)
+      if (isQuestion) {
+        maybeAutoOpenQuestionSheet();
+      }
     } else {
       currentApprovalRequest = null;
       window.currentApprovalRequest = null;
@@ -1643,5 +1648,36 @@ window.addEventListener('neolang:changed', function () {
     } else if (window._currentOpenModalName === 'settings') {
       openSettingsModal();
     }
+  }
+});
+
+// =============================================================================
+// 14. 未回答質問シートの自動オープン (案α・ID 63 / 2026-09-26)
+// =============================================================================
+// OS 通知タップ等で PWA が前面復帰した瞬間に、未回答の質問 (type: 'question')
+// が残っていればシートを自動で開き「通知 → タップ → 選択肢が見える」を1段に削減する。
+// ガード: ①質問型のみ (承認要請はバナーのボタンで回答するため割り込ませない)
+//        ②同一 request_id で1回のみ ③シートが未オープンのときのみ。
+let _autoOpenedQuestionId = null;
+
+function maybeAutoOpenQuestionSheet() {
+  try {
+    const req = window.currentApprovalRequest;
+    if (!req || req.type !== 'question' || !req.request_id) return;
+    if (_autoOpenedQuestionId === req.request_id) return;
+    const sheet = document.getElementById('bottom-sheet');
+    if (sheet && sheet.classList.contains('open')) return;
+    if (typeof window.openQuestionSheet !== 'function') return;
+    _autoOpenedQuestionId = req.request_id;
+    window.openQuestionSheet();
+  } catch (e) {
+    console.warn('auto open question sheet failed:', e);
+  }
+}
+
+// PWA 前面復帰 (通知タップ・アプリ切り替え) 時に発火
+document.addEventListener('visibilitychange', function () {
+  if (document.visibilityState === 'visible') {
+    maybeAutoOpenQuestionSheet();
   }
 });
