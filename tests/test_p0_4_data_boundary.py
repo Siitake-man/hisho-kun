@@ -110,7 +110,7 @@ class TestCloudSyncedPathDetection(unittest.TestCase):
         """OneDrive 配下のパスを検知する。"""
         self.assertTrue(
             app_paths.is_cloud_synced_path(
-                r"C:\Users\bonob\OneDrive\ドキュメント\AntiGlavity\ネオ秘書くん\neo_secretary.db"
+                r"C:\Users\x\OneDrive\ドキュメント\proj\neo_secretary.db"
             )
         )
 
@@ -125,7 +125,7 @@ class TestCloudSyncedPathDetection(unittest.TestCase):
     def test_local_appdata_is_not_cloud(self) -> None:
         """ローカル AppData は非同期領域として False を返す。"""
         self.assertFalse(
-            app_paths.is_cloud_synced_path(r"C:\Users\bonob\AppData\Local\NeoHisho\neo_secretary.db")
+            app_paths.is_cloud_synced_path(r"C:\Users\x\AppData\Local\NeoHisho\neo_secretary.db")
         )
 
     def test_onedrive_env_prefix_is_detected(self) -> None:

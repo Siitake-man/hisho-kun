@@ -80,6 +80,9 @@ output.txt
 # --- MCP設定（ローカル環境固有のパスを含む） ---
 mcp_config.json
 
+# --- Windows ショートカット（tools/setup_launcher_icon.py が各自の環境で生成・個人絶対パスを含む） ---
+*.lnk
+
 # --- OpenCode ローカル設定（2026-09-21 追加） ---
 # opencode.json は個人絶対パスを、.opencode/ は非公開のエージェント定義（.agents/ と同内容）を含むため非公開
 opencode.json

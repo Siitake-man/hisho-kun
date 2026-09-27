@@ -469,6 +469,8 @@ class SettingsWindow(ctk.CTkToplevel):
             anchor="w"
         ).pack(fill="x", padx=12, pady=(10, 4))
 
+        # 利用者自身のホーム配下を指すフックスクリプトの既定パス（個人環境のパスを埋め込まない）
+        tool_guard_hook_path = (Path.home() / ".gemini" / "tools" / "jev_router" / "tool_guard_hook.py").as_posix()
         snippets = {
             "Antigravity": (
                 "// ~/.gemini/config/hooks.json または .agents/hooks.json\n"
@@ -481,7 +483,7 @@ class SettingsWindow(ctk.CTkToplevel):
                 '        "hooks": [\n'
                 "          {\n"
                 '            "type": "command",\n'
-                '            "command": "python C:/Users/bonob/.gemini/tools/jev_router/tool_guard_hook.py",\n'
+                f'            "command": "python {tool_guard_hook_path}",\n'
                 '            "timeout": 5\n'
                 "          }\n"
                 "        ]\n"

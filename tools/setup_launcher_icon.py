@@ -21,10 +21,12 @@ SHORTCUT_PATH = PROJECT_ROOT / "ネオ秘書くん起動.lnk"
 BAT_PATH = PROJECT_ROOT / "Start.bat"
 
 # アップロードされた桜秘書くん画像の候補パス
+#   リポジトリ外の画像を使う場合は環境変数 HISHO_SAKURA_SOURCE_IMAGE で指定する（個人パスは埋め込まない）
 UPLOADED_IMG_PATHS = [
     ASSETS_DIR / "dot" / "hisho" / "idle_sakura_raw.png",
-    Path(r"C:\Users\bonob\.gemini\antigravity\brain\0457ada4-59fa-43e1-be3c-58842c3b2596\.user_uploaded\media_1789393893659.png")
 ]
+if os.environ.get("HISHO_SAKURA_SOURCE_IMAGE"):
+    UPLOADED_IMG_PATHS.append(Path(os.environ["HISHO_SAKURA_SOURCE_IMAGE"]))
 
 
 def make_multisize_ico(pil_img, ico_path: Path):

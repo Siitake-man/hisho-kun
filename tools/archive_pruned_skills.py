@@ -20,7 +20,7 @@ from typing import List
 HOME = Path.home()
 SKILLS_DIR = HOME / ".gemini" / "config" / "skills"
 ARCHIVE_DIR = HOME / ".gemini" / "config" / "skills_archive"
-RESTORE_SCRIPT = Path(r"c:\Users\bonob\OneDrive\ドキュメント\AntiGlavity\ネオ秘書くん\tools\restore_skills.py").resolve()
+RESTORE_SCRIPT = Path(__file__).resolve().parent / "restore_skills.py"
 
 # 退避対象の38件（Jev客観監査レポート確定リスト）
 PRUNED_SKILLS = [

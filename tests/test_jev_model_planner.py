@@ -26,6 +26,7 @@
 
 import importlib
 import json
+import os
 import re
 import sys
 import unittest
@@ -37,8 +38,11 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-#: Jev 関連資産の配置先（Antigravity と共通のグローバル資産）
-JEV_DIR = Path("C:/Users/bonob/.gemini/tools/jev_router")
+#: Jev 関連資産の配置先（Antigravity と共通のグローバル資産。環境変数 JEV_ROUTER_DIR で上書き可）
+JEV_DIR = Path(os.environ.get("JEV_ROUTER_DIR") or (Path.home() / ".gemini" / "tools" / "jev_router"))
+#: Antigravity / OpenCode のグローバル設定ファイル（実行ユーザーのホーム配下）
+ANTIGRAVITY_MCP_CONFIG = Path.home() / ".gemini" / "config" / "mcp_config.json"
+OPENCODE_GLOBAL_CONFIG = Path.home() / ".config" / "opencode" / "opencode.jsonc"
 if str(JEV_DIR) not in sys.path:
     sys.path.insert(0, str(JEV_DIR))
 
@@ -413,12 +417,12 @@ class TestAntigravityContractFrozen(unittest.TestCase):
             self.assertNotIn("model", key.lower())
 
     @unittest.skipUnless(
-        Path("C:/Users/bonob/.gemini/config/mcp_config.json").exists(),
+        ANTIGRAVITY_MCP_CONFIG.exists(),
         "Antigravity のグローバルMCP設定が無い環境ではスキップ",
     )
     def test_antigravity_config_still_points_to_legacy_server(self) -> None:
         """Antigravity の MCP 設定は従来の jev_mcp_server.py を指したままであること"""
-        raw = Path("C:/Users/bonob/.gemini/config/mcp_config.json").read_text(encoding="utf-8")
+        raw = ANTIGRAVITY_MCP_CONFIG.read_text(encoding="utf-8")
         data = json.loads(raw)
 
         args = data["mcpServers"]["jev-mcp"]["args"]
@@ -445,12 +449,12 @@ class TestOpenCodePlannerServer(unittest.TestCase):
         self.assertTrue(callable(getattr(jev_planner, "jev_select_models", None)))
 
     @unittest.skipUnless(
-        Path("C:/Users/bonob/.config/opencode/opencode.jsonc").exists(),
+        OPENCODE_GLOBAL_CONFIG.exists(),
         "OpenCode のグローバル設定が無い環境ではスキップ",
     )
     def test_opencode_config_points_to_planner(self) -> None:
         """OpenCode の MCP 設定が jev_mcp_planner.py を指していること"""
-        raw = Path("C:/Users/bonob/.config/opencode/opencode.jsonc").read_text(encoding="utf-8")
+        raw = OPENCODE_GLOBAL_CONFIG.read_text(encoding="utf-8")
         stripped = re.sub(r"(?m)^\s*//.*$", "", raw)
 
         self.assertIn("jev_mcp_planner.py", stripped)

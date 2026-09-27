@@ -76,6 +76,63 @@ class ApprovalPolicyEngine:
         "python", "python3", "perl", "ruby", "node", "php",
     })
 
+    # 🛡️ 電源操作（シャットダウン・再起動）: コマンド語として現れたら STRICT
+    #    （`grep -r shutdown .` のような検索語は誤検知しないようトークンのコマンド位置で判定する）
+    _POWER_COMMANDS = frozenset({
+        "shutdown", "reboot", "halt", "poweroff", "stop-computer", "restart-computer",
+    })
+    _SYSTEMCTL_POWER_VERBS = frozenset({
+        "poweroff", "reboot", "halt", "kexec", "suspend", "hibernate", "hybrid-sleep",
+    })
+    # コマンド語の直前に現れても「別コマンドの起動ラッパー」とみなすトークン
+    _COMMAND_WRAPPERS = frozenset({
+        "cmd", "/c", "/k", "start", "nohup", "env", "exec", "time", "nice", "timeout",
+        "doas", "pwsh", "powershell", "-command", "-c",
+    })
+
+    # 🛡️ 機密ファイル: 秘密鍵そのもの（参照した時点で STRICT）
+    _PRIVATE_KEY_RE: Pattern[str] = re.compile(
+        r"(^|[/\\])id_(rsa|dsa|ecdsa|ed25519)(_sk)?$"
+        r"|\.(ppk|kdbx)$"
+        r"|(^|[/\\])\.gnupg([/\\]|$)"
+        r"|^/etc/(shadow|gshadow)$",
+        re.IGNORECASE,
+    )
+    # 🛡️ 機密ファイル: API キー・認証情報・証明書鍵（自動許可せず PROMPT で人間確認）
+    #    `.env.example` / `.env.sample` / `.env.template` / `.env.dist` はテンプレートのため対象外。
+    _SECRET_FILE_RE: Pattern[str] = re.compile(
+        r"(^|[/\\=:])\.env(\.(?!(example|sample|template|dist)$)[^/\\]+)?$"
+        r"|(^|[/\\])\.(ssh|aws|azure|kube|docker)([/\\]|$)"
+        r"|(^|[/\\])\.config[/\\]gcloud([/\\]|$)"
+        r"|(^|[/\\])\.(netrc|git-credentials|npmrc|pypirc|pgpass|sync_token)$"
+        r"|(^|[/\\])(client_secret[^/\\]*|credentials?(\.[^/\\]+)?|secrets?(\.[^/\\]+)?"
+        r"|service[-_]account[^/\\]*\.json)$"
+        r"|\.(pem|key|p12|pfx|keystore|jks)$",
+        re.IGNORECASE,
+    )
+    # 🛡️ 機密キーワードの検索（grep 等で API キー・トークンを探す行為は .env 等の中身を表示し得る）
+    _SEARCH_COMMANDS = frozenset({
+        "grep", "egrep", "fgrep", "rg", "ripgrep", "ag", "ack", "findstr", "select-string", "sls",
+    })
+    _SECRET_KEYWORD_RE: Pattern[str] = re.compile(
+        r"(?<![a-z])(api[_-]?key|secrets?|tokens?|passw(or)?d|credentials?|private[_ -]?key|access[_-]?key"
+        r"|bearer)(?![a-z])",
+        re.IGNORECASE,
+    )
+    # 🛡️ ホーム・ルートそのものを対象にした横断検索（ホーム配下の機密を一括走査し得る）
+    _HOME_ROOT_RE: Pattern[str] = re.compile(
+        r"^(~[/\\]?|/|/root/?|/home(/[^/]+)?/?|/Users(/[^/]+)?/?|[a-z]:[/\\]?"
+        r"|[a-z]:[/\\]users([/\\][^/\\]+)?[/\\]?)$",
+        re.IGNORECASE,
+    )
+    _TREE_WALK_COMMANDS = frozenset({"find", "tree"})
+
+    # 🛡️ pytest のプラグイン読込・設定差し替え系オプション（任意モジュールの読込になるため自動許可しない）
+    #    `-p no:xxx`（プラグイン無効化）は安全側のため対象外。
+    _PYTEST_UNSAFE_LONG_OPTIONS = ("--pyargs", "--override-ini", "--config-file", "--inifile",
+                                   "--rootdir", "--confcutdir")
+    _PYTEST_UNSAFE_SHORT_OPTIONS = ("-p", "-o", "-c")
+
     # 🔴 STRICT (破壊的・危険コマンド) の正規表現パターン
     DEFAULT_STRICT_PATTERNS: List[str] = [
         # 再帰的・強制削除 (rm -rf, rmdir /s, del /s, Remove-Item -Recurse -Force 等)
@@ -212,6 +269,106 @@ class ApprovalPolicyEngine:
                     return f"パイプ経由のインタプリタ実行 ({base}) を検出しました"
         return ""
 
+    @staticmethod
+    def _command_base(token: str) -> str:
+        """パス修飾・拡張子を除いたコマンド名（小文字）を返す（例: /sbin/shutdown.exe → shutdown）。"""
+        base = token.replace("\\", "/").rsplit("/", 1)[-1].lower()
+        return base[:-4] if base.endswith(".exe") else base
+
+    def _split_simple_commands(self, tokens: List[str]) -> List[List[str]]:
+        """演算子トークン（`|` `&&` `;` 等）で区切って単純コマンドのトークン列に分割する。"""
+        commands: List[List[str]] = [[]]
+        for token in tokens:
+            if token and all(ch in self._PUNCT_CHARS for ch in token):
+                commands.append([])
+            else:
+                commands[-1].append(token)
+        return [c for c in commands if c]
+
+    def _detect_power_command(self, tokens: List[str], depth: int = 0) -> str:
+        """シャットダウン・再起動などの電源操作をコマンド位置で検出する。
+
+        `grep -r shutdown .` のように検索語として現れる場合は誤検知しない。
+        `cmd /c shutdown /s`・`timeout 5 reboot`・`bash -c "poweroff"` 等のラッパー経由も検出する。
+        """
+        for words in self._split_simple_commands(tokens):
+            names = [self._command_base(w) for w in words]
+            # 通常はコマンド語（先頭）のみ判定。ラッパー（cmd /c・timeout・env 等）経由なら後続語も判定する
+            wrapped = names[0] in self._COMMAND_WRAPPERS or names[0] in self._INTERPRETER_TOKENS
+            positions = range(len(names)) if wrapped else range(1)
+            for i in positions:
+                name = names[i]
+                nxt = names[i + 1] if i + 1 < len(names) else ""
+                if name in self._POWER_COMMANDS:
+                    return f"電源操作 ({name}) を検出しました"
+                if name == "systemctl" and nxt in self._SYSTEMCTL_POWER_VERBS:
+                    return f"電源操作 (systemctl {nxt}) を検出しました"
+                if name in ("init", "telinit") and nxt in ("0", "6"):
+                    return f"電源操作 ({name} {nxt}) を検出しました"
+            # `bash -c "shutdown now"` / `cmd /c "shutdown /s"` の文字列引数を再解析
+            if depth < 2:
+                for prev, word in zip(words, words[1:], strict=False):
+                    if prev.lower() in ("-c", "-command", "/c", "/k") and " " in word.strip():
+                        inner = self._tokenize(word)
+                        if inner:
+                            reason = self._detect_power_command(inner, depth + 1)
+                            if reason:
+                                return reason
+        return ""
+
+    @staticmethod
+    def _path_args(tokens: List[str], raw_command: str) -> List[str]:
+        """パス判定用の引数列を返す。
+
+        shlex (posix) はバックスラッシュをエスケープとして消費するため、
+        `C:\\Users\\x\\.ssh\\id_rsa` のような Windows パスは空白区切りの生の語でも判定する。
+        """
+        raw_words = [w.strip("'\"") for w in raw_command.split()]
+        return tokens[1:] + raw_words[1:]
+
+    def _detect_private_key_access(self, tokens: List[str], raw_command: str = "") -> str:
+        """秘密鍵・パスワードハッシュ（~/.ssh/id_rsa・/etc/shadow 等）を参照する操作を検出する（STRICT）。"""
+        for token in self._path_args(tokens, raw_command):
+            if self._PRIVATE_KEY_RE.search(token.strip().rstrip("/\\")):
+                return f"秘密鍵・認証情報ファイルへのアクセスを検出しました: {token}"
+        return ""
+
+    def _detect_sensitive_read(self, tokens: List[str], raw_command: str = "") -> str:
+        """自動許可してはならない機密読み取り・プラグイン読込を検出する（PROMPT に倒す）。
+
+        - .env / ~/.ssh / クラウド認証情報 / 証明書鍵ファイルの参照
+        - grep 等での API キー・トークン・パスワード等の機密キーワード検索
+        - ホーム・ルートそのものを対象にした横断検索（grep -r / find / tree）
+        - pytest のプラグイン読込・設定差し替えオプション（-p / --pyargs / -o / -c 等）
+        """
+        if not tokens:
+            return ""
+        first = self._command_base(tokens[0])
+        args = tokens[1:]
+        for token in self._path_args(tokens, raw_command):
+            if self._SECRET_FILE_RE.search(token.strip()):
+                return f"機密情報を含む可能性のあるファイルへのアクセスのため確認が必要です: {token}"
+        if first in self._SEARCH_COMMANDS:
+            for token in args:
+                if self._SECRET_KEYWORD_RE.search(token):
+                    return f"機密キーワード ({token}) の検索のため確認が必要です"
+        if first in self._SEARCH_COMMANDS or first in self._TREE_WALK_COMMANDS:
+            for token in args:
+                if self._HOME_ROOT_RE.match(token.strip()):
+                    return f"ホーム/ルート全体 ({token}) の横断検索のため確認が必要です"
+        if first in ("pytest", "py.test"):
+            for i, token in enumerate(args):
+                lowered = token.lower()
+                if any(lowered == opt or lowered.startswith(opt + "=") for opt in self._PYTEST_UNSAFE_LONG_OPTIONS):
+                    return f"pytest の設定差し替え・任意モジュール読込オプション ({token}) のため確認が必要です"
+                for opt in self._PYTEST_UNSAFE_SHORT_OPTIONS:
+                    if token == opt or (token.startswith(opt) and len(token) > len(opt) and not token.startswith("--")):
+                        value = token[len(opt):] if token != opt else (args[i + 1] if i + 1 < len(args) else "")
+                        if opt == "-p" and value.lower().startswith("no:"):
+                            continue  # プラグイン無効化は安全側
+                        return f"pytest のプラグイン読込・設定差し替えオプション ({token}) のため確認が必要です"
+        return ""
+
     def _detect_composite(self, command: str) -> str:
         """シェル構造を字句解析し、複合コマンド・リダイレクト・展開を検出する (P0-2)。
 
@@ -278,7 +435,11 @@ class ApprovalPolicyEngine:
         #     シェルが実際にコマンド語として解釈するトークン列で危険操作を判定する。
         tokens = self._tokenize(clean_cmd)
         if tokens is not None:
-            structural_strict_reason = self._detect_structural_strict(tokens)
+            structural_strict_reason = (
+                self._detect_structural_strict(tokens)
+                or self._detect_power_command(tokens)
+                or self._detect_private_key_access(tokens, clean_cmd)
+            )
             if structural_strict_reason:
                 return PolicyDecision(
                     risk_level=RiskLevel.STRICT,
@@ -295,6 +456,15 @@ class ApprovalPolicyEngine:
                 risk_level=RiskLevel.PROMPT,
                 reason=composite_reason,
                 matched_rule="composite_command",
+            )
+
+        # 2.5 🟡 機密読み取り・プラグイン読込は、閲覧/テスト系の見た目でも自動許可しない
+        sensitive_reason = self._detect_sensitive_read(tokens or [], clean_cmd)
+        if sensitive_reason:
+            return PolicyDecision(
+                risk_level=RiskLevel.PROMPT,
+                reason=sensitive_reason,
+                matched_rule="sensitive_read",
             )
 
         for pattern in self._auto_allow_regexes:
