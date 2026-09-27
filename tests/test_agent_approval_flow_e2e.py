@@ -95,8 +95,8 @@ class TestAgentApprovalFlowE2E(unittest.TestCase):
         self.assertEqual(payload.get("risk_level"), "auto_allow")
         self.assertIn("Auto-allowed", payload.get("message", ""))
 
-        # 監査ログ検証 (フラッシュ待機)
-        time.sleep(0.1)
+        # 監査ログ検証 (フラッシュ待機 - 非同期キューの処理完了を確実化)
+        self.audit_logger._queue.join()
         logs = get_audit_logs(db_path=self.db_path)
         self.assertEqual(len(logs), 1)
         self.assertEqual(logs[0].command, "git status")
