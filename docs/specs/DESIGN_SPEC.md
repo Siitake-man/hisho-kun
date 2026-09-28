@@ -1,7 +1,7 @@
 # ネオ秘書くん システム設計書 (DESIGN_SPEC.md)
 
-- **バージョン**: 1.5.8-dev (🔌 plugin v1.3 双方向化： OpenCode 権限要求のスマホ決定注入 (§23.4 更新・ID 63 完達) ＆ 通知スパム是正 (フック deny限定・channel write・読み取りゼロ) ＆ cp932 Fail-Open 恒久修理 ＆ 案αガード v1.1.15)
-- **最終更新日時**: 2026-09-26 16:55 (🤖 OpenCode: §23.4 更新（plugin v1.3 双方向化・実機 opencode-cli 2.0.18 で once/always 注入成功 4件・`ctx.permission.reply` 実測）／Jules PR #10 マージ（ID 64 一部・ID 62 ドキュメント整理）／tool_guard_hook 通知絞り込み＋cp932 Fail-Open 修理／案αガード v1.1.15。詳細: `docs/handover/20260926_opencode_plugin_v13_bidirectional_sprint.md`)
+- **アプリバージョン**: 1.1.16 (🔒 SSOT: `version.py`・**版数規約 §6.0.1 参照**) ／ **文書進捗**: Rev 45 (仕様書更新回数連番・旧「1.5.8-dev」表記から移行〔ID 75 案A〕・2026-09-28 wrap-up)
+- **最終更新日時**: 2026-09-27 18:30 (🤖 OpenCode: **版数体系統一・案A 実施 (ID 75)** — 文書ヘッダを「アプリバージョン (= SSOT) ＋ 文書進捗 (Rev)」の2軸表記に正規化・§6.1 版数規約を新設。Phase 1: §6 Approval Policy へ v1.1.16 の締め付け反映。前回: 2026-09-26 16:55 §23.4 plugin v1.3 双方向化)
 - **アーキテクチャ方針**: 完全ローカル完結型 非ブロッキング並行システム (Tkinter Desktop Overlay × Mobile PWA × LangGraph Agent × Zero-Trust Local Bridge ＆ Cross-Platform Headless CI/CD)
 
 
@@ -258,6 +258,26 @@ MiniCPM-Petの秀逸な着眼点をネオ秘書くんのクリーンアーキテ
           ③引用符が語全体を覆う純粋演算子（`echo ">"`）は保守的に Prompt（混在語 `echo "a;b"` は Auto-Allow を維持）。
         - 構文解析失敗（閉じない引用符等）は **Fail-Closed で Prompt**（warning ログで可視化）。
         - 検証: `tests/test_approval_policy.py`（既存回帰）＋ `tests/test_p0_2_approval_policy_structural.py`（19テスト＋40 subtests）。
+      - **🛡️ AUTO_ALLOW の締め付け ／ 機密読取・電源操作・プラグイン読込の階層化 (v1.1.16 / 2026-09-27)**:
+        `^cat` / `^grep` / `^pytest` の前方一致だけでは機密露出を許すため、構造判定後に**第2層の機密判定**を追加（`approval_policy.py`）:
+        - **機密ファイル** (`_SECRET_FILE_RE`): `.env` 本体・`~/.ssh|aws|kube|docker`・`credentials*`・`*.pem|*.key`・`.sync_token` 等の閲覧は 🟡 **Prompt**。
+          ただし `.env.example / .sample / .template / .dist` 等テンプレートは 🟢 Auto-Allow 維持。
+        - **秘密鍵そのもの** (`_PRIVATE_KEY_RE`): `id_rsa/dsa/ecdsa/ed25519(_sk)?`・`.ppk/.kdbx`・`~/.gnupg`・`/etc/shadow` は 🔴 **Strict**。
+        - **機密キーワード検索**: `grep|rg|findstr` 等で `API_KEY/password/token/credentials/Bearer` 等を探す行為は 🟡 Prompt（中身を表示し得るため）。
+        - **ホーム/ルート横断検索**: `grep -r x ~/`・`find / ...` 等の全域走査は 🟡 Prompt。
+        - **pytest プラグイン読込・設定差し替え**: `-p`（`no:` 無効化は例外で安全側許可）・`--pyargs`・`-o`・`-c`・`--override-ini`・`--rootdir` 等は 🟡 Prompt（任意モジュール実行になり得るため）。
+        - **電源操作** (`shutdown/reboot/halt/poweroff/systemctl poweroff/init 0|6/Stop-Computer` 等): 🔴 **Strict**。
+          判定は**コマンド位置トークンのみ**で行い、検索語（`grep -r shutdown .`）・メッセージ語（`echo reboot`）を誤検知しない。
+          `cmd /c`・`bash -c`・`timeout N` 等ラッパー経由と二重引用符内の再帰解析も封鎖。
+        - **Windows パス対策**: shlex (posix) がバックスラッシュをエスケープ消費するため、生文字列（raw分割語）を併用して判定。
+        - 検証: `tests/test_approval_policy_sensitive.py`（11テスト＋92 subtests）＋ 既存2スイート無変更で全緑。
+        - 出典: Jules 夜間監査（外部検証: Linux 実機起動・PWA ヘッドレス操作・ポリシー実測）／ PR #12 (`ff1cf84`)。
+
+      - **🔢 版数規約・SSOT の恒久統一 (§6.0.1 / ID 75・案A / 2026-09-27 ボス決定)**:
+        - **アプリ版数の SSOT は `version.py` 一律**（`__version__`・2026-09-20 v1.1.0 以降の連続バンプ系統）。`update_checker.py`・MCP サーバ・web_pet 配信（`web_pet/version.js` 動的配信・§13.7-2）はすべてこの値を参照する。
+        - **各仕様文書は「2軸表記」に正規化**: ①`アプリバージョン` = SSOT 値（v1.1.x）②`文書進捗: Rev N` = その文書固有の更新回数連番。
+        - **禁止（旧表記）**: 文書ヘッダに「1.5.8-dev」「1.5.5」等の**文書系進捗連番を「バージョン」ラベルで表記すること**。文書更新履歴は Rev 連番（または「最終更新日時」タイムスタンプ）で管理する。
+        - **背景（乖離の構造的根源）**: 2026-09-22 `8a4ad5c`（インフラ成果 v1.5.1）を契機に「文書の更新進捗連番」が DESIGN_SPEC/ロードマップ の「バージョン」欄へ流走し、アプリ SSOT (v1.1.x) と別軸の数字が衝突した。案A により SSoT 単一参照へ正規化。
     - **Audit Log（承認監査ログ基盤 - P0 / v1.1.0)**:
       - すべての承認要請・判定結果・タイムスタンプ・実行エージェント名を SQLite `approval_audit_logs` に記録し、改ざん防止・後日監査を可能にする。
     - **承認失敗モード堅牢化 (v1.1.0)**: エージェント側のタイムアウト時のスマホUI追従、Wi-Fi瞬断時の冪等リトライ、PWAスリープ復帰時の再同期。
