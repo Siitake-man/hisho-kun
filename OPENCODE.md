@@ -1,6 +1,6 @@
 # OpenCode 自律オーケストレーション規約 (Jev Multi-Agent Protocol)
 
-**最終更新**: 2026-09-21
+**最終更新**: 2026-09-28 19:55 (🤖 OpenCode: **§2.4b Code Mode 一括実行規約を新設**（OmO v5 codemode 採用・Promise.all 一括化と書き込み除外の原則）＋ §2.6 コスト計器の参照追記)
 **対象**: OpenCode Desktop / CLI (v2.x)
 **正本規約**: `AGENTS.md`（AntiGravity 側と共通のプロジェクト規約）／ `~/.gemini/GEMINI.md`（ボスの開発哲学）
 
@@ -87,6 +87,16 @@ Antigravity で運用している「System One (Jev) × System Two (専門エー
 マイクロタスク完了時は `notify_task_completed(title=..., agent_name="OpenCode")` を呼び、PCペットとスマホDesk Petを歓喜させる。
 ユーザー入力待ちが発生したら `notify_user_input_needed` を呼ぶ。
 
+### 2.4b Code Mode 一括実行規約（2026-09-28 制定 / OmO v5 codemode 採用）
+
+OpenCode v2.x ネイティブの **Code Mode（`execute` ツール）** は、LLM 1ターン＝1ツール呼び出しの逐次往復を **コード合成による一括実行** に置換する機能である。OmO v5 の「10x faster tool calls」の実態はこの指示往復の削減であり、本環境では標準搭載済み。**以下を規約とする**:
+
+1. **既定の原則**: `execute`（Code Mode）の**1 回の呼び出しで完結する複合処理は、個別ツールの逐次呼び出しに分解して書かない**。独立した複数ツール呼び出しは `Promise.all([...])` で並列化する（例: Jevルーティング＋index最新化＋DB照合の同時実行）。
+2. **対象の見分け**: 「入力がお互いに依存しない読み取り系呼び出し」（MCP参照・grep・graph検索・モデル一覧取得等）は一括化する。**書き込み・承認・危険操作（Hard ACL ask/deny 対象）は一括化に含めない**（Tool Guard／人間承認の独立性を死守）。
+3. **直列のまま良い場合**: 前の結果が次の入力になる真の依存チェーン（例: 検索 → そのIDで取得）は逐次でよい。**偽の依存を作らない**（graph-engineering の Fake Edge 削除と同型の判断）。
+4. **可読性・失敗分離**: `execute` 内では `await` を忘れず、部分失敗を握りつぶさない（失敗箇所を特定できる返却構造にする）。
+5. **効果の測定**: ターン数・推定コストの削減が感じられるかを wrap-up 時のコスト計器（§2.6）で確認する。
+
 ### 2.5 モデル選択プロトコル（コスト最適化 / 2026-09-21 制定）
 
 サブエージェントを起動する前に `jev_select_models` でモデルを選定し、**`subagent` ツールの `model` 引数**へ渡す。
@@ -113,6 +123,23 @@ Antigravity で運用している「System One (Jev) × System Two (専門エー
 | 検証（`agent-tester`） | `glm-5.3-flash` / `qwen3.8-flash` |
 | 調査・整形 | `deepseek-v4.1-flash` / `glm-5.3-flash` |
 | 重大監査（`quality-reviewer` / `devils-advocate`） | 🟡 `glm-5.3` / `grok-4.6` / `kimi-k3`（**承認必須**） |
+
+### 2.6 コスト計器（実測ベース / 2026-09-28 制定・OmO v5 軽量採用）
+
+Jev のコスト帯運用は「**モデル単価の静的帯**」であり、**セッション単位の実測消費**を計っていなかった。
+OpenCode plugin `hisho-session-meter`（`~/.config/opencode/plugins/`・v0.1）が `event.subscribe` の
+`message.updated`（AssistantMessage.finish）から **`cost`（USD）・`tokens`（input/output/cache.read）** を
+集計し、以下へ出力する:
+
+| 出力先 | 内容 |
+|:---|:---|
+| `%LOCALAPPDATA%\NeoHisho\session_meter_log.jsonl`（`NEO_HISHO_DATA_DIR` 上書き可） | 1メッセージ finish ごとに1行: `{ts, session, model, cost_total_usd, cache_hit_pct, ctx_tokens, ctx_limit, ctx_pct}`（60秒 throttle） |
+| Desk Pet 通知（`POST /api/agent/notify`） | 「💰 実測 $x.xx ／ キャッシュヒット xx% ／ コンテキスト 約xxK tokens ／ 上限比 xx%」を**セッション毎に初回1回**＋30分クールダウン（スパム防止） |
+
+**運用規約**:
+1. **wrap-up 時は session_meter_log.jsonl を読み、本セッションの実測コスト・CH率を学習メモと手帳記録に添記する**（session-wrap-up ステップ5.5-3「📊 コスト計器の併記」参照）。
+2. 計器は**Fail-Safe**: token 未解決・API不在時は静かに無効化し、OpenCode の動作を一切妨げない。
+3. 実測値が Jev コスト帯の**前提（モデル単価×推論量）と乖離した場合**は `model_policy.json` の帯しきい値の見直しを提案する。
 
 > **⚠️ モデル一覧を陳腐化させないこと**: GO契約のモデルは頻繁に入れ替わる（2026-09-21 実測で、既存キャッシュ37件のうち**10件が既に廃止済み**だった）。必ず `tools.opencode.models` で**ライブ取得**し、`model_catalog.py` のスナップショットは**保険**としてのみ扱う。
 

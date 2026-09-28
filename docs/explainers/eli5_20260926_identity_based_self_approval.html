@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ELI5: なぜスマホの承認は拒否されたのか — IPと同一性 (2026-09-26)</title>
+<style>
+  :root { --bg:#1a120b; --panel:#2a2018; --amber:#ffb800; --text:#f0e6d8; --red:#e14b4b; --green:#3cb371; }
+  body { background:var(--bg); color:var(--text); font-family:"Meiryo",sans-serif; margin:0; padding:16px; }
+  h1 { color:var(--amber); font-size:20px; } h2 { color:var(--amber); font-size:16px; margin-top:28px; }
+  .stage { background:var(--panel); border:2px solid var(--amber); border-radius:12px; padding:12px; }
+  .lane { display:flex; gap:8px; margin:10px 0; min-height:64px; align-items:center; }
+  .node { border-radius:8px; padding:8px 10px; font-size:12px; flex:1; text-align:center; border:2px solid #555; transition:all .4s; }
+  .pc { background:#3a2f22; } .serve { background:#243a4a; } .phone { background:#123a2a; }
+  .hit { border-color:var(--red); box-shadow:0 0 12px var(--red); }
+  .okk { border-color:var(--green); box-shadow:0 0 12px var(--green); }
+  .arrow { text-align:center; font-size:18px; color:var(--amber); }
+  .controls { display:flex; gap:8px; flex-wrap:wrap; margin:10px 0; }
+  button { background:var(--amber); color:#1a120b; border:0; border-radius:8px; padding:8px 14px; font-weight:bold; cursor:pointer; }
+  button.on { outline:3px solid #fff; }
+  .verdict { padding:10px; border-radius:8px; font-weight:bold; margin-top:8px; }
+  .v-deny { background:rgba(225,75,75,.2); border:2px solid var(--red); }
+  .v-pass { background:rgba(60,183,113,.2); border:2px solid var(--green); }
+  details { background:#231b12; border:1px solid #4a3a28; border-radius:8px; margin:6px 0; padding:8px 12px; }
+  summary { color:var(--amber); font-weight:bold; cursor:pointer; }
+  code { background:#000; padding:1px 5px; border-radius:4px; font-size:12px; color:#ffd97a; }
+</style>
+</head>
+<body>
+<h1>📱 なぜスマホの承認は「自己承認禁止」として拒否されたのか？</h1>
+<p>テーマ: <b>同一性判定の材料に IP を使ってはいけない</b>（ID 52・2026-09-26）</p>
+
+<div class="stage">
+  <h2>🎬 動くシミュレータ（3つのモードを切り替えて観察）</h2>
+  <div class="controls">
+    <button id="b0" onclick="setMode(0)" class="on">① 昔（LAN直結）</button>
+    <button id="b1" onclick="setMode(1)">② 壊れた（Serve経由）</button>
+    <button id="b2" onclick="setMode(2)">③ 修理後（identity判定）</button>
+  </div>
+  <div class="lane"><div class="node pc" id="n-pc">🖥 PC<br><small id="d-pc">要求元IP: 127.0.0.1</small></div>
+    <div class="arrow">→</div>
+    <div class="node serve" id="n-srv">🛰 Tailscale Serve<br><small>PC内プロキシ</small></div>
+    <div class="arrow">→</div>
+    <div class="node phone" id="n-phn">📱 スマホ（あなた）<br><small id="d-phn">応答元IP: 192.168.1.4</small></div>
+  </div>
+  <div class="verdict v-pass" id="verdict">LAN直結: 応答元 192.168.1.4 ≠ 要求元 127.0.0.1 → <b>承認が成立</b> ✅</div>
+</div>
+
+<h2>🍼 初級エンジニア向けの物理構造（なぜ壊れたか）</h2>
+<p><b>例え話</b>: 会社の入り口で「本人確認 = 席番号の一致」でやっていた。同じフロア（LAN）にいるうちは席番号が別々だから成立する。ところが<b>リモート gateway（Tailscale Serve）を通ると、全員が「代表受付（127.0.0.1）」から入ってくる</b>ため、上司の要求も部下の応答も全部同じ席番号になる → 「自分で自分を承認した」と誤判定。正解は席番号ではなく<b>社員証（トークン→端末UUID）</b>で比べること。</p>
+<ul>
+  <li><b>Why</b>: Serve は PC 上で動くプロキシ。サーバーから見える通信の「(tcpの)宛先の直前の人」は常に PC 自身。</li>
+  <li><b>What</b>: 誰が押したかはトークンが知っている。トークン → 台帳（devices 表）の端末 UUID。</li>
+</ul>
+
+<h2>🛠 修理後の3層ルール</h2>
+<ol>
+  <li>PC ローカル語彙同士（<code>agent</code> × <code>pc-loopback</code>）は無条件拒否（PC内 RCE チェーンを遮断）</li>
+  <li>identity 完全一致（<code>device:X</code> × <code>device:X</code>）は拒否＝同じ端末の自己承認</li>
+  <li>identity が不明な旧クライアントのみ IP 一致チェックにフォールバック</li>
+</ol>
+
+<h2>📖 登場用語の解体辞典</h2>
+<details><summary>ループバック (127.0.0.1)</summary>PC 自身を指す特別なアドレス。サーバーにとって「直前に触ったのが誰か」が PC 自身になる状態。</details>
+<details><summary>Tailscale Serve</summary>PC 内サービスを VPN 越しに https 公開するプロキシ。全外部接続を PC のループバックに変換して転送する。</details>
+<details><summary>identity（認証主体）</summary>今回導入した語彙: <code>agent</code>（エージェントのマスタートークン）/<code>pc-loopback</code>（PC内ブラウザ専用トークン）/<code>device:UUID</code>（ペアリング済み端末の個別トークン）。</details>
+<details><summary>自己承認 (RCE チェーン)</summary>「要求を作った主体が自分で承認する」悪用。人間の判断を經由しないため全面禁止する必要がある。</details>
+<details><summary>ゾンビバナー</summary>拒否された要求が pending のまま残り、ポーリング（2秒）がバナーを再描画し続ける現象。タイムアウト（300秒）で自然消滅。</details>
+<details><summary>TDZ (Temporal Dead Zone)</summary>JavaScript の <code>let/const</code> は宣言行が実行されるまで触れない。ページ初期化直後に走る関数から触ると ReferenceError。宣言は先頭へ。</details>
+
+<script>
+function setMode(m) {
+  [0,1,2].forEach(i => document.getElementById('b'+i).classList.toggle('on', i===m));
+  const pc = document.getElementById('n-pc'), ph = document.getElementById('n-phn'), v = document.getElementById('verdict');
+  document.getElementById('d-pc').textContent = '要求元IP: 127.0.0.1';
+  if (m === 0) {
+    ph.classList.remove('hit'); ph.classList.add('okk');
+    document.getElementById('d-phn').textContent = '応答元IP: 192.168.1.4';
+    v.className = 'verdict v-pass';
+    v.innerHTML = 'LAN直結: 応答元 192.168.1.4 ≠ 要求元 127.0.0.1 → <b>承認が成立</b> ✅<br><small>ただし自宅にいるときしか動かない（罠）</small>';
+  } else if (m === 1) {
+    ph.classList.add('hit'); ph.classList.remove('okk');
+    document.getElementById('d-phn').textContent = '応答元IP: 127.0.0.1（正規化！）';
+    v.className = 'verdict v-deny';
+    v.innerHTML = 'Serve 経由: 127.0.0.1 == 127.0.0.1 → <b>「自己承認は禁止」と誤判定</b> ❌<br><small>赤バナーは pending 残存でゾンビ化（2秒ごと再描画）</small>';
+  } else {
+    ph.classList.add('okk'); ph.classList.remove('hit');
+    document.getElementById('d-phn').textContent = 'identity: device:d318aa25…';
+    v.className = 'verdict v-pass';
+    v.innerHTML = '修理後: identity 比較 <code>device:… ≠ agent</code> → <b>承認が成立</b> ✅<br><small>PC内同士（agent × pc-loopback）は無条件拒否で RCE チェーンも封鎖</small>';
+  }
+}
+</script>
+</body>
+</html>

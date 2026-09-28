@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ELI5 — 通知が消えた3本の配線（データ境界とトークン解決） | ネオ秘書くん</title>
+<style>
+  :root{--bg:#1b1512;--panel:#251d18;--ink:#f3e9dd;--muted:#b8a695;--accent:#e8a87c;--ok:#7fd18a;--ng:#e26d6d;--warn:#e8c46c;--line:#4a3a2f}
+  *{box-sizing:border-box}
+  body{margin:0;background:radial-gradient(1200px 600px at 50% -10%,#2d221b 0%,var(--bg) 60%);color:var(--ink);font-family:"Yu Gothic UI","Hiragino Kaku Gothic ProN",system-ui,sans-serif;line-height:1.75}
+  header{padding:34px 20px 12px;text-align:center}
+  header h1{margin:0;font-size:24px;letter-spacing:.04em}
+  header p{color:var(--muted);margin:8px auto 0;max-width:760px;font-size:13.5px}
+  .wrap{max-width:1000px;margin:0 auto;padding:0 16px 80px}
+  .card{background:linear-gradient(180deg,#2a211a,#221b16);border:1px solid var(--line);border-radius:14px;padding:18px;margin:18px 0;box-shadow:0 10px 30px rgba(0,0,0,.35)}
+  .card h2{margin:0 0 10px;font-size:16.5px;color:var(--accent);letter-spacing:.06em}
+  .controls{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:10px 0 14px}
+  .mode{display:flex;gap:6px;background:#1b1410;border:1px solid var(--line);border-radius:10px;padding:4px}
+  .mode button{background:transparent;border:0;color:var(--muted);padding:7px 12px;border-radius:8px;cursor:pointer;font-size:12.5px}
+  .mode button.active{background:#3a2c22;color:var(--ink);box-shadow:inset 0 0 0 1px var(--line)}
+  .ctl{background:#3a2c22;border:1px solid var(--line);color:var(--ink);border-radius:9px;padding:8px 14px;cursor:pointer;font-size:12.5px}
+  .ctl:hover{filter:brightness(1.15)}
+  .status{font-size:12.5px;color:var(--muted);margin-left:auto}
+  .status b{color:var(--ink)}
+  svg{width:100%;height:auto;display:block}
+  .lbl{font-size:11.5px;fill:#f3e9dd}
+  .sub{font-size:10px;fill:#b8a695}
+  .flow{stroke:#6b5544;stroke-width:2;fill:none}
+  .flow.hot{stroke:var(--accent);stroke-dasharray:6 6;animation:dash 1s linear infinite}
+  .flow.bad{stroke:var(--ng)}
+  .flow.good{stroke:var(--ok)}
+  @keyframes dash{to{stroke-dashoffset:-24}}
+  .node rect{fill:#2c231c;stroke:#5a4638;stroke-width:1.4;rx:10}
+  .node.hl rect{stroke:var(--accent);filter:drop-shadow(0 0 6px rgba(232,168,124,.35))}
+  .pkt{fill:var(--accent)}
+  .pkt.bad{fill:var(--ng)}.pkt.good{fill:var(--ok)}
+  .explain{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  @media(max-width:760px){.explain{grid-template-columns:1fr}}
+  .ex{background:#1f1813;border:1px solid var(--line);border-radius:10px;padding:14px;font-size:13px}
+  .ex h3{margin:0 0 6px;font-size:13.5px;color:var(--accent)}
+  .term{border-top:1px solid var(--line);padding:10px 2px;cursor:pointer}
+  .term:first-child{border-top:0}
+  .term summary{font-size:13px;color:var(--ink);font-weight:600;list-style:none;display:flex;gap:8px;align-items:center}
+  .term summary::before{content:"▸";color:var(--accent)}
+  .term[open] summary::before{content:"▾"}
+  .term div{color:var(--muted);font-size:12.5px;padding:6px 0 2px 18px}
+  code{background:#17110d;border:1px solid var(--line);border-radius:5px;padding:1px 6px;font-size:12px}
+  .legend{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--muted);margin-top:8px}
+  .dot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:5px;vertical-align:1px}
+</style>
+</head>
+<body>
+<header>
+  <h1>🔌 通知が消えた3本の配線 — データ境界とトークン解決</h1>
+  <p>2026-09-24 の障害（承認待ち通知が無言で全滅）を、<b>動くSVGシミュレータ</b>で解剖します。ボタンを押すと、トークン（合鍵）がどこで弾かれるかを目で追えます。</p>
+</header>
+<div class="wrap">
+
+  <div class="card">
+    <h2>① 動くSVGシミュレータ</h2>
+    <div class="controls">
+      <div class="mode">
+        <button id="m1" class="active" onclick="setMode(1)">移行前（09-23 18:01 まで）</button>
+        <button id="m2" onclick="setMode(2)">移行後・修理前（真っ暗）</button>
+        <button id="m3" onclick="setMode(3)">修理後（現在）</button>
+      </div>
+      <button class="ctl" onclick="play()">▶ 再生</button>
+      <button class="ctl" onclick="step()">⏭ 1ステップ</button>
+      <button class="ctl" onclick="reset()">↺ リセット</button>
+      <span class="status">状態: <b id="st">IDLE</b></span>
+    </div>
+
+    <svg viewBox="0 0 980 380" role="img" aria-label="トークン解決と通知配送のシミュレータ">
+      <defs>
+        <marker id="arw" markerWidth="9" markerHeight="9" refX="7" refY="3.2" orient="auto">
+          <path d="M0,0 L7,3.2 L0,6.4 z" fill="#6b5544"/>
+        </marker>
+      </defs>
+
+      <!-- 消費者3体 -->
+      <g class="node" id="c1"><rect x="18" y="40" width="196" height="62"/><text class="lbl" x="32" y="66">🧩 OpenCode プラグイン</text><text class="sub" x="32" y="86">hisho-approval-notify</text></g>
+      <g class="node" id="c2"><rect x="18" y="132" width="196" height="62"/><rect x="18" y="132" width="196" height="62" fill="none"/><text class="lbl" x="32" y="158">🪝 Antigravity フック</text><text class="sub" x="32" y="178">tool_guard_hook.py</text></g>
+      <g class="node" id="c3"><rect x="18" y="224" width="196" height="62"/><text class="lbl" x="32" y="250">🧠 Jev MCP</text><text class="sub" x="32" y="270">jev_mcp_server.py</text></g>
+
+      <!-- トークン解決 -->
+      <g class="node" id="res"><rect x="300" y="60" width="230" height="206"/>
+        <text class="lbl" x="316" y="86">🔑 トークン解決（合鍵探し）</text>
+        <text class="sub" x="316" y="112">1. NEO_HISHO_DATA_DIR</text>
+        <text class="sub" x="316" y="134">2. %LOCALAPPDATA%\NeoHisho</text>
+        <text class="sub" x="316" y="156">3. 旧配置（リポジトリ直下）</text>
+        <text class="sub" id="resNote" x="316" y="196">— 未実行 —</text>
+        <text class="sub" x="316" y="222">見つからなければ空文字で続行</text>
+        <text class="sub" x="316" y="244">（Fail-Safe：静かに失敗する）</text>
+      </g>
+
+      <!-- ハブ -->
+      <g class="node" id="hub"><rect x="622" y="120" width="150" height="86"/>
+        <text class="lbl" x="640" y="152">🔒 秘書くんハブ</text>
+        <text class="sub" x="640" y="172">Bearer 認証 401</text>
+        <text class="sub" x="640" y="190">＝正しい要塞</text>
+      </g>
+
+      <!-- スマホ -->
+      <g class="node" id="ph"><rect x="836" y="120" width="126" height="86"/>
+        <text class="lbl" x="856" y="152">📱 Desk Pet</text>
+        <text class="sub" x="856" y="172">Web Push</text>
+        <text class="sub" id="phState" x="856" y="190">—</text>
+      </g>
+
+      <!-- 配線 -->
+      <path class="flow" id="f1" d="M214,71 C260,71 262,163 300,163" marker-end="url(#arw)"/>
+      <path class="flow" id="f2" d="M214,163 L300,163" marker-end="url(#arw)"/>
+      <path class="flow" id="f3" d="M214,255 C260,255 262,163 300,163" marker-end="url(#arw)"/>
+      <path class="flow" id="f4" d="M530,163 L622,163" marker-end="url(#arw)"/>
+      <path class="flow" id="f5" d="M772,163 L836,163" marker-end="url(#arw)"/>
+
+      <!-- パケット -->
+      <circle class="pkt" id="pkt" cx="214" cy="163" r="8" opacity="0"/>
+
+      <!-- 旧配置の残骸表示 -->
+      <g id="legacy" opacity="0"><rect x="300" y="286" width="230" height="30" rx="8" fill="none" stroke="#e26d6d" stroke-dasharray="4 4"/><text class="sub" x="316" y="306">🗄️ 旧配置 .sync_token → 移設済み（空）</text></g>
+      <text class="sub" id="evt" x="300" y="346">— イベントログ —</text>
+    </svg>
+
+    <div class="legend">
+      <span><span class="dot" style="background:#e8a87c"></span>トークン（合鍵）</span>
+      <span><span class="dot" style="background:#7fd18a"></span>配送成功 → スマホが震える</span>
+      <span><span class="dot" style="background:#e26d6d"></span>ENOENT / 401（無言の失敗）</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>② なぜ起きた？（物理構造の解説）</h2>
+    <div class="explain">
+      <div class="ex">
+        <h3>🏦 例え：金庫の合鍵の「引っ越し」</h3>
+        <p>09-23 のリフォーム（P0-4 データ境界）で、セキュリティ上の理由から<b>金庫ごと</b>を OneDrive（クラウド同期される部屋）から <code>%LOCALAPPDATA%</code>（PC 専用の部屋）へ引っ越しました。合鍵 <code>.sync_token</code> も一緒に移動。</p>
+        <p>ところが、社外にいる<b>3人の従業員</b>（OpenCode プラグイン／Antigravity フック／Jev MCP）は、<b>古い住所の合鍵置き場</b>をノックし続けていました。</p>
+      </div>
+      <div class="ex">
+        <h3>🤫 なぜ「無言」だった？ = Fail-Safe の副作用</h3>
+        <p>通知プラグインは「<b>失敗しても本体の動作を絶対に邪魔しない</b>」設計（Fail-Safe）。そのためエラーはログにだけ書かれ、画面には何も出ません。<b>安全設計が、障害を1日隠しました</b>。</p>
+        <p>ハブ側は逆に <b>Fail-Closed</b>：合鍵が空なら「通しません（401）」。こちらは正しい要塞の仕事です。つまり<b>壊れたのは城ではなく、城へ続く道</b>でした。</p>
+      </div>
+      <div class="ex">
+        <h3>🧭 修理の原理（第一原理）</h3>
+        <p>秘密の<b>置き場所（1箇所）</b>に対して、<b>参照する全員が同じ探索手順</b>を持つこと：<br><code>NEO_HISHO_DATA_DIR → %LOCALAPPDATA%\NeoHisho → 旧配置（互換のみ）</code>。</p>
+        <p>そして「移行したら、その秘密を<b>全消費者リスト</b>と突き合わせて能動テストする」をチェックリスト化（知識ID 19）。</p>
+      </div>
+      <div class="ex">
+        <h3>📏 教訓：宣言ではなく機械的保証</h3>
+        <p>「アプリ側だけ直したから大丈夫」は宣言にすぎません。今日の修理は<b>実機テスト通知を1発撃ち、スマホが震えること</b>まで確認して完了としました。</p>
+        <p>同根のもう1人の被害者（バックアップツールの DB 参照）も ID 43 で修理済みです。</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>③ 用語の解体辞典（クリックで展開）</h2>
+    <details class="term"><summary>データ境界（Data Boundary）</summary><div>秘密情報（DB・鍵・トークン）を「クラウド同期されない場所」にだけ置く設計原則。ネオ秘書くんでは <code>%LOCALAPPDATA%\NeoHisho</code>（env <code>NEO_HISHO_DATA_DIR</code> で上書き可）。OneDrive は便利な反面、ファイルが自動でクラウドへ上がるため、鍵素材には不適です。</div></details>
+    <details class="term"><summary>.sync_token（マスター鍵）</summary><div>PC とスマホをつなぐローカル API の Bearer トークン（64桁hex）。アプリが起動時に生成し、ファイルとして保管します。これが一致しないリクエストはすべて 401 で遮断されます。</div></details>
+    <details class="term"><summary>ENOENT</summary><div>「No such file or directory」＝ファイルが無いエラー。今回、プラグインが旧パスの合鍵置き場を開こうとして発生。行儀よく例外を catch していたため、音もなく消えていました。</div></details>
+    <details class="term"><summary>401 Unauthorized と Fail-Closed</summary><div>認証が通らない要求を「拒否側に倒して」遮断する設計。空トークン・未登録鍵は必ず 401。セキュリティ的には正しく、通知が死ぬ直接原因ではない（原因はトークンを拾えなかったこと）。</div></details>
+    <details class="term"><summary>Fail-Safe（フェイルセーフ）</summary><div>「障害が起きても本体を止めない」設計。プラグインは通知に失敗しても例外を外へ出さず、ログだけ残して続行します。可用性は守れますが、<b>障害を隠す</b>副作用があります（今回は丸1日隠れた）。</div></details>
+    <details class="term"><summary>Web Push / VAPID</summary><div>スマホの Service Worker へサーバーから通知を飛ばす仕組み（VAPID はその署名鍵）。今回「テスト通知が届いた」ことで、<b>通知の土管自体は健全</b>と確定できました（壊れていたのは入口の配線）。</div></details>
+    <details class="term"><summary>グラフエンジニアリング（V1 / C2 ノード）</summary><div>作業を DAG（依存グラフ）で分解する開発手法。<b>V</b>=Verifier（独立検証者・実装者と別人）、<b>C2</b>=C の枝の2番目（Cの成果物を入力に取る後続）、<b>G</b>=Gate（外部待ちの関門）。今日は B/C/D の3並列実装 → V1（全回帰919）→ V2（差分査読が P1×2 を検出）→ M（ドキュメント統合）で完遂しました。</div></details>
+    <details class="term"><summary>キャッシュバスター（?v=1.1.9）</summary><div>JS/CSS の URL 末尾にバージョンを付け、「中身が変わったら別物として読み直させる」仕組み。今回は pet.js を直したのにバージョンを上げ忘れ、既存スマホに修正が届かない恐れがありました（V2 が検出 → v1.1.9 に統一）。</div></details>
+  </div>
+
+  <div class="card" style="text-align:center;color:var(--muted);font-size:12.5px">
+    🧠 ネオ秘書くん セッションラップアップ成果物 (2026-09-25) — 独立検証: V1(919 passed) / V2(CHANGES_REQUESTED→全是正)
+  </div>
+</div>
+
+<script>
+(function(){
+  var mode=1, idx=0, timer=null;
+  var st=document.getElementById('st'), evt=document.getElementById('evt'), pkt=document.getElementById('pkt'),
+      resNote=document.getElementById('resNote'), phState=document.getElementById('phState'), legacy=document.getElementById('legacy');
+  var flows=['f1','f2','f3','f4','f5'].map(function(id){return document.getElementById(id);});
+  function cls(el,c){el.setAttribute('class', 'flow'+(c?(' '+c):''));}
+  function reset(){ idx=0; if(timer){clearInterval(timer);timer=null;} pkt.setAttribute('opacity','0'); flows.forEach(function(f){cls(f,'');});
+    resNote.textContent = mode===1?'候補3（旧配置）から読込 → 64桁 KEY 取得':(mode===2?'候補を順に確認 → 全滅（空文字）':'候補1〜2で解決 → 64桁 KEY 取得');
+    phState.textContent='—'; evt.textContent='— イベントログ —'; setStatus(); }
+  function setStatus(){ st.textContent = mode===1?'移行前（正常）':(mode===2?'移行後・修理前（無言失敗）':'修理後（正常）'); }
+  function hl(id,on){document.getElementById(id).setAttribute('class','node'+(on?' hl':''));}
+  window.setMode=function(m){mode=m;[1,2,3].forEach(function(i){document.getElementById('m'+i).className=(i===m?'active':'');});reset();};
+  function move(x,y,onDone,c){ pkt.setAttribute('cx',x);pkt.setAttribute('cy',y);pkt.setAttribute('opacity','1');pkt.setAttribute('class','pkt'+(c?' '+c:'')); }
+  function steps(){
+    return [
+      // 0: 消費者1が動く
+      function(){ hl('c1',true); move(120,71,0); evt.textContent='🧩 OpenCode プラグイン: 承認待ちを検知 → 通知を送信'; },
+      function(){ hl('c1',false); hl('res',true); move(300,163,0); if(mode===2){cls(flows[0],'bad');}else{cls(flows[0],'hot');} evt.textContent='🔑 トークン解決を実行（'+(mode===1?'旧配置にあり':'順に探索')+'）'; },
+      function(){ if(mode===2){ legacy.setAttribute('opacity','1'); pkt.setAttribute('class','pkt bad'); evt.textContent='❌ ENOENT: 旧配置のファイルは移設済み（空）'; }
+        else { evt.textContent='✅ 64桁のトークンを取得'; }
+        resNote.textContent = mode===2?'全候補ミス → 空文字のまま続行（Fail-Safe）':'64桁 KEY 取得'; },
+      function(){ hl('res',false); hl('hub',true); move(622,163,0, mode===2?'bad':''); cls(flows[3], mode===2?'bad':'hot'); evt.textContent='📡 ハブへ POST /api/agent/ask_input'; },
+      function(){ if(mode===2){ pkt.setAttribute('class','pkt bad'); evt.textContent='🔒 401 Unauthorized（空の合鍵は通さない＝Fail-Closed）'; }
+        else { evt.textContent='🟢 200 OK（認証通過）'; } },
+      function(){ hl('hub',false); hl('ph',true); if(mode===2){ pkt.setAttribute('opacity','0'); cls(flows[4],'bad'); phState.textContent='通知なし…'; evt.textContent='🤫 スマホは鳴らない（ログにだけ記録）'; }
+        else { cls(flows[4],'good'); move(836,163,0,'good'); phState.textContent='📲 震える！'; evt.textContent='🎉 スマホが震えた（修理完了の実測）'; } },
+      function(){ hl('ph',false); }
+    ];
+  }
+  window.step=function(){ var s=steps(); if(idx<s.length){ s[idx](); idx++; } };
+  window.play=function(){ reset(); var s=steps(); timer=setInterval(function(){ if(idx>=s.length){clearInterval(timer);timer=null;return;} s[idx](); idx++; }, 900); };
+  window.reset=reset;
+  reset();
+})();
+</script>
+</body>
+</html>

@@ -22,6 +22,8 @@ docs/*
 !docs/specs/
 !docs/releases/
 !docs/learning-memos/
+!docs/handover/
+!docs/explainers/
 !docs/reports/
 !docs/index.html
 !docs/neo-secretary-showcase.html

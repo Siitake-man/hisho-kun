@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ELI5: 承認待ちに「気づける」仕組み — OpenCode × ネオ秘書くん</title>
+<style>
+  :root{
+    --bg:#0f1216; --panel:#171c22; --line:#2a323c; --fg:#e8e2d6; --dim:#9aa4b0;
+    --cream:#f2e6cf; --brown:#8a6a45; --green:#4caf50; --yellow:#ffd166; --red:#e5534b;
+    --blue:#5aa9e6; --purple:#9c7bd4;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);font-family:"Segoe UI","Hiragino Sans","Yu Gothic UI",sans-serif;line-height:1.7}
+  .wrap{max-width:980px;margin:0 auto;padding:28px 20px 80px}
+  h1{font-size:1.55rem;margin:0 0 6px;color:var(--cream)}
+  h2{font-size:1.15rem;margin:38px 0 12px;padding-left:10px;border-left:4px solid var(--brown);color:var(--cream)}
+  .lead{color:var(--dim);margin:0 0 22px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px 18px;margin:14px 0}
+  .q{background:linear-gradient(90deg,#1d232b,#171c22);border-left:4px solid var(--yellow)}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px}
+  .ctl{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:10px 0 4px}
+  button{background:#232b35;color:var(--fg);border:1px solid var(--line);border-radius:8px;padding:7px 13px;cursor:pointer;font-size:.9rem}
+  button:hover{background:#2c3642}
+  button.on{background:var(--brown);border-color:var(--brown);color:#fff}
+  .log{font-family:Consolas,monospace;font-size:.82rem;background:#0b0e12;border:1px solid var(--line);border-radius:8px;padding:10px;height:132px;overflow:auto;color:#bfe3c0}
+  .log .ask{color:var(--yellow)} .log .no{color:var(--dim)} .log .send{color:var(--blue)} .log .hit{color:var(--green)}
+  svg{width:100%;height:auto;display:block}
+  .node{fill:#1e252d;stroke:var(--line);stroke-width:1.5}
+  .node.hot{stroke:var(--yellow);stroke-width:2.5}
+  .node.done{stroke:var(--green)}
+  .lbl{fill:var(--fg);font-size:12px}
+  .sub{fill:var(--dim);font-size:10px}
+  .flow{stroke:var(--line);stroke-width:2;fill:none}
+  .pkt{fill:var(--yellow)}
+  details{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px 14px;margin:8px 0}
+  summary{cursor:pointer;font-weight:600;color:var(--cream)}
+  details p{margin:8px 0 4px;color:var(--dim)}
+  code{background:#0b0e12;border:1px solid var(--line);border-radius:5px;padding:1px 5px;font-size:.86em;color:#ffd9a0}
+  table{width:100%;border-collapse:collapse;margin:8px 0;font-size:.9rem}
+  th,td{border:1px solid var(--line);padding:7px 9px;text-align:left}
+  th{background:#1d232b;color:var(--cream)}
+  .tag{display:inline-block;background:#232b35;border:1px solid var(--line);border-radius:999px;padding:2px 10px;font-size:.78rem;color:var(--dim);margin-right:6px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>💡 なぜ「承認待ち」に気づけないのか — そして、どう気づけるようにしたか</h1>
+  <p class="lead">2026-09-21 / ネオ秘書くん × OpenCode セッションの核心を、動く図解で解剖します。</p>
+
+  <div class="card q">
+    <b>ボスの問い</b><br>
+    「こうやって権限を求められてることに気づかずに作業が止まってることがあります。<br>
+     こういう入力待ちが発生したときに秘書君に通知が欲しいのです。OpenCodeでもできますか？」
+  </div>
+
+  <h2>① 動くシミュレータ — どこで「気づき」が生まれるか</h2>
+  <p class="lead">エージェントの権限評価（<code>effect</code>）を切り替えて、「通知が鳴る／鳴らない」を確かめてください。</p>
+
+  <div class="card">
+    <div class="ctl">
+      <span class="tag">権限の判定:</span>
+      <button id="b-allow">allow（安全・自動許可）</button>
+      <button id="b-ask" class="on">ask（人間の判断が必要）</button>
+      <button id="b-deny">deny（危険・即遮断）</button>
+    </div>
+    <div class="ctl">
+      <button id="play">▶ 再生</button>
+      <button id="step">⏭ 1ステップ</button>
+      <button id="reset">⟲ リセット</button>
+      <span class="tag" id="state">待機中</span>
+    </div>
+
+    <svg viewBox="0 0 940 250" role="img" aria-label="承認待ち通知の流れ">
+      <defs>
+        <marker id="ar" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto">
+          <path d="M0,0 L9,4.5 L0,9 z" fill="#2a323c"/>
+        </marker>
+      </defs>
+
+      <!-- nodes -->
+      <rect class="node" id="n1" x="14"  y="96" width="150" height="58" rx="10"/>
+      <text class="lbl" x="89"  y="120" text-anchor="middle">🤖 エージェント</text>
+      <text class="sub" x="89"  y="138" text-anchor="middle">コマンド実行を要求</text>
+
+      <rect class="node" id="n2" x="196" y="96" width="150" height="58" rx="10"/>
+      <text class="lbl" x="271" y="120" text-anchor="middle">🛡️ Hard ACL</text>
+      <text class="sub" x="271" y="138" text-anchor="middle">決定論的に判定</text>
+
+      <rect class="node" id="n3" x="378" y="96" width="150" height="58" rx="10"/>
+      <text class="lbl" x="453" y="120" text-anchor="middle">🔌 Plugin</text>
+      <text class="sub" x="453" y="138" text-anchor="middle">evaluate を観測</text>
+
+      <rect class="node" id="n4" x="560" y="96" width="160" height="58" rx="10"/>
+      <text class="lbl" x="640" y="120" text-anchor="middle">🐬 秘書くん</text>
+      <text class="sub" x="640" y="138" text-anchor="middle">ask_input を受信</text>
+
+      <rect class="node" id="n5" x="752" y="34" width="174" height="52" rx="10"/>
+      <text class="lbl" x="839" y="56" text-anchor="middle">📱 スマホDesk Pet</text>
+      <text class="sub" x="839" y="72" text-anchor="middle">プッシュ通知</text>
+
+      <rect class="node" id="n6" x="752" y="164" width="174" height="52" rx="10"/>
+      <text class="lbl" x="839" y="186" text-anchor="middle">🖥️ PCペット</text>
+      <text class="sub" x="839" y="202" text-anchor="middle">alarm_ask で暴れる</text>
+
+      <!-- flows -->
+      <path class="flow" d="M164,125 H196" marker-end="url(#ar)"/>
+      <path class="flow" d="M346,125 H378" marker-end="url(#ar)"/>
+      <path class="flow" d="M528,125 H560" marker-end="url(#ar)"/>
+      <path class="flow" d="M720,112 C736,112 736,60 752,60" marker-end="url(#ar)"/>
+      <path class="flow" d="M720,138 C736,138 736,190 752,190" marker-end="url(#ar)"/>
+
+      <circle class="pkt" id="pkt" cx="14" cy="125" r="8" opacity="0"/>
+      <text class="sub" id="cap" x="470" y="240" text-anchor="middle"></text>
+    </svg>
+
+    <div class="log" id="log"><span class="no">// ここに判定と通知の流れが記録されます</span></div>
+  </div>
+
+  <h2>② 物理構造の解説 — なぜ気づけなかったのか</h2>
+  <div class="grid">
+    <div class="card">
+      <b>🚪 権限ダイアログは「アプリの内側」にある</b>
+      <p>OpenCode が「⚠️ 権限が必要です」を出している間、エージェントは<strong>完全に停止</strong>しています。
+      停止しているのはアプリの内部イベントなので、秘書くんからは見えません。
+      だから<strong>外から見えないなら、内側から知らせてもらう</strong>——これが今回の答えです。</p>
+    </div>
+    <div class="card">
+      <b>🎭 身近な例え: 「受付の呼び出しベル」</b>
+      <p>役所の窓口で、職員が「上司のハンコ待ち」で止まっているとします。
+      待合室のあなたは気づけません。そこで<strong>ハンコ待ちになった瞬間に受付ベルが鳴る</strong>ようにしたのが今回のプラグインです。
+      ベルは「ハンコを押す」代わりにはなりません（＝判定には干渉しない）。<strong>気づかせるだけ</strong>が役割です。</p>
+    </div>
+    <div class="card">
+      <b>🔍 観測点は「評価の瞬間」</b>
+      <p>OpenCode は全ツール実行前に権限を評価し、その結果を <code>effect: "ask"</code> として持ちます。
+      Plugin はこの評価の瞬間に割り込み、<strong>ask のときだけ</strong>通知します。
+      allow（自動許可）で鳴らすとベルが鳴りっぱなしになるため、<strong>フィルタは必須</strong>です。</p>
+    </div>
+    <div class="card">
+      <b>⚡ 非ブロッキングという設計</b>
+      <p>通知APIには <code>wait_decision:false</code> を付けます。付けないと<strong>最大180秒応答が返らず</strong>、
+      Hookのtimeout（5秒）で殺されます。これが「通知が来ない」最有力の原因でした。
+      <strong>「知らせる」と「待つ」は分離する</strong>のが設計の要諦です。</p>
+    </div>
+  </div>
+
+  <h2>③ 専門用語の完全解体辞典</h2>
+
+  <details><summary>Plugin（プラグイン）— OpenCode の拡張点</summary>
+    <p>OpenCode 本体に手を入れずに、イベントの監視やツールの追加ができる仕組み。<code>~/.config/opencode/plugins/</code> に置くだけで読み込まれ、
+    <strong>ファイルを保存すると自動で再読み込み</strong>されます（再起動不要）。Antigravity の Hook に相当します。</p></details>
+
+  <details><summary>PreToolUse Hook（Antigravity 側）</summary>
+    <p>Antigravity が「ツールを使う直前」に外部スクリプトを呼ぶ仕組み。<code>.agents/hooks.json</code> で定義します。
+    OpenCode には同等の Hook が無いため、代わりに Plugin を使います。</p></details>
+
+  <details><summary>permission.hook("evaluate") — 権限評価の観測点</summary>
+    <p>OpenCode V2 の Plugin API。権限が評価される瞬間に呼ばれ、イベントに <code>action</code>（種別）、
+    <code>resources</code>（対象コマンド）、<code>effect</code>（判定）が入っています。<strong>判定を書き換えることも可能</strong>ですが、
+    今回は<strong>観測のみ</strong>（＝権限判定に一切干渉しない）に徹しました。</p></details>
+
+  <details><summary>effect（allow / ask / deny）</summary>
+    <p>権限評価の結果。<code>allow</code>=無承認で実行可、<code>ask</code>=人間の承認待ち、<code>deny</code>=即遮断。
+    <strong>ask のときだけ通知する</strong>のがスパム防止の鍵です。</p></details>
+
+  <details><summary>wait_decision: false — 非ブロッキング通知</summary>
+    <p>秘書くんの通知APIのオプション。<code>false</code> なら即座に <code>{"status":"queued"}</code> を返します。
+    <code>true</code>（既定）だと人間の回答まで最大180秒待つため、<strong>HookやPluginを道連れに停止</strong>します。</p></details>
+
+  <details><summary>Bearer 認証（.sync_token）</summary>
+    <p>秘書くんの全POST APIはトークン必須（ゼロトラスト）。トークンはリポジトリ直下の <code>.sync_token</code> にあります。
+    付け忘れると <strong>401</strong> で無音失敗します。</p></details>
+
+  <details><summary>ループバック限定（/api/agent/*）</summary>
+    <p>承認要請・通知の作成APIは <strong>localhost からのみ</strong>許可されます（外部からは403）。
+    LAN上の攻撃者がトークンを盗んでも「自作リクエスト→自己承認」が成立しないようにする防御です。</p></details>
+
+  <details><summary>逆allowlist方式（Antigravity での代替）</summary>
+    <p>Antigravity の <code>PreToolUse</code> には「ask か allow か」の情報がありません。
+    そこで<strong>「安全と断定できるコマンド以外は通知する」</strong>という近似で対応します（クールダウンで過剰通知を抑える）。</p></details>
+
+  <details><summary>確率的ソフト層 / 決定論的ハード層（二層防御）</summary>
+    <p>Jev（System One）はミリ秒で危険を弾く<strong>確率的</strong>な層。確信度が低いこともあります（実測: <code>git reset --hard</code> を確信度0.39でdeny）。
+    そこで <code>permissions</code>（Hard ACL）が<strong>決定論的に</strong>最終保証を担います。
+    <strong>「確率に頼る層」と「決定論で守る層」を混ぜない</strong>のが今回の第一原理です。</p></details>
+
+  <details><summary>ドリフト検知（model_catalog.py --check）</summary>
+    <p>モデル提供は頻繁に変わります（実測: キャッシュ37件中10件が既に廃止済み）。
+    推奨モデルの<strong>廃止</strong>・<strong>新モデルの出現</strong>・<strong>価格改定</strong>を機械検知し、
+    ボスが <code>model_policy.json</code> に1行追記するだけで追随できるようにしました。</p></details>
+
+  <h2>④ まとめ — 今回の設計を1枚で</h2>
+  <div class="card">
+    <table>
+      <tr><th>層</th><th>役割</th><th>実装</th><th>性質</th></tr>
+      <tr><td>① 遮断</td><td>危険を止める</td><td><code>permissions</code>（Hard ACL 51ルール）</td><td>決定論的・必ず効く</td></tr>
+      <tr><td>② 選抜</td><td>手札を選ぶ</td><td>Jev（System One）</td><td>確率的・ミリ秒・約0.05円</td></tr>
+      <tr><td>③ 気づき</td><td>人間を呼ぶ</td><td>Plugin → <code>ask_input</code>（非ブロッキング）</td><td>ask のときだけ・観測のみ</td></tr>
+    </table>
+    <p style="color:var(--dim);margin:10px 0 0">
+      <strong>「止まっていることに気づけない」をゼロにする</strong> — これがネオ秘書くんの存在意義そのものです。
+    </p>
+  </div>
+
+  <p class="lead" style="margin-top:26px">
+    📄 関連: <code>docs/specs/DESIGN_SPEC.md §23</code> / <code>docs/learning-memos/学習メモ_20260921.md</code> /
+    <code>~/.config/opencode/plugins/hisho-approval-notify/index.ts</code>
+  </p>
+</div>
+
+<script>
+(function(){
+  const $ = (id) => document.getElementById(id);
+  const nodes = ["n1","n2","n3","n4","n5","n6"].map($);
+  const pkt = $("pkt"), cap = $("cap"), log = $("log"), state = $("state");
+  let effect = "ask", i = 0, timer = null;
+
+  const POS = [
+    {x:89,  t:"① エージェントがコマンド実行を要求"},
+    {x:271, t:"② Hard ACL が判定（allow / ask / deny）"},
+    {x:453, t:"③ Plugin が evaluate を観測"},
+    {x:640, t:"④ 秘書くんの ask_input を受信（非ブロッキング）"},
+    {x:839, t:"⑤ スマホにプッシュ通知"},
+    {x:839, t:"⑥ PCペットが alarm_ask で暴れる"}
+  ];
+
+  function say(msg, cls){ log.insertAdjacentHTML("beforeend","<div class='"+(cls||"")+"'>"+msg+"</div>"); log.scrollTop = log.scrollHeight; }
+  function clear(){ log.innerHTML = ""; }
+  function paint(){
+    nodes.forEach((n,idx)=>n.classList.toggle("hot", idx===i-1));
+  }
+  function reset(){
+    if(timer){clearInterval(timer);timer=null;}
+    i=0; pkt.setAttribute("opacity","0"); cap.textContent="";
+    nodes.forEach(n=>n.classList.remove("hot","done"));
+    state.textContent="待機中"; clear();
+    say("// 権限の判定: <b>"+effect+"</b>", "no");
+  }
+  function step(){
+    if(i>=POS.length){ if(timer){clearInterval(timer);timer=null;} state.textContent="完了"; return; }
+    const p = POS[i];
+    pkt.setAttribute("opacity","1");
+    pkt.setAttribute("cx", i>=4 ? 839 : p.x);
+    pkt.setAttribute("cy", i===4 ? 60 : (i===5 ? 190 : 125));
+    cap.textContent = p.t;
+    state.textContent = p.t;
+
+    if(i===1){
+      say("② 判定 = <b>"+effect+"</b>", effect==="ask"?"ask":"no");
+      if(effect==="deny"){ say("   ↳ deny: 即遮断。通知は不要（エージェントが代替案を提示）","no"); }
+      if(effect==="allow"){ say("   ↳ allow: 自動許可。通知は不要（鳴らすとベルが鳴りっぱなし）","no"); }
+    }
+    if(i===2 && effect==="ask") say("③ evaluate フック発火 → effect が ask のため通知対象","hit");
+    if(i===2 && effect!=="ask") say("③ evaluate フック発火 → ask ではないため<b>通知しない</b>","no");
+    if(i===3 && effect==="ask") say("④ POST /api/agent/ask_input（wait_decision:false）→ 即 200 queued","send");
+    if(i===4 && effect==="ask") say("⑤ スマホにプッシュ到達 📱","hit");
+    if(i===5 && effect==="ask"){ say("⑥ PCペットが alarm_ask（6秒）🖥️","hit"); say("✅ ボスが気づいて承認 → エージェント再開","hit"); }
+
+    nodes.forEach((n,idx)=>{ if(idx===i-1 && (effect==="ask" || idx<2)) n.classList.add("done"); });
+    paint();
+    i++;
+  }
+
+  function setEffect(v){
+    effect=v;
+    ["allow","ask","deny"].forEach(k=>$("b-"+k).classList.toggle("on",k===v));
+    reset();
+  }
+  $("b-allow").onclick=()=>setEffect("allow");
+  $("b-ask").onclick=()=>setEffect("ask");
+  $("b-deny").onclick=()=>setEffect("deny");
+  $("step").onclick=()=>{ if(i>=POS.length) reset(); step(); };
+  $("reset").onclick=reset;
+  $("play").onclick=()=>{
+    if(timer){clearInterval(timer);timer=null;state.textContent="停止";return;}
+    if(i>=POS.length) reset();
+    state.textContent="再生中…";
+    timer=setInterval(()=>{ step(); if(i>POS.length){clearInterval(timer);timer=null;} }, 900);
+  };
+  reset();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ELI5: ゼロトラスト監査の3連撃 — 失効 × 構造パース × loopback信頼 (2026-09-22)</title>
+<style>
+  :root {
+    --bg: #14100d; --panel: #1f1915; --line: #3a2f27; --amber: #ffb800; --amber-dim: #b07f00;
+    --text: #efe6dc; --muted: #a99a8b; --ok: #58d68d; --warn: #f4d03f; --bad: #ff5c5c; --info: #5dade2;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: radial-gradient(1200px 600px at 50% -10%, #241c16, var(--bg)); color: var(--text);
+         font-family: 'DotGothic16', 'Meiryo UI', 'Segoe UI', sans-serif; line-height: 1.7; padding: 24px 16px 64px; }
+  .wrap { max-width: 1040px; margin: 0 auto; }
+  h1 { font-size: 22px; border-left: 6px solid var(--amber); padding-left: 12px; margin: 8px 0 4px; }
+  h2 { font-size: 17px; color: var(--amber); margin: 32px 0 8px; }
+  h3 { font-size: 15px; margin: 18px 0 6px; color: #ffd97a; }
+  .meta { color: var(--muted); font-size: 12px; margin-bottom: 20px; }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 16px; margin: 14px 0; }
+  .scenario-bar { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+  .scenario-bar button { background: #2a211b; color: var(--text); border: 1px solid var(--line); border-radius: 999px;
+                         padding: 7px 13px; font-size: 12px; cursor: pointer; transition: all .18s ease; font-family: inherit; }
+  .scenario-bar button:hover { border-color: var(--amber); transform: translateY(-1px); }
+  .scenario-bar button.active { background: var(--amber); color: #1e140e; border-color: var(--amber); font-weight: bold; }
+  svg { width: 100%; height: auto; display: block; background: #171310; border-radius: 10px; border: 1px solid var(--line); }
+  .verdict { margin-top: 12px; padding: 12px 14px; border-radius: 10px; font-size: 14px; font-weight: bold;
+             border-left: 6px solid var(--muted); background: #241d18; min-height: 62px; }
+  .verdict.allow { border-color: var(--ok); } .verdict.prompt { border-color: var(--warn); } .verdict.strict { border-color: var(--bad); }
+  .verdict small { display: block; color: var(--muted); font-weight: normal; margin-top: 6px; font-size: 12px; }
+  .steps { margin: 10px 0 0; padding-left: 20px; font-size: 13px; color: var(--muted); }
+  .steps li { margin: 3px 0; } .steps li.hit { color: var(--ok); } .steps li.miss { color: var(--bad); }
+  code { background: #2a211b; border: 1px solid var(--line); border-radius: 5px; padding: 1px 5px; font-size: 12px; color: #ffd97a; }
+  .flow { font-size: 13px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px; }
+  details { background: #221b16; border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; margin: 8px 0; }
+  details summary { cursor: pointer; font-weight: bold; color: #ffd97a; font-size: 14px; }
+  details p { margin: 8px 0 2px; font-size: 13px; color: var(--text); }
+  .tag { display: inline-block; font-size: 11px; border-radius: 999px; padding: 2px 8px; margin-right: 6px;
+         border: 1px solid var(--line); color: var(--muted); }
+  .legend { font-size: 12px; color: var(--muted); margin-top: 8px; }
+  .legend b { color: var(--text); }
+  .pulse { animation: pulse 1.6s infinite ease-in-out; }
+  @keyframes pulse { 0%,100% { opacity: 1 } 50% { opacity: .35 } }
+  .dash { stroke-dasharray: 6 6; animation: dashmove 1.2s linear infinite; }
+  @keyframes dashmove { to { stroke-dashoffset: -24; } }
+  .footer { color: var(--muted); font-size: 12px; margin-top: 32px; border-top: 1px solid var(--line); padding-top: 12px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>🧠 ELI5 動く図解：ゼロトラスト監査の3連撃（2026-09-22）</h1>
+  <div class="meta">テーマ: 「見た目は安全」を3つの角度から解体する — ①失効の実効性 ②コマンドの構造 ③loopback の信頼<br>
+  対象: <code>local_sync_server.py</code> / <code>storage/device_repo.py</code> / <code>approval_policy.py</code>（手帳 ID 39・40・41）</div>
+
+  <div class="panel">
+    <h2 style="margin-top:0">🎬 動くSVGシミュレータ — 攻撃経路を選んで判定を見る</h2>
+    <div class="scenario-bar" id="bar"></div>
+    <svg id="stage" viewBox="0 0 960 380" role="img" aria-label="リクエストが3つの関門を通るシミュレーション">
+      <!-- 背景レーン -->
+      <rect x="0" y="0" width="960" height="380" fill="none"/>
+      <text x="20" y="26" fill="#a99a8b" font-size="12">① 送信元 (TCPピア)</text>
+      <text x="330" y="26" fill="#a99a8b" font-size="12">② 中継ヘッダ検査</text>
+      <text x="620" y="26" fill="#a99a8b" font-size="12">③ Host 検査</text>
+      <text x="860" y="26" fill="#a99a8b" font-size="12">判定</text>
+
+      <!-- ゲート枠 -->
+      <rect x="300" y="52" width="250" height="272" rx="12" fill="#1b1613" stroke="#3a2f27"/>
+      <rect x="590" y="52" width="230" height="272" rx="12" fill="#1b1613" stroke="#3a2f27"/>
+      <rect x="850" y="52" width="96" height="272" rx="12" fill="#1b1613" stroke="#3a2f27"/>
+
+      <!-- 送信元 -->
+      <circle id="src" cx="120" cy="188" r="46" fill="#2a211b" stroke="#ffb800" stroke-width="2"/>
+      <text id="srcIcon" x="120" y="182" text-anchor="middle" font-size="26">📱</text>
+      <text id="srcLabel" x="120" y="206" text-anchor="middle" font-size="11" fill="#efe6dc">Tailscale Serve</text>
+
+      <!-- パケット -->
+      <g id="packet">
+        <rect x="176" y="178" width="20" height="20" rx="4" fill="#ffb800"/>
+        <text x="186" y="192" text-anchor="middle" font-size="11" fill="#1e140e">R</text>
+      </g>
+      <line id="path1" x1="170" y1="188" x2="300" y2="188" stroke="#3a2f27" stroke-width="2"/>
+      <line id="path2" x1="550" y1="188" x2="590" y2="188" stroke="#3a2f27" stroke-width="2"/>
+      <line id="path3" x1="820" y1="188" x2="850" y2="188" stroke="#3a2f27" stroke-width="2"/>
+
+      <!-- ゲート1: TCPピア -->
+      <text x="425" y="86" text-anchor="middle" font-size="13" fill="#ffd97a">TCPピア == 127.0.0.1 ?</text>
+      <rect id="gate1" x="330" y="108" width="190" height="52" rx="8" fill="#221b16" stroke="#3a2f27"/>
+      <text id="gate1v" x="425" y="140" text-anchor="middle" font-size="15" fill="#58d68d">TRUE</text>
+
+      <!-- ゲート2: プロキシヘッダ -->
+      <text x="425" y="196" text-anchor="middle" font-size="13" fill="#ffd97a">中継ヘッダ なし ?</text>
+      <rect id="gate2" x="330" y="218" width="190" height="52" rx="8" fill="#221b16" stroke="#3a2f27"/>
+      <text id="gate2v" x="425" y="250" text-anchor="middle" font-size="15" fill="#58d68d">TRUE</text>
+      <text id="gate2note" x="425" y="272" text-anchor="middle" font-size="10" fill="#a99a8b">XFF / Forwarded / Via / Tailscale-*</text>
+
+      <!-- ゲート3: Host -->
+      <text x="705" y="86" text-anchor="middle" font-size="13" fill="#ffd97a">Host は loopback 名 ?</text>
+      <rect id="gate3" x="620" y="108" width="170" height="52" rx="8" fill="#221b16" stroke="#3a2f27"/>
+      <text id="gate3v" x="705" y="140" text-anchor="middle" font-size="15" fill="#58d68d">TRUE</text>
+      <text id="gate3note" x="705" y="172" text-anchor="middle" font-size="10" fill="#a99a8b">localhost / 127.0.0.1 / ::1（完全形）</text>
+
+      <text x="705" y="230" text-anchor="middle" font-size="13" fill="#ffd97a">発行されるトークン</text>
+      <rect id="tokBox" x="630" y="246" width="150" height="42" rx="8" fill="#221b16" stroke="#3a2f27"/>
+      <text id="tokText" x="705" y="272" text-anchor="middle" font-size="12" fill="#efe6dc">loopback 専用</text>
+
+      <!-- 判定 -->
+      <text id="verdictIcon" x="898" y="176" text-anchor="middle" font-size="34">🛡️</text>
+      <text id="verdictText" x="898" y="212" text-anchor="middle" font-size="13" fill="#58d68d">外部端末</text>
+      <text id="verdictSub" x="898" y="234" text-anchor="middle" font-size="10" fill="#a99a8b">人間承認へ</text>
+    </svg>
+    <div class="verdict" id="verdict"></div>
+    <ol class="steps" id="steps"></ol>
+    <div class="legend">凡例: <b>緑</b>=条件成立 / <b>赤</b>=条件不成立 / <b>黄</b>=注意（安全側に倒れる）</div>
+  </div>
+
+  <h2>🏢 なぜそうなるのか（物理構造の解説）</h2>
+  <div class="grid">
+    <div class="panel">
+      <h3>① 失効の実効性 — 「クビにしたのに通用する鍵」</h3>
+      <p class="flow">旧実装は、失効させた端末が1回リクエストを送るだけで台帳の失効フラグが <code>0</code> に書き戻され、さらに
+      <code>/api/status</code> が**マスター鍵**（PCの万能鍵）を配っていたため、失効が「嘘」になっていました。</p>
+      <p class="flow"><b>例え</b>: 入退室管理で「退職者のカードを無効化」したのに、そのカードで通用口を開けると
+      警備システムが「あ、この人まだ居ますね」と自動でカードを復活させていた状態。今回、<b>カードの復活は人間が明示的に操作したときだけ</b>（<code>restore_device</code>）、
+      <b>認証の窓口は台帳に一切書き込まない</b>（読み取り専用）に改めました。</p>
+    </div>
+    <div class="panel">
+      <h3>② コマンドの構造 — 「単語の並びを読む」</h3>
+      <p class="flow">旧実装は「; や &amp;&amp; という**文字が含まれるか**」だけを見ていました。そのため
+      <code>cat evil.sh | bash</code> は「cat で始まる安全コマンド」と誤判定され、<b>無承認で任意コード実行</b>できました。</p>
+      <p class="flow"><b>例え</b>: 「包丁を持っているか」で荷物検査していたところ、包丁を3本テープで貼り合わせた人（<code>|</code>）が
+      素通りした状態。今回から<b>単語に分解して（shlex）並び構造を読む</b>方式に変更し、パイプ・リダイレクト・置換・改行は必ず人間承認へ回します。</p>
+    </div>
+    <div class="panel">
+      <h3>③ loopback の信頼 — 「内線だから安全」の崩壊</h3>
+      <p class="flow">Tailscale Serve は社外からの通信を<b>127.0.0.1（PC自身）として中継</b>します。旧実装は「TCPピアが 127.0.0.1 ＝ PC自身」と同一視していたため、
+      テールネット全体が PC の権限を獲得し、<b>マスター鍵の無条件配布 → 失効端末の復活 → 承認RCE</b> が成立していました。</p>
+      <p class="flow"><b>例え</b>: ビルの受付（Serve）が来客を「社員証の色が同じだから社員です」と通していた状態。今回から
+      <b>「接続元IP」＋「中継の痕跡ヘッダが無い」＋「Host が localhost 名」の3条件すべて</b>を要求し、Serve 経由は正しく「来客（外部端末）」として人間承認へ回します。</p>
+    </div>
+  </div>
+
+  <h2>📖 専門用語の完全解体辞典（クリックで展開）</h2>
+  <details><summary>loopback（ループバック）</summary><p>自分のPC自身を指す特別なアドレス（<code>127.0.0.1</code> / <code>::1</code>）。「PCの中の内線電話」。
+  外からは到達できないため昔は無条件に信頼されがちでしたが、リバースプロキシは外部通信をこの内線に中継できるため、**IPだけでは本人確認にならない**のが今回の核心です。</p></details>
+  <details><summary>リバースプロキシ / Tailscale Serve</summary><p>外部からの通信を一旦受け取り、PC内のサーバーへ転送する中継役。
+  <code>tailscale serve --bg 8765</code> はテールネット（自分の端末だけの閉域網）に HTTPS を配る公式手段で、転送時の接続元は <code>127.0.0.1</code> になります。
+  中継役は <code>X-Forwarded-For</code> などのヘッダで「本当の送信元」を伝えますが、**付けるかどうかはプロキシ次第**＝善意に依存してはいけない、という教訓。</p></details>
+  <details><summary>DNS Rebinding（DNS再結合攻撃）</summary><p>悪意サイトのドメインを一旦ブラウザに読ませ、直後にそのドメインの解決先を <code>127.0.0.1</code> にすり替える攻撃。
+  ブラウザは「同じサイト」と思ったまま、実はPC内のサーバーへリクエストを送ってしまいます。対策は <b>Host ヘッダ検証</b>（今回は loopback 名の完全一致）。</p></details>
+  <details><summary>マスター鍵（マスタートークン）</summary><p>PC自身や Agent Bridge が使う万能鍵（<code>.sync_token</code>）。これが漏れると全APIを操作できてしまいます。
+  今回「HTTP では一切配布しない」ことを物理的な不変条件にしました（PC内ブラウザには別の<b>loopback専用トークン</b>を配布）。</p></details>
+  <details><summary>Fail-Closed / Fail-Open</summary><p>異常時に<b>閉じる（拒否する）</b>のが Fail-Closed、<b>開く（通す）</b>のが Fail-Open。
+  認証・認可では Fail-Closed が原則です。今回、台帳照合の例外・Host欠落・解析失敗はすべて「拒否（401/PROMPT）」側へ倒しました。</p></details>
+  <details><summary>shlex とシェルの字句解析</summary><p>Python 標準のシェル風トークナイザ。<code>punctuation_chars=True</code> で <code>|</code> <code>&amp;</code> <code>&gt;</code> などを演算子トークンとして分解します。
+  <b>罠</b>: ①既定で <code>#</code> 以降をコメント扱い＝語中でも読み捨てる（bash はリテラル扱い）②連続する句読点は1トークンに連結（<code>&gt;|</code> <code>&amp;&gt;</code>）。
+  どちらも「テストは緑なのに無承認書込が通る」穴でした。</p></details>
+  <details><summary>構造パース vs 部分文字列マッチ</summary><p>「危険な文字が含まれるか」ではなく「どういう<b>構造</b>で並んでいるか」で判定すること。
+  例: <code>echo "a;b"</code> のセミコロンは引用符の中＝データなので安全（Auto-Allow）。<code>echo pwn &gt;| ~/.bashrc</code> はリダイレクト＝書込なので承認必須。</p></details>
+  <details><summary>TDD（Red → Green）と不変条件テスト</summary><p>先に<b>失敗するテスト</b>を書き（Red）、実装して緑にする（Green）。
+  さらに「二度と壊れない」ように<b>構造を凍結</b>します（例: 「<code>is_revoked = 0</code> を書ける関数は <code>restore_device</code> だけ」をソース走査で機械的に断言）。</p></details>
+  <details><summary>TOCTOU（Race）と CAS</summary><p>「確認してから操作する」までの隙間に状態が変わる競合（Time-of-check to time-of-use）。
+  対策は「この条件のときだけ更新する」を1文にまとめる CAS（Compare-And-Set）。今回の残課題（手帳 ID 48）です。</p></details>
+  <details><summary>IDOR（越境アクセス）</summary><p>他人のIDを指定するだけで他人のデータを操作できてしまう脆弱性。Web Push の購読解除に所有者検証が無い件（レビュー P1-N1）が該当し、手帳に起票済みです。</p></details>
+  <details><summary>デグレ（Regression）とアラート疲れ</summary><p>改修で正常機能が壊れること。セキュリティを強くしすぎると<b>正当な操作まで赤警告</b>になり、人間が警告を無視する習慣（アラート疲れ）が生まれて本末転倒になります。
+  今回は「引用符内の eval 文字列を誤検知しない」ことで Auto-Allow の即時性を守りました。</p></details>
+
+  <h2>🧭 本日の3つの教訓（持ち帰り）</h2>
+  <ol class="flow">
+    <li><b>ライブラリの既定値は仕様書ではない</b> — <code>shlex</code> の <code>commenters</code> と句読点連結は、緑のテストをすり抜ける実例でした。</li>
+    <li><b>識別子は偽装できないものを使う</b> — IPアドレスは偽装・中継されます。資格情報の種別とチャネルで判断する（残課題 ID 52・55）。</li>
+    <li><b>「〜だから安全」は不変条件に変換する</b> — 善意（プロキシが正直に転送する等）は前提にせず、条件をテストで凍結する。</li>
+  </ol>
+
+  <div class="footer">
+    生成: OpenCode / session-wrap-up (2026-09-22) ／ 正本: <code>docs/specs/DESIGN_SPEC.md</code> §10・§10.2、<code>docs/specs/機能ロードマップ.md</code> §13.18-12
+  </div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+  // シナリオ: 攻撃/正常の経路を切り替えて3関門の判定を可視化する
+  var scenarios = [
+    {
+      id: "serve", label: "📱 Serve 経由の正規スマホ", icon: "📱", src: "Tailscale Serve",
+      tcp: true, headers: true, host: false, hostValue: "neo-pc.tailnet-xxxx.ts.net",
+      verdict: "prompt", title: "🟡 外部端末として扱われる（正しい）",
+      body: "Serve は TCPピアを 127.0.0.1 に中継し、X-Forwarded-For を必ず付与します（本家実装で確認済み）。<br>" +
+            "→ 条件②（中継ヘッダ無し）で不成立となり、loopback 信頼は成立しません。<br>" +
+            "→ ペアリング開放＋人間承認を経て<b>個別トークン</b>が発行され、以後は失効・監査の対象になります。",
+      note: "旧実装ではマスター鍵が無条件配布され、承認RCEチェーンが成立していました（P0-3）。"
+    },
+    {
+      id: "rebinding", label: "😈 DNS Rebinding", icon: "😈", src: "evil.example",
+      tcp: true, headers: false, host: false, hostValue: "evil.example:8765",
+      verdict: "strict", title: "🔴 遮断（Host 検証で撃退）",
+      body: "攻撃者ドメインの Host は条件③（loopback 名の完全一致）を満たしません。<br>" +
+            "→ トークン配布も管理API（/api/devices/restore 等）も通らず、403/401 で遮断されます。",
+      note: "Host が空（HTTP/1.0 等）でも Fail-Closed で拒否します。"
+    },
+    {
+      id: "pcbrowser", label: "🖥️ PC内ブラウザ", icon: "🖥️", src: "localhost",
+      tcp: true, headers: false, host: true, hostValue: "localhost:8765",
+      verdict: "allow", title: "🟢 loopback 専用トークンを配布",
+      body: "3条件すべて成立するため loopback 信頼が成立しますが、配布されるのは<b>loopback 専用トークン</b>です。<br>" +
+            "→ マスター鍵は HTTP では一切配布されません。専用トークンは非ループバックからは 401（窃取しても無効）。",
+      note: "台帳（devices）にも登録しないため、PCブラウザ利用で端末一覧を汚しません。"
+    },
+    {
+      id: "oldphone", label: "💀 漏洩マスター鍵を持つ旧端末", icon: "💀", src: "旧スマホ (LAN)",
+      tcp: false, headers: false, host: false, hostValue: "192.168.1.50:8765",
+      verdict: "strict", title: "🔴 401（台帳照合必須・未登録は拒否）",
+      body: "非ループバックのマスター鍵は<b>台帳照合が必須</b>で、未登録・照合例外は Fail-Closed で拒否します。<br>" +
+            "→ 漏洩済みのマスター鍵は実効的に死に、端末は再ペアリング（人間承認）が必要になります。",
+      note: "失効端末はマスター鍵でも個別トークンでも 403/401。失効が「嘘」にならない構造です。"
+    },
+    {
+      id: "pipe", label: "😈 cat evil.sh | bash", icon: "😈", src: "危険コマンド",
+      tcp: true, headers: false, host: true, hostValue: "localhost:8765",
+      verdict: "strict", title: "🔴 Strict（構造パースで検出）",
+      body: "shlex でトークン分解すると <code>|</code>（演算子ラン）と <code>bash</code>（インタプリタ）が現れます。<br>" +
+            "→ 旧実装は「cat で始まる＝安全」で <b>無承認実行</b>でしたが、現在は Strict（赤警告＋二重確認）です。",
+      note: "承認ポリシーは loopback 信頼とは独立の層（P0-2）。"
+    },
+    {
+      id: "hashbypass", label: "😈 echo pwn#>~/.bashrc", icon: "😈", src: "危険コマンド",
+      tcp: true, headers: false, host: true, hostValue: "localhost:8765",
+      verdict: "prompt", title: "🟡 Prompt（shlex の罠を封鎖）",
+      body: "shlex の既定 <code>commenters='#'</code> は<b>語中でも以降を読み捨てる</b>ため、旧実装ではリダイレクトが見えず Auto-Allow でした。<br>" +
+            "→ <code>commenters=\"\"</code> を必須化したため、リダイレクト（書込）として正しく Prompt になります。",
+      note: "quality-reviewer が実証した「緑のテストをすり抜ける穴」第1号。"
+    }
+  ];
+
+  var el = function (id) { return document.getElementById(id); };
+  var bar = el("bar");
+  var current = 0;
+  var timer = null;
+
+  function setGate(gateId, valueId, ok, noteId, noteText) {
+    var rect = el(gateId), text = el(valueId);
+    text.textContent = ok ? "TRUE" : "FALSE";
+    text.setAttribute("fill", ok ? "#58d68d" : "#ff5c5c");
+    rect.setAttribute("stroke", ok ? "#58d68d" : "#ff5c5c");
+    if (noteId) { el(noteId).textContent = noteText; }
+  }
+
+  function render(index) {
+    current = index;
+    var s = scenarios[index];
+    Array.prototype.forEach.call(bar.children, function (btn, i) {
+      btn.className = (i === index) ? "active" : "";
+    });
+
+    el("srcIcon").textContent = s.icon;
+    el("srcLabel").textContent = s.src;
+    setGate("gate1", "gate1v", s.tcp);
+    setGate("gate2", "gate2v", !s.headers, "gate2note", s.headers ? "XFF 等を検出 → 不成立" : "X-Forwarded-For / Forwarded / Via / Tailscale-*");
+    setGate("gate3", "gate3v", s.host, "gate3note", "Host: " + s.hostValue);
+
+    var trusted = s.tcp && !s.headers && s.host;
+    el("tokText").textContent = trusted ? "loopback 専用" : "個別トークン";
+    el("tokBox").setAttribute("stroke", trusted ? "#58d68d" : "#ffb800");
+    el("verdictIcon").textContent = trusted ? "🛡️" : (s.verdict === "strict" ? "🚫" : "🛡️");
+    el("verdictText").textContent = trusted ? "信頼 loopback" : "外部端末";
+    el("verdictText").setAttribute("fill", trusted ? "#58d68d" : "#ffb800");
+    el("verdictSub").textContent = trusted ? "専用トークン配布" : "人間承認へ";
+
+    var v = el("verdict");
+    v.className = "verdict " + s.verdict;
+    v.innerHTML = "<span class='tag'>" + s.label + "</span>" + s.title + "<br>" + s.body + "<small>💡 " + s.note + "</small>";
+
+    // 進行ステップ（関門ごとの結果を言語化）
+    var steps = [
+      { ok: s.tcp, text: "条件① TCPピアが loopback（127.0.0.1 / ::1）… " + (s.tcp ? "成立" : "不成立") },
+      { ok: !s.headers, text: "条件② 中継ヘッダが無い … " + (s.headers ? "不成立（XFF 等を検出）" : "成立") },
+      { ok: s.host, text: "条件③ Host が loopback 名（完全形）… " + (s.host ? "成立" : "不成立（" + s.hostValue + "）") },
+      { ok: true, text: "結論: " + (trusted ? "loopback 信頼 → loopback 専用トークンを配布（マスター鍵は配らない）" : "外部端末として個別トークン＋人間承認の対象") }
+    ];
+    el("steps").innerHTML = steps.map(function (st) {
+      return "<li class='" + (st.ok ? "hit" : "miss") + "'>" + (st.ok ? "✔" : "✘") + " " + st.text + "</li>";
+    }).join("");
+
+    // パケットの流れをアニメーション（経路の可視化）
+    var packet = el("packet");
+    var startX = 176, gates = [300, 550, 820];
+    var stopAt = trusted ? 900 : (s.headers ? gates[0] + 40 : (s.host ? gates[1] + 20 : gates[1] + 20));
+    var x = startX;
+    packet.setAttribute("opacity", "1");
+    if (timer) { clearInterval(timer); }
+    timer = setInterval(function () {
+      x += 14;
+      if (x >= stopAt) {
+        x = stopAt;
+        clearInterval(timer); timer = null;
+        packet.setAttribute("opacity", "1");
+      }
+      packet.setAttribute("transform", "translate(" + (x - startX) + ",0)");
+    }, 26);
+
+    ["path1", "path2", "path3"].forEach(function (id) {
+      el(id).setAttribute("stroke", "#3a2f27");
+      el(id).classList.remove("dash");
+    });
+    el("path1").setAttribute("stroke", "#ffb800");
+    el("path1").classList.add("dash");
+    if (!s.headers) { el("path2").setAttribute("stroke", "#ffb800"); el("path2").classList.add("dash"); }
+    if (trusted) { el("path3").setAttribute("stroke", "#ffb800"); el("path3").classList.add("dash"); }
+  }
+
+  scenarios.forEach(function (s, i) {
+    var btn = document.createElement("button");
+    btn.textContent = s.label;
+    btn.addEventListener("click", function () { render(i); });
+    bar.appendChild(btn);
+  });
+  render(0);
+})();
+</script>
+</body>
+</html>

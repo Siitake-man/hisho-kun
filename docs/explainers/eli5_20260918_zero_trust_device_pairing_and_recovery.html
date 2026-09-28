@@ -1,0 +1,544 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ELI5 動く図解: ゼロトラスト端末ペアリング ＆ 復旧メカニズム</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DotGothic16&family=Press+Start+2P&family=Yuji+Boku&family=Zen+Kaku+Gothic+New:wght@400;700;900&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-dark: #0f141c;
+      --panel-bg: #1a2234;
+      --card-bg: #242f48;
+      --accent-cyan: #38ef7d;
+      --accent-blue: #11998e;
+      --accent-gold: #f5af19;
+      --accent-pink: #f12711;
+      --text-main: #f0f6fc;
+      --text-muted: #8b949e;
+      --border-color: #303e5c;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: var(--bg-dark);
+      color: var(--text-main);
+      font-family: 'Zen Kaku Gothic New', sans-serif;
+      line-height: 1.6;
+      padding: 24px;
+      overflow-x: hidden;
+    }
+
+    .container {
+      max-width: 1040px;
+      margin: 0 auto;
+    }
+
+    header {
+      text-align: center;
+      margin-bottom: 32px;
+      padding: 24px;
+      background: linear-gradient(135deg, rgba(26,34,52,0.8), rgba(36,47,72,0.9));
+      border: 2px solid var(--border-color);
+      border-radius: 16px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 4px 12px;
+      border-radius: 9999px;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 1px;
+      background: rgba(56, 239, 125, 0.15);
+      color: var(--accent-cyan);
+      border: 1px solid var(--accent-cyan);
+      margin-bottom: 12px;
+    }
+
+    h1 {
+      font-size: 28px;
+      font-weight: 900;
+      margin-bottom: 8px;
+      background: linear-gradient(90deg, #38ef7d, #11998e);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    p.lead {
+      color: var(--text-muted);
+      font-size: 15px;
+    }
+
+    .card {
+      background: var(--panel-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 16px;
+      padding: 24px;
+      margin-bottom: 28px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+    }
+
+    .card h2 {
+      font-size: 20px;
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      color: #58a6ff;
+    }
+
+    /* Simulation Arena */
+    .arena {
+      display: grid;
+      grid-template-columns: 1fr 120px 1fr;
+      gap: 16px;
+      align-items: center;
+      background: var(--card-bg);
+      padding: 24px;
+      border-radius: 12px;
+      position: relative;
+      overflow: hidden;
+      min-height: 280px;
+    }
+
+    .device-box {
+      background: #161b22;
+      border: 2px solid var(--border-color);
+      border-radius: 12px;
+      padding: 16px;
+      text-align: center;
+      transition: all 0.3s ease;
+      min-height: 200px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+
+    .device-box.active {
+      border-color: var(--accent-cyan);
+      box-shadow: 0 0 16px rgba(56, 239, 125, 0.3);
+    }
+
+    .device-box.blocked {
+      border-color: var(--accent-pink);
+      box-shadow: 0 0 16px rgba(241, 39, 17, 0.3);
+    }
+
+    .device-title {
+      font-weight: bold;
+      font-size: 16px;
+      margin-bottom: 8px;
+    }
+
+    .device-icon {
+      font-size: 40px;
+      margin: 8px 0;
+    }
+
+    .status-pill {
+      font-size: 12px;
+      padding: 4px 8px;
+      border-radius: 6px;
+      background: #21262d;
+      color: var(--text-muted);
+      margin-top: 6px;
+      display: inline-block;
+    }
+
+    .status-pill.ok {
+      background: rgba(56, 239, 125, 0.2);
+      color: var(--accent-cyan);
+      border: 1px solid var(--accent-cyan);
+    }
+
+    .status-pill.err {
+      background: rgba(241, 39, 17, 0.2);
+      color: var(--accent-pink);
+      border: 1px solid var(--accent-pink);
+    }
+
+    .wire-connector {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+    }
+
+    .packet {
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: var(--accent-cyan);
+      box-shadow: 0 0 10px var(--accent-cyan);
+      position: absolute;
+      opacity: 0;
+      transition: transform 1s ease-in-out, opacity 0.3s;
+    }
+
+    .wire-line {
+      width: 100%;
+      height: 4px;
+      background: var(--border-color);
+      border-radius: 2px;
+    }
+
+    /* Controls */
+    .controls-bar {
+      display: flex;
+      gap: 12px;
+      margin-top: 16px;
+      flex-wrap: wrap;
+    }
+
+    button.sim-btn {
+      background: #238636;
+      color: white;
+      border: none;
+      padding: 10px 18px;
+      border-radius: 8px;
+      font-weight: bold;
+      font-size: 14px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      transition: background 0.2s, transform 0.1s;
+    }
+
+    button.sim-btn:hover {
+      background: #2ea043;
+      transform: translateY(-1px);
+    }
+
+    button.sim-btn.secondary {
+      background: #30363d;
+      color: #c9d1d9;
+    }
+
+    button.sim-btn.secondary:hover {
+      background: #3c444d;
+    }
+
+    button.sim-btn.danger {
+      background: #da3633;
+    }
+
+    button.sim-btn.danger:hover {
+      background: #f85149;
+    }
+
+    /* Story Walkthrough */
+    .step-list {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .step-item {
+      display: flex;
+      gap: 16px;
+      background: var(--card-bg);
+      padding: 16px;
+      border-radius: 10px;
+      border-left: 4px solid #58a6ff;
+    }
+
+    .step-num {
+      font-family: 'Press Start 2P', monospace;
+      font-size: 18px;
+      color: var(--accent-cyan);
+      min-width: 32px;
+    }
+
+    .step-content h3 {
+      font-size: 16px;
+      margin-bottom: 6px;
+      color: #f0f6fc;
+    }
+
+    .step-content p {
+      font-size: 14px;
+      color: var(--text-muted);
+    }
+
+    .log-box {
+      background: #0d1117;
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 12px;
+      font-family: monospace;
+      font-size: 13px;
+      color: #7ee787;
+      height: 120px;
+      overflow-y: auto;
+      margin-top: 16px;
+    }
+
+    /* Boss Insight Highlight */
+    .insight-card {
+      background: linear-gradient(135deg, rgba(245, 175, 25, 0.1), rgba(241, 39, 17, 0.05));
+      border: 2px solid var(--accent-gold);
+      border-radius: 16px;
+      padding: 24px;
+      margin-top: 24px;
+    }
+
+    .insight-card h3 {
+      color: var(--accent-gold);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 18px;
+      margin-bottom: 12px;
+    }
+
+    .interactive-approval {
+      background: #161b22;
+      border: 2px dashed var(--accent-gold);
+      border-radius: 12px;
+      padding: 20px;
+      margin-top: 16px;
+      display: none;
+      animation: fadeIn 0.4s ease;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(-10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+  </style>
+</head>
+<body>
+
+<div class="container">
+
+  <header>
+    <div class="badge">ARCHITECTURAL EXPLAINER • ELI5</div>
+    <h1>ゼロトラスト端末ペアリング ＆ 復旧メカニズム</h1>
+    <p class="lead">なぜ実機スマホが一度繋がらなくなり、いかにしてゼロトラストの原則を守ったまま復旧・進化を遂げたのか？</p>
+  </header>
+
+  <!-- 1. 動くシミュレータ -->
+  <div class="card">
+    <h2>⚡ インタラクティブ・パケット＆認証シミュレータ</h2>
+    <p style="color: var(--text-muted); font-size: 14px; margin-bottom: 16px;">
+      下のボタンを押して、トラブル発生時（403ループ）と、今回実装した復旧後（フェイルセーフ自動再取得）の動きを比較体験できます。
+    </p>
+
+    <div class="arena">
+      <!-- スマホ側 -->
+      <div class="device-box" id="phoneBox">
+        <div>
+          <div class="device-title">📱 スマホ Desk Pet</div>
+          <div class="device-icon">📱</div>
+        </div>
+        <div>
+          <div id="phoneStatus" class="status-pill ok">トークン: 有効</div>
+          <div id="phoneSub" style="font-size: 11px; color: var(--text-muted); margin-top: 4px;">UUID: d41d8cd9...</div>
+        </div>
+      </div>
+
+      <!-- パケット経路 -->
+      <div class="wire-connector">
+        <div class="packet" id="packet"></div>
+        <div class="wire-line"></div>
+      </div>
+
+      <!-- PC ペット側 -->
+      <div class="device-box" id="pcBox">
+        <div>
+          <div class="device-title">💻 PC ネオ秘書くん</div>
+          <div class="device-icon">🤖</div>
+        </div>
+        <div>
+          <div id="pcStatus" class="status-pill ok">Local Sync Server: 8765</div>
+          <div id="pcSub" style="font-size: 11px; color: var(--text-muted); margin-top: 4px;">2層検証 (Hash + 台帳)</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ログ窓 -->
+    <div class="log-box" id="logBox">
+      [READY] システム待機中。シナリオを選択して実行してください。
+    </div>
+
+    <!-- 操作ボタン -->
+    <div class="controls-bar">
+      <button class="sim-btn" onclick="runNormalSync()">✅ ① 正常同期 (200 OK)</button>
+      <button class="sim-btn danger" onclick="runOldBug()">💥 ② 過去のバグ (403で永久ハング)</button>
+      <button class="sim-btn secondary" onclick="runNewRecovery()">🛡️ ③ 改善後 (403検知 ➔ 自動再取得)</button>
+      <button class="sim-btn" style="background:#8957e5;" onclick="triggerBossApproval()">💡 ④ ボス直感: 承認要求ダイアログ</button>
+    </div>
+
+    <!-- ボス直感: 承認モーダルUI体験 -->
+    <div class="interactive-approval" id="bossApprovalModal">
+      <div style="font-size: 16px; font-weight: bold; color: var(--accent-gold); margin-bottom: 8px;">
+        🔔 PCネオ秘書くん: 「新しいスマホから接続要求が届きました！」
+      </div>
+      <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 12px;">
+        接続元IP: 192.168.1.50 | 端末名: Boss's iPhone (Safari PWA)<br>
+        この端末を信頼し、専用の個別アクセスキーを発行して永続登録しますか？
+      </p>
+      <div style="display: flex; gap: 10px;">
+        <button class="sim-btn" onclick="acceptBossApproval()">👍 承認して永続許可する</button>
+        <button class="sim-btn danger" onclick="rejectBossApproval()">⛔ 拒絶・ブロック</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 2. 第一原理の解説 -->
+  <div class="card">
+    <h2>🔍 なぜ繋がらなくなったのか？（真因の連鎖）</h2>
+    <div class="step-list">
+      <div class="step-item">
+        <div class="step-num">01</div>
+        <div class="step-content">
+          <h3>テスト実行時の実トークン巻き込み更新</h3>
+          <p>テストスクリプトが実環境と同じ <code>.sync_token</code> ファイルを参照していたため、テスト実行時にPC側のマスターシークレットが新しく生成・更新されてしまいました。</p>
+        </div>
+      </div>
+      <div class="step-item">
+        <div class="step-num">02</div>
+        <div class="step-content">
+          <h3>スマホ側の「403門前払い」抱え込み</h3>
+          <p>スマホの <code>localStorage</code> には古い個別トークンが残っており、PC側は当然「無効（403 Forbidden）」を返却。しかしスマホ側のJSは「401の時だけ再取得する」実装になっていたため、403を受け取るとリトライを放棄して永久沈黙していました。</p>
+        </div>
+      </div>
+      <div class="step-item">
+        <div class="step-num">03</div>
+        <div class="step-content">
+          <h3>QR発行直後の「ゼロ秒締め出し」</h3>
+          <p>QRコード経由で個別トークンを発行した瞬間、PC側が <code>close_pairing()</code> を呼び出していたため、直後にスマホから飛んできた通信がタイミングによって締め出されていました。</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 3. ボスの直感リバースエンジニアリング -->
+  <div class="insight-card">
+    <h3>💡 ボスの直感: 「スマホから接続が来たら、PC側で『承認する？』を出せばいい」</h3>
+    <p style="font-size: 14px; margin-bottom: 12px;">
+      ボスのこの一言は、セキュリティ業界の最前線（TailscaleやApple AirDrop、WebAuthn）で用いられる**「Human-in-the-Loop（人間参加型）ペアリング」**の設計そのものです。
+    </p>
+    <div style="background: rgba(0,0,0,0.3); padding: 14px; border-radius: 8px; font-size: 13px;">
+      <strong>【なぜこれが最強の設計なのか】</strong><br>
+      ・<strong>受動的ゼロトラスト:</strong> QRコードを毎回スキャンしなくても、未登録端末が叩いた瞬間にPC側に通知がポップアップ。<br>
+      ・<strong>完全な可視性:</strong> 「誰がいつ接続を求めているか」が管理者に100%把握できる。<br>
+      ・<strong>ワンクリック永続化:</strong> 一度許可すれば、暗号化ハッシュ化された個別トークンがスマホ側に保存され、2回目以降は完全自動でセキュア通信。
+    </div>
+  </div>
+
+</div>
+
+<script>
+  const logBox = document.getElementById('logBox');
+  const packet = document.getElementById('packet');
+  const phoneBox = document.getElementById('phoneBox');
+  const pcBox = document.getElementById('pcBox');
+  const phoneStatus = document.getElementById('phoneStatus');
+  const bossModal = document.getElementById('bossApprovalModal');
+
+  function addLog(msg) {
+    const time = new Date().toLocaleTimeString();
+    logBox.innerHTML += `<div>[${time}] ${msg}</div>`;
+    logBox.scrollTop = logBox.scrollHeight;
+  }
+
+  function animatePacket(color, forward = true, callback) {
+    packet.style.backgroundColor = color;
+    packet.style.boxShadow = `0 0 12px ${color}`;
+    packet.style.opacity = '1';
+    packet.style.transform = forward ? 'translateX(-40px)' : 'translateX(40px)';
+    
+    setTimeout(() => {
+      packet.style.transform = forward ? 'translateX(40px)' : 'translateX(-40px)';
+      setTimeout(() => {
+        packet.style.opacity = '0';
+        if (callback) callback();
+      }, 500);
+    }, 50);
+  }
+
+  function runNormalSync() {
+    addLog("GET /api/status [Bearer dev_xxx] を送信...");
+    phoneBox.className = "device-box active";
+    animatePacket("#38ef7d", true, () => {
+      addLog("PC: 個別トークン検証成功 ➔ 200 OK (sync_state, pet_mood)");
+      animatePacket("#38ef7d", false, () => {
+        phoneStatus.textContent = "同期完了 (200 OK)";
+        phoneStatus.className = "status-pill ok";
+        phoneBox.className = "device-box";
+      });
+    });
+  }
+
+  function runOldBug() {
+    addLog("GET /api/status [Bearer 古いトークン] を送信...");
+    phoneBox.className = "device-box";
+    animatePacket("#f12711", true, () => {
+      addLog("PC: トークン不一致！ 403 Forbidden を返却");
+      animatePacket("#f12711", false, () => {
+        phoneStatus.textContent = "エラー (403 Forbidden)";
+        phoneStatus.className = "status-pill err";
+        phoneBox.className = "device-box blocked";
+        addLog("💥 [旧実装] 403は再取得対象外のため、古いキーを保持して永久停止！");
+      });
+    });
+  }
+
+  function runNewRecovery() {
+    addLog("GET /api/status [Bearer 古いトークン] を送信...");
+    phoneBox.className = "device-box";
+    animatePacket("#f12711", true, () => {
+      addLog("PC: 403 Forbidden を返却");
+      animatePacket("#f12711", false, () => {
+        phoneStatus.textContent = "403検知 ➔ 自動リカバリ発動";
+        phoneStatus.className = "status-pill ok";
+        addLog("🛡️ [新実装] 403を捕捉！localStorageをクリアして /api/auth/token を再取得要求");
+        setTimeout(() => {
+          animatePacket("#38ef7d", true, () => {
+            addLog("PC: 新しい個別トークンを発行！");
+            animatePacket("#38ef7d", false, () => {
+              phoneStatus.textContent = "復旧完了 (200 OK)";
+              phoneStatus.className = "status-pill ok";
+              addLog("🎉 スマホDesk Petが完全自動で通信復帰！");
+            });
+          });
+        }, 600);
+      });
+    });
+  }
+
+  function triggerBossApproval() {
+    addLog("📱 新しいスマホがWi-Fi経由で接続要求 (POST /api/auth/request_pairing)");
+    bossModal.style.display = "block";
+    addLog("🔔 PC画面に「接続承認ダイアログ」がポップアップしました！");
+  }
+
+  function acceptBossApproval() {
+    bossModal.style.display = "none";
+    addLog("👍 ボスが承認！ 端末台帳にBoss's iPhoneを登録し、個別トークンを発行しました。");
+    phoneStatus.textContent = "承認済み (接続OK)";
+    phoneStatus.className = "status-pill ok";
+  }
+
+  function rejectBossApproval() {
+    bossModal.style.display = "none";
+    addLog("⛔ ボスが拒絶。接続元IPをブラックリストへ登録しました。");
+    phoneStatus.textContent = "拒絶 (403 Blocked)";
+    phoneStatus.className = "status-pill err";
+  }
+</script>
+
+</body>
+</html>

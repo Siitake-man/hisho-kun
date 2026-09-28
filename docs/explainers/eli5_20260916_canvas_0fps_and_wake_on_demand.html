@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ELI5: Canvas適応型描画ループと0fps完全スリープの物理 | ネオ秘書くん</title>
+  <style>
+    :root {
+      --bg: #12100e;
+      --card-bg: #1c1815;
+      --border: #3d342d;
+      --accent: #e59866;
+      --accent-green: #68bb59;
+      --accent-red: #e74c3c;
+      --text: #f5eedc;
+      --text-sub: #bdaea2;
+      --code-bg: #27211c;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "DotGothic16", monospace;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      padding: 24px 16px;
+    }
+    .container {
+      max-width: 880px;
+      margin: 0 auto;
+    }
+    header {
+      text-align: center;
+      margin-bottom: 32px;
+      padding-bottom: 20px;
+      border-bottom: 2px dashed var(--border);
+    }
+    .badge {
+      display: inline-block;
+      padding: 4px 12px;
+      background: #3a2312;
+      color: var(--accent);
+      border-radius: 99px;
+      font-size: 0.85rem;
+      margin-bottom: 12px;
+      border: 1px solid var(--accent);
+    }
+    h1 {
+      font-size: 1.8rem;
+      color: var(--accent);
+      margin-bottom: 8px;
+    }
+    .subtitle {
+      color: var(--text-sub);
+      font-size: 0.95rem;
+    }
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 24px;
+      margin-bottom: 24px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+    }
+    .card h2 {
+      font-size: 1.3rem;
+      color: var(--accent);
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    /* シミュレータエリア */
+    .sim-controls {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-bottom: 16px;
+    }
+    button.btn {
+      padding: 10px 18px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: #2b241e;
+      color: var(--text);
+      cursor: pointer;
+      font-weight: bold;
+      transition: all 0.2s;
+    }
+    button.btn:hover {
+      background: var(--accent);
+      color: #12100e;
+    }
+    button.btn-active {
+      background: var(--accent);
+      color: #12100e;
+      border-color: var(--accent);
+    }
+    .sim-stage {
+      background: #000;
+      border: 2px solid var(--border);
+      border-radius: 8px;
+      position: relative;
+      height: 260px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+    .hud-metrics {
+      position: absolute;
+      top: 12px;
+      left: 12px;
+      background: rgba(28, 24, 21, 0.85);
+      padding: 8px 14px;
+      border-radius: 6px;
+      font-size: 0.85rem;
+      border: 1px solid var(--border);
+      pointer-events: none;
+      font-family: monospace;
+    }
+    .fps-counter {
+      color: var(--accent-green);
+      font-weight: bold;
+      font-size: 1.1rem;
+    }
+    .fps-zero {
+      color: var(--accent-red);
+    }
+    canvas#demoCanvas {
+      width: 100%;
+      height: 100%;
+    }
+
+    /* 解説スタイル */
+    .analogy-box {
+      background: #241d18;
+      border-left: 4px solid var(--accent);
+      padding: 16px;
+      margin: 16px 0;
+      border-radius: 0 8px 8px 0;
+    }
+    .analogy-title {
+      font-weight: bold;
+      color: var(--accent);
+      margin-bottom: 6px;
+    }
+    .code-sample {
+      background: var(--code-bg);
+      padding: 14px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      font-family: monospace;
+      font-size: 0.85rem;
+      overflow-x: auto;
+      margin: 12px 0;
+    }
+
+    /* アコーディオン */
+    details {
+      background: #251f1a;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      margin-bottom: 10px;
+      overflow: hidden;
+    }
+    summary {
+      padding: 12px 16px;
+      cursor: pointer;
+      font-weight: bold;
+      color: var(--accent);
+      user-select: none;
+    }
+    summary:hover {
+      background: #2f2721;
+    }
+    .details-content {
+      padding: 14px 16px;
+      border-top: 1px dashed var(--border);
+      color: var(--text-sub);
+      font-size: 0.9rem;
+    }
+
+    footer {
+      text-align: center;
+      margin-top: 32px;
+      color: var(--text-sub);
+      font-size: 0.85rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div class="badge">💡 ELI5 動くビジュアル解剖図解</div>
+      <h1>Canvas適応型描画ループ ＆ 0fps完全スリープ</h1>
+      <p class="subtitle">古いスマホを卓上で24時間熱暴走させない、究極の省電力物理とWake-on-Demandアーキテクチャ</p>
+    </header>
+
+    <!-- 1. 動くSVG / Canvas シミュレータ -->
+    <section class="card">
+      <h2>🎮 1. 動くリアルタイム物理シミュレータ</h2>
+      <p style="color: var(--text-sub); margin-bottom: 14px;">
+        下のボタンを切り替えて、画面表示中（60fps）とバックグラウンド・スリープ（0fps完全停止）時の挙動の違い、そしてタップによる即時叩き起こし（Wake-on-Demand）を体感してください。
+      </p>
+      <div class="sim-controls">
+        <button id="btnVisible" class="btn btn-active">📱 画面表示中 (Active 60fps)</button>
+        <button id="btnHidden" class="btn">🙈 画面非表示・スリープ (Hidden 0fps)</button>
+        <button id="btnTap" class="btn">✨ なでなで / タップ (Wake-on-Demand)</button>
+        <button id="btnCelebration" class="btn">🎉 タスク完了紙吹雪 (Confetti)</button>
+      </div>
+      <div class="sim-stage">
+        <div class="hud-metrics">
+          <div>状態: <span id="lblState" style="color: var(--accent-green);">フォアグラウンド (描画中)</span></div>
+          <div>FPS: <span id="lblFps" class="fps-counter">60</span> fps</div>
+          <div>保留中フレーム: <span id="lblPending">0</span> (cancelAnimationFrame済)</div>
+        </div>
+        <canvas id="demoCanvas" width="800" height="260"></canvas>
+      </div>
+    </section>
+
+    <!-- 2. 初級エンジニア向けの物理構造解説 -->
+    <section class="card">
+      <h2>🎭 2. 身近な例えでの物理構造解説</h2>
+
+      <div class="analogy-box">
+        <div class="analogy-title">🏢 身近な例え: 「無人のオフィスの照明」と「人感センサー」</div>
+        <p>
+          従来のWebアニメーションは、部屋に誰もいない（スマホの画面がOFF・別アプリを開いている）深夜でも、
+          <strong>天井の蛍光灯とエアコンを全開（毎秒60回フル稼働）</strong>にして電気代を垂れ流していました。<br>
+          これでは古いスマホのバッテリーが急速に消耗し、ホカホカに発熱してしまいます。<br><br>
+          本改修の「適応型描画ループ」は、<strong>人感センサー</strong>のようなものです。
+          誰も見ていない時は即座に全電源を遮断（0fps完全停止）。
+          誰かがドアを開けた時（画面復帰）や、呼び鈴を鳴らした時（タスク完了の通知・なでなでタップ）だけ、
+          瞬時に必要な光を灯します（Wake-on-Demand）。
+        </p>
+      </div>
+
+      <h3 style="color: var(--accent); margin: 18px 0 8px;">🚨 なぜ cancelAnimationFrame による保留破棄が必須なのか？</h3>
+      <p style="color: var(--text-sub); margin-bottom: 10px;">
+        ただ単に「非表示だから次のフレームを呼ばない」だけでは不十分です。
+        ブラウザはすでに「次の描画予定（保留中チケット）」をキューに抱えています。
+        タブを素早く切り替えた際、古い保留チケットが残ったまま復帰処理が走ると、
+        <strong>チケットが2重に発券されて 120fps の超高速多重ループに暴走</strong>します。<br>
+        そのため、画面が隠れた瞬間に <code>cancelAnimationFrame(animFrameId)</code> でチケットを粉砕することが、プロフェッショナルなカオス防御です。
+      </p>
+
+      <div class="code-sample">
+<span style="color: #7f8c8d;">// 🛡️ 画面非表示になった瞬間に保留フレームを即時破棄</span>
+function stopParticleLoop() {
+  if (animFrameId !== null) {
+    cancelAnimationFrame(animFrameId); <span style="color: #27ae60;">// キューを完全消去</span>
+    animFrameId = null;
+  }
+  isParticleLoopRunning = false; <span style="color: #27ae60;">// 0fps完全停止</span>
+}
+      </div>
+    </section>
+
+    <!-- 3. 専門用語の完全解体辞典 -->
+    <section class="card">
+      <h2>📚 3. 登場した専門用語の完全解体辞典</h2>
+
+      <details open>
+        <summary>1. requestAnimationFrame (rAF)</summary>
+        <div class="details-content">
+          ブラウザがディスプレイの描画タイミング（通常1秒間に60回、約16.6ミリ秒ごと）に合わせて関数を呼び出す仕組み。
+          <code>setTimeout</code> と違ってディスプレイの更新（VSync）と完全に同期するため、カクつきのない滑らかなアニメーションが描画できます。
+        </div>
+      </details>
+
+      <details>
+        <summary>2. cancelAnimationFrame</summary>
+        <div class="details-content">
+          <code>requestAnimationFrame</code> で予約した「次の描画予定チケット」を取り消すコマンド。
+          画面が非表示になった瞬間に未実行の予約を取り消すことで、CPUやGPUの無駄な処理を1ミリ秒も走らせないゼロ消費を実現します。
+        </div>
+      </details>
+
+      <details>
+        <summary>3. Page Visibility API (document.hidden)</summary>
+        <div class="details-content">
+          ユーザーがブラウザのタブを切り替えたり、スマホの画面をスリープさせたりして「現在そのWebページが見えているかどうか」を判定する標準ブラウザ機能。
+          <code>document.hidden === true</code> で非表示を検知し、<code>visibilitychange</code> イベントで状態変化をリアルタイムに受信できます。
+        </div>
+      </details>
+
+      <details>
+        <summary>4. Wake-on-Demand (オンデマンド復旧)</summary>
+        <div class="details-content">
+          普段は0fpsで完全に眠らせておき、ユーザーのタップ（なでなで）やAIエージェントのタスク完了通知など「描画が必要なイベントが発生した瞬間」だけループを叩き起こして再開する設計思想。
+        </div>
+      </details>
+
+      <details>
+        <summary>5. Deep Module (深いモジュール)</summary>
+        <div class="details-content">
+          John Ousterhout 教授が提唱した設計思想。「外から見える操作（インターフェース）はシンプルで小さく、内部の実装や保護機構が極めて深いモジュール」のこと。
+          外部は <code>wakeParticleLoop()</code> を呼ぶだけで、多重起動防止や非表示判定などの複雑なライフサイクルが安全に完結します。
+        </div>
+      </details>
+    </section>
+
+    <footer>
+      ネオ秘書くん (Neo-Secretary) 公式学習資産 | Generated by Antigravity
+    </footer>
+  </div>
+
+  <script>
+    const canvas = document.getElementById('demoCanvas');
+    const ctx = canvas.getContext('2d');
+    const lblState = document.getElementById('lblState');
+    const lblFps = document.getElementById('lblFps');
+    const lblPending = document.getElementById('lblPending');
+
+    const btnVisible = document.getElementById('btnVisible');
+    const btnHidden = document.getElementById('btnHidden');
+    const btnTap = document.getElementById('btnTap');
+    const btnCelebration = document.getElementById('btnCelebration');
+
+    let isVisible = true;
+    let particles = [];
+    let animId = null;
+    let lastTime = performance.now();
+    let frameCount = 0;
+    let currentFps = 60;
+
+    function spawnParticles(cx, cy, count, emojis, gravity = 0.05) {
+      for (let i = 0; i < count; i++) {
+        const angle = Math.random() * Math.PI * 2;
+        const speed = Math.random() * 4 + 1;
+        particles.push({
+          x: cx,
+          y: cy,
+          vx: Math.cos(angle) * speed,
+          vy: Math.sin(angle) * speed - 1.5,
+          gravity: gravity,
+          alpha: 1.0,
+          emoji: emojis[Math.floor(Math.random() * emojis.length)],
+          size: 16 + Math.random() * 8
+        });
+      }
+      if (isVisible && !animId) {
+        startLoop();
+      }
+    }
+
+    function loop(now) {
+      if (!isVisible) {
+        animId = null;
+        return;
+      }
+
+      frameCount++;
+      if (now - lastTime >= 1000) {
+        currentFps = frameCount;
+        frameCount = 0;
+        lastTime = now;
+        lblFps.textContent = currentFps;
+      }
+
+      ctx.fillStyle = '#12100e';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      // グリッド線
+      ctx.strokeStyle = '#27211c';
+      ctx.lineWidth = 1;
+      for (let x = 0; x < canvas.width; x += 40) {
+        ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, canvas.height); ctx.stroke();
+      }
+      for (let y = 0; y < canvas.height; y += 40) {
+        ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(canvas.width, y); ctx.stroke();
+      }
+
+      // パーティクル描画
+      for (let i = particles.length - 1; i >= 0; i--) {
+        const p = particles[i];
+        p.x += p.vx;
+        p.y += p.vy;
+        p.vy += p.gravity;
+        p.alpha -= 0.015;
+
+        if (p.alpha <= 0 || p.y > canvas.height + 20) {
+          particles.splice(i, 1);
+          continue;
+        }
+
+        ctx.save();
+        ctx.globalAlpha = Math.max(0, p.alpha);
+        ctx.font = `${p.size}px sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(p.emoji, p.x, p.y);
+        ctx.restore();
+      }
+
+      // ランダムなアンビエント光
+      if (Math.random() < 0.2) {
+        particles.push({
+          x: Math.random() * canvas.width,
+          y: canvas.height,
+          vx: (Math.random() - 0.5) * 0.5,
+          vy: -Math.random() * 1.5 - 0.5,
+          gravity: 0,
+          alpha: 0.9,
+          emoji: '✨',
+          size: 14
+        });
+      }
+
+      animId = requestAnimationFrame(loop);
+    }
+
+    function startLoop() {
+      if (animId) return;
+      lastTime = performance.now();
+      frameCount = 0;
+      lblFps.textContent = '60';
+      lblFps.className = 'fps-counter';
+      lblPending.textContent = '1';
+      animId = requestAnimationFrame(loop);
+    }
+
+    function stopLoop() {
+      if (animId) {
+        cancelAnimationFrame(animId);
+        animId = null;
+      }
+      lblFps.textContent = '0';
+      lblFps.className = 'fps-counter fps-zero';
+      lblPending.textContent = '0 (消去済)';
+    }
+
+    btnVisible.addEventListener('click', () => {
+      isVisible = true;
+      btnVisible.classList.add('btn-active');
+      btnHidden.classList.remove('btn-active');
+      lblState.textContent = 'フォアグラウンド (描画中)';
+      lblState.style.color = 'var(--accent-green)';
+      startLoop();
+    });
+
+    btnHidden.addEventListener('click', () => {
+      isVisible = false;
+      btnHidden.classList.add('btn-active');
+      btnVisible.classList.remove('btn-active');
+      lblState.textContent = 'バックグラウンド・スリープ (0fps停止)';
+      lblState.style.color = 'var(--accent-red)';
+      stopLoop();
+      // 画面暗転演出
+      ctx.fillStyle = 'rgba(0,0,0,0.85)';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = '#e74c3c';
+      ctx.font = '20px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('💤 画面非表示: アニメーションループ完全停止中 (CPU/GPU負荷 0%)', canvas.width / 2, canvas.height / 2);
+    });
+
+    btnTap.addEventListener('click', () => {
+      if (!isVisible) {
+        btnVisible.click();
+      }
+      spawnParticles(canvas.width / 2, canvas.height / 2, 8, ['💖', '✨', '🐾', '🥰']);
+    });
+
+    btnCelebration.addEventListener('click', () => {
+      if (!isVisible) {
+        btnVisible.click();
+      }
+      spawnParticles(canvas.width / 2, canvas.height * 0.7, 24, ['🎉', '✨', '🌟', '💖', '🎊', '⭐'], 0.12);
+    });
+
+    // 初期起動
+    startLoop();
+  </script>
+</body>
+</html>

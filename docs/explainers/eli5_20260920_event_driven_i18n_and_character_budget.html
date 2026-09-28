@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ELI5: イベント駆動型 i18n 動的言語切替 ＆ Character Budget 防壁</title>
+  <style>
+    :root {
+      --bg: #1e1e2e;
+      --card-bg: #28283d;
+      --text: #cdd6f4;
+      --subtext: #a6adc8;
+      --accent: #89b4fa;
+      --success: #a6e3a1;
+      --warning: #f9e2af;
+      --danger: #f38ba8;
+      --border: #45475a;
+    }
+    body {
+      font-family: 'Segoe UI', Meiryo, sans-serif;
+      background-color: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      margin: 0;
+      padding: 24px;
+    }
+    .container {
+      max-width: 960px;
+      margin: 0 auto;
+    }
+    h1 {
+      color: var(--accent);
+      border-bottom: 2px solid var(--border);
+      padding-bottom: 12px;
+      font-size: 1.8rem;
+    }
+    h2 {
+      color: var(--warning);
+      margin-top: 2rem;
+      font-size: 1.3rem;
+    }
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 20px;
+      margin-bottom: 20px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    }
+    /* シミュレータ領域 */
+    .sim-controls {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 20px;
+      align-items: center;
+    }
+    button.btn-toggle {
+      background: var(--accent);
+      color: #11111b;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 6px;
+      font-weight: bold;
+      cursor: pointer;
+      font-size: 1rem;
+      transition: all 0.2s;
+    }
+    button.btn-toggle:hover {
+      background: #b4befe;
+      transform: translateY(-2px);
+    }
+    .status-pill {
+      display: inline-block;
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-weight: bold;
+      background: var(--border);
+      color: var(--warning);
+    }
+    .stage {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+    }
+    .ui-mock {
+      background: #181825;
+      border: 2px solid var(--border);
+      border-radius: 8px;
+      padding: 16px;
+    }
+    .ui-mock h3 {
+      margin-top: 0;
+      color: var(--subtext);
+      font-size: 1rem;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 6px;
+    }
+    .menu-item {
+      padding: 8px 12px;
+      margin: 6px 0;
+      background: #313244;
+      border-radius: 4px;
+      display: flex;
+      justify-content: space-between;
+      transition: all 0.3s;
+    }
+    .menu-item.highlight {
+      border-left: 4px solid var(--success);
+      background: #45475a;
+    }
+    .badge {
+      font-size: 0.8rem;
+      padding: 2px 6px;
+      border-radius: 4px;
+      background: #585b70;
+    }
+    /* SVG アニメーション */
+    svg {
+      width: 100%;
+      height: 180px;
+      background: #11111b;
+      border-radius: 8px;
+    }
+    .pulse-node {
+      animation: pulse 1.5s infinite;
+    }
+    @keyframes pulse {
+      0% { r: 16; opacity: 1; }
+      50% { r: 22; opacity: 0.6; }
+      100% { r: 16; opacity: 1; }
+    }
+    /* アコーディオン */
+    details {
+      margin-bottom: 12px;
+      background: #313244;
+      border-radius: 6px;
+      padding: 10px 14px;
+      border: 1px solid var(--border);
+    }
+    summary {
+      cursor: pointer;
+      font-weight: bold;
+      color: var(--accent);
+    }
+    details p {
+      margin-top: 8px;
+      margin-bottom: 0;
+      color: var(--text);
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>💡 ELI5 動くビジュアル図解：イベント駆動型 i18n ＆ Character Budget 防壁</h1>
+    <p>2026-09-20 セッション成果：デスクトップGUI（右クリックメニュー・トレイ・手帳・QRダイアログ）の全域英語化と、動的看板掛け替え（イベントリスナー）の論理構造</p>
+
+    <!-- 1. 動くシミュレータ -->
+    <div class="card">
+      <h2>1. 動くインタラクティブ・シミュレータ</h2>
+      <p>下の「言語切り替え」ボタンを押すと、中央のイベントバスが発火し、デスクトップ各所のUIが即座に看板（テキスト）を掛け替える様子を体感できます。</p>
+
+      <div class="sim-controls">
+        <button class="btn-toggle" onclick="toggleLanguage()">🌐 言語を切り替える (Toggle Lang)</button>
+        <span>現在言語: <span id="current-lang-pill" class="status-pill">日本語 (ja)</span></span>
+      </div>
+
+      <!-- SVG データフロー図 -->
+      <svg viewBox="0 0 800 180">
+        <!-- 接続線 -->
+        <line x1="100" y1="90" x2="300" y2="90" stroke="#89b4fa" stroke-width="3" stroke-dasharray="6,6" id="flow-line-1" />
+        <line x1="300" y1="90" x2="550" y2="45" stroke="#a6e3a1" stroke-width="3" id="flow-line-top" />
+        <line x1="300" y1="90" x2="550" y2="90" stroke="#a6e3a1" stroke-width="3" id="flow-line-mid" />
+        <line x1="300" y1="90" x2="550" y2="135" stroke="#a6e3a1" stroke-width="3" id="flow-line-bot" />
+
+        <!-- 発信源: set_language -->
+        <circle cx="100" cy="90" r="28" fill="#89b4fa" />
+        <text x="100" y="95" text-anchor="middle" fill="#11111b" font-size="11" font-weight="bold">set_language</text>
+
+        <!-- 中央イベントハブ: _lang_listeners -->
+        <circle cx="300" cy="90" r="32" fill="#f9e2af" id="hub-circle" />
+        <text x="300" y="85" text-anchor="middle" fill="#11111b" font-size="11" font-weight="bold">Event Bus</text>
+        <text x="300" y="102" text-anchor="middle" fill="#11111b" font-size="9">(Listeners)</text>
+
+        <!-- リスナー1: gui.py -->
+        <circle cx="550" cy="45" r="22" fill="#a6e3a1" />
+        <text x="550" y="49" text-anchor="middle" fill="#11111b" font-size="9" font-weight="bold">gui.py</text>
+        <text x="650" y="49" fill="#cdd6f4" font-size="11">メイン吹き出し / 右クリック</text>
+
+        <!-- リスナー2: system_tray.py -->
+        <circle cx="550" cy="90" r="22" fill="#a6e3a1" />
+        <text x="550" y="94" text-anchor="middle" fill="#11111b" font-size="9" font-weight="bold">tray.py</text>
+        <text x="650" y="94" fill="#cdd6f4" font-size="11">タスクトレイメニュー再生成</text>
+
+        <!-- リスナー3: calendar_window.py -->
+        <circle cx="550" cy="135" r="22" fill="#a6e3a1" />
+        <text x="550" y="139" text-anchor="middle" fill="#11111b" font-size="9" font-weight="bold">cal.py</text>
+        <text x="650" y="139" fill="#cdd6f4" font-size="11">手帳4タブ / ビュー切替</text>
+      </svg>
+
+      <!-- UIモックプレビュー -->
+      <div class="stage" style="margin-top: 20px;">
+        <div class="ui-mock">
+          <h3>📋 右クリックメニュー (Context Menu)</h3>
+          <div class="menu-item" id="menu-briefing"><span>☀️ 今日の朝会ブリーフィング</span><span class="badge">L3</span></div>
+          <div class="menu-item" id="menu-calendar"><span>📔 統合手帳（予定・TODO・知見）</span><span class="badge">Hot</span></div>
+          <div class="menu-item" id="menu-pomo"><span>🍅 ポモドーロ集中開始 (25分)</span></div>
+          <div class="menu-item" id="menu-exit"><span>❌ 終了</span></div>
+        </div>
+
+        <div class="ui-mock">
+          <h3>📔 統合手帳タブ (Notebook Tabs)</h3>
+          <div class="menu-item" id="tab-events"><span>📅 予定 (Events)</span><span class="badge">Tab 1</span></div>
+          <div class="menu-item" id="tab-tasks"><span>📋 TODO (Tasks)</span><span class="badge">Tab 2</span></div>
+          <div class="menu-item" id="tab-habits"><span>🌱 習慣 ＆ 草 (Habits)</span><span class="badge">Tab 3</span></div>
+          <div class="menu-item" id="tab-insights"><span>🧠 ボスのトリセツ (Vault)</span><span class="badge">Tab 4</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 2. 初心者向け物理構造解説 -->
+    <div class="card">
+      <h2>2. 身近な例えでの理解：劇場の看板付け替え</h2>
+      <p><strong>「舞台の幕を下ろさずに、客席から見えるすべての看板を一瞬で英語に変える」</strong></p>
+      <ul>
+        <li><strong>課題</strong>: 通常のデスクトップアプリは、言語を切り替えると「アプリを再起動してください」と要求します。これはメニューやウィンドウが起動時に一度だけ文字列を固定生成してしまうからです。</li>
+        <li><strong>解決策（イベントリスナー）</strong>: 支配人（<code>set_language</code>）がベルを鳴らすと、劇場の各担当（メイン窓、トレイ、手帳）が一斉に待機していた関数（リスナー）を走らせ、客席（ユーザー）に気づかれないミリ秒単位で看板を差し替えます。</li>
+        <li><strong>Character Budget（文字数予算）の鉄則</strong>: 日本語「設定」（2文字）を英語「Settings」（8文字）に直訳すると枠を突き破ります。スマホのボトムドックでは「Config」（6文字）へと圧縮し、デスクトップ吹き出しでは幅を 220px〜320px に動的伸縮させることで、レイアウト崩れ（UI窒息死）を完全に防ぎます。</li>
+      </ul>
+    </div>
+
+    <!-- 3. 登場した専門用語の解体辞典 -->
+    <div class="card">
+      <h2>3. 専門用語の解体辞典（クリックで展開）</h2>
+      <details>
+        <summary>イベント駆動（Observer パターン / Subscribe）</summary>
+        <p>「何かが起きたら登録された関数を一斉に呼ぶ」仕組み。呼び出し側は誰が登録されているか知る必要がなく、部品同士の結合をバラバラ（疎結合）に保てる設計パターンです。</p>
+      </details>
+      <details>
+        <summary>Character Budget（文字数予算）</summary>
+        <p>画面のボタンや枠のサイズから逆算し、「この領域には最大何文字までしか入れない」と決めるUI設計ルール。英語化で文字数が1.5倍に膨らむWeb/スマホ開発で必須の概念です。</p>
+      </details>
+      <details>
+        <summary>辞書完全対称性（Dictionary Symmetry）</summary>
+        <p>多言語化において、日本語（ja）にあるすべてのキーが英語（en）にも1個の狂いもなく存在すること。今回のテストでは全86キーが完全に対称であることを単体テストで自動保証しています。</p>
+      </details>
+      <details>
+        <summary>Fail-Closed フォールバック</summary>
+        <p>万が一、英語の翻訳が見つからない（KeyError）場合でもアプリを落とさず、安全に既定言語（日本語）を表示し、最悪でもキー文字列そのものを返す二重防壁のことです。</p>
+      </details>
+    </div>
+  </div>
+
+  <script>
+    var currentLang = 'ja';
+
+    var translations = {
+      ja: {
+        pill: '日本語 (ja)',
+        menuBriefing: '☀️ 今日の朝会ブリーフィング',
+        menuCal: '📔 統合手帳（予定・TODO・知見）',
+        menuPomo: '🍅 ポモドーロ集中開始 (25分)',
+        menuExit: '❌ 終了',
+        tabEvents: '📅 予定',
+        tabTasks: '📋 TODO',
+        tabHabits: '🌱 習慣 ＆ 草',
+        tabInsights: '🧠 ボスのトリセツ'
+      },
+      en: {
+        pill: 'English (en)',
+        menuBriefing: '☀️ Morning Briefing',
+        menuCal: '📔 Integrated Notebook',
+        menuPomo: '🍅 Start Pomodoro (25m)',
+        menuExit: '❌ Exit',
+        tabEvents: '📅 Events',
+        tabTasks: '📋 Tasks',
+        tabHabits: '🌱 Habits & Streak',
+        tabInsights: '🧠 Boss Insights'
+      }
+    };
+
+    function toggleLanguage() {
+      currentLang = (currentLang === 'ja') ? 'en' : 'ja';
+      var t = translations[currentLang];
+
+      // ハブを点滅
+      var hub = document.getElementById('hub-circle');
+      hub.setAttribute('fill', '#f38ba8');
+      setTimeout(function() { hub.setAttribute('fill', '#f9e2af'); }, 300);
+
+      // UI更新
+      document.getElementById('current-lang-pill').textContent = t.pill;
+      document.querySelector('#menu-briefing span').textContent = t.menuBriefing;
+      document.querySelector('#menu-calendar span').textContent = t.menuCal;
+      document.querySelector('#menu-pomo span').textContent = t.menuPomo;
+      document.querySelector('#menu-exit span').textContent = t.menuExit;
+
+      document.querySelector('#tab-events span').textContent = t.tabEvents;
+      document.querySelector('#tab-tasks span').textContent = t.tabTasks;
+      document.querySelector('#tab-habits span').textContent = t.tabHabits;
+      document.querySelector('#tab-insights span').textContent = t.tabInsights;
+
+      // ハイライト効果
+      var items = document.querySelectorAll('.menu-item');
+      items.forEach(function(el) {
+        el.classList.add('highlight');
+        setTimeout(function() { el.classList.remove('highlight'); }, 400);
+      });
+    }
+  </script>
+</body>
+</html>

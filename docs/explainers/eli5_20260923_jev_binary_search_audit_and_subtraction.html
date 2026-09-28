@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ELI5: Jev 29kトークン二分探索と認知負荷の引き算（2026-09-23）</title>
+<style>
+  :root {
+    --bg: #0b0f19; --card: #131a2b; --line: #202b42; --fg: #e2e8f0;
+    --dim: #94a3b8; --gold: #fbbf24; --cyan: #38bdf8; --red: #f87171;
+    --green: #4ade80; --purple: #c084fc;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 24px; background: var(--bg); color: var(--fg);
+         font-family: "Meiryo UI", "Yu Gothic UI", system-ui, sans-serif; line-height: 1.7; }
+  h1 { font-size: 22px; margin: 0 0 4px; color: var(--fg); }
+  .sub { color: var(--dim); font-size: 13px; margin-bottom: 24px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px;
+          padding: 20px 22px; margin-bottom: 24px; box-shadow: 0 4px 20px rgba(0,0,0,0.3); }
+  .card h2 { font-size: 17px; margin: 0 0 8px; color: var(--gold); display: flex; align-items: center; gap: 8px; }
+  .card p.lead { color: var(--dim); font-size: 13px; margin: 0 0 16px; }
+  .row { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; margin-bottom: 12px; }
+  button { background: #1e293b; color: var(--fg); border: 1px solid var(--line);
+           border-radius: 8px; padding: 8px 16px; font-size: 13px; cursor: pointer; transition: all 0.2s; }
+  button:hover { background: #334155; border-color: var(--cyan); }
+  button.on { background: var(--gold); color: #0f172a; border-color: var(--gold); font-weight: bold; }
+  .stage { position: relative; height: 180px; margin-top: 14px; border: 1px solid var(--line);
+           border-radius: 10px; background: #070a12; overflow: hidden; padding: 14px; }
+  .meter-bar { width: 100%; height: 26px; background: #1e293b; border-radius: 99px; overflow: hidden; position: relative; margin: 10px 0; border: 1px solid var(--line); }
+  .meter-fill { height: 100%; width: 0%; background: linear-gradient(90deg, var(--green), var(--cyan)); transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1), background 0.4s; }
+  .target-zone { position: absolute; top: 0; left: 84.3%; width: 7.8%; height: 100%; background: rgba(74, 222, 128, 0.25); border-left: 2px dashed var(--green); border-right: 2px dashed var(--green); }
+  .limit-line { position: absolute; top: 0; left: 100%; width: 2px; height: 100%; background: var(--red); }
+  .verdict { font-size: 13px; font-weight: bold; margin-top: 8px; }
+  .ok { color: var(--green); } .bad { color: var(--red); } .warn { color: var(--gold); }
+  table { border-collapse: collapse; font-size: 12px; width: 100%; margin-top: 10px; }
+  th, td { border: 1px solid var(--line); padding: 7px 10px; text-align: left; }
+  th { background: #162032; color: var(--dim); font-weight: normal; }
+  .tag { font-size: 11px; padding: 2px 8px; border-radius: 99px; border: 1px solid var(--line); font-weight: bold; }
+  .tag.keep { border-color: var(--green); color: var(--green); background: rgba(74, 222, 128, 0.1); }
+  .tag.archive { border-color: var(--purple); color: var(--purple); background: rgba(192, 132, 252, 0.1); }
+  .tag.prune { border-color: var(--red); color: var(--red); background: rgba(248, 113, 113, 0.1); }
+  code { background: #1e293b; padding: 2px 6px; border-radius: 4px; font-size: 12px; color: var(--cyan); }
+  .accordion { border: 1px solid var(--line); border-radius: 8px; margin-bottom: 8px; overflow: hidden; }
+  .acc-head { background: #162032; padding: 10px 14px; font-size: 13px; font-weight: bold; cursor: pointer; display: flex; justify-content: space-between; align-items: center; }
+  .acc-head:hover { background: #1e2c45; }
+  .acc-body { padding: 12px 14px; font-size: 12px; color: var(--dim); background: #0f1624; display: none; line-height: 1.6; }
+</style>
+</head>
+<body>
+
+<h1>⚡ ELI5: Jev 29kトークン二分探索と認知負荷の引き算</h1>
+<div class="sub">2026-09-23 の核心 — 「文字数カットの罠」を数学的二分探索で破り、AIの頭脳から余分な荷物を下ろした一日を完全可視化。</div>
+
+<!-- ============ 第1章 ============ -->
+<section class="card">
+  <h2>① 「文字数固定」はなぜ破綻したか？（トークン密度の罠）</h2>
+  <p class="lead">日本語・英語・記号が入り混じるプログラミングテキストでは、文字数とトークン数は比例しません。<br>
+  「1文字4文字で約何トークン」という固定の山勘は、すぐに <code>max_tokens_exceeded (HTTP 400)</code> の崖から落下します。</p>
+
+  <div class="row">
+    <button onclick="simFixed()">❌ 従来の固定文字数カット（山勘）</button>
+    <button class="on" onclick="simBinary()">⚡ 二分探索（バイナリサーチ）強制収束</button>
+  </div>
+
+  <div class="stage">
+    <div style="display:flex; justify-content:space-between; font-size:12px; color:var(--dim);">
+      <span>0 Tokens</span>
+      <span style="color:var(--green)">🎯 目標範囲: 27,000 〜 29,500</span>
+      <span style="color:var(--red)">⛔ Jev上限: 32,000</span>
+    </div>
+    <div class="meter-bar">
+      <div class="target-zone" title="理想ターゲット (27k - 29.5k)"></div>
+      <div id="meter-fill" class="meter-fill"></div>
+    </div>
+    <div id="meter-status" style="font-size:13px; color:var(--dim);">ボタンを押してシミュレーションを開始してください。</div>
+    <div id="meter-step" style="font-size:12px; color:var(--cyan); margin-top:4px;"></div>
+  </div>
+</section>
+
+<!-- ============ 第2章 ============ -->
+<section class="card">
+  <h2>② 「認知負荷を下げる」とはどういうことか？（引き算の美学）</h2>
+  <p class="lead">ボスが質問された<b>「この対比によってAIエージェント側の認知負荷が下がるのか？」</b>への物理的回答。<br>
+  机の上に115冊の本が乱雑に積まれていると、探すだけで脳のメモリ（コンテキスト）を消費し判断が鈍ります。</p>
+
+  <table>
+    <thead>
+      <tr>
+        <th>施策</th>
+        <th>改修前の状態（高負荷）</th>
+        <th>改修後（引き算の美学）</th>
+        <th>AIへの絶大な効果</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><b>外部記憶 (MentisDB)</b></td>
+        <td>Rustバイナリ＋MCP設定＋知識の宝庫との重複</td>
+        <td><span class="tag prune">完全消滅</span> (Zero-Trust)</td>
+        <td>記憶の境界が「知識の宝庫」1本に統一され、エージェントの混乱がゼロに。</td>
+      </tr>
+      <tr>
+        <td><b>全115スキル棚卸し</b></td>
+        <td>企業用GCP 24件＋類似UIスキルが乱立</td>
+        <td><span class="tag archive">38件アーカイブ退避</span></td>
+        <td>Jevルーターの推論トークンを大幅削減し、最適ツールの選定精度が跳ね上がる。</td>
+      </tr>
+      <tr>
+        <td><b>Jev Harness</b></td>
+        <td>単一エージェント自己完結の誘惑</td>
+        <td><span class="tag keep">plan_and_guard 直結</span></td>
+        <td>破壊的コマンドや手戻りを、ミリ秒・安価なSystem Oneモデルが自律ガード。</td>
+      </tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- ============ 第3章 ============ -->
+<section class="card">
+  <h2>③ 専門用語の完全解体辞典（ボスのためのインフラ視点解説）</h2>
+  <p class="lead">本セッションで登場した重要概念を、初級エンジニアおよびNW/PM視点で平易に解説します。</p>
+
+  <div class="accordion">
+    <div class="acc-head" onclick="toggleAcc(this)">
+      <span>🔍 二分探索（バイナリサーチ）とは？</span><span>▼</span>
+    </div>
+    <div class="acc-body">
+      辞書で言葉を引くときのように、真ん中を開いて「大きすぎるか小さすぎるか」で探索範囲を半分ずつ絞り込んでいくアルゴリズムです。<br>
+      文字数を1文字ずつ増減させると何百回も試行が必要ですが、二分探索ならわずか8〜12ステップ（約0.05秒）で目標の <code>27,000 <= tokens <= 29,500</code> に100%確実に収束させることができます。
+    </div>
+  </div>
+
+  <div class="accordion">
+    <div class="acc-head" onclick="toggleAcc(this)">
+      <span>⚖️ トークン密度（Token Density）とは？</span><span>▼</span>
+    </div>
+    <div class="acc-body">
+      「1文字あたり何トークンになるか」の比率です。英語のアルファベットは1単語（4〜5文字）で約1トークンですが、日本語の漢字や記号、コードのインデントなどは1文字で2〜3トークンを消費することがあります。そのため、「文字数」だけで長さを制限しようとすると、中身によってトークン数が数倍に跳ね上がり、API上限を突き破る原因になります。
+    </div>
+  </div>
+
+  <div class="accordion">
+    <div class="acc-head" onclick="toggleAcc(this)">
+      <span>🏛️ 蒸留蔵思想（Distillation Vault）とは？</span><span>▼</span>
+    </div>
+    <div class="acc-body">
+      AIの気まぐれな思いつきや推測を直接「知識の宝庫」に書き込ませず、必ず「ボス自身の明確な発言」「発生した物理的事実（Gotcha）」「実際に通ったテスト」という確定エビデンスを通過したものだけを長期記憶に封入する設計思想です。AIの幻覚（ハルシネーション）による記憶汚染を防ぎます。
+    </div>
+  </div>
+
+  <div class="accordion">
+    <div class="acc-head" onclick="toggleAcc(this)">
+      <span>🛡️ フェイルクローズ（Fail-Closed）とは？</span><span>▼</span>
+    </div>
+    <div class="acc-body">
+      NWのファイアウォールと同じ思想です。何らかの例外や未定義の状態、判定不能な事象が発生した際に、「とりあえず通す（Fail-Open）」のではなく、「安全のために直ちに遮断・停止する」という防御原則です。P0-4データ境界やJev Tool Guardでも徹底されています。
+    </div>
+  </div>
+</section>
+
+<script>
+function simFixed() {
+  const fill = document.getElementById('meter-fill');
+  const status = document.getElementById('meter-status');
+  const step = document.getElementById('meter-step');
+  
+  fill.style.width = '105%';
+  fill.style.background = 'var(--red)';
+  status.innerHTML = '<span class="bad">❌ 33,620 Tokens — Jev上限(32,000)を超過！(HTTP 400 max_tokens_exceeded)</span>';
+  step.textContent = '理由: 日本語と記号の比率が高く、文字数カットの山勘が外れてクラッシュ。';
+}
+
+function simBinary() {
+  const fill = document.getElementById('meter-fill');
+  const status = document.getElementById('meter-status');
+  const step = document.getElementById('meter-step');
+  
+  status.innerHTML = '<span class="warn">⏳ 二分探索ループ実行中... (min:100, max:1200)</span>';
+  step.textContent = 'Step 1: mid=650 -> 33,620 tok (High) -> max=649';
+  fill.style.width = '105%';
+  fill.style.background = 'var(--red)';
+  
+  setTimeout(() => {
+    step.textContent = 'Step 4: mid=520 -> 26,400 tok (Low) -> min=521';
+    fill.style.width = '82.5%';
+    fill.style.background = 'var(--gold)';
+    
+    setTimeout(() => {
+      step.textContent = 'Step 7: mid=575 -> 29,160 tok (🎯 TARGET MATCH!)';
+      fill.style.width = '91.1%';
+      fill.style.background = 'linear-gradient(90deg, var(--green), var(--cyan))';
+      status.innerHTML = '<span class="ok">✅ 29,160 Tokens で安全収束！(目標: 27,000〜29,500)</span>';
+    }, 600);
+  }, 600);
+}
+
+function toggleAcc(el) {
+  const body = el.nextElementSibling;
+  const isShow = body.style.display === 'block';
+  body.style.display = isShow ? 'none' : 'block';
+  el.querySelector('span:last-child').textContent = isShow ? '▼' : '▲';
+}
+</script>
+
+</body>
+</html>

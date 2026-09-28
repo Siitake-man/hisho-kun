@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ELI5: データ境界と端末アイデンティティ（2026-09-23）</title>
+<style>
+  :root {
+    --bg: #0f1420; --card: #18202f; --line: #2a3550; --fg: #e8edf7;
+    --dim: #9aa8c4; --gold: #e8b84b; --cyan: #4bd6e8; --red: #ff6b6b;
+    --green: #56d364; --purple: #b388ff;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 24px; background: var(--bg); color: var(--fg);
+         font-family: "Meiryo UI", "Yu Gothic UI", system-ui, sans-serif; line-height: 1.7; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  .sub { color: var(--dim); font-size: 13px; margin-bottom: 20px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px;
+          padding: 18px 20px; margin-bottom: 20px; }
+  .card h2 { font-size: 17px; margin: 0 0 6px; color: var(--gold); }
+  .card p.lead { color: var(--dim); font-size: 13px; margin: 0 0 14px; }
+  .row { display: flex; gap: 14px; flex-wrap: wrap; align-items: center; }
+  button { background: #24304a; color: var(--fg); border: 1px solid var(--line);
+           border-radius: 8px; padding: 8px 14px; font-size: 13px; cursor: pointer; }
+  button:hover { background: #2e3c5c; }
+  button.on { background: var(--gold); color: #201a08; border-color: var(--gold); font-weight: bold; }
+  .stage { position: relative; height: 150px; margin-top: 14px; border: 1px dashed var(--line);
+           border-radius: 10px; overflow: hidden; }
+  .folder { position: absolute; top: 18px; width: 46%; height: 112px; border-radius: 10px;
+            border: 1px solid var(--line); padding: 8px 10px; font-size: 12px; }
+  .folder h3 { margin: 0 0 6px; font-size: 13px; }
+  #f-onedrive { left: 2%; background: #1d2536; }
+  #f-local { right: 2%; background: #16241f; }
+  .item { display: inline-block; padding: 3px 8px; border-radius: 6px; margin: 2px 4px 2px 0;
+          font-size: 11px; border: 1px solid var(--line); background: #101725; }
+  .item.key { border-color: var(--gold); color: var(--gold); }
+  .item.db { border-color: var(--cyan); color: var(--cyan); }
+  .item.tok { border-color: var(--purple); color: var(--purple); }
+  .moving { position: absolute; transition: all 1.1s cubic-bezier(.4,0,.2,1); z-index: 5; }
+  .verdict { margin-top: 12px; font-size: 13px; min-height: 22px; }
+  .ok { color: var(--green); } .bad { color: var(--red); } .warn { color: var(--gold); }
+  table { border-collapse: collapse; font-size: 12px; width: 100%; }
+  th, td { border: 1px solid var(--line); padding: 5px 8px; text-align: left; }
+  th { background: #1d2536; color: var(--dim); font-weight: normal; }
+  .tag { font-size: 11px; padding: 1px 7px; border-radius: 99px; border: 1px solid var(--line); }
+  .tag.ext { border-color: var(--red); color: var(--red); }
+  .tag.loop { border-color: var(--green); color: var(--green); }
+  code { background: #101725; padding: 1px 5px; border-radius: 4px; font-size: 12px; color: var(--cyan); }
+  .hint { font-size: 12px; color: var(--dim); margin-top: 8px; }
+</style>
+</head>
+<body>
+
+<h1>🛡️ ELI5: データ境界と端末アイデンティティ</h1>
+<div class="sub">2026-09-23 の核心 — P0-4（鍵とDBの引っ越し）／ID 53（中継と実IP）／ID 50（端末の名札）を、触って分かる図解にしました。</div>
+
+<!-- ============ 第1章 ============ -->
+<section class="card">
+  <h2>① 金庫の鍵を、クラウドの引き出しから引っ越す（P0-4 / ADR-2）</h2>
+  <p class="lead">OneDrive フォルダは「便利な共有引き出し」ですが、<b>暗号鍵を置く場所ではありません</b>（gitignore は同期漏洩を防ぎません）。</p>
+  <div class="row">
+    <button id="btn-migrate">🚚 引っ越しを実行（migrate_legacy_data）</button>
+    <button id="btn-sync">☁️ OneDrive同期: <span id="sync-state">ON</span></button>
+    <button id="btn-reset">↺ リセット</button>
+  </div>
+  <div class="stage">
+    <div class="folder" id="f-onedrive">
+      <h3>📁 OneDrive\...\ネオ秘書くん</h3>
+      <div id="od-items">
+        <span class="item key" id="od-key">🔑 VAPID秘密鍵</span>
+        <span class="item db" id="od-db">🗄️ DB</span>
+        <span class="item tok" id="od-tok">🎫 マスタートークン</span>
+      </div>
+    </div>
+    <div class="folder" id="f-local">
+      <h3>📁 %LOCALAPPDATA%\NeoHisho（このPCだけ）</h3>
+      <div id="lc-items"></div>
+    </div>
+  </div>
+  <div class="verdict" id="v1"></div>
+  <div class="hint">ポイント: 移行は「コピー → 中身の健全性チェック（quick_check）→ 本採用 → 旧ファイルは <code>migration_archive</code> へ退避（削除しない）」。<code>-wal</code>/<code>-shm</code> は本体と運命共同体です。</div>
+</section>
+
+<!-- ============ 第2章 ============ -->
+<section class="card">
+  <h2>② 「内線だから社員」をやめる（ID 53: Serve 中継と実IP）</h2>
+  <p class="lead">Tailscale Serve は来客の電話を内線（127.0.0.1）に繋ぎ替えます。<b>内線番号だけで社員と判断すると、社外の全員が社員証を得ます</b>。</p>
+  <div class="row">
+    <button id="btn-lan">経路: LAN（http）</button>
+    <button id="btn-serve" class="on">経路: Tailscale Serve</button>
+    <button id="btn-xff">X-Forwarded-For: あり</button>
+  </div>
+  <div class="stage" style="height:130px">
+    <div style="position:absolute;left:2%;top:40px;font-size:13px">📱 スマホ</div>
+    <div id="relay" style="position:absolute;left:26%;top:36px;font-size:13px">➡️</div>
+    <div style="position:absolute;left:44%;top:36px;font-size:13px">🖥️ PCサーバー</div>
+    <div style="position:absolute;left:2%;top:76px;font-size:12px;color:var(--dim)" id="sim-path"></div>
+    <div style="position:absolute;right:2%;top:70px;font-size:12px" id="sim-verdict"></div>
+  </div>
+  <table>
+    <tr><th>判定</th><th>条件</th><th>結果</th></tr>
+    <tr><td>loopback 信頼（PC自身）</td><td>①TCPピア loopback ②プロキシヘッダ無し ③Host が loopback 名</td><td><span class="tag loop">3条件すべて</span></td></tr>
+    <tr><td>外部端末（人間承認）</td><td>どれか欠ける（Serve は Host が *.ts.net）</td><td><span class="tag ext">承認＋個別トークン</span></td></tr>
+    <tr><td>台帳に書くIP</td><td>中継経由は XFF の<b>単一・非loopback・有効IPのみ</b>採用。それ以外は <code>None</code>（IP不明）</td><td>毒値 <code>127.0.0.1</code> を書かない</td></tr>
+  </table>
+  <div class="hint">かつては「127.0.0.1 の行＝PCのゴミ」として一覧表示のたびに物理削除され、<b>スマホのトークンが即死 → 再承認地獄</b>になっていました（ID 53）。</div>
+</section>
+
+<!-- ============ 第3章 ============ -->
+<section class="card">
+  <h2>③ 端末の名札は IP ではなく「自分で作った推測不能なID」（ID 50）</h2>
+  <p class="lead">ブラウザから MAC アドレスは取得できません。そこで <b>端末自身が UUID を作って名札にする</b>（推測不能・122bit）。</p>
+  <div class="row">
+    <button id="btn-uuid" class="on">名札: UUID あり</button>
+    <button id="btn-change-ip">📶 IPを変更（引っ越し/DHCP）</button>
+    <button id="btn-route">🔀 Serve ⇄ LAN 切替</button>
+    <button id="btn-reset3">↺ リセット</button>
+  </div>
+  <table>
+    <tr><th>台帳の行</th><th>端末名</th><th>IP（変わる）</th><th>端末ID（変わらない）</th></tr>
+    <tbody id="rows3"></tbody>
+  </table>
+  <div class="verdict" id="v3"></div>
+  <div class="hint">ポイント: フォールバック（IP+名前 → 名前+UA）は <code>device_uuid IS NULL</code> の行に限定。つまり<b>UUIDを送らない攻撃者でも、名札付きの行は乗っ取れません</b>（認証の根拠はあくまで人間承認＋個別トークン）。</div>
+</section>
+
+<script>
+(function () {
+  "use strict";
+  // ---------- 第1章 ----------
+  var syncOn = true, migrated = false;
+  var odItems = document.getElementById("od-items"), lcItems = document.getElementById("lc-items");
+  var v1 = document.getElementById("v1");
+
+  function renderCh1() {
+    document.getElementById("sync-state").textContent = syncOn ? "ON" : "OFF";
+    document.getElementById("btn-sync").classList.toggle("on", syncOn);
+    if (migrated) {
+      odItems.innerHTML = '<span class="item" style="opacity:.45">（鍵素材なし）</span>';
+      lcItems.innerHTML = '<span class="item key">🔑 VAPID秘密鍵</span>' +
+                          '<span class="item db">🗄️ DB</span>' +
+                          '<span class="item tok">🎫 マスタートークン</span>' +
+                          '<span class="item">📦 migration_archive（旧DB退避）</span>';
+    } else {
+      odItems.innerHTML = '<span class="item key">🔑 VAPID秘密鍵</span>' +
+                          '<span class="item db">🗄️ DB</span>' +
+                          '<span class="item tok">🎫 マスタートークン</span>';
+      lcItems.innerHTML = '<span class="item" style="opacity:.45">（空）</span>';
+    }
+    if (migrated) {
+      v1.innerHTML = '<span class="ok">✅ 鍵素材はこのPCだけの領域へ。以後は OneDrive の設定に関係なく安全です。</span>';
+    } else if (syncOn) {
+      v1.innerHTML = '<span class="bad">🚨 危険: 鍵素材が同期フォルダ内にあります。OneDrive がONならクラウドへアップロードされ得ます（鍵が漏れると偽の「承認要請」を送られます）。</span>';
+    } else {
+      v1.innerHTML = '<span class="warn">⚠️ 今はOFFでも、トグルを戻す/別端末で同期すると漏れます（人間の設定に依存＝脆い）。</span>';
+    }
+  }
+  document.getElementById("btn-migrate").addEventListener("click", function () { migrated = true; renderCh1(); });
+  document.getElementById("btn-sync").addEventListener("click", function () { syncOn = !syncOn; renderCh1(); });
+  document.getElementById("btn-reset").addEventListener("click", function () { migrated = false; syncOn = true; renderCh1(); });
+  renderCh1();
+
+  // ---------- 第2章 ----------
+  var viaServe = true, hasXff = true;
+  function renderCh2() {
+    document.getElementById("btn-lan").classList.toggle("on", !viaServe);
+    document.getElementById("btn-serve").classList.toggle("on", viaServe);
+    document.getElementById("btn-xff").classList.toggle("on", hasXff);
+    var host = viaServe ? "node.tail08a991.ts.net" : "192.168.1.4:8765";
+    var peer = viaServe ? "127.0.0.1（Serveの中継）" : "192.168.1.4";
+    var xff = viaServe && hasXff ? "100.64.0.5" : "なし";
+    document.getElementById("relay").textContent = viaServe ? "➡️ Serve" : "➡️ 直結";
+    document.getElementById("sim-path").innerHTML =
+      "TCPピア: <code>" + peer + "</code> ／ Host: <code>" + host + "</code> ／ XFF: <code>" + xff + "</code>";
+    var trusted = !viaServe && false; // 直結でも Host が loopback 名でなければ信頼しない
+    var el = document.getElementById("sim-verdict");
+    if (viaServe) {
+      el.innerHTML = '<span class="tag ext">外部端末</span><br><span style="color:var(--dim);font-size:11px">人間承認＋個別トークン</span>';
+      el.innerHTML += '<br><span style="font-size:11px">台帳IP: <b>' + (hasXff ? "100.64.0.5" : "IP不明") + '</b></span>';
+    } else {
+      el.innerHTML = '<span class="tag loop">loopback 信頼</span><br><span style="color:var(--dim);font-size:11px">PC内ブラウザとして扱う</span>';
+    }
+  }
+  document.getElementById("btn-lan").addEventListener("click", function () { viaServe = false; renderCh2(); });
+  document.getElementById("btn-serve").addEventListener("click", function () { viaServe = true; renderCh2(); });
+  document.getElementById("btn-xff").addEventListener("click", function () { hasXff = !hasXff; renderCh2(); });
+  renderCh2();
+
+  // ---------- 第3章 ----------
+  var uuidOn = true, ip = "192.168.1.4", route = "LAN", rows = [];
+  var UUID = "123e4567";
+  function pair() {
+    var matched = null;
+    if (uuidOn) {
+      matched = rows.find(function (r) { return r.uuid === UUID; }) || null;
+    } else {
+      matched = rows.find(function (r) { return r.uuid === null && r.ip === ip; }) || null;
+    }
+    if (matched) { matched.ip = ip; matched.route = route; return; }
+    rows.push({ ip: ip, uuid: uuidOn ? UUID : null, route: route, id: rows.length + 1 });
+  }
+  function renderCh3() {
+    document.getElementById("btn-uuid").classList.toggle("on", uuidOn);
+    document.getElementById("btn-uuid").textContent = "名札: " + (uuidOn ? "UUID あり" : "UUID なし（旧クライアント）");
+    var tbody = document.getElementById("rows3");
+    tbody.innerHTML = "";
+    rows.forEach(function (r) {
+      var tr = document.createElement("tr");
+      tr.innerHTML = "<td>#" + r.id + "（" + r.route + "）</td><td>Android端末</td><td>" + r.ip +
+                     "</td><td>" + (r.uuid ? "🆔 " + r.uuid + "…" : "—（なし）") + "</td>";
+      tbody.appendChild(tr);
+    });
+    var v = document.getElementById("v3");
+    if (rows.length <= 1) {
+      v.innerHTML = '<span class="ok">✅ 同じ端末は1行に集約（IPも経路も変わってOK）。</span>';
+    } else {
+      v.innerHTML = '<span class="warn">⚠️ ' + rows.length + '行に分裂: UUIDが無いと「IP+名前」でしか同一判定できず、IP変更や経路変更で別人扱いになります（これが再承認地獄の温床でした）。</span>';
+    }
+  }
+  document.getElementById("btn-uuid").addEventListener("click", function () { uuidOn = !uuidOn; renderCh3(); });
+  document.getElementById("btn-change-ip").addEventListener("click", function () {
+    ip = (ip === "192.168.1.4") ? "100.64.0.5" : "192.168.1.4"; pair(); renderCh3();
+  });
+  document.getElementById("btn-route").addEventListener("click", function () {
+    route = (route === "LAN") ? "Serve" : "LAN"; pair(); renderCh3();
+  });
+  document.getElementById("btn-reset3").addEventListener("click", function () { rows = []; uuidOn = true; ip = "192.168.1.4"; route = "LAN"; renderCh3(); });
+  pair();
+  renderCh3();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,548 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ELI5: アプリを閉じていても、なぜスマホに届くのか — Web Push × VAPID × セキュアコンテキスト</title>
+<style>
+  :root{
+    --bg:#0f1216; --panel:#171c22; --line:#2a323c; --fg:#e8e2d6; --dim:#9aa4b0;
+    --cream:#f2e6cf; --brown:#8a6a45; --green:#4caf50; --yellow:#ffd166; --red:#e5534b;
+    --blue:#5aa9e6; --purple:#9c7bd4;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);font-family:"Segoe UI","Hiragino Sans","Yu Gothic UI",sans-serif;line-height:1.7}
+  .wrap{max-width:980px;margin:0 auto;padding:28px 20px 80px}
+  h1{font-size:1.55rem;margin:0 0 6px;color:var(--cream)}
+  h2{font-size:1.15rem;margin:38px 0 12px;padding-left:10px;border-left:4px solid var(--brown);color:var(--cream)}
+  h3{font-size:1rem;margin:18px 0 8px;color:var(--cream)}
+  .lead{color:var(--dim);margin:0 0 22px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px 18px;margin:14px 0}
+  .q{background:linear-gradient(90deg,#1d232b,#171c22);border-left:4px solid var(--yellow)}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px}
+  .ctl{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:10px 0 4px}
+  button{background:#232b35;color:var(--fg);border:1px solid var(--line);border-radius:8px;padding:7px 13px;cursor:pointer;font-size:.9rem}
+  button:hover{background:#2c3642}
+  button.on{background:var(--brown);border-color:var(--brown);color:#fff}
+  button.bad.on{background:var(--red);border-color:var(--red)}
+  .log{font-family:Consolas,monospace;font-size:.82rem;background:#0b0e12;border:1px solid var(--line);border-radius:8px;padding:10px;height:150px;overflow:auto;color:#bfe3c0}
+  .log .ask{color:var(--yellow)} .log .no{color:var(--dim)} .log .send{color:var(--blue)} .log .hit{color:var(--green)} .log .bad{color:var(--red)}
+  svg{width:100%;height:auto;display:block}
+  .node{fill:#1e252d;stroke:var(--line);stroke-width:1.5}
+  .node.hot{stroke:var(--yellow);stroke-width:2.5}
+  .node.done{stroke:var(--green)}
+  .node.bad{stroke:var(--red)}
+  .node.bad.done{stroke:var(--red);stroke-width:2.5}
+  .lbl{fill:var(--fg);font-size:12px}
+  .sub{fill:var(--dim);font-size:10px}
+  .rowlab{fill:var(--dim);font-size:11px;letter-spacing:.02em}
+  .flow{stroke:var(--line);stroke-width:2;fill:none}
+  .flow.bad{stroke:#5a2a28}
+  .pkt{fill:var(--yellow)}
+  details{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px 14px;margin:8px 0}
+  summary{cursor:pointer;font-weight:600;color:var(--cream)}
+  details p{margin:8px 0 4px;color:var(--dim)}
+  code{background:#0b0e12;border:1px solid var(--line);border-radius:5px;padding:1px 5px;font-size:.86em;color:#ffd9a0}
+  table{width:100%;border-collapse:collapse;margin:8px 0;font-size:.9rem}
+  th,td{border:1px solid var(--line);padding:7px 9px;text-align:left;vertical-align:top}
+  th{background:#1d232b;color:var(--cream)}
+  .tag{display:inline-block;background:#232b35;border:1px solid var(--line);border-radius:999px;padding:2px 10px;font-size:.78rem;color:var(--dim);margin-right:6px}
+  .ok{color:var(--green)} .ng{color:var(--red)} .yw{color:var(--yellow)}
+  ul{padding-left:20px} li{margin:4px 0}
+  .mono{font-family:Consolas,monospace;font-size:.84rem;color:#bfe3c0}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>📲 アプリを閉じていても、なぜスマホに届くのか — Web Push × VAPID × セキュアコンテキスト</h1>
+  <p class="lead">2026-09-22 / ネオ秘書くん セッション Part 3 の核心を、動く図解で解剖します。<br>
+  （実機 E2E 成功: 16:58 / FCM 201 受理 / 画面OFF で OS 標準通知を受信）</p>
+
+  <div class="card q">
+    <b>ボスの問い</b><br>
+    「PWA を閉じていても通知が来るって、どういう仕組みなの？<br>
+     あと、なぜ LAN の <code>http://192.168.x.x</code> では動かなくて、Tailscale の HTTPS だと動くの？」
+  </div>
+
+  <div class="card">
+    <b>先に結論（3行）</b>
+    <ol style="margin:8px 0 0">
+      <li>秘書くんは<b>スマホに直接届けていない</b>。Google の預かり所（<b>FCM</b>）に「この住所宛に」と<b>署名付き</b>で預け、FCM が端末を起こして届ける。</li>
+      <li>通知の宛先（<code>endpoint</code>）は<b>スマホが自分で発行した私書箱</b>。秘書くんはそれを受け取って台帳に保存しているだけ。</li>
+      <li>その購読登録（<code>pushManager.subscribe</code>）は<b>セキュアコンテキスト</b>でしか動かない。平文 HTTP はブラウザが入口で拒否する。</li>
+    </ol>
+  </div>
+
+  <h2>① 動くシミュレータ — 通知が「起きる」全経路</h2>
+  <p class="lead">
+    経路を切り替えて、▶ 再生 / ⏭ 1ステップ で流れを追ってください。<br>
+    上段が本日開通した HTTPS 経路、下段が LAN（平文 HTTP）で遮断される対比パスです。
+  </p>
+
+  <div class="card">
+    <div class="ctl">
+      <span class="tag">経路:</span>
+      <button id="b-https" class="on">🔒 HTTPS (Tailscale serve)</button>
+      <button id="b-lan" class="bad">🚫 LAN (http://192.168.x.x)</button>
+    </div>
+    <div class="ctl">
+      <button id="play">▶ 再生</button>
+      <button id="step">⏭ 1ステップ</button>
+      <button id="reset">⟲ リセット</button>
+      <span class="tag" id="state">待機中</span>
+    </div>
+
+    <svg viewBox="0 0 940 320" role="img" aria-label="Web Push の通知経路シミュレータ">
+      <defs>
+        <marker id="ar" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto">
+          <path d="M0,0 L9,4.5 L0,9 z" fill="#2a323c"/>
+        </marker>
+        <marker id="arb" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto">
+          <path d="M0,0 L9,4.5 L0,9 z" fill="#5a2a28"/>
+        </marker>
+      </defs>
+
+      <!-- ===== 上段: HTTPS 経路 ===== -->
+      <text class="rowlab" x="14" y="16">🔒 上段: HTTPS (Tailscale serve) 経路 — 2026-09-22 16:58 に実機で全経路開通</text>
+
+      <rect class="node" id="n1" x="14"  y="28" width="132" height="62" rx="10"/>
+      <text class="lbl" x="80"  y="52" text-anchor="middle">🐬 秘書くん</text>
+      <text class="sub" x="80"  y="70" text-anchor="middle">push_sender.py</text>
+
+      <rect class="node" id="n2" x="170" y="28" width="132" height="62" rx="10"/>
+      <text class="lbl" x="236" y="52" text-anchor="middle">🔏 VAPID 署名</text>
+      <text class="sub" x="236" y="70" text-anchor="middle">P-256 秘密鍵</text>
+
+      <rect class="node" id="n3" x="326" y="28" width="132" height="62" rx="10"/>
+      <text class="lbl" x="392" y="52" text-anchor="middle">☁️ FCM (Google)</text>
+      <text class="sub" x="392" y="70" text-anchor="middle">Push Service</text>
+
+      <rect class="node" id="n4" x="482" y="28" width="132" height="62" rx="10"/>
+      <text class="lbl" x="548" y="52" text-anchor="middle">📱 スマホ Chrome</text>
+      <text class="sub" x="548" y="70" text-anchor="middle">購読済み端末</text>
+
+      <rect class="node" id="n5" x="638" y="28" width="132" height="62" rx="10"/>
+      <text class="lbl" x="704" y="52" text-anchor="middle">⚙️ Service Worker</text>
+      <text class="sub" x="704" y="70" text-anchor="middle">push イベント</text>
+
+      <rect class="node" id="n6" x="794" y="28" width="132" height="62" rx="10"/>
+      <text class="lbl" x="860" y="52" text-anchor="middle">🔔 OS 標準通知</text>
+      <text class="sub" x="860" y="70" text-anchor="middle">タップで PWA 復帰</text>
+
+      <path class="flow" d="M146,59 H170" marker-end="url(#ar)"/>
+      <path class="flow" d="M302,59 H326" marker-end="url(#ar)"/>
+      <path class="flow" d="M458,59 H482" marker-end="url(#ar)"/>
+      <path class="flow" d="M614,59 H638" marker-end="url(#ar)"/>
+      <path class="flow" d="M770,59 H794" marker-end="url(#ar)"/>
+
+      <!-- ===== 下段: LAN (平文 HTTP) 経路 ===== -->
+      <text class="rowlab" x="14" y="150">🚫 下段: LAN (http://192.168.x.x) 経路 — ブラウザが入口で遮断する</text>
+
+      <rect class="node" id="m1" x="14"  y="162" width="176" height="62" rx="10"/>
+      <text class="lbl" x="102" y="186" text-anchor="middle">🐬 秘書くん (PC)</text>
+      <text class="sub" x="102" y="204" text-anchor="middle">LAN の URL へ送信しようとする</text>
+
+      <rect class="node" id="m2" x="222" y="162" width="214" height="62" rx="10"/>
+      <text class="lbl" x="329" y="186" text-anchor="middle">📡 http://192.168.x.x:8765</text>
+      <text class="sub" x="329" y="204" text-anchor="middle">暗号化されない平文 HTTP</text>
+
+      <rect class="node bad" id="m3" x="468" y="162" width="214" height="62" rx="10"/>
+      <text class="lbl" x="575" y="186" text-anchor="middle">🚫 セキュアコンテキスト外</text>
+      <text class="sub" x="575" y="204" text-anchor="middle">SW 登録も PushManager も拒否</text>
+
+      <rect class="node" id="m4" x="714" y="162" width="212" height="62" rx="10"/>
+      <text class="lbl" x="820" y="186" text-anchor="middle">😴 通知は届かない</text>
+      <text class="sub" x="820" y="204" text-anchor="middle">PWA を開いている間のポーリングのみ</text>
+
+      <path class="flow bad" d="M190,193 H222" marker-end="url(#arb)"/>
+      <path class="flow bad" d="M436,193 H468" marker-end="url(#arb)"/>
+      <path class="flow bad" d="M682,193 H714" marker-end="url(#arb)"/>
+
+      <circle class="pkt" id="pkt" cx="14" cy="59" r="9" opacity="0"/>
+      <text class="sub" id="cap" x="470" y="266" text-anchor="middle" style="font-size:12px"></text>
+      <text class="sub" id="note" x="470" y="292" text-anchor="middle"></text>
+    </svg>
+
+    <div class="log" id="log"><span class="no">// ここに通知が「起きる」までの全経路が記録されます</span></div>
+  </div>
+
+  <h2>② 物理構造の解説 — なぜ「閉じていても届く」のか</h2>
+
+  <div class="grid">
+    <div class="card">
+      <b>🏣 例え: 郵便局が「預かって届ける」</b>
+      <p>秘書くんは<b>スマホに直接手渡していません</b>。手渡せる相手（IPアドレス）を普段から知らないからです。
+      代わりに、スマホが「私の私書箱の住所です」と書いた紙（<code>endpoint</code>）を、最初に一度だけ郵便局（<b>FCM</b>）経由で秘書くんに渡します。
+      以後、秘書くんは<b>郵便局に「この住所宛に預けます」と差し出す</b>だけ。あとは郵便局が端末を起こして届けてくれます。</p>
+    </div>
+
+    <div class="card">
+      <b>🔏 例え: 送り主の身分証が VAPID 署名</b>
+      <p>郵便局の預け窓口は<b>誰でも叩けます</b>（FCM は公開サービス）。だから「本当にネオ秘書くん本人か」を示す仕組みが要ります。
+      それが <b>VAPID 署名</b>です。購読時に「この公開鍵で署名された通知だけ受け取る」と端末側に刻んでおくので、
+      鍵を持たない第三者が同じ住所宛に送っても端末は受け取りません。
+      <b>秘密鍵は秘書くんの DB に1行だけ永続化</b>され、再生成しません（変えると全端末の購読が死ぬため）。</p>
+    </div>
+
+    <div class="card">
+      <b>🛡️ なぜ LAN の平文 HTTP は封印されるのか</b>
+      <p>Service Worker は<b>サイトの全通信を横取りできる</b>（<code>fetch</code> を代行し、応答を書き換えられる）超強力な仕組みです。
+      もし平文 HTTP でこれが動くと、同一 LAN の攻撃者が <b>SW を注入して通信を中身ごと読み書き</b>できてしまいます（中間者攻撃）。
+      そこでブラウザは「<b>HTTPS または localhost のみ</b>」に解禁しました。これが<b>セキュアコンテキスト</b>です。</p>
+      <p class="mono">192.168.x.x は「localhost」ではない → 例外に該当しない → SW 登録が拒否される。</p>
+    </div>
+
+    <div class="card">
+      <b>🧭 Tailscale serve が HTTPS を提供する理由</b>
+      <p>Tailscale は端末同士を <b>WireGuard で暗号化した閉域網</b>でつなぎ、<code>tailscale serve</code> は
+      その上の <code>https://node.tailXXXX.ts.net/</code> に<b>正式な証明書付きの HTTPS</b> を与えてローカル port 8765 へ転送します。
+      つまり「VPN で守られた網」＋「ブラウザが信頼する証明書」の二重の意味でセキュアコンテキストを満たします。
+      <b>ポート開放も不要</b>なのが効いています（秘書くんは起動時に <code>_auto_tailscale_serve</code> を自動実行）。</p>
+    </div>
+
+    <div class="card">
+      <b>📮 購読の3点セット = 住所・錠前・合鍵</b>
+      <p>スマホが発行する購読情報は3つ。<code>endpoint</code>（世界に1つだけの私書箱住所）／
+      <code>p256dh</code>（この端末の公開鍵＝本文を暗号化する錠前）／<code>auth</code>（復号の認証秘密）。
+      秘書くんはこの3つを台帳（<code>push_subscriptions</code>）に <code>endpoint</code> UNIQUE で保存します。
+      <b>つまり FCM でさえ中身は読めません</b>（端末だけが復号できる）。</p>
+    </div>
+
+    <div class="card">
+      <b>🧹 404 / 410 で台帳を掃除する理由</b>
+      <p><code>endpoint</code> は<b>永遠ではありません</b>。アプリ再インストール・サイトデータ削除・長期間の放置で失効します。
+      失効した住所に送り続けると、<b>毎回10秒のタイムアウト×台数分</b>が無駄に積み上がり、ログがエラーで埋まります。
+      FCM が <b>404（見つからない）/ 410（恒久的に消滅）</b>を返したら、その購読を台帳から自動で削除するのが正解です。</p>
+    </div>
+
+    <div class="card">
+      <b>📥 取りこぼしを拾う「まとめバナー」</b>
+      <p>Push が届いた瞬間、SW は OS 通知を出すと同時に <b>IndexedDB（<code>neo-hisho-push</code>）にも未読として記録</b>します（7日 TTL で古いものを掃除）。
+      ボスが通知を消してしまっても、PWA を開いた瞬間に「🔔 オフライン中の通知 N 件」として復元される——<b>通知は消えるが記録は残る</b>設計です。</p>
+    </div>
+
+    <div class="card">
+      <b>👆 タップで「元の画面」に戻す</b>
+      <p>通知タップ時は <code>notificationclick</code> が発火し、<code>clients.matchAll()</code> で既に開いている PWA を探して
+      <code>focus()</code>、無ければ <code>openWindow()</code> で起動します。
+      <b>「気づく」だけでなく「そのまま作業に戻れる」</b>ところまでが1セットです。</p>
+    </div>
+
+    <div class="card">
+      <b>⚡ 送信は「投げっぱなし」で壊れない</b>
+      <p><code>send_push_to_all_devices()</code> は、<b>DB読み取りと VAPID 準備（ミリ秒）だけ</b>を呼び出し元スレッドで済ませ、
+      <b>ネットワーク送信（秒）は daemon スレッドへ丸投げ</b>して即 return します。
+      HTTPハンドラも GUI も 1ms たりとも止まりません。1台の失敗で全体を止めない Fail-Safe も同時に確保しています。</p>
+    </div>
+  </div>
+
+  <h2>③ 専門用語の完全解体辞典</h2>
+  <p class="lead">クリックで開きます。今回の実装に登場した全用語を、日常の言葉に翻訳しました。</p>
+
+  <details><summary>Service Worker（サービスワーカー）— ブラウザの中の「常駐係」</summary>
+    <p>Web ページとは<b>別スレッドで動く裏方プログラム</b>。ページを閉じても生き残り、通信の横取り（<code>fetch</code>）・キャッシュ・
+    Push 受信を担当します。ネオ秘書くんでは <code>web_pet/sw.js</code> がこれにあたり、
+    「ページが無い状態でもイベントを受け取れる唯一の場所」だから通知の受け口に選ばれました。
+    <b>代償として強力すぎる</b>ため、後述のセキュアコンテキストで厳しく門番されます。</p></details>
+
+  <details><summary>Web Push — サーバから端末を「起こして」届ける仕組み</summary>
+    <p>通常の HTTP は<b>端末から取りに行く</b>（ポーリング）必要があります。Web Push は逆で、
+    <b>サーバ側から端末を起こせます</b>。だから画面OFF・アプリ終了・スリープ中でも通知が届きます。
+    秘書くんの従来方式（PWA を開いている間の2秒ポーリング）は「取りに行く」側だったため、
+    実測で <code>devices.last_seen</code> = <b>901.7分前</b>（＝未接続）という構造的限界が確定していました。</p></details>
+
+  <details><summary>VAPID — 「送り主の身分証」を作る仕組み</summary>
+    <p><b>V</b>oluntary <b>A</b>pplication <b>S</b>erver <b>ID</b>entification。ECDSA <b>P-256</b> の鍵ペアで
+    送信リクエストに署名します。受信側（ブラウザ/FCM）は「この公開鍵で署名されたものだけ」を受け付けるため、
+    <b>第三者が秘書くんを騙れません</b>。Python 側は <code>py-vapid</code> の <code>Vapid</code> クラスで実装しています。</p></details>
+
+  <details><summary>VAPID 秘密鍵はなぜ「再生成禁止」なのか</summary>
+    <p>鍵ペアは <code>vapid_keys</code> テーブルに <b>PKCS#8 PEM で1行だけ</b>保存し、存在する限り作り直しません。
+    理由は単純で、<b>鍵が変わると端末側が覚えている公開鍵と食い違い、全端末の購読が一斉に無効化される</b>からです。
+    「壊れたら作り直す」が通用しない、数少ない<b>消してはいけないデータ</b>です。</p></details>
+
+  <details><summary>VAPID subject — 「連絡先」を名乗る1行</summary>
+    <p>署名には <code>sub</code>（subject）を含めます。ネオ秘書くんは <code>mailto:neo-hisho@localhost</code> を既定値にしています。
+    Push Service 側が「この送信者は誰か」を問い合わせるための連絡先で、<b>身分証に書く住所欄</b>のようなものです。</p></details>
+
+  <details><summary>FCM / Push Service — Google の「預かり所」</summary>
+    <p>Chrome の購読先 <code>endpoint</code> は <code>https://fcm.googleapis.com/...</code> になります。
+    秘書くんは<b>スマホではなく FCM に HTTPS POST</b> し、FCM が端末を起こします。
+    つまり通知は「PC → スマホ」の直線ではなく、<b>「PC → 預かり所 → 端末」の折れ線</b>で運ばれます。
+    実機では FCM が <b>HTTP 201</b>（受理）を返したことを確認しています。</p></details>
+
+  <details><summary>endpoint — 世界に1つだけの「私書箱住所」</summary>
+    <p>端末が発行する長いURL（最大2048文字を上限として検証）。この住所を知っている者は誰でも FCM に預けられますが、
+    <b>本文を読むことはできません</b>（暗号化されているため）。だから住所そのものは秘密情報ではなく、
+    <b>「漏れても中身は守られる」</b>設計になっています。ただし無効化（404/410）は起こるため台帳の掃除が必須です。</p></details>
+
+  <details><summary>p256dh / auth — 本文を守る「錠前」と「合鍵」</summary>
+    <p><code>p256dh</code> は端末の公開鍵（本文を暗号化する錠前）、<code>auth</code> は復号のための認証秘密（最大512文字で検証）。
+    秘書くんはこの2つをそのまま <code>pywebpush</code> に渡すだけで、暗号化の中身は自前実装していません。
+    <b>暗号は枯れたライブラリに任せる</b>のがゼロトラストの基本です。</p></details>
+
+  <details><summary>aes128gcm — 通知本文の暗号化方式</summary>
+    <p>Web Push の標準ペイロード暗号化。<b>端末だけが復号できる</b>ため、経路上の FCM もプロキシも中身を読めません。
+    秘書くんが送るのは <code>{title, body, event_type, timestamp, tag}</code> の小さな JSON です。</p></details>
+
+  <details><summary>セキュアコンテキスト — 「安全な場所」の定義</summary>
+    <p>ブラウザが「この画面は安全だと信頼できる」と判断した状態。具体的には <b>HTTPS</b>、または <b>localhost（127.0.0.1）</b> など限られた例外のみです。
+    Service Worker・Push・位置情報・カメラなど<b>「悪用されると被害が大きいAPI」はここでしか動かせません</b>。
+    <code>http://192.168.x.x</code> は<b>「localhost ではない平文HTTP」</b>なので、例外に該当しません。</p></details>
+
+  <details><summary>なぜ平文 HTTP では危険なのか（中間者攻撃）</summary>
+    <p>LAN 内の通信は暗号化されていないため、同じ Wi-Fi にいる攻撃者が<b>パケットを書き換えられます</b>。
+    そこで Service Worker が動くと、<b>「サイトの代わりに応答を返す係」を攻撃者が差し込める</b>ことになります。
+    ログイン画面を差し替える、API の応答を改ざんする——すべて可能になります。
+    ブラウザはこれを<b>入口（登録時点）で拒否</b>します。これが「封印」の正体です。</p></details>
+
+  <details><summary>pushManager.subscribe() — 購読登録の1行</summary>
+    <p><code>registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: ... })</code> で、
+    端末に購読を作らせ、<code>endpoint</code> と鍵を受け取ります。
+    <code>userVisibleOnly: true</code> は「必ずユーザーに見える通知を出します」という約束で、
+    <b>こっそり裏で通信する用途を禁止</b>するための制約です（悪用防止）。</p></details>
+
+  <details><summary>applicationServerKey — 「この鍵の通知だけ受け取る」刻印</summary>
+    <p>秘書くんの VAPID 公開鍵を Base64URL からバイト列へ変換して渡します
+    （<code>NeoPush.urlBase64ToUint8Array</code> が担当）。この瞬間に端末は
+    <b>「この公開鍵で署名された通知だけ受け付ける」</b>と自分に刻みます。だから他人の通知は弾かれます。</p></details>
+
+  <details><summary>通知許可（Notification.permission）とジェスチャ要件</summary>
+    <p>ブラウザは<b>ユーザー操作なしの許可要求を嫌います</b>（勝手にポップアップさせないため）。
+    ネオ秘書くんは<b>初回タップ後に許可を求める</b>設計にし、ヒント表示（<code>showPermissionHint</code>）で誘導しています。
+    <code>denied</code> になったら静かに諦め、<b>既存のポーリング通知へフォールバック</b>します（後退リスクゼロ）。</p></details>
+
+  <details><summary>showNotification() / notificationclick — 表示と復帰</summary>
+    <p>SW の <code>push</code> イベント内で <code>self.registration.showNotification(title, options)</code> を呼ぶと、
+    <b>インストール済み PWA 名義</b>で OS 標準通知が出ます。タップ時は <code>notificationclick</code> が発火し、
+    開いているウィンドウを <code>focus()</code>、無ければ <code>openWindow('./index.html')</code> で復帰します。</p></details>
+
+  <details><summary>IndexedDB（neo-hisho-push）— 取りこぼしの記録庫</summary>
+    <p>SW は通知を出す前に <code>recordUnreadPush()</code> で未読を書き込みます。
+    PWA 起動時に <code>getUnreadPushes(limit)</code> が新しい順に取り出し、
+    <b>「🔔 オフライン中の通知 N 件」まとめバナー</b>として表示、確認後に <code>markAllPushesRead()</code> で既読化します。
+    保持は<b>7日 TTL</b>（書き込み時に古い記録を掃除）で、無限に太らない設計です。</p></details>
+
+  <details><summary>404 / 410 掃除 — 台帳のメンテナンス</summary>
+    <p>Push 送信で <code>WebPushException</code> の <code>status_code</code> が <b>404 か 410</b> だった場合、
+    その購読は<b>もう存在しない</b>と判断し <code>delete_subscription_by_endpoint()</code> で台帳から削除します。
+    404 は「見つからない」、410 は「恒久的に消滅（Gone）」。<b>どちらも「送り続けても無駄」</b>の合図です。</p></details>
+
+  <details><summary>timeout = 10秒 — 無限待ちを殺す1行</summary>
+    <p><code>pywebpush</code> 内部の <code>requests.post</code> は既定で <b>10000秒</b>（≒無限）待ちます。
+    これは実用上「ハング」と同義なので、秘書くんは <code>PUSH_TIMEOUT_SEC = 10.0</code> を明示しています。
+    <b>外部I/Oには必ず上限を切る</b>——これが非同期アプリを守る鉄則です。</p></details>
+
+  <details><summary>fire-and-forget / daemon スレッド — 投げっぱなしの設計</summary>
+    <p>Push 送信は秒オーダーのネットワークI/Oなので、GUI や HTTP ハンドラで待つと<b>アプリが固まります</b>。
+    そこで <code>send_push_to_all_devices()</code> は <code>threading.Thread(daemon=True)</code> に処理を渡して即座に戻ります。
+    ただし <b>DB読み取りと VAPID 準備（ミリ秒）は呼び出し元で済ませる</b>ことで、
+    バックグラウンドスレッドが DB ファイルを握り続ける事故（Windows の WinError 32）を<b>構造的に</b>回避しています。</p></details>
+
+  <details><summary>pywebpush / py-vapid — 自前実装しない勇気</summary>
+    <p><code>pywebpush==2.5.0</code>（送信・暗号化）と <code>py-vapid==1.9.4</code>（署名・鍵生成）を採用。
+    Web Push の暗号は<b>自前で書くと必ず穴が開く</b>領域なので、枯れたライブラリに委ね、
+    秘書くん側は「誰に送るか（台帳）」「いつ送るか（イベント）」「失敗をどう掃除するか」に集中しています。</p></details>
+
+  <details><summary>Tailscale serve — VPN に「証明書付き HTTPS」を生やす</summary>
+    <p><code>tailscale serve 8765</code> は、Tailscale 網（WireGuard 暗号の閉域）上に
+    <code>https://node.tailXXXX.ts.net/</code> を作り、ローカル <code>127.0.0.1:8765</code> へ転送します。
+    <b>正式な証明書</b>が付くためセキュアコンテキストを満たし、
+    <b>ポート開放もルータ設定も不要</b>。秘書くんは起動時に <code>_auto_tailscale_serve</code> で自動実行を試みます（手動操作ゼロの設計）。</p></details>
+
+  <details><summary>入力長の上限（2048 / 512 → 422）</summary>
+    <p><code>POST /api/push/subscribe</code> は <code>endpoint</code> ≤ 2048、<code>p256dh</code>/<code>auth</code> ≤ 512 を検証し、
+    超過時は <b>422</b> で拒否します。外部から届く値を無検証で DB に入れない——ゼロトラストの基本動作です。
+    Bearer 認証は <code>do_POST</code>/<code>do_GET</code> の共通経路で強制されるため、新しいAPIも自動的に保護されます。</p></details>
+
+  <details><summary>通知の tag — 同じ通知を上書きする</summary>
+    <p>同じ <code>tag</code> を持つ通知は<b>積み上がらず置き換わります</b>（例: <code>approval_request</code> が連続しても1枚）。
+    スパム化を防ぐための標準機能で、ネオ秘書くんは <code>hisho-&lt;event_type&gt;</code> を既定タグにしています。
+    <b>鳴らしすぎない</b>ことも通知設計の一部です。</p></details>
+
+  <h2>④ まとめ — 今回の設計を1枚で</h2>
+
+  <div class="card">
+    <h3>経路の比較: なぜ HTTPS が必須なのか</h3>
+    <table>
+      <tr><th>観点</th><th>🔒 HTTPS (Tailscale serve)</th><th>🚫 LAN (http://192.168.x.x)</th></tr>
+      <tr><td>セキュアコンテキスト</td><td class="ok">満たす（正式証明書）</td><td class="ng">満たさない（平文）</td></tr>
+      <tr><td>Service Worker 登録</td><td class="ok">可能</td><td class="ng">ブラウザが拒否</td></tr>
+      <tr><td>PushManager / 購読</td><td class="ok">利用可能</td><td class="ng">利用不可</td></tr>
+      <tr><td>画面OFF・アプリ閉じ中の通知</td><td class="ok">届く（FCM 経由）</td><td class="ng">原理的に届かない</td></tr>
+      <tr><td>実測エビデンス</td><td class="ok">2026-09-22 16:58 実機成功（FCM 201）</td><td class="ng">last_seen = 901.7分前＝未接続</td></tr>
+    </table>
+  </div>
+
+  <div class="card">
+    <h3>通知が「起きる」までに守っている4つの約束</h3>
+    <table>
+      <tr><th>層</th><th>役割</th><th>実装</th><th>性質</th></tr>
+      <tr><td>① 入口</td><td>安全な場所でしか動かさない</td><td>セキュアコンテキスト（HTTPS / Tailscale serve）</td><td>ブラウザが決定論的に強制</td></tr>
+      <tr><td>② 身元</td><td>なりすましを弾く</td><td>VAPID 署名（P-256・鍵は永続化）</td><td>秘密鍵を持つ者だけが送れる</td></tr>
+      <tr><td>③ 機密</td><td>経路に中身を読ませない</td><td>aes128gcm（p256dh / auth で端末のみ復号）</td><td>FCM でさえ読めない</td></tr>
+      <tr><td>④ 継続</td><td>壊れた宛先を掃除して生き続ける</td><td>404/410 自動削除・timeout 10秒・Fail-Safe</td><td>放置しても劣化しない</td></tr>
+    </table>
+    <p style="color:var(--dim);margin:10px 0 0">
+      <strong>「席を外しても気づく」</strong>——ポーリングでは原理的に成立しなかったコアバリューが、
+      <b>ブラウザの安全規約と暗号の上で</b>構造的に成立しました。
+    </p>
+  </div>
+
+  <div class="card">
+    <h3>本日確定した数字（実機エビデンス）</h3>
+    <ul>
+      <li>実機 E2E: <b>2026-09-22 16:58</b> / HTTPS (Tailscale) で購読 → 画面OFF → <b>OS 標準通知を受信</b>（<b>FCM 201</b> 受理）</li>
+      <li>PWA 起動時の「🔔 オフライン中の通知 N 件」まとめバナー表示を確認</li>
+      <li>テスト: <code>tests/test_web_push_server.py</code> <b>24件 ALL GREEN</b> / 全回帰 <b>785 passed・2 skipped</b>（既存テスト無修正）</li>
+      <li>依存: <code>pywebpush==2.5.0</code> / <code>py-vapid==1.9.4</code></li>
+      <li>Gotcha: 秘書くん本体は Python 変更のため<b>再起動が必要</b>（PWA 側 JS は保存即反映）／従来ポーリングは<b>併存</b>（撤去しない＝後退リスクゼロ）</li>
+    </ul>
+  </div>
+
+  <p class="lead" style="margin-top:26px">
+    📄 関連: <code>docs/specs/DESIGN_SPEC.md §24</code> / <code>docs/specs/機能ロードマップ.md §13.19</code> /
+    <code>docs/guides/TAILSCALE_SETUP.md</code> /
+    <code>push_sender.py</code> / <code>api_push.py</code> / <code>storage/vapid_key_repo.py</code> /
+    <code>web_pet/sw.js</code> / <code>web_pet/pet_push.js</code> / <code>web_pet/push_common.js</code>
+  </p>
+</div>
+
+<script>
+(function(){
+  "use strict";
+  const $ = (id) => document.getElementById(id);
+  const pkt = $("pkt"), cap = $("cap"), note = $("note"), log = $("log"), state = $("state");
+  const httpsNodes = ["n1","n2","n3","n4","n5","n6"].map($);
+  const lanNodes = ["m1","m2","m3","m4"].map($);
+
+  // 上段: HTTPS (Tailscale) 経路の全ステップ
+  const HOP = [
+    {x:80,  y:59, n:0, cls:"send", t:"① 秘書くんが通知イベントを検知する",
+     log:"[秘書くん] ask / question / 完了 / リマインダー のいずれかが発生 → send_push_to_all_devices()"},
+    {x:236, y:59, n:1, cls:"send", t:"② 台帳から購読を読み、VAPID 秘密鍵で署名準備（ミリ秒）",
+     log:"[秘書くん] 購読 N 件 + VAPID 鍵を準備（ここだけは呼び出し元スレッド）→ daemon スレッドへ丸投げして即 return"},
+    {x:392, y:59, n:2, cls:"send", t:"③ pywebpush が暗号化＋署名して FCM へ HTTPS POST",
+     log:"[pywebpush] aes128gcm で暗号化 → Authorization: vapid t=...,k=... を付けて送信（timeout 10秒を明示）"},
+    {x:548, y:59, n:3, cls:"hit", t:"④ FCM が 201 で受理（中身は読めない＝端末しか復号できない）",
+     log:"[FCM] HTTP 201 受理 → 端末を起こして配信（ここで秘書くん側の処理は完了）"},
+    {x:704, y:59, n:4, cls:"hit", t:"⑤ スマホの Chrome が受信し、Service Worker を起床させる",
+     log:"[SW] push イベント発火 → event.data.json() を解析（ページは開いていない＝閉じていても起きる）"},
+    {x:860, y:59, n:5, cls:"hit", t:"⑥ OS 標準通知を表示＋IndexedDB に未読を記録（7日 TTL）",
+     log:"[SW] showNotification('⚠️ 承認待ち') を実行 ＋ recordUnreadPush() で取りこぼしに備える"},
+    {x:860, y:59, n:5, cls:"hit", t:"⑦ タップで notificationclick → PWA を前面復帰させる",
+     log:"✅ 画面OFF・アプリ閉じ・スリープ中でも届く — ボスが気づいて承認 → エージェント再開"}
+  ];
+  const HOP_NOTE = "秘書くんはスマホに直接届けていない。Google の預かり所（FCM）に「この住所宛に」と署名付きで預けている。";
+
+  // 下段: LAN (平文 HTTP) 経路の全ステップ（遮断される対比パス）
+  const LAN = [
+    {x:102, y:193, n:0, cls:"no", t:"① 秘書くんは LAN の URL へ送信しようとする",
+     log:"[秘書くん] LAN 経路: http://192.168.x.x:8765（QR の LAN モードで接続した場合）"},
+    {x:329, y:193, n:1, cls:"bad", t:"② 平文 HTTP で届く。しかし、ここで止まる",
+     log:"[ブラウザ] http://192.168.x.x は『localhost』ではない → セキュアコンテキストの例外に該当しない"},
+    {x:575, y:193, n:2, cls:"bad", t:"③ 🚫 Service Worker の登録そのものが拒否される",
+     log:"[ブラウザ] navigator.serviceWorker.register() が失敗 → PushManager も存在しない → pushManager.subscribe() は呼べない"},
+    {x:820, y:193, n:3, cls:"bad", t:"④ 結果: PWA を開いている間の 2秒ポーリングだけが残る",
+     log:"😴 画面OFF・ブラウザ閉じ・スリープ中は原理的に届かない（実測: 通知発火時の devices.last_seen = 901.7分前）"}
+  ];
+  const LAN_NOTE = "Service Worker は通信を横取りできる強力API。平文 HTTP で許すと中間者攻撃に悪用されるため、ブラウザが入口で拒否する。";
+
+  let mode = "https", i = 0, timer = null;
+
+  /** ログに行を追記する。 */
+  function say(msg, cls){
+    log.insertAdjacentHTML("beforeend", "<div class='" + (cls || "") + "'>" + msg + "</div>");
+    log.scrollTop = log.scrollHeight;
+  }
+
+  /** ログを空にする。 */
+  function clear(){ log.innerHTML = ""; }
+
+  /** 現在のモードのステップ配列を返す。 */
+  function steps(){ return mode === "https" ? HOP : LAN; }
+
+  /** タイマーを止める。 */
+  function stopTimer(){
+    if (timer) { clearInterval(timer); timer = null; }
+  }
+
+  /** ノードのハイライトを全消去する。 */
+  function clearNodes(){
+    httpsNodes.concat(lanNodes).forEach((n) => n.classList.remove("hot", "done"));
+  }
+
+  /** 待機状態へ戻す。 */
+  function reset(){
+    stopTimer();
+    i = 0;
+    pkt.setAttribute("opacity", "0");
+    clearNodes();
+    state.textContent = "待機中";
+    clear();
+    if (mode === "https"){
+      cap.textContent = "準備完了: 通知イベント → VAPID 署名 → FCM → 端末 → Service Worker → OS 通知";
+      note.textContent = HOP_NOTE;
+      say("// 経路: <b>HTTPS (Tailscale serve)</b> — セキュアコンテキスト成立", "no");
+    } else {
+      cap.textContent = "準備完了: LAN (平文 HTTP) では Service Worker の登録が拒否される";
+      note.textContent = LAN_NOTE;
+      say("// 経路: <b>LAN (http://192.168.x.x)</b> — セキュアコンテキスト不成立", "no");
+    }
+  }
+
+  /** 1ステップ進める。 */
+  function step(){
+    const list = steps();
+    if (i >= list.length){
+      stopTimer();
+      state.textContent = (mode === "https") ? "完了（通知到達）" : "完了（遮断）";
+      return;
+    }
+    const p = list[i];
+    const isHttps = (mode === "https");
+    pkt.setAttribute("opacity", "1");
+    pkt.setAttribute("cx", p.x);
+    pkt.setAttribute("cy", p.y);
+    pkt.setAttribute("fill", isHttps ? "#ffd166" : "#e5534b");
+    cap.textContent = p.t;
+    state.textContent = p.t;
+    say(p.log, p.cls);
+
+    // 到達済みノードを着色（現在地点は hot、通過済みは done）
+    const nodes = isHttps ? httpsNodes : lanNodes;
+    nodes.forEach((node, idx) => {
+      node.classList.toggle("done", idx <= p.n);
+      node.classList.toggle("hot", idx === p.n);
+    });
+    i += 1;
+  }
+
+  /** 経路（モード）を切り替える。 */
+  function setMode(v){
+    mode = v;
+    $("b-https").classList.toggle("on", v === "https");
+    $("b-lan").classList.toggle("on", v === "lan");
+    reset();
+  }
+
+  $("b-https").onclick = () => setMode("https");
+  $("b-lan").onclick = () => setMode("lan");
+  $("step").onclick = () => { if (i >= steps().length) { reset(); } step(); };
+  $("reset").onclick = () => reset();
+  $("play").onclick = () => {
+    if (timer){ stopTimer(); state.textContent = "停止"; return; }
+    if (i >= steps().length) { reset(); }
+    state.textContent = "再生中…";
+    timer = setInterval(() => {
+      step();
+      if (i > steps().length) { stopTimer(); }
+    }, 1100);
+  };
+
+  reset();
+})();
+</script>
+</body>
+</html>

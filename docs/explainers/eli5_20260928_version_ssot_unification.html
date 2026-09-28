@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ELI5: 版数の3軸衝突とSSOT統一（ネオ秘書くん 2026-09-28）</title>
+<style>
+  :root { --bg:#F7F3E8; --card:#FFFDF6; --ink:#2E2620; --acc:#C0392B; --ok:#1E8449; --warn:#B7950B; --line:#D9CDB8; }
+  * { box-sizing:border-box; }
+  body { font-family:"Meiryo","Yu Gothic",sans-serif; background:var(--bg); color:var(--ink); margin:0; padding:24px; line-height:1.7; }
+  h1 { font-size:1.5rem; border-bottom:3px solid var(--acc); padding-bottom:8px; }
+  h2 { font-size:1.2rem; margin-top:2em; border-left:6px solid var(--acc); padding-left:10px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:16px 20px; margin:14px 0; }
+  .btn { display:inline-block; margin:6px 4px; padding:8px 18px; border:none; border-radius:20px; cursor:pointer; font-weight:bold; background:var(--line); }
+  .btn.active { background:var(--acc); color:#fff; }
+  .legend span { display:inline-block; margin-right:14px; font-size:.9em; }
+  .dot { display:inline-block; width:12px; height:12px; border-radius:50%; margin-right:4px; vertical-align:middle; }
+  .rail { stroke:var(--line); stroke-width:2; }
+  .lbl { font-size:13px; fill:var(--ink); }
+  .big { font-weight:bold; }
+  details { background:var(--card); border:1px solid var(--line); border-radius:8px; padding:10px 14px; margin:8px 0; }
+  summary { cursor:pointer; font-weight:bold; }
+  .tag { display:inline-block; background:#EDE4D0; border-radius:6px; padding:1px 8px; font-size:.85em; margin-right:6px; }
+  .ok { color:var(--ok); font-weight:bold; }
+  .warn { color:var(--warn); font-weight:bold; }
+  .bad { color:var(--acc); font-weight:bold; }
+  footer { color:#8a7f6f; font-size:.85em; margin-top:2em; }
+</style>
+</head>
+<body>
+<h1>🔢 版数の「3軸衝突」とSSOT統一 — なぜ1つの数字が3つに増えていたのか？</h1>
+<p class="card">📊 <strong>本日の核心（ID 75・案A）</strong>： <code>version.py = 1.1.16</code> なのに仕様書は <code>1.5.8-dev</code>・ロードマップは <code>1.5.5</code>。この乖離はバグではなく「<strong>別物の数字が同じ『バージョン』ラベルで並んでいた</strong>」衝突。案Aで「アプリバージョン（SSOT）＋文書進捗（Rev）」の2軸に正規化した。</p>
+
+<h2>1️⃣ 動くSVGシミュレータ（乖離 → 統一）</h2>
+<div class="card">
+  <button class="btn active" id="btnBefore">乖離モード（案A以前）</button>
+  <button class="btn" id="btnAfter">統一後モード（案A）</button>
+  <div class="legend">
+    <span><span class="dot" style="background:#2980B9"></span>アプリ版数 (version.py)</span>
+    <span><span class="dot" style="background:#C0392B"></span>DESIGN_SPEC</span>
+    <span><span class="dot" style="background:#8E44AD"></span>機能ロードマップ</span>
+    <span><span class="dot" style="background:#1E8449"></span>MCP / update_checker（SSOT参照）</span>
+  </div>
+  <svg viewBox="0 0 760 300" width="100%" height="300" role="img" aria-label="版数衝突の図解">
+    <line class="rail" x1="40" y1="80" x2="720" y2="80"/>
+    <line class="rail" x1="40" y1="160" x2="720" y2="160"/>
+    <line class="rail" x1="40" y1="240" x2="720" y2="240"/>
+    <text class="lbl" x="40" y="70">version.py（SSOT）</text>
+    <text class="lbl" x="40" y="150">DESIGN_SPEC ヘッダ</text>
+    <text class="lbl" x="40" y="230">機能ロードマップ ヘッダ</text>
+    <text class="lbl" x="560" y="30" id="modeLabel" font-weight="bold" fill="#C0392B">モード: 乖離（衝突中）</text>
+
+    <g id="before">
+      <text x="120" y="85" font-weight="bold" font-size="18" fill="#2980B9">v1.1.16</text>
+      <text x="120" y="165" font-weight="bold" font-size="18" fill="#C0392B">1.5.8-dev ⚡</text>
+      <text x="120" y="245" font-weight="bold" font-size="18" fill="#8E44AD">1.5.5 ⚡</text>
+      <path d="M 200 80 C 300 80, 300 160, 400 160" stroke="#C0392B" fill="none" stroke-dasharray="5,4" marker-end="url(#arr)"/>
+      <path d="M 200 80 C 300 80, 300 240, 400 240" stroke="#8E44AD" fill="none" stroke-dasharray="5,4"/>
+      <text x="410" y="150" class="lbl" fill="#C0392B">別軸の数字が「バージョン」ラベルで衝突！</text>
+      <text x="410" y="230" class="lbl" fill="#8E44AD">読み手はどれが本番版か判断不能…</text>
+    </g>
+    <g id="after" style="display:none">
+      <text x="120" y="85" font-weight="bold" font-size="18" fill="#2980B9">v1.1.16（SSOT）</text>
+      <text x="120" y="165" font-weight="bold" font-size="18" fill="#1E8449">アプリ v1.1.16 ＋ Rev 44</text>
+      <text x="120" y="245" font-weight="bold" font-size="18" fill="#1E8449">アプリ v1.1.16 ＋ Rev 47</text>
+      <path d="M 210 80 C 320 80, 320 160, 430 160" stroke="#1E8449" fill="none" marker-end="url(#arr)"/>
+      <path d="M 210 80 C 320 80, 320 240, 430 240" stroke="#1E8449" fill="none" marker-end="url(#arr)"/>
+      <text x="440" y="150" class="lbl" fill="#1E8449">SSOT を1点参照 → 追随・矛盾ゼロ</text>
+      <text x="440" y="230" class="lbl" fill="#1E8449">文書ごとの更新履歴は「Rev 連番」で独立管理</text>
+    </g>
+    <defs><marker id="arr" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#1E8449"/></marker></defs>
+  </svg>
+</div>
+
+<h2>2️⃣ 初級エンジニア向けの物理解説（身近な例え）</h2>
+<div class="card">
+  <p>🏠 <strong>電話帳の例え</strong>：
+  あなたの家には電話番号が<strong>1つ</strong>しかない（＝<code>version.py</code>）。でも、家族がそれぞれ別のノートを書いていて、ノートの表紙に勝手に「我が家はバージョン1.5.5」と<strong>ページ数を「電話番号」と同じ欄に書き始めた</strong>状態が、今回の乖離。</p>
+  <p>案Aは「<strong>表紙の欄は2つに分けよう</strong>」と決めたこと。<br>
+  ①「電話番号」欄には必ず<strong>version.py を写す</strong>（書き換えても電話帳＝SSOT が正）<br>
+  ②「ノートを何回書き換えたか」はページ番号 <strong>Rev</strong> として別欄に記す。</p>
+  <p>これで「数字の向き合い」が消え、<strong>バンプは version.py 1行、文書更新は Rev +1</strong> だけで済む（＝認知負荷の引き算）。</p>
+</div>
+
+<h2>3️⃣ 専門用語・完全解体辞典（クリックで展開）</h2>
+<details open><summary>SSOT（Single Source of Truth）</summary>「その値について世界で1つだけの正本」。ここでは <code>version.py の __version__</code>。update_checker・MCP・web_pet配信（<code>version.js</code> 動的配信）はすべてここを参照するため、値の重複管理（散弾銃手術）が構造的に発生しない。</details>
+<details><summary>文書進捗 Rev N</summary>仕様書・ロードマップなど「文書自身の更新回数連番」。アプリ版数とは<strong>別軸</strong>。旧「1.5.8-dev」「1.5.5」はこの連番が「バージョン」欄に流走したもの。DESIGN_SPEC §6.0.1 で恒久禁止にした。</details>
+<details><summary>AUTO_ALLOW / PROMPT / STRICT（v1.1.16 の締め付け）</summary>コマンド承認の3段階。締め付け前は <code>^cat/^grep/^pytest</code> の前方一致で自動許可 → <code>cat .env</code> や <code>grep API_KEY ~</code> が無確認実行できた。v1.1.16（PR #12）からは機密ファイル=要確認(PROMPT)、秘密鍵/電源操作=STRICT（二重確認）、<code>grep API_KEY</code> 等の機密キーワード検索も PROMPT。検索語誤検知（<code>grep -r shutdown .</code>）は「コマンド位置トークンのみ判定」で回避。</details>
+<details><summary>e2e flake ＆ queue.join()（PR #13/#15）</summary>pytest のときどき失敗（フレーク）の真因は「監査ログの非同期キュー書き込みが <code>sleep(0.1)</code> 待ちに依存していた」こと。固定待機を「キューの消化完了保証（<code>_queue.join()</code>）」に置換し、決定論化。</details>
+<details><summary>Fat Module（ID 76 の背景）</summary>HTTP・WebSocket・認証・同期が 1 ファイル（local_sync_server.py 約2,000行）に同居する「巨大単一モジュール」。修正の玉突き事故とAI推論コスト増の温床。分割は「設計書を先に」（Seam／Deep Module 原則）。</details>
+<details><summary>i18n フォールバック（PR #15）</summary>未対応言語コード・None・数値が <code>set_language</code> に来ても既定 <code>ja</code> へ安全落下し、存在しない翻訳キーは「キー文字列をそのまま返す」堅牢仕様。テストが実装とバイト一致で検証済み。</details>
+
+<footer>ネオ秘書くん ELI5 図解・2026-09-28 作成（OpenCode）／正本: docs/handover/20260927_opencode_nightly_pr_integration_sprint.md ／ 計画書: ~/.opencode/plan/implementation_plan.md</footer>
+<script>
+  const b=document.getElementById('btnBefore'), a=document.getElementById('btnAfter'), gB=document.getElementById('before'), gA=document.getElementById('after'), ml=document.getElementById('modeLabel');
+  b.onclick=()=>{ b.classList.add('active'); a.classList.remove('active'); gB.style.display=''; gA.style.display='none'; ml.textContent='モード: 乖離（衝突中）'; ml.setAttribute('fill','#C0392B'); };
+  a.onclick=()=>{ a.classList.add('active'); b.classList.remove('active'); gA.style.display=''; gB.style.display='none'; ml.textContent='モード: 統一後（SSOT+Rev）'; ml.setAttribute('fill','#1E8449'); };
+</script>
+</body>
+</html>

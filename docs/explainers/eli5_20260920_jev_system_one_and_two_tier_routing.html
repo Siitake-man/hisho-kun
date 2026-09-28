@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ELI5: TypeSafe Jev System One 意思決定エンジン ＆ 2段階選抜（リランキング）動く図解</title>
+  <style>
+    :root {
+      --bg: #0d1117;
+      --card-bg: #161b22;
+      --border: #30363d;
+      --accent: #58a6ff;
+      --accent-green: #238636;
+      --accent-neon: #00E676;
+      --text: #c9d1d9;
+      --text-dim: #8b949e;
+      --warning: #f1e05a;
+      --danger: #da3633;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      padding: 20px;
+    }
+    .container { max-width: 900px; margin: 0 auto; }
+    h1 { color: #58a6ff; margin-bottom: 8px; font-size: 24px; border-bottom: 2px solid var(--border); padding-bottom: 12px; }
+    .subtitle { color: var(--text-dim); margin-bottom: 24px; font-size: 14px; }
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 20px;
+      margin-bottom: 24px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    }
+    h2 { color: #79c0ff; font-size: 18px; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+    .sim-controls {
+      display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; align-items: center;
+    }
+    button {
+      background: #238636; color: white; border: none; padding: 8px 16px; border-radius: 6px;
+      cursor: pointer; font-weight: bold; font-size: 13px; transition: all 0.2s;
+    }
+    button:hover { background: #2ea043; transform: translateY(-1px); }
+    .step-badge {
+      display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 11px;
+      font-weight: bold; background: #1f6feb; color: white;
+    }
+    .status-box {
+      background: #0d1117; border: 1px dashed var(--border); border-radius: 6px;
+      padding: 12px; font-family: monospace; font-size: 13px; color: #7ee787;
+      min-height: 60px; margin-top: 12px; white-space: pre-wrap;
+    }
+    .comparison-grid {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 16px;
+    }
+    @media (max-width: 600px) { .comparison-grid { grid-template-columns: 1fr; } }
+    .comp-col {
+      background: #0d1117; border: 1px solid var(--border); border-radius: 6px; padding: 14px;
+    }
+    .comp-col.bad { border-left: 4px solid var(--danger); }
+    .comp-col.good { border-left: 4px solid var(--accent-neon); }
+    .accordion { margin-top: 12px; }
+    details {
+      background: #0d1117; border: 1px solid var(--border); border-radius: 6px;
+      padding: 10px 14px; margin-bottom: 8px;
+    }
+    summary { cursor: pointer; font-weight: bold; color: #79c0ff; }
+    details[open] summary { margin-bottom: 8px; border-bottom: 1px solid var(--border); padding-bottom: 6px; }
+    .badge {
+      display: inline-block; padding: 2px 6px; border-radius: 4px; font-size: 11px;
+      font-weight: bold; margin-right: 6px;
+    }
+    .badge-green { background: #238636; color: white; }
+    .badge-yellow { background: #9e6a03; color: white; }
+    .badge-blue { background: #1f6feb; color: white; }
+  </style>
+</head>
+<body>
+<div class="container">
+  <h1>⚡ TypeSafe Jev System One 意思決定エンジン ＆ 2段階選抜（リランキング）</h1>
+  <p class="subtitle">2026-09-20 ネオ秘書くん アーキテクチャ進化解説 ＆ インタラクティブシミュレータ</p>
+
+  <!-- 1. 動くシミュレータ -->
+  <div class="card">
+    <h2>🎮 意思決定パイプライン・動的シミュレータ</h2>
+    <p style="font-size:13px; color:var(--text-dim); margin-bottom:12px;">
+      タスク要求を入力し、Jev（15ms粗選別）からAntigravity（精密決定・並列実行）へのパケット遷移をステップ再生します。
+    </p>
+
+    <div class="sim-controls">
+      <button onclick="runSimulation()">▶ シミュレーション実行</button>
+      <button onclick="resetSimulation()" style="background:#30363d;">リセット</button>
+      <span id="currentStepBadge" class="step-badge">待機中</span>
+    </div>
+
+    <!-- SVG Animation Canvas -->
+    <svg id="pipelineSvg" width="100%" height="220" viewBox="0 0 800 220" style="background:#090d13; border-radius:6px; border:1px solid var(--border);">
+      <!-- Nodes -->
+      <g id="nodeTask" transform="translate(40, 70)">
+        <rect width="140" height="80" rx="8" fill="#161b22" stroke="#58a6ff" stroke-width="2"/>
+        <text x="70" y="35" fill="#58a6ff" font-size="13" font-weight="bold" text-anchor="middle">📋 ボスのタスク要求</text>
+        <text x="70" y="58" fill="#8b949e" font-size="11" text-anchor="middle">UI装飾＋単体テスト</text>
+      </g>
+
+      <g id="nodeJev" transform="translate(260, 50)">
+        <rect width="180" height="120" rx="8" fill="#161b22" stroke="#00E676" stroke-width="2"/>
+        <text x="90" y="30" fill="#00E676" font-size="14" font-weight="bold" text-anchor="middle">⚡ Jev System One</text>
+        <text x="90" y="52" fill="#8b949e" font-size="11" text-anchor="middle">15ms / 0.17円 粗選別</text>
+        <text x="90" y="74" fill="#7ee787" font-size="11" text-anchor="middle">全119スキル100%走破</text>
+        <text x="90" y="96" fill="#f1e05a" font-size="11" text-anchor="middle">TOPランキング生成</text>
+      </g>
+
+      <g id="nodeAntigravity" transform="translate(520, 70)">
+        <rect width="240" height="80" rx="8" fill="#161b22" stroke="#a371f7" stroke-width="2"/>
+        <text x="120" y="32" fill="#a371f7" font-size="14" font-weight="bold" text-anchor="middle">🧠 Antigravity (Gemini)</text>
+        <text x="120" y="52" fill="#8b949e" font-size="11" text-anchor="middle">精密リランキング ＆ 最終採用</text>
+        <text x="120" y="70" fill="#00E676" font-size="10" text-anchor="middle">🚀 invoke_subagent 並列実行</text>
+      </g>
+
+      <!-- Arrows -->
+      <path d="M 180 110 L 260 110" stroke="#30363d" stroke-width="3" fill="none" marker-end="url(#arrow)"/>
+      <path d="M 440 110 L 520 110" stroke="#30363d" stroke-width="3" fill="none" marker-end="url(#arrow)"/>
+
+      <!-- Packet -->
+      <circle id="animPacket" cx="180" cy="110" r="8" fill="#00E676" opacity="0"/>
+    </svg>
+
+    <div id="statusBox" class="status-box">待機中: [シミュレーション実行] ボタンを押してください。</div>
+  </div>
+
+  <!-- 2. 日常の例えでの理解 -->
+  <div class="card">
+    <h2>🏢 身近な例えでの理解：「駅の超高速改札」と「専門の車掌・専門車両」</h2>
+    <p style="margin-bottom:12px;">
+      今回のアーキテクチャの進化は、**「大ターミナル駅の乗り換え案内と特急列車」** に例えられます。
+    </p>
+
+    <div class="comparison-grid">
+      <div class="comp-col bad">
+        <h3 style="color:#da3633; font-size:14px; margin-bottom:8px;">❌ 以前の失敗構成（直列外部LLM）</h3>
+        <p style="font-size:12px; color:var(--text-dim);">
+          改札口で乗客（タスク）が来るたびに、遠くの海外コールセンターに国際電話（OpenCode GO）をかけて「どの列車に乗るべきか」を延々と相談。
+          通話が終わるまで改札が閉鎖され、後ろに大行列ができて駅全体がフリーズ（ハング）していた状態。
+        </p>
+      </div>
+      <div class="comp-col good">
+        <h3 style="color:#00E676; font-size:14px; margin-bottom:8px;">✅ 今回の完成形（Jev System One 2段階選抜）</h3>
+        <p style="font-size:12px; color:var(--text-dim);">
+          改札にミリ秒（0.01秒）で切符を識別する超高速AI改札（Jev）を配備！
+          全119路線の全停車駅を暗記しており、一瞬で「1番線(86%)、2番線(8%)」と候補券を渡し、ホーム（Antigravity）で待つ最新鋭の並列新幹線（Geminiサブエージェント）に飛び乗らせる！
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <!-- 3. キーワード欠落問題の真因と3大教訓 -->
+  <div class="card">
+    <h2>🔍 ボスの眼力が暴いた「キーワード欠落問題」の真実</h2>
+    <p style="font-size:13px; color:var(--text-dim); margin-bottom:12px;">
+      「300文字で足りてる？最大長文をカバーできてる？」というボスの鋭い問いから始まったファクト調査と対策。
+    </p>
+
+    <table style="width:100%; border-collapse:collapse; font-size:12px; margin-bottom:12px;">
+      <thead>
+        <tr style="border-bottom:1px solid var(--border); text-align:left; color:#79c0ff;">
+          <th style="padding:6px;">項目</th>
+          <th style="padding:6px;">洗練前（推測）</th>
+          <th style="padding:6px;">実測ファクト</th>
+          <th style="padding:6px;">是正後の成果</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr style="border-bottom:1px solid var(--border);">
+          <td style="padding:6px; font-weight:bold;">文字数上限</td>
+          <td style="padding:6px; color:#da3633;">100〜300文字</td>
+          <td style="padding:6px; color:#f1e05a;">最長 1,056文字（70%欠落）</td>
+          <td style="padding:6px; color:#00E676;">100%ノーカット全文渡し</td>
+        </tr>
+        <tr style="border-bottom:1px solid var(--border);">
+          <td style="padding:6px; font-weight:bold;">Jevの確信度</td>
+          <td style="padding:6px; color:#da3633;">分散（30〜40%）</td>
+          <td style="padding:6px; color:#f1e05a;">キーワード不足で迷い</td>
+          <td style="padding:6px; color:#00E676;">graph-engineering: 86%、codebase: 98%</td>
+        </tr>
+        <tr>
+          <td style="padding:6px; font-weight:bold;">判定形式</td>
+          <td style="padding:6px; color:#da3633;">1位のみ単一返却</td>
+          <td style="padding:6px; color:#f1e05a;">2位・3位の優良候補消失</td>
+          <td style="padding:6px; color:#00E676;">スコア付き TOP 7 ランキング</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- 4. 専門用語の解体辞典 -->
+  <div class="card">
+    <h2>📚 本日の専門用語・完全解体辞典</h2>
+    <div class="accordion">
+      <details>
+        <summary><span class="badge badge-green">概念</span> System One（速い思考）と System Two（遅い思考）</summary>
+        <p style="font-size:12px; color:var(--text-dim); margin-top:6px;">
+          認知科学用語。直感や反射で瞬時に下すミリ秒の判断を「System One」、論理的に深く長考してコードを書く推論を「System Two」と呼ぶ。Jevは典型的なSystem Oneモデルであり、コードを書かせるのではなく「判断だけ」に専念させるのが正しい使い方。
+        </p>
+      </details>
+      <details>
+        <summary><span class="badge badge-blue">検索工学</span> 2段階選抜（リランキング / Reranking）</summary>
+        <p style="font-size:12px; color:var(--text-dim); margin-top:6px;">
+          膨大なデータ（100個以上のスキル）から、まず軽量モデル（Jev）が高速に確率上位5〜10件をピックアップ（第1段階）。その後、文脈を熟知した上位モデル（Antigravity）が精密に最終決定する（第2段階）手法。コンテキストトークンを劇的に節約できる。
+        </p>
+      </details>
+      <details>
+        <summary><span class="badge badge-yellow">セキュリティ</span> Fail-Closed（安全側遮断）</summary>
+        <p style="font-size:12px; color:var(--text-dim); margin-top:6px;">
+          システムで予期せぬエラーや未初期化状態（コールバックがNone等）が発生した際、絶対に通信を許可せず「遮断（403拒否）」するゼロトラストの鉄則。今回、外部端末の承認バイパス脆弱性を完全封鎖した。
+        </p>
+      </details>
+    </div>
+  </div>
+</div>
+
+<script>
+  let simInterval = null;
+  function resetSimulation() {
+    clearInterval(simInterval);
+    const pkt = document.getElementById('animPacket');
+    pkt.setAttribute('opacity', '0');
+    pkt.setAttribute('cx', '180');
+    document.getElementById('currentStepBadge').textContent = '待機中';
+    document.getElementById('statusBox').textContent = '待機中: [シミュレーション実行] ボタンを押してください。';
+  }
+
+  function runSimulation() {
+    resetSimulation();
+    const pkt = document.getElementById('animPacket');
+    const badge = document.getElementById('currentStepBadge');
+    const box = document.getElementById('statusBox');
+
+    badge.textContent = 'Step 1: タスク受付';
+    box.textContent = '【Step 1】タスク文を解析: 「スマホDesk Pet PWAのUI装飾と承認ダイアログの単体テスト」\n全119スキルの全文説明辞書をロード中...';
+    pkt.setAttribute('opacity', '1');
+    pkt.setAttribute('cx', '180');
+
+    setTimeout(() => {
+      badge.textContent = 'Step 2: Jev 15ms高速判定';
+      box.textContent = '【Step 2】Jev System One (0.17円) 確率計算実行:\n' +
+        '  - graph-engineering: 86.0%\n' +
+        '  - baseline-ui: 8.0%\n' +
+        '  - codebase-memory-mcp: 98.0%\n' +
+        '  - hisho-orchestrator: 49.0% / agent-tester: 29.0%\n' +
+        'TOPランキング候補リストを瞬時に生成！';
+      pkt.setAttribute('cx', '350');
+    }, 1200);
+
+    setTimeout(() => {
+      badge.textContent = 'Step 3: Antigravity最終採用';
+      box.textContent = '【Step 3】Antigravityが200トークンのTOPリストを受信:\n' +
+        '「Jevの判定に基づき、graph-engineering を主軸に baseline-ui と tdd を併用決定！」\n' +
+        'invoke_subagent で pixel-frontend と agent-tester をバックグラウンド並列起動！🚀';
+      pkt.setAttribute('cx', '640');
+    }, 2600);
+
+    setTimeout(() => {
+      badge.textContent = '完了 (ALL PASS)';
+      box.textContent = '🎉 パイプライン完了！\nスマホDesk PetにJev安全審査ネオンバッジ（🟢 allow）が点灯し、ワンタップ承認されました！';
+    }, 4000);
+  }
+</script>
+</body>
+</html>

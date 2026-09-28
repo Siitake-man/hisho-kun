@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ELI5: Marpゼロコンフィグ埋め込み ＆ AI Dotfilesのセキュリティ境界</title>
+  <style>
+    :root {
+      --bg: #0d1117;
+      --card-bg: #161b22;
+      --border: #30363d;
+      --text: #c9d1d9;
+      --text-bright: #f0f6fc;
+      --accent: #00c4e4;
+      --accent-yellow: #f1e05a;
+      --danger: #ff7b72;
+      --success: #7ee787;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      padding: 2rem 1rem;
+    }
+    .container {
+      max-width: 960px;
+      margin: 0 auto;
+    }
+    header {
+      text-align: center;
+      margin-bottom: 2.5rem;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 1.5rem;
+    }
+    h1 {
+      font-size: 2rem;
+      color: var(--accent);
+      margin-bottom: 0.5rem;
+    }
+    .badge {
+      display: inline-block;
+      padding: 0.2rem 0.6rem;
+      background: rgba(0, 196, 228, 0.15);
+      border: 1px solid var(--accent);
+      border-radius: 20px;
+      font-size: 0.85rem;
+      color: var(--accent);
+    }
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.5rem;
+      margin-bottom: 2rem;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    }
+    h2 {
+      font-size: 1.3rem;
+      color: var(--text-bright);
+      margin-bottom: 1rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    p { margin-bottom: 1rem; }
+    .sim-controls {
+      display: flex;
+      gap: 1rem;
+      margin-bottom: 1.5rem;
+      flex-wrap: wrap;
+    }
+    button {
+      background: var(--accent);
+      color: #000;
+      border: none;
+      padding: 0.6rem 1.2rem;
+      border-radius: 8px;
+      font-weight: bold;
+      cursor: pointer;
+      transition: opacity 0.2s;
+    }
+    button:hover { opacity: 0.85; }
+    .svg-container {
+      width: 100%;
+      background: #090d13;
+      border-radius: 8px;
+      border: 1px solid #21262d;
+      padding: 1rem;
+      overflow-x: auto;
+    }
+    svg {
+      width: 100%;
+      height: 320px;
+    }
+    .analogy-box {
+      background: rgba(241, 224, 90, 0.08);
+      border-left: 4px solid var(--accent-yellow);
+      padding: 1rem;
+      border-radius: 0 8px 8px 0;
+      margin-bottom: 1rem;
+    }
+    .danger-box {
+      background: rgba(255, 123, 114, 0.1);
+      border-left: 4px solid var(--danger);
+      padding: 1rem;
+      border-radius: 0 8px 8px 0;
+      margin-bottom: 1rem;
+    }
+    details {
+      background: #1c2128;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      margin-bottom: 0.8rem;
+      padding: 0.8rem 1rem;
+    }
+    summary {
+      cursor: pointer;
+      font-weight: bold;
+      color: var(--accent);
+    }
+    details[open] summary {
+      margin-bottom: 0.5rem;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 0.4rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <span class="badge">ELI5 動くビジュアル解体新書</span>
+      <h1>Marpゼロコンフィグ埋め込み ＆ AI Dotfilesの二重境界</h1>
+      <p>「なぜMarpプレビューが映らなかったのか？」そして「なぜAI Dotfilesに人を招いてはいけないのか？」を完全ビジュアル化！</p>
+    </header>
+
+    <!-- 第1層: 動くシミュレータ -->
+    <section class="card">
+      <h2>🎮 インタラクティブ・シミュレータ</h2>
+      <div class="sim-controls">
+        <button onclick="setMode('broken')">① 外部CSS指定（エラーで停止）</button>
+        <button onclick="setMode('inline')">② インライン埋め込み（即時レンダリング成功）</button>
+        <button onclick="setMode('security')">③ AI Dotfilesの二重境界（個人DR vs 配布用）</button>
+      </div>
+
+      <div class="svg-container">
+        <svg id="simSvg" viewBox="0 0 800 300">
+          <!-- 動的描画領域 -->
+        </svg>
+      </div>
+      <p id="simDesc" style="margin-top: 1rem; font-weight: bold; color: var(--text-bright); text-align: center;">
+        ボタンをクリックして動作モードを切り替えてください。
+      </p>
+    </section>
+
+    <!-- 第2層: 日常の例えでの理解 -->
+    <section class="card">
+      <h2>📖 身近な日常の例えで腹落ちさせる</h2>
+      
+      <div class="analogy-box">
+        <h3 style="color: var(--accent-yellow); margin-bottom: 0.5rem;">🎨 1. Marpのカスタムテーマは「会場の特注ドレスコード」</h3>
+        <p>
+          「黒のタキシード着用（`theme: minorun-dark`）」と招待状に書いても、会場の警備員（Marp for VS Code）はその特注ドレスコードを知りません。「そんな服は登録されていません！」と入場を拒否（描画停止）します。<br>
+          しかし、招待状の中に<strong>「会場ルールに関係なく、この黒いマントを着てください（`<style>`埋め込み）」</strong>と最初から服を同封しておけば、警備員の確認を待つことなく誰でも一瞬で黒い姿になれるのです。
+        </p>
+      </div>
+
+      <div class="danger-box">
+        <h3 style="color: var(--danger); margin-bottom: 0.5rem;">🔐 2. AI Dotfilesの招待は「実家の鍵と通帳が入ったスーツケースを友達に渡すようなもの」</h3>
+        <p>
+          自分のPC環境（Dotfiles）には、日々の便利設定だけでなく、<strong>「GitHubの合鍵（PATトークン）」や「Google Cloudの通行手形（APIキー）」</strong>が無防備に入っています。<br>
+          「これ便利だからあげるよ！」とスーツケースごと友人に渡すと、財布と実家の鍵まで渡してしまいます。<br>
+          <strong>「自分用の金庫（Private）」</strong>と、友人に渡す<strong>「鍵を抜いた説明書と見本（配布用スターターキット）」</strong>は絶対に分けなければなりません。
+        </p>
+      </div>
+    </section>
+
+    <!-- 第3層: 専門用語解体辞典 -->
+    <section class="card">
+      <h2>📚 登場した専門用語の完全解体辞典</h2>
+      
+      <details>
+        <summary>Marp（マープ）</summary>
+        <p>Markdownテキストを書くだけで、自動的に美しいプレゼンテーションスライドやPDF、HTMLに変換してくれるオープンソースのツール。スライド区切りは <code>---</code> を書くだけ。</p>
+      </details>
+
+      <details>
+        <summary>ゼロコンフィグ（Zero-Config）/ 自己完結（Self-Contained）</summary>
+        <p>ユーザー側に「設定ファイルの編集」や「外部プラグインの追加導入」を一切要求せず、ファイル単体を開くだけですぐに意図通りに動作する設計思想。</p>
+      </details>
+
+      <details>
+        <summary>Personal Access Token (PAT)</summary>
+        <p>GitHubのアカウントに対する「パスワード代わりのマスター合鍵」。これを持つ人は、ブラウザでログインしなくてもコマンドラインからリポジトリの作成、コードの書き換え、削除などが全権で行えてしまう危険な文字列。</p>
+      </details>
+
+      <details>
+        <summary>サニタイズ（Sanitize）/ プレースホルダ化</summary>
+        <p>本物のパスワードやAPIキーを、<code>YOUR_API_KEY_HERE</code> のようなダミーの仮置き文字列（プレースホルダ）に置き換え、外部に漏洩しても害がない状態に無毒化すること。</p>
+      </details>
+    </section>
+  </div>
+
+  <script>
+    function setMode(mode) {
+      const svg = document.getElementById('simSvg');
+      const desc = document.getElementById('simDesc');
+
+      if (mode === 'broken') {
+        desc.innerHTML = '<span style="color: var(--danger);">❌ 未登録テーマエラー:</span> Marp拡張機能が "minorun-dark" を見つけられず、プレビューが真っ白に停止。';
+        svg.innerHTML = `
+          <g transform="translate(50, 60)">
+            <rect x="0" y="0" width="180" height="120" rx="8" fill="#1f242c" stroke="#30363d" stroke-width="2"/>
+            <text x="90" y="40" fill="#f0f6fc" font-size="14" text-anchor="middle" font-weight="bold">slide_deck.md</text>
+            <text x="90" y="70" fill="#00c4e4" font-size="12" text-anchor="middle">theme: minorun-dark</text>
+            <text x="90" y="90" fill="#8b949e" font-size="11" text-anchor="middle">(外部CSSを指定)</text>
+          </g>
+
+          <path d="M 240 120 L 340 120" stroke="#ff7b72" stroke-width="3" stroke-dasharray="5,5" marker-end="url(#arrow-red)"/>
+          <text x="290" y="110" fill="#ff7b72" font-size="12" text-anchor="middle">参照</text>
+
+          <g transform="translate(360, 60)">
+            <rect x="0" y="0" width="180" height="120" rx="8" fill="#2d1517" stroke="#ff7b72" stroke-width="2"/>
+            <text x="90" y="40" fill="#ff7b72" font-size="14" text-anchor="middle" font-weight="bold">Marp プレビュー</text>
+            <text x="90" y="70" fill="#ff7b72" font-size="12" text-anchor="middle">⚠️ 未知のテーマ！</text>
+            <text x="90" y="95" fill="#c9d1d9" font-size="11" text-anchor="middle">描画停止（真っ白）</text>
+          </g>
+        `;
+      } else if (mode === 'inline') {
+        desc.innerHTML = '<span style="color: var(--success);">✅ インライン埋め込み成功:</span> スライド内に <code>&lt;style&gt;</code> が同封されているため、外部設定ゼロで即座に美麗描画！';
+        svg.innerHTML = `
+          <g transform="translate(50, 50)">
+            <rect x="0" y="0" width="200" height="150" rx="8" fill="#1f242c" stroke="#00c4e4" stroke-width="2"/>
+            <text x="100" y="35" fill="#f0f6fc" font-size="14" text-anchor="middle" font-weight="bold">slide_deck.md</text>
+            <text x="100" y="65" fill="#7ee787" font-size="12" text-anchor="middle">theme: default (安全)</text>
+            <rect x="20" y="80" width="160" height="50" rx="4" fill="#0d1117" stroke="#30363d"/>
+            <text x="100" y="102" fill="#f1e05a" font-size="11" text-anchor="middle">&lt;style&gt; minorun-dark &lt;/style&gt;</text>
+            <text x="100" y="120" fill="#8b949e" font-size="10" text-anchor="middle">CSSを直接同封！</text>
+          </g>
+
+          <path d="M 260 125 L 360 125" stroke="#7ee787" stroke-width="3"/>
+          <text x="310" y="115" fill="#7ee787" font-size="12" text-anchor="middle">即時解釈</text>
+
+          <g transform="translate(380, 50)">
+            <rect x="0" y="0" width="220" height="150" rx="8" fill="#000000" stroke="#00c4e4" stroke-width="2"/>
+            <rect x="0" y="100" width="220" height="50" fill="#00c4e4"/>
+            <text x="110" y="50" fill="#ffffff" font-size="15" text-anchor="middle" font-weight="bold">ChatGPT止まりの</text>
+            <text x="110" y="75" fill="#ffffff" font-size="15" text-anchor="middle" font-weight="bold">あなたへ</text>
+            <text x="110" y="130" fill="#ffffff" font-size="12" text-anchor="middle" font-weight="bold">AI自律開発スタイル</text>
+          </g>
+        `;
+      } else if (mode === 'security') {
+        desc.innerHTML = '<span style="color: var(--accent);">🛡️ AI Dotfilesの二重境界:</span> ボス専用DR用（Private）と、社内配布用スターターキット（Public）を明確に分離！';
+        svg.innerHTML = `
+          <g transform="translate(40, 50)">
+            <rect x="0" y="0" width="220" height="150" rx="8" fill="#2d1517" stroke="#ff7b72" stroke-width="2"/>
+            <text x="110" y="30" fill="#ff7b72" font-size="13" text-anchor="middle" font-weight="bold">① my-ai-dotfiles (Private)</text>
+            <text x="110" y="55" fill="#c9d1d9" font-size="11" text-anchor="middle">🔒 ボス専用災害復旧 (DR)</text>
+            <text x="110" y="80" fill="#ff7b72" font-size="11" text-anchor="middle">⚠️ 生PAT / 生APIキー / 個人パス</text>
+            <text x="110" y="115" fill="#8b949e" font-size="11" text-anchor="middle">👉 外部招待は厳禁！</text>
+          </g>
+
+          <g transform="translate(320, 50)">
+            <rect x="0" y="0" width="220" height="150" rx="8" fill="#13231b" stroke="#7ee787" stroke-width="2"/>
+            <text x="110" y="30" fill="#7ee787" font-size="13" text-anchor="middle" font-weight="bold">② ai-starter-kit (Public)</text>
+            <text x="110" y="55" fill="#c9d1d9" font-size="11" text-anchor="middle">🎁 社内勉強会 配布用</text>
+            <text x="110" y="80" fill="#7ee787" font-size="11" text-anchor="middle">✅ キーはプレースホルダ化</text>
+            <text x="110" y="100" fill="#7ee787" font-size="11" text-anchor="middle">✅ パスは環境変数化 (%USERPROFILE%)</text>
+            <text x="110" y="125" fill="#f1e05a" font-size="11" text-anchor="middle">👉 誰でも安全にクローン可能！</text>
+          </g>
+        `;
+      }
+    }
+    // 初期描画
+    setMode('broken');
+  </script>
+</body>
+</html>

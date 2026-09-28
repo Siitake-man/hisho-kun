@@ -1,0 +1,535 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ELI5 動く図解：なぜ画面はチラつき、テストは止まるのか？（ダブルバッファリング ＆ テストガードの深層）</title>
+  <style>
+    :root {
+      --bg: #0d1117;
+      --card-bg: #161b22;
+      --card-border: #30363d;
+      --text: #c9d1d9;
+      --heading: #58a6ff;
+      --accent: #2ea043;
+      --accent-danger: #f85149;
+      --accent-warning: #d29922;
+      --accent-purple: #bc8cff;
+      --code-bg: #21262d;
+    }
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      background-color: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+      line-height: 1.6;
+      padding: 24px;
+      max-width: 1080px;
+      margin: 0 auto;
+    }
+    header {
+      text-align: center;
+      margin-bottom: 32px;
+      padding-bottom: 24px;
+      border-bottom: 1px solid var(--card-border);
+    }
+    .badge {
+      display: inline-block;
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 0.85rem;
+      font-weight: bold;
+      margin-bottom: 12px;
+      background: rgba(88, 166, 255, 0.15);
+      color: var(--heading);
+      border: 1px solid rgba(88, 166, 255, 0.3);
+    }
+    h1 {
+      color: #ffffff;
+      font-size: 2rem;
+      margin-bottom: 8px;
+    }
+    .subtitle {
+      color: #8b949e;
+      font-size: 1.05rem;
+    }
+    .section-card {
+      background-color: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 12px;
+      padding: 24px;
+      margin-bottom: 32px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+    }
+    h2 {
+      color: var(--heading);
+      font-size: 1.4rem;
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    h3 {
+      color: #ffffff;
+      font-size: 1.15rem;
+      margin: 16px 0 8px;
+    }
+    p {
+      margin-bottom: 14px;
+    }
+    /* Simulator Container */
+    .sim-controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      align-items: center;
+      margin-bottom: 16px;
+      background: var(--code-bg);
+      padding: 12px 16px;
+      border-radius: 8px;
+    }
+    button.btn {
+      background: var(--heading);
+      color: #0d1117;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 6px;
+      font-weight: bold;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    button.btn:hover {
+      opacity: 0.9;
+      transform: translateY(-1px);
+    }
+    button.btn-danger {
+      background: var(--accent-danger);
+      color: #ffffff;
+    }
+    button.btn-success {
+      background: var(--accent);
+      color: #ffffff;
+    }
+    .status-pill {
+      font-size: 0.85rem;
+      font-weight: bold;
+      padding: 4px 10px;
+      border-radius: 12px;
+      background: #30363d;
+      color: #8b949e;
+    }
+    .status-active {
+      background: rgba(46, 160, 67, 0.2);
+      color: #3fb950;
+      border: 1px solid #2ea043;
+    }
+    .status-flicker {
+      background: rgba(248, 81, 73, 0.2);
+      color: #f85149;
+      border: 1px solid #f85149;
+    }
+
+    /* SVG Canvas */
+    .svg-container {
+      width: 100%;
+      background: #090d13;
+      border: 1px solid var(--card-border);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    /* Metaphor Box */
+    .metaphor-box {
+      background: rgba(188, 140, 255, 0.08);
+      border-left: 4px solid var(--accent-purple);
+      padding: 16px;
+      border-radius: 0 8px 8px 0;
+      margin: 16px 0;
+    }
+    .metaphor-title {
+      font-weight: bold;
+      color: var(--accent-purple);
+      margin-bottom: 4px;
+    }
+
+    /* Accordion */
+    .accordion-item {
+      border: 1px solid var(--card-border);
+      border-radius: 6px;
+      margin-bottom: 8px;
+      background: var(--code-bg);
+      overflow: hidden;
+    }
+    .accordion-header {
+      padding: 12px 16px;
+      font-weight: bold;
+      cursor: pointer;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: rgba(255,255,255,0.02);
+      user-select: none;
+    }
+    .accordion-header:hover {
+      background: rgba(255,255,255,0.05);
+    }
+    .accordion-content {
+      padding: 16px;
+      display: none;
+      border-top: 1px solid var(--card-border);
+      font-size: 0.95rem;
+      color: #8b949e;
+    }
+    .accordion-item.active .accordion-content {
+      display: block;
+    }
+    .accordion-item.active .accordion-header {
+      color: var(--heading);
+    }
+    code {
+      background: rgba(110, 118, 129, 0.4);
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 0.85em;
+      color: #ff7b72;
+    }
+    .key-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 16px;
+      margin-top: 16px;
+    }
+    .key-card {
+      background: var(--code-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 8px;
+      padding: 16px;
+    }
+    .key-card h4 {
+      color: #ffffff;
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="badge">Neo-Secretary Deep Dive Series #01</div>
+    <h1>ELI5 動く図解：ダブルバッファリング ＆ テストガードの深層</h1>
+    <p class="subtitle">なぜスマホ画面はチラつき、なぜ未モックのテストはハングするのか？</p>
+  </header>
+
+  <!-- 第1部：動くシミュレータ -->
+  <section class="section-card">
+    <h2>🎮 1. 動く比較シミュレータ：直接描画 vs ダブルバッファリング</h2>
+    <p>
+      下のシミュレータは、<strong>「画面直接描画（チラつき発生）」</strong>と<strong>「オフスクリーンCanvas（ダブルバッファリング）」</strong>の描画処理の物理的な違いを視覚化したものです。
+      ブラウザのGPUが画面をリフレッシュする周期（VSync 60fps）の合間に何が起きているか観察してください。
+    </p>
+
+    <div class="sim-controls">
+      <button id="btnToggleMode" class="btn">描画モード切替：直接描画 (Flicker)</button>
+      <button id="btnPlayPause" class="btn btn-success">アニメーション一時停止</button>
+      <button id="btnTriggerBurst" class="btn" style="background:#8957e5; color:#fff;">歓喜エフェクト発火！</button>
+      <span id="lblModeStatus" class="status-pill status-flicker">モード: 直接描画（消去と描画が丸見え）</span>
+    </div>
+
+    <div class="svg-container">
+      <svg id="simSvg" viewBox="0 0 960 400" width="100%" height="400">
+        <defs>
+          <!-- Gradients -->
+          <linearGradient id="screenGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stop-color="#1f242c" />
+            <stop offset="100%" stop-color="#0f1318" />
+          </linearGradient>
+          <linearGradient id="gpuGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" stop-color="#238636" />
+            <stop offset="100%" stop-color="#2ea043" />
+          </linearGradient>
+        </defs>
+
+        <!-- Background grid -->
+        <rect x="0" y="0" width="960" height="400" fill="#090d13" />
+
+        <!-- LEFT: Work Area (Back Buffer / Memory) -->
+        <g id="grpBackBuffer">
+          <rect x="40" y="50" width="380" height="280" rx="10" fill="#161b22" stroke="#30363d" stroke-width="2" />
+          <text x="55" y="80" fill="#8b949e" font-size="14" font-weight="bold">【裏舞台】 メモリ / オフスクリーンCanvas</text>
+          
+          <!-- Back Canvas Visual -->
+          <rect id="backCanvasRect" x="60" y="100" width="340" height="200" rx="6" fill="#0d1117" stroke="#58a6ff" stroke-width="1.5" stroke-dasharray="4 2" />
+          <text id="backCanvasText" x="230" y="205" fill="#58a6ff" font-size="14" text-anchor="middle">オフスクリーンで完全描画中...</text>
+          
+          <!-- Pet in Back Buffer -->
+          <g id="backPet" opacity="0">
+            <rect x="180" y="140" width="60" height="60" rx="8" fill="#58a6ff" />
+            <!-- Eyes -->
+            <rect x="195" y="155" width="8" height="8" fill="#0d1117" />
+            <rect x="217" y="155" width="8" height="8" fill="#0d1117" />
+            <text x="210" y="225" fill="#79c0ff" font-size="12" text-anchor="middle">完成フレーム</text>
+          </g>
+        </g>
+
+        <!-- TRANSFER ARROW -->
+        <g id="grpTransfer">
+          <path id="transferPath" d="M 430 190 L 510 190" stroke="#30363d" stroke-width="4" marker-end="url(#arrow)" />
+          <text id="transferLabel" x="470" y="175" fill="#8b949e" font-size="12" text-anchor="middle">一瞬で転送 (blit)</text>
+        </g>
+
+        <!-- RIGHT: Display Area (Front Buffer / Screen) -->
+        <g id="grpFrontBuffer">
+          <rect x="520" y="50" width="400" height="280" rx="10" fill="#161b22" stroke="#30363d" stroke-width="2" />
+          <text x="540" y="80" fill="#ffffff" font-size="14" font-weight="bold">【表舞台】 スマホ画面 (Display Canvas / VSync)</text>
+          
+          <!-- Screen Frame -->
+          <rect id="frontScreen" x="550" y="100" width="340" height="200" rx="8" fill="url(#screenGrad)" stroke="#30363d" stroke-width="2" />
+          
+          <!-- Screen Content (Pet / Particles) -->
+          <g id="frontPetGroup">
+            <rect id="frontPetBody" x="690" y="140" width="60" height="60" rx="8" fill="#58a6ff" />
+            <rect id="eyeL" x="705" y="155" width="8" height="8" fill="#0d1117" />
+            <rect id="eyeR" x="727" y="155" width="8" height="8" fill="#0d1117" />
+            <!-- Smile -->
+            <path d="M 710 180 Q 720 190 730 180" stroke="#0d1117" stroke-width="3" fill="none" />
+          </g>
+
+          <!-- Confetti Particles -->
+          <g id="frontParticles"></g>
+
+          <!-- White Flicker Overlay (Demonstrates clearRect exposed) -->
+          <rect id="flickerOverlay" x="550" y="100" width="340" height="200" rx="8" fill="#ffffff" opacity="0" pointer-events="none" />
+          <text id="flickerWarning" x="720" y="210" fill="#f85149" font-size="18" font-weight="bold" text-anchor="middle" opacity="0">⚡ チラつき（CLEAR発生！）</text>
+        </g>
+
+        <!-- Footer Timeline / Status -->
+        <rect x="40" y="345" width="880" height="35" rx="6" fill="#161b22" stroke="#30363d" />
+        <circle id="timelineDot" cx="60" cy="362" r="6" fill="#58a6ff" />
+        <text id="timelineText" x="80" y="367" fill="#c9d1d9" font-size="13">フェーズ: フレーム準備中...</text>
+      </svg>
+    </div>
+  </section>
+
+  <!-- 第2部：初級エンジニア向けの物理構造解説 -->
+  <section class="section-card">
+    <h2>🎭 2. なぜそうなるのか？ 身近な例えと物理構造の解剖</h2>
+
+    <div class="metaphor-box">
+      <div class="metaphor-title">💡 身近な例え：劇場の「幕」と「大道具の転換」</div>
+      <p>
+        <strong>直接描画（Direct Draw）</strong>とは、観客の前で<strong>暗幕を下ろさずに、照明煌々の中で作業員が古い大道具を片付け（clearRect）、新しい大道具をせわしなく運んで組み立てている様子を全部見せてしまっている状態</strong>です。観客から見ると、一瞬セットが消えて真っ白（真っ暗）になり、ガタガタと物が置かれるのが見えて「チラつく」と感じます。
+      </p>
+      <p>
+        一方、<strong>ダブルバッファリング（Double Buffering）</strong>とは、<strong>舞台裏（オフスクリーン）で大道具をミリ単位まで完璧にセットしてから、照明の暗転の瞬間に一瞬でガラリと入れ替えるプロの舞台転換</strong>です。観客には「完璧に完成した次のシーン」しか見えないため、チラつきは1ミリも発生しません。
+      </p>
+    </div>
+
+    <div class="key-grid">
+      <div class="key-card">
+        <h4>⚡ 1. ブラウザ描画の物理（VSyncの壁）</h4>
+        <p>
+          スマホやPCのディスプレイは、1秒間に60回（または120回）決まった周期（<strong>VSync</strong>）で画面を更新します。
+          Canvasの描画処理（クリア ➔ 背景描画 ➔ ペット描画 ➔ 吹出描画）の途中でたまたまVSyncの読み取りタイミングが重なると、「クリアされただけの真っ白な瞬間」が画面に出力され、人間の目に激しいフリッカー（白飛び）として知覚されます。
+        </p>
+      </div>
+
+      <div class="key-card">
+        <h4>🛡️ 2. テスト環境における未モックLLM遮断</h4>
+        <p>
+          テスト実行中（<code>pytest</code>）に、バックグラウンドの<code>SuggestionEngine</code>スレッドが本番同様に動き、外部のGemini/OpenAI APIにHTTPリクエストを飛ばそうとすると何が起きるでしょうか？
+          CI/CDやオフライン環境ではネットワーク通信がタイムアウトするまで数十秒〜数分間テストがハングし、最悪クラッシュします。
+          <strong>「テスト実行環境では外部通信ノードの入口で即座にフォールバックして遮断する」</strong>という二重防壁（Seam Guard）が不可欠なのです。
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 第3部：専門用語の完全解体辞典 -->
+  <section class="section-card">
+    <h2>📖 3. 本日登場した専門用語の完全解体辞典</h2>
+    <p>クリックすると各用語のWhy（なぜ必要か）とWhat（何をするものか）が展開されます。</p>
+
+    <div class="accordion-item">
+      <div class="accordion-header">
+        <span>1. ダブルバッファリング (Double Buffering)</span>
+        <span>▼</span>
+      </div>
+      <div class="accordion-content">
+        <p><strong>【What】</strong> 画面に見えているバッファ（フロントバッファ）とは別に、メモリ上に見えない作業用バッファ（バックバッファ）を用意し、描画がすべて終わった瞬間にメモリを一括転送（コピーまたはポインタ切り替え）する技術。</p>
+        <p><strong>【Why】</strong> 描画途中の未完成な状態（消去された瞬間やキャラが半分しか描かれていない状態）が画面に露出するのを100%防ぐため。古くはファミコン時代から現代の3Dゲーム・OSコンポジタまで共通の鉄則。</p>
+      </div>
+    </div>
+
+    <div class="accordion-item">
+      <div class="accordion-header">
+        <span>2. キャッシュバスター (Cache Buster, 例: ?v=1.0.3)</span>
+        <span>▼</span>
+      </div>
+      <div class="accordion-content">
+        <p><strong>【What】</strong> HTML内でJavaScriptやCSSを読み込む際、URLの末尾に <code>app.js?v=1.0.3</code> のようにバージョン番号やハッシュを付与するテクニック。</p>
+        <p><strong>【Why】</strong> ブラウザは通信節約のため一度ダウンロードしたJSファイルをローカルに保存（キャッシュ）します。アプリをバージョンアップしても、ユーザーのブラウザが古い壊れたJSを使い続けてしまう事故を防ぐため、「ファイル名が変わったように見せかけて」強制的に最新版を再取得させます。</p>
+      </div>
+    </div>
+
+    <div class="accordion-item">
+      <div class="accordion-header">
+        <span>3. 接合部テスト (Seam Test)</span>
+        <span>▼</span>
+      </div>
+      <div class="accordion-content">
+        <p><strong>【What】</strong> ソフトウェア工学における「Seam（縫い目）」とは、ソースコードを直接書き換えることなく振る舞いを差し替えられる場所のこと。接合部テストとは、モジュール同士が正しく接合（import/読み込み）されているかを確認する軽量テスト。</p>
+        <p><strong>【Why】</strong> ネオ秘書くんのPWAのように、PythonバックエンドとHTML/JSフロントエンドが疎結合している場合、HTMLの <code>&lt;script src="..."&gt;</code> のパスが1文字でもズレると全体が沈黙します。これを結合前に単体で検知するために配備されています。</p>
+      </div>
+    </div>
+
+    <div class="accordion-item">
+      <div class="accordion-header">
+        <span>4. 知識の宝庫 (Knowledge Vault)</span>
+        <span>▼</span>
+      </div>
+      <div class="accordion-content">
+        <p><strong>【What】</strong> ネオ秘書くんがボスのこだわり、設計思想、重要知見を永続記憶する独自機能の正式名称（旧呼称：MentisDB）。</p>
+        <p><strong>【Why】</strong> 外部の独立したMCPツール名との混同を完全に解消し、ユーザーにとって親しみやすく直感的な「ネオ秘書くん独自の世界観」を確立するために全面刷新されました。</p>
+      </div>
+    </div>
+  </section>
+
+  <script>
+    // Accordion Logic
+    document.querySelectorAll('.accordion-header').forEach(header => {
+      header.addEventListener('click', () => {
+        const item = header.parentElement;
+        item.classList.toggle('active');
+      });
+    });
+
+    // Simulator Logic
+    let isDoubleBuffer = false;
+    let isPlaying = true;
+    let animFrameId = null;
+    let step = 0;
+
+    const btnToggleMode = document.getElementById('btnToggleMode');
+    const btnPlayPause = document.getElementById('btnPlayPause');
+    const btnTriggerBurst = document.getElementById('btnTriggerBurst');
+    const lblModeStatus = document.getElementById('lblModeStatus');
+    const timelineDot = document.getElementById('timelineDot');
+    const timelineText = document.getElementById('timelineText');
+
+    const flickerOverlay = document.getElementById('flickerOverlay');
+    const flickerWarning = document.getElementById('flickerWarning');
+    const backPet = document.getElementById('backPet');
+    const backCanvasText = document.getElementById('backCanvasText');
+    const frontPetGroup = document.getElementById('frontPetGroup');
+    const frontParticles = document.getElementById('frontParticles');
+    const transferPath = document.getElementById('transferPath');
+    const transferLabel = document.getElementById('transferLabel');
+
+    btnToggleMode.addEventListener('click', () => {
+      isDoubleBuffer = !isDoubleBuffer;
+      if (isDoubleBuffer) {
+        btnToggleMode.textContent = "描画モード切替：ダブルバッファ (滑らか)";
+        lblModeStatus.textContent = "モード: ダブルバッファ（裏舞台で完成後に一瞬で転送）";
+        lblModeStatus.className = "status-pill status-active";
+        backCanvasText.textContent = "オフスクリーンCanvas稼働中";
+        transferPath.setAttribute('stroke', '#2ea043');
+        transferLabel.setAttribute('fill', '#2ea043');
+      } else {
+        btnToggleMode.textContent = "描画モード切替：直接描画 (Flicker)";
+        lblModeStatus.textContent = "モード: 直接描画（消去と描画が丸見え）";
+        lblModeStatus.className = "status-pill status-flicker";
+        backCanvasText.textContent = "（未使用：直接画面へ書き込み中）";
+        backPet.setAttribute('opacity', '0');
+        transferPath.setAttribute('stroke', '#30363d');
+        transferLabel.setAttribute('fill', '#8b949e');
+      }
+      step = 0;
+    });
+
+    btnPlayPause.addEventListener('click', () => {
+      isPlaying = !isPlaying;
+      btnPlayPause.textContent = isPlaying ? "アニメーション一時停止" : "アニメーション再開";
+      btnPlayPause.className = isPlaying ? "btn btn-success" : "btn";
+      if (isPlaying) runLoop();
+    });
+
+    let burstTriggered = false;
+    btnTriggerBurst.addEventListener('click', () => {
+      burstTriggered = true;
+      spawnParticles();
+    });
+
+    function spawnParticles() {
+      frontParticles.innerHTML = '';
+      const colors = ['#f85149', '#58a6ff', '#2ea043', '#d29922', '#bc8cff'];
+      for (let i = 0; i < 20; i++) {
+        const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+        const cx = 720 + (Math.random() - 0.5) * 160;
+        const cy = 170 + (Math.random() - 0.5) * 100;
+        circle.setAttribute('cx', cx);
+        circle.setAttribute('cy', cy);
+        circle.setAttribute('r', Math.random() * 4 + 2);
+        circle.setAttribute('fill', colors[Math.floor(Math.random() * colors.length)]);
+        frontParticles.appendChild(circle);
+      }
+    }
+
+    function runLoop() {
+      if (!isPlaying) return;
+
+      step = (step + 1) % 180;
+      const progress = step / 180;
+      timelineDot.setAttribute('cx', 60 + progress * 840);
+
+      if (!isDoubleBuffer) {
+        // Direct draw mode: clearRect exposes white / blank
+        if (step < 30) {
+          // Phase 1: clearRect
+          flickerOverlay.setAttribute('opacity', '0.7');
+          flickerWarning.setAttribute('opacity', '1');
+          frontPetGroup.setAttribute('opacity', '0');
+          timelineText.textContent = "❌ [Phase 1: clearRect] 画面が消去され、白い下地が一瞬見えてしまう（フリッカー）";
+        } else if (step < 90) {
+          // Phase 2: Drawing pet
+          flickerOverlay.setAttribute('opacity', '0');
+          flickerWarning.setAttribute('opacity', '0');
+          frontPetGroup.setAttribute('opacity', '1');
+          timelineText.textContent = "⚠️ [Phase 2: キャラ描画] キャラクターを直接画面に描画中...";
+        } else {
+          // Phase 3: Effects
+          timelineText.textContent = "⚠️ [Phase 3: エフェクト描画] パーティクルを描画（描画順序が乱れると欠落）";
+        }
+      } else {
+        // Double buffering mode
+        flickerOverlay.setAttribute('opacity', '0');
+        flickerWarning.setAttribute('opacity', '0');
+        frontPetGroup.setAttribute('opacity', '1');
+
+        if (step < 60) {
+          // Drawing in back buffer
+          backPet.setAttribute('opacity', '0.4');
+          timelineText.textContent = "🛡️ [裏舞台] オフスクリーンCanvasで背景・ペット・パーティクルを安全に合成中...";
+        } else if (step < 120) {
+          backPet.setAttribute('opacity', '1');
+          timelineText.textContent = "🛡️ [裏舞台] 完成フレームが準備完了。VSync（画面更新周期）を待機。";
+        } else {
+          // Instant blit
+          backPet.setAttribute('opacity', '0.2');
+          timelineText.textContent = "✨ [表舞台へ転送] 完成フレームを1回のdrawImage()で一瞬転送！チラつきは完全ゼロ。";
+        }
+      }
+
+      animFrameId = requestAnimationFrame(runLoop);
+    }
+
+    // Start loop
+    runLoop();
+  </script>
+</body>
+</html>
