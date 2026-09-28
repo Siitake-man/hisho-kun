@@ -12,7 +12,9 @@ import tempfile
 import pytest
 from datetime import datetime
 
+import sqlite3
 import database
+import i18n
 from storage.models import Task
 from task_parser import parse_input, tags_to_db_string, db_string_to_tags, ParsedTask
 
@@ -164,3 +166,52 @@ def test_json_config_corruption_handling(tmp_path):
     # 存在しないパスの読み込み
     non_existent_path = tmp_path / "does_not_exist.json"
     assert not os.path.exists(non_existent_path)
+
+
+# ---------------------------------------------------------------------------
+# 4. i18n および DB異常系接続の境界値・異常系テスト
+# ---------------------------------------------------------------------------
+
+def test_i18n_robustness_edge_cases():
+    """i18n.py における None、数値、未対応言語コード、不完全なフォーマットパラメータ入力の検証。"""
+    current = i18n.get_language()
+    try:
+        # 非文字列・None言語コード設定時のフォールバック動作
+        i18n.set_language(None)
+        assert i18n.get_language() == "ja"
+
+        i18n.set_language(12345)
+        assert i18n.get_language() == "ja"
+
+        i18n.set_language("fr-FR-unsupported")
+        assert i18n.get_language() == "ja"
+
+        # 存在しないキーの翻訳呼び出し（キー名そのものが返る）
+        assert i18n.t("non_existent_domain.non_existent_key") == "non_existent_domain.non_existent_key"
+
+        # プレースホルダ不一致（引数不足）時のフォールバック動作
+        result_missing = i18n.t("ui.pet.auto_minimize_toggle")
+        assert result_missing == "📱 スマホ接続時のPCペット自動最小化を【{status}】にしました！"
+
+        # 極端に長い文字列パラメータのフォーマット確認
+        huge_param = "X" * 10000
+        result_huge = i18n.t("ui.pet.auto_minimize_toggle", status=huge_param)
+        assert huge_param in result_huge
+    finally:
+        i18n.set_language(current)
+
+
+def test_database_lock_and_malformed_query_handling(temp_db):
+    """DB読み書きにおいて不正なパスやテーブル破損等の異常系に対するフォールバック検証。"""
+    # 存在しないディレクトリ配下のDBパスでの例外発生確認
+    invalid_db_path = "/non_existent_directory_12345/test.db"
+    with pytest.raises(Exception):
+        database.init_db(invalid_db_path)
+
+    # 破損したDBファイルへの接続時のエラーハンドリング
+    corrupted_db = temp_db + "_corrupted.db"
+    with open(corrupted_db, "wb") as f:
+        f.write(b"NOT A SQLITE FILE")
+
+    with pytest.raises(sqlite3.Error):
+        database.get_tasks(db_path=corrupted_db)
