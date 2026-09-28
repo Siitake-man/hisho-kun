@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ELI5: Seam分割と「見えない配線」の罠 — なぜ無痛の互換層はモックを素通りさせるのか</title>
+<style>
+  :root {
+    --bg: #0d1117; --panel: #161b22; --border: #30363d; --text: #e6edf3;
+    --accent: #58a6ff; --ok: #3fb950; --warn: #d29922; --danger: #f85149;
+    --mock: #bc8cff; --dim: #8b949e;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg); color: var(--text);
+    font-family: "Segoe UI", "Yu Gothic UI", sans-serif;
+    line-height: 1.7; padding: 24px; max-width: 1120px; margin: 0 auto;
+  }
+  h1 { font-size: 1.45rem; margin-bottom: 6px; }
+  h1 .sub { color: var(--dim); font-size: .95rem; display: block; margin-top: 4px; }
+  h2 { font-size: 1.15rem; margin: 34px 0 12px; border-left: 4px solid var(--accent); padding-left: 10px; }
+  .card { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 16px; margin: 12px 0; }
+  .controls { display: flex; gap: 8px; flex-wrap: wrap; margin: 10px 0; }
+  button {
+    background: #21262d; color: var(--text); border: 1px solid var(--border);
+    border-radius: 8px; padding: 8px 14px; cursor: pointer; font-size: .9rem;
+  }
+  button:hover { border-color: var(--accent); }
+  button.active { background: #1f6feb33; border-color: var(--accent); color: var(--accent); }
+  button.primary { background: #1f6feb; border-color: #1f6feb; color: #fff; }
+  svg { width: 100%; height: auto; display: block; }
+  .narr { min-height: 96px; }
+  .narr h3 { font-size: 1rem; margin-bottom: 6px; }
+  .narr p { font-size: .92rem; color: var(--text); }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 6px; font-size: .78rem; font-weight: 600; }
+  .badge.ok { background: #3fb95022; color: var(--ok); border: 1px solid var(--ok); }
+  .badge.danger { background: #f8514922; color: var(--danger); border: 1px solid var(--danger); }
+  .badge.mock { background: #bc8cff22; color: var(--mock); border: 1px solid var(--mock); }
+  .legend { display: flex; gap: 16px; flex-wrap: wrap; font-size: .82rem; color: var(--dim); margin-top: 8px; }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+  details { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; margin: 8px 0; }
+  details summary { padding: 12px 16px; cursor: pointer; font-weight: 600; font-size: .95rem; }
+  details[open] summary { border-bottom: 1px solid var(--border); }
+  details .body { padding: 12px 16px 16px; font-size: .9rem; color: #c9d1d9; }
+  details .body b { color: var(--accent); }
+  .analogy { border-left: 3px solid var(--warn); background: #d2992211; padding: 12px 16px; border-radius: 0 8px 8px 0; margin: 10px 0; font-size: .93rem; }
+  .glossary-term { color: var(--accent); font-weight: 700; }
+  .stamps { display:flex; gap:8px; flex-wrap:wrap; margin-top:10px; }
+  .stamp { font-size:.75rem; color:var(--dim); border:1px dashed var(--border); padding:2px 8px; border-radius:6px; }
+  #vacuousAlert { display:none; margin-top:10px; }
+  .blink { animation: blink 1s steps(2, start) infinite; }
+  @keyframes blink { to { visibility: hidden; } }
+  .flowline { stroke-dasharray: 6 6; animation: dash 1.2s linear infinite; }
+  @keyframes dash { to { stroke-dashoffset: -24; } }
+  .fade { transition: opacity .5s; }
+</style>
+</head>
+<body>
+
+<h1>💡 Seam分割と「見えない配線」の罠
+  <span class="sub">なぜ『無痛の互換層（Facade）』は、テストのモックを素通りさせて“緑の嘘”を作るのか — ネオ秘書くん ID 76 設計書 Sprint の核心</span>
+</h1>
+
+<!-- ============================================================
+     第1層: 動くSVGシミュレータ
+     ============================================================ -->
+<h2>① 動くシミュレータ — 分割とモックの配線</h2>
+<div class="card">
+  <div class="controls">
+    <button id="btnBefore" class="active" onclick="setScene('before')">① 分割前（1つの窓口）</button>
+    <button id="btnAfter" onclick="setScene('after')">② 分割後・罠あり（参照先だけ引っ越し）</button>
+    <button id="btnFix" onclick="setScene('fix')">③ 正しい移行（配線も更新）</button>
+    <button class="primary" onclick="runRequest()">▶ リクエストを流す</button>
+  </div>
+
+  <svg id="stage" viewBox="0 0 1040 420" xmlns="http://www.w3.org/2000/svg">
+    <!-- テスト側 -->
+    <rect x="20" y="150" width="180" height="120" rx="10" fill="#161b22" stroke="#bc8cff" stroke-width="1.5"/>
+    <text x="110" y="185" text-anchor="middle" fill="#bc8cff" font-size="14" font-weight="700">テスト（モック）</text>
+    <text x="110" y="208" text-anchor="middle" fill="#8b949e" font-size="11">patch( "旧窓口" )</text>
+    <text x="110" y="228" text-anchor="middle" fill="#8b949e" font-size="11">＝差し替え命令</text>
+
+    <!-- 旧窓口(Facade) -->
+    <rect id="facade" x="320" y="60" width="200" height="90" rx="10" fill="#161b22" stroke="#58a6ff" stroke-width="1.5"/>
+    <text x="420" y="92" text-anchor="middle" fill="#58a6ff" font-size="13" font-weight="700">旧窓口（Facade）</text>
+    <text x="420" y="112" text-anchor="middle" fill="#8b949e" font-size="11">local_sync_server.py</text>
+    <text x="420" y="132" text-anchor="middle" fill="#8b949e" font-size="11">（再エクスポートの束）</text>
+
+    <!-- 本番コード -->
+    <rect id="prod1" x="640" y="60" width="200" height="90" rx="10" fill="#161b22" stroke="#3fb950" stroke-width="1.5"/>
+    <text x="740" y="92" text-anchor="middle" fill="#3fb950" font-size="13" font-weight="700">本番コードA（旧参照）</text>
+    <text x="740" y="112" text-anchor="middle" fill="#8b949e" font-size="11">旧窓口の名前で呼ぶ</text>
+    <text x="740" y="132" text-anchor="middle" fill="#8b949e" font-size="11">local_sync_server.get_bridge_hub()</text>
+
+    <!-- 新モジュール(分割後) -->
+    <rect id="newmod" x="320" y="240" width="200" height="90" rx="10" fill="#161b22" stroke="#d29922" stroke-width="1.5" opacity="0"/>
+    <text x="420" y="272" text-anchor="middle" fill="#d29922" font-size="13" font-weight="700">新モジュール（Seam）</text>
+    <text x="420" y="292" text-anchor="middle" fill="#8b949e" font-size="11">agent_bridge_hub.py</text>
+    <text x="420" y="312" text-anchor="middle" fill="#8b949e" font-size="11">（実体の新しい住所）</text>
+
+    <!-- 本番コード(新参照) -->
+    <rect id="prod2" x="640" y="240" width="200" height="90" rx="10" fill="#161b22" stroke="#3fb950" stroke-width="1.5" opacity="0"/>
+    <text x="740" y="272" text-anchor="middle" fill="#3fb950" font-size="13" font-weight="700">本番コードB（新参照）</text>
+    <text x="740" y="292" text-anchor="middle" fill="#8b949e" font-size="11">新モジュールの名前で呼ぶ</text>
+    <text x="740" y="312" text-anchor="middle" fill="#8b949e" font-size="11">agent_bridge_hub.get_bridge_hub()</text>
+
+    <!-- 配線: テスト→旧窓口 -->
+    <path id="wireTest" d="M 200 210 C 260 210, 260 105, 320 105" fill="none" stroke="#bc8cff" stroke-width="2.5" class="flowline"/>
+    <!-- 配線: 旧窓口→本番A -->
+    <path id="wireOld" d="M 520 105 L 640 105" fill="none" stroke="#30363d" stroke-width="2" opacity="0"/>
+    <!-- 配線: 本番B→新モジュール -->
+    <path id="wireNew" d="M 640 285 L 520 285" fill="none" stroke="#3fb950" stroke-width="2.5" opacity="0"/>
+    <!-- 配線: テスト→新モジュール（正しい移行で再配線） -->
+    <path id="wireFix" d="M 200 210 C 260 210, 260 285, 320 285" fill="none" stroke="#3fb950" stroke-width="2.5" opacity="0"/>
+
+    <!-- リクエスト粒子 -->
+    <circle id="packet" cx="110" cy="210" r="9" fill="#58a6ff" opacity="0"/>
+
+    <!-- 応答ラベル -->
+    <text id="resultLabel" x="420" y="395" text-anchor="middle" fill="#8b949e" font-size="14" font-weight="700"></text>
+
+    <!-- 旧窓口の「空っぽ」表示 -->
+    <text id="facadeHollow" x="420" y="30" text-anchor="middle" fill="#f85149" font-size="12" opacity="0">⚠ この窓口は表示だけ（実体は下の新モジュールへ引っ越し済み）</text>
+  </svg>
+
+  <div class="narr" id="narr"></div>
+  <div id="vacuousAlert">
+    <span class="badge danger blink">🚨 VACUOUS GREEN — テストは「差し替えたつもり」で、実物が動いている</span>
+  </div>
+  <div class="legend">
+    <span><span class="dot" style="background:#bc8cff"></span>テストのモック（差し替え）</span>
+    <span><span class="dot" style="background:#58a6ff"></span>旧窓口（Facade）</span>
+    <span><span class="dot" style="background:#3fb950"></span>本番コードの参照</span>
+    <span><span class="dot" style="background:#d29922"></span>新モジュール（Seam）</span>
+  </div>
+  <div class="stamps">
+    <span class="stamp">実例: local_sync_server.get_bridge_hub を10箇所のテストが patch</span>
+    <span class="stamp">実例: TOKEN_FILE を3箇所が patch</span>
+    <span class="stamp">実例: ASSETS_DIR を4箇所が patch</span>
+  </div>
+</div>
+
+<script>
+const scenes = {
+  before: {
+    title: "① 分割前 — 窓口は1つだけ",
+    body: "巨大ファイルの中に実体も窓口も同居しているので、テストが『旧窓口』を差し替えると、本番コードも同じ窓口を見ているため、差し替えは正しく効く。モックが動く＝テストが実物から隔離されている。",
+    alert: false,
+    show: { newmod: 0, prod2: 0, wireOld: 0, wireNew: 0, wireFix: 0, facadeHollow: 0 },
+    label: "✔ モック有効（テストは実物を守れている）", labelColor: "#3fb950"
+  },
+  after: {
+    title: "② 分割後・罠あり — 『参照先だけ』引っ越した",
+    body: "本番コードは新モジュール（新住所）を見るようになった。しかしテストは昔の名前 patch( \"local_sync_server.get_bridge_hub\" ) のまま。旧窓口は“看板”だけになり、差し替えても本番コードには届かない → モックを素通りして実物が動いてしまう（vacuous green＝緑の嘘）。",
+    alert: true,
+    show: { newmod: 1, prod2: 1, wireOld: 0, wireNew: 1, wireFix: 0, facadeHollow: 1 },
+    label: "🚨 モック無効（実物が動いている）", labelColor: "#f85149"
+  },
+  fix: {
+    title: "③ 正しい移行 — 配線（patch先）も一緒に更新",
+    body: "分割と同時に、テストの差し替え先も新しい住所へ張り替える（または『毎回電話帳で番号を引く』遅延バインド方式に変更して、patch不要にする）。これでモックは再び本番コードの経路に届く。設計段階で“patchターゲット移行表”を作るのは、この張り替え漏れを構造的にゼロにするため。",
+    alert: false,
+    show: { newmod: 1, prod2: 1, wireOld: 0, wireNew: 1, wireFix: 1, facadeHollow: 0 },
+    label: "✔ モック有効（移行完了）", labelColor: "#3fb950"
+  }
+};
+let scene = "before";
+function setScene(name) {
+  scene = name;
+  document.querySelectorAll(".controls button").forEach(b => b.classList.remove("active"));
+  document.getElementById({ before: "btnBefore", after: "btnAfter", fix: "btnFix" }[name]).classList.add("active");
+  const s = scenes[name];
+  document.getElementById("narr").innerHTML =
+    "<h3>" + s.title + "</h3><p>" + s.body + "</p>";
+  setOp("newmod", s.show.newmod); setOp("prod2", s.show.prod2);
+  setOp("wireOld", s.show.wireOld); setOp("wireNew", s.show.wireNew);
+  setOp("wireFix", s.show.wireFix); setOp("facadeHollow", s.show.facadeHollow);
+  document.getElementById("resultLabel").setAttribute("fill", s.labelColor);
+  document.getElementById("vacuousAlert").style.display = s.alert ? "block" : "none";
+  document.getElementById("resultLabel").textContent = "";
+  document.getElementById("packet").setAttribute("opacity", 0);
+}
+function setOp(id, v) {
+  const el = document.getElementById(id);
+  el.style.transition = "opacity .5s";
+  el.setAttribute("opacity", v);
+}
+function runRequest() {
+  const p = document.getElementById("packet");
+  const label = document.getElementById("resultLabel");
+  const s = scenes[scene];
+  const path = scene === "before"
+    ? [[110,210],[200,210],[320,105],[520,105],[640,105]]
+    : (scene === "fix" ? [[110,210],[200,210],[320,285],[520,285],[640,285]] : [[110,210],[200,210],[320,285],[520,285],[640,285]]);
+  // 罠シーンでは「テストのパケット」は旧窓口で止まり、本番は新モジュールから出発する表現
+  let t = 0, i = 0;
+  p.setAttribute("opacity", 1);
+  label.textContent = "";
+  if (scene === "after") {
+    label.textContent = "テスト→旧窓口: 差し替えが届かず…本番→新モジュール: 実物が応答 ✗";
+    label.setAttribute("fill", "#f85149");
+  }
+  const steps = scene === "after" ? [[110,210],[320,281]] : path;
+  const timer = setInterval(() => {
+    if (i >= steps.length - 1) { clearInterval(timer); done(); return; }
+    const [x1,y1] = steps[i], [x2,y2] = steps[i+1];
+    const dt = 0.05 * (t += 0.34);
+    p.setAttribute("cx", x1 + (x2-x1)*dt);
+    p.setAttribute("cy", y1 + (y2-y1)*dt);
+    p.setAttribute("fill", scene === "after" ? "#bc8cff" : "#3fb950");
+    if (t >= 1) { t = 0; i++; }
+  }, 16);
+  function done() {
+    p.setAttribute("opacity", 0);
+    if (scene !== "after") {
+      label.textContent = "✔ 応答: モックが返った（テスト成功・実物は動いていない）";
+      label.setAttribute("fill", "#3fb950");
+    }
+  }
+}
+setScene("before");
+</script>
+
+<!-- ============================================================
+     第2層: 初級エンジニア向けの物理構造解説
+     ============================================================ -->
+<h2>② なぜそうなる？ — 物理構造のやさしい解説</h2>
+<div class="card">
+  <div class="analogy">
+    <b>📞 身近な例え：オフィスの内線電話</b><br>
+    会社の窓口（総務）に電話するとき、あなたは「総務の内線」を覚えて架電します。テストの <span class="glossary-term">モック（patch）</span> は「総務の電話機を、テスト用の偽物に差し替える」魔法です。<br><br>
+    <b>分割前</b>：総務は1つの部屋にいます。電話機を差し替えれば、かかってくる電話はぜんぶ偽物に繋がります。<br>
+    <b>分割後（罠あり）</b>：総務が隣のビルに引っ越しました（実体は新モジュールへ）。しかしあなた（テスト）は昔の内線番号に架電し続け、差し替えたのも「旧部屋の置物の電話機」だけ。本番の同僚は新しい番号で直接呼ぶので…<b>偽物は誰も使わず、本物が普通に働いてしまう</b>。これが「緑なのに何も検査していない」状態です。<br><br>
+    <b>正しい移行</b>：引っ越しと同時に、あなたの電話帳も新番号へ更新する（patch先の張り替え）。さらに「毎回電話帳で番号を引いてから架電する」方式（<span class="glossary-term">遅延バインド</span>）に変えれば、内線が変わってもあなたの電話帳は不要になります。
+  </div>
+  <details open>
+    <summary>🔍 なぜ「Facade 再エクスポート」は無痛に見えるのか（そして何を救わないのか）</summary>
+    <div class="body">
+      分割時によく採る互換策が「旧ファイルに名前だけ残す（再エクスポート）」です。<br>
+      ・<code>from local_sync_server import get_bridge_hub</code> と<u>書いてあるテスト</u>は、窓口が消えていないのでそのまま動きます（<b>救われる</b>）。<br>
+      ・しかし <code>patch("local_sync_server.get_bridge_hub")</code> は「<b>旧ファイルの属性を差し替える</b>」という操作です。<b>本番コードが新モジュールを見ている場合、差し替えたのはもう誰も使わない置物だけ</b> — よって効きません。<br>
+      ・さらに危ないのは、この失敗が<b>エラーにならず「テストが通ってしまう」</b>こと。検査が消えたことに気づけないため、監査では「vacuous green」＝空虚な緑と呼び、P0（最重大）扱いで排除します。
+    </div>
+  </details>
+  <details>
+    <summary>🧱 そもそも、なぜ巨大ファイルを割るのか（Seam / Deep Module）</summary>
+    <div class="body">
+      <b>Seam（接合点）</b>＝「ここで切れば痛みが少ない」縫い目。ネオ秘書くんでは <code>pet.js</code>(3,335→1,604行) と <code>database.py</code>(2,498→約265行) の2つの前例が、Seam分割の効き目を実証済みです。<br>
+      <b>Deep Module（深いモジュール）</b>＝外から見える出入口は小さく（ファクトリ関数1本など）、中身はたっぷり隠す設計。100〜400行を目安に、変更時の「玉突き事故」を構造的に防ぎます。<br>
+      今回は <code>local_sync_server.py</code> 2,296行と <code>ui/settings_window.py</code> 1,930行の2大巨石に対して、<b>S1a〜S6（サーバー側）と T1〜T6（UI側）</b>の分割設計を策定しました（実装は別フェーズ）。
+    </div>
+  </details>
+  <details>
+    <summary>🧪 では、どうやって「緑の嘘」を防ぐのか（設計書の答え）</summary>
+    <div class="body">
+      1. <b>patch ターゲット移行表（§6.3.1）</b>：分割前に「どのテストが、どの名前を差し替えているか」を全数調査し、移行方針（新住所へ張り替え or 遅延バインド化）を一覧にする。今回は10箇所（get_bridge_hub）＋3箇所（TOKEN_FILE）＋4箇所（ASSETS_DIR）等を事前特定しました。<br>
+      2. <b>characterization テスト</b>：分割前に現在の振る舞いをテストで固定し、分割前後で同じ結果を保証する。<br>
+      3. <b>独立査読の強制</b>：devils-advocate が「攻撃」して、この vacuous green を実際に3経路発見。quality-reviewer が設計書の自己矛盾（行数基準違反など）を摘出。<b>全指摘を是正してからでないと次工程に進めない</b>ゲートを運用しています。
+    </div>
+  </details>
+</div>
+
+<!-- ============================================================
+     第3層: 専門用語の完全解体辞典
+     ============================================================ -->
+<h2>③ 用語の完全解体辞典（今日のセッションに登場したもの）</h2>
+<div class="card">
+  <details><summary>Seam（シーム／接合点）</summary><div class="body"><b>一言で</b>: 「ここで切れば痛くない」分割の縫い目。<br><b>もう少し</b>: 複数責務が混ざった巨大ファイルのうち、依存が薄く凝集が高い境界。ここで切ると、片側を触っても反対側が壊れにくい。ネオ秘書くんでは pet.js の「認証」「音」「描画」を Seam として順に切り出しました。</div></details>
+  <details><summary>God Module（神モジュール）</summary><div class="body"><b>一言で</b>: 何でもかんでも1ファイルに集まった巨大ファイル。<br><b>なぜ困る</b>: 1箇所直すと別機能が壊れる（玉突き事故）・AIが読むのに膨大なトークンがかかる・人間は5分でレビューできない。今回は local_sync_server.py（2,296行）と settings_window.py（1,930行）が対象。</div></details>
+  <details><summary>Facade（ファサード／互換の窓口）</summary><div class="body"><b>一言で</b>: 「昔の名前で呼べるように看板だけ残した窓口」。<br><b>実例</b>: database.py は分割後も「薄いFacade」として全機能の名前を再エクスポートし、既存の呼び出し側（テスト71件以上）を無改造で維持しました。<br><b>限界</b>: 名前のコピーは救うが、<b>patch（差し替え）は救わない</b> — 本日の P0 指摘の核心です。</div></details>
+  <details><summary>patch / mock（モック差し替え）</summary><div class="body"><b>一言で</b>: テスト中だけ「本物を偽物にすり替える」魔法。<br><b>仕組み</b>: <code>patch("モジュール名.シンボル名")</code> は、<u>そのモジュールの属性</u>を書き換える。だから本番コードがどのモジュール名で参照しているかと、patch対象が一致していないと効かない。</div></details>
+  <details><summary>vacuous green（空虚な緑）</summary><div class="body"><b>一言で</b>: 「テストは成功したのに、何も検査していない」最悪の緑。<br><b>実例</b>: 分割で実体が新モジュールへ移ったのに、テストは旧Facadeを差し替えていたため、モックを素通りして実物が動作。セキュリティ検査（パストラバーサル防止など）が“静かに死んで”いました。devils-advocate の攻撃で3経路を検出。</div></details>
+  <details><summary>characterization テスト（特性テスト）</summary><div class="body"><b>一言で</b>: 「今の振る舞いを、そのままテストとして固定する」安全網。<br><b>使い方</b>: リファクタ<span style="color:#f85149">前</span>に現行挙動（正常系・エラー・未知パス）を記録し、分割<span style="color:#3fb950">後</span>に同じ結果が出ることを保証する。既に tests/test_action_dispatch_characterization.py に30件の実績があります。</div></details>
+  <details><summary>遅延バインド（late binding）</summary><div class="body"><b>一言で</b>: 「電話番号は毎回、最新の電話帳で引く」方式。<br><b>実例</b>: SyncTokenManager がファイルパスを起動時に固定するのをやめ、<code>app_paths.get_sync_token_path()</code> を毎回解決するよう変える — これでテストの「住所差し替え」自体が不要になり、patch 伝播の問題を根絶できます（設計書 §6.3.1）。</div></details>
+  <details><summary>Route Record（ルート台帳）</summary><div class="body"><b>一言で</b>: 「このURLは、誰が、どの鍵で、通していいか」を1行で表す台帳。<br><b>実例</b>: GET/POSTの散在if分岐を <code>{path, method, handler, auth_level, requires_auth}</code> の表に統一。loopback限定（PC内からのみ）等の防壁は、文字列の除外リストではなく <code>auth_level="loopback"</code> として型で表現します。</div></details>
+  <details><summary>RCE 遮断（自己承認の禁止）</summary><div class="body"><b>一言で</b>: 「自分で出した承認要求を、自分で承認させない」防壁。<br><b>なぜ大事</b>: AIエージェントが承認APIを自作自演で叩けてしまうと、遠隔コード実行（RCE）の穴になる。AGENT_ONLY_PATHS はこの遮断チェーンで、設計書では「撤去せず、Route Record の auth_level へ移管」と明記しました。</div></details>
+  <details><summary>独立検証者（Verifier）ゲート</summary><div class="body"><b>一言で</b>: 「書いた本人以外が、最後に急所を突く」工程。<br><b>今回の実績</b>: 設計書に対し devils-advocate（P0×3: 配線罠・patch伝播・パストラバーサル検査空洞化）と quality-reviewer（P1×3: 行数基準自己矛盾・RCE回帰防衛欠落・不変条件未配線）を独立起動し、<b>全指摘を Rev 2 で是正</b>。さらに agent-tester が pytest 964 passed を独立再現しました。</div></details>
+</div>
+
+<p style="color:#8b949e;font-size:.8rem;margin-top:28px">ネオ秘書くん 開発記録 — 2026-09-28 ID 76 Fat Module 設計書 Sprint (OpenCode)。この図解は docs/explainers/ に保存され、学習メモと共に二重資産として永続化されます。</p>
+
+</body>
+</html>
