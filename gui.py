@@ -144,8 +144,8 @@ class NeoSecretaryGUI(PomodoroMixin, RadialMenuMixin, TourOverlayMixin):
         if getattr(self, 'tray_manager', None) is not None:
             try:
                 self.tray_manager.stop()
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug(f"トレイマネージャー停止エラー: {e}")
         # 🧹 CTk 監視ループ停止 → 未消化 after の全件キャンセル → destroy (Jules タスクB)
         quiet_destroy(self.root)
         logger.info("🛑 quit_app 完了 (root 破棄済み・メインループは終了検知で停止します)")
@@ -426,8 +426,8 @@ class NeoSecretaryGUI(PomodoroMixin, RadialMenuMixin, TourOverlayMixin):
             if self.mascot_img_item is not None:
                 try:
                     self.char_canvas.delete(self.mascot_img_item)
-                except Exception:
-                    pass
+                except (tk.TclError, RuntimeError, AttributeError) as e:
+                    logger.debug(f"Canvas アイテム削除スキップ: {e}")
                 self.mascot_img_item = None
             self._render_mascot("happy")
             import random
@@ -565,8 +565,8 @@ class NeoSecretaryGUI(PomodoroMixin, RadialMenuMixin, TourOverlayMixin):
                     self._was_linked_minimized = False
                     logger.info("📱 スマホ切断を検知: PCペットを再表示(deiconify)します")
                     self.root.deiconify()
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug(f"自動最小化リンク状態判定エラー: {e}")
 
         # 次のフレームを予約 (単一タイマー)
         self.root.after(delay, self._schedule_animation)
@@ -584,8 +584,8 @@ class NeoSecretaryGUI(PomodoroMixin, RadialMenuMixin, TourOverlayMixin):
                     self._was_linked_minimized = True
                     self.root.withdraw()
                     return
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug(f"自動最小化トグル判定エラー: {e}")
         else:
             self._was_linked_minimized = False
             self.root.deiconify()

@@ -250,6 +250,364 @@ function handleFetchFailure() {
   }
 }
 
+// =============================================================================
+// 8. ステータス同期ヘルパー群 (fetchStatus 認知複雑度低減のための責任分離)
+// =============================================================================
+
+function _updatePetStateFromStatus(data) {
+  // 0. ペット状態（歩行コントローラーのガード用 ＆ 歓喜アニメーション連動）
+  if (!window._celebratingUntil || Date.now() > window._celebratingUntil) {
+    if (data.pet_state === 'celebrate' && petStateNow !== 'celebrate') {
+      triggerCelebrateReaction(4000);
+    } else {
+      petStateNow = data.pet_state || 'idle';
+      window.petStateNow = petStateNow;
+    }
+  }
+}
+
+function _updateLanguageAndAgentActivity(data) {
+  // 🌐 デスクトップ側言語設定との自動同期（直近ユーザー手動切替時は巻き戻しを抑止）
+  if (data.language && window.NeoLang) {
+    const isOverride = typeof window.NeoLang.isUserOverrideActive === 'function' && window.NeoLang.isUserOverrideActive();
+    if (!isOverride && window.NeoLang.getLang() !== data.language) {
+      window.NeoLang.setLang(data.language, false);
+    }
+  }
+
+  // 0.5 🤖 AIエージェント稼働ライブバッジ (Phase H: agent_activity 連動)
+  updateAgentActivityBadge(data.agent_activity);
+}
+
+function _updateMessageAndCharacter(data) {
+  // 1. メッセージ
+  if (data.message) {
+    const bubble = document.getElementById('speech-bubble');
+    if (bubble && !bubble.matches(':hover')) {
+      bubble.innerText = data.message;
+    }
+  }
+
+  // 2. キャラクター
+  if (data.character) {
+    // 🐛 S3 (2026-09-26): 初回同期時はキャラ ID 一致でも sprite を再確定する。
+    // HTML 静的初期 src が誤キャラ (ロースター除外中の seal 等) のまま残る事故の恒久修理。
+    const needsSpriteResync = !spriteSynced || data.character.id !== currentCharacterId;
+    spriteSynced = true;
+    if (needsSpriteResync) {
+      currentCharacterId = data.character.id;
+      window.currentCharacterId = currentCharacterId;
+      const emojiEl = document.getElementById('char-emoji');
+      if (emojiEl) emojiEl.innerText = data.character.emoji;
+      preloadSprites(currentCharacterId);
+    }
+  }
+}
+
+function _updateSuggestionsAndNotebookData(data) {
+  // 3. サジェストデータ
+  if (data.suggestions) {
+    suggestionsData = data.suggestions;
+    window.suggestionsData = suggestionsData;
+    renderSuggestionCard();
+  }
+
+  // 3.5. 手帳データ（予定・TODO・習慣）→ 手帳モーダルで使用
+  if (data.events) eventsData = data.events;
+  if (data.tasks) tasksData = data.tasks;
+  if (data.habits) habitsData = data.habits;
+}
+
+function _updatePomodoroState(data) {
+  // 4. ポモドーロ状態
+  if (data.pomodoro) {
+    const wasActive = currentPomodoro && currentPomodoro.active;
+    currentPomodoro = data.pomodoro;
+    window.currentPomodoro = currentPomodoro;
+    const pomoBtn = document.getElementById('pomodoro-btn');
+    const timerText = document.getElementById('pomodoro-timer-text');
+    if (pomoBtn && timerText) {
+      const iconEl = document.getElementById('pomodoro-icon');
+      if (currentPomodoro.active) {
+        pomoBtn.classList.add('active');
+        const mins = Math.floor(currentPomodoro.remaining_seconds / 60);
+        const secs = currentPomodoro.remaining_seconds % 60;
+        timerText.innerText = `${mins}:${String(secs).padStart(2, '0')}`;
+        // 実行中は「押すと止まる」ことを可視化
+        if (iconEl) iconEl.innerText = '⏹';
+        pomoBtn.title = '⏹ タップでポモドーロ停止';
+      } else {
+        pomoBtn.classList.remove('active');
+        timerText.innerText = "25:00";
+        if (iconEl) iconEl.innerText = '🍅';
+        pomoBtn.title = '🍅 ポモドーロ開始（25分）';
+      }
+    }
+
+    // ポモドーロ完了検知 (active -> inactive に遷移、または残り0秒)
+    if (wasActive && (!currentPomodoro.active || currentPomodoro.remaining_seconds === 0)) {
+      updateLifeSprite('playing');
+      const bubble = document.getElementById('speech-bubble');
+      if (bubble) bubble.innerText = '🎉 集中タイム完了！ボス、素晴らしい集中力でした！！🔥';
+      showToast('🎉 ポモドーロ完了！お疲れ様でした！', 4000, true);
+      if (typeof addBondExp === 'function') addBondExp(30);
+    } else if (currentPomodoro.active && !currentPomodoro.is_break) {
+      // ポモドーロ中はペットスプライトを集中モードに切替
+      updateLifeSprite('working');
+    } else if (currentPomodoro.active && currentPomodoro.is_break) {
+      // 休憩中は rest スプライトへ切替（集中スプライトの引きずり防止）
+      updateLifeSprite('resting');
+    }
+  }
+}
+
+function _updateEventBanners(data) {
+  // 5. 承認・質問イベントバナー（新規着信時はチャイム＋振動で強調）
+  const eventBanner = document.getElementById('active-event-banner');
+  const bannerActions = document.getElementById('banner-actions');
+  if (data.pending_approval && !_resolvedRequestIds.has(data.pending_approval.request_id)) {
+    const req = data.pending_approval;
+    const isNew = (!currentApprovalRequest || currentApprovalRequest.request_id !== req.request_id);
+    currentApprovalRequest = req;
+    currentActiveEvent = req;
+    window.currentApprovalRequest = req;
+    window.currentActiveEvent = req;
+    eventBanner.style.display = 'block';
+    eventBanner.style.opacity = '1';
+    eventBanner.style.transform = '';
+    eventBanner.style.transition = '';
+    const isQuestion = (req.type === 'question');
+    if (isQuestion) {
+      eventBanner.className = 'question';
+      document.getElementById('event-type-badge').innerText = `❓ 【${req.agent_name}】質問`;
+      document.getElementById('banner-hint').innerText = 'タップで回答';
+      document.getElementById('event-title').innerText = req.title || req.question || '';
+      document.getElementById('event-desc').innerText = (req.choices && req.choices.length > 0) ? `選択肢: ${req.choices.join(' / ')}` : 'タップして回答';
+      if (bannerActions) bannerActions.style.display = 'none';
+    } else {
+      const isStrict = (req.risk_level === 'strict');
+      eventBanner.className = isStrict ? 'strict' : 'prompt';
+      const badgeIcon = isStrict ? '🚨' : '🛡️';
+      const badgeLabel = isStrict ? '高リスク承認要請' : '承認要請';
+      document.getElementById('event-type-badge').innerText = `${badgeIcon} 【${req.agent_name}】${badgeLabel}`;
+      document.getElementById('banner-hint').innerText = isStrict ? '破壊的変更の可能性' : 'ボタンでワンタップ回答';
+      document.getElementById('event-title').innerText = req.summary || req.command || '';
+      document.getElementById('event-desc').innerText = req.command ? `⌨️ ${req.command}` : '';
+      if (bannerActions) bannerActions.style.display = 'flex';
+    }
+    if (isNew) {
+      lastApprovalRequestId = req.request_id;
+      window._notifDisplayedAt = Date.now(); // 🛡 buzzによる上書きトースト防止
+      const isStrict = (req.risk_level === 'strict');
+      if (isStrict) {
+        playAlertChime(5);
+        if (navigator.vibrate) navigator.vibrate([200, 100, 200, 100, 400]);
+      } else {
+        playAlertChime(4);
+        if (navigator.vibrate) navigator.vibrate([100, 60, 100]);
+      }
+      // 重複防止: 中央バナー（active-event-banner）に操作面を一本化しトーストは出さない
+    }
+    // 📱 案α (ID 63・2026-09-26): 質問着信時にシートを自動オープン
+    // (PWA 既定表示のまま「タップで回答」を見失くさない。ガードは関数内・同一 request_id 1回のみ)
+    if (isQuestion) {
+      maybeAutoOpenQuestionSheet();
+    }
+  } else {
+    // 📱 PC側で承認/回答が完了、または保留要求がキャンセルされた場合の自動クローズ (手帳 ID 80)
+    if (window.currentApprovalRequest || (window.currentSheetItem && (window.currentSheetItem.tag === '質問' || window.currentSheetItem.tag === '承認要請' || window.currentSheetItem.tag === '高リスク承認' || window.currentSheetItem.isApproval || window.currentSheetItem.isQuestion))) {
+      var bottomSheet = document.getElementById('bottom-sheet');
+      if (bottomSheet && bottomSheet.classList.contains('open')) {
+        if (typeof closeBottomSheet === 'function') {
+          closeBottomSheet();
+          if (typeof showToast === 'function') {
+            showToast('✨ PC側で操作が完了しました', 2000, true);
+          }
+        }
+      }
+    }
+    _autoOpenedQuestionId = null;
+    currentApprovalRequest = null;
+    window.currentApprovalRequest = null;
+    if (bannerActions) bannerActions.style.display = 'none';
+    if (data.active_event) {
+      const ev = data.active_event;
+      // 🛡️ 完了通知かつユーザーが消去（dismiss）済みなら即座に非表示を維持
+      const isDismissed = (ev.type === 'completed') && (
+        (typeof isCompletedDismissed === 'function' && isCompletedDismissed(ev)) ||
+        (ev.id && sessionStorage.getItem('dismissed_completed_' + ev.id) === '1') ||
+        (ev.timestamp && sessionStorage.getItem('dismissed_completed_' + ev.timestamp) === '1')
+      );
+      if (isDismissed) {
+        eventBanner.style.display = 'none';
+        currentActiveEvent = null;
+        window.currentActiveEvent = null;
+      } else {
+        const eventKey = `${ev.type || ''}:${ev.timestamp || ''}:${ev.summary || ev.title || ''}`;
+        const isNew = (lastActiveEventKey !== eventKey);
+        lastActiveEventKey = eventKey;
+        currentActiveEvent = ev;
+        window.currentActiveEvent = ev;
+        eventBanner.style.display = 'block';
+        eventBanner.style.opacity = '1';
+        eventBanner.style.transform = '';
+        eventBanner.style.transition = '';
+        eventBanner.className = ev.type || 'completed';
+        const typeLabel = ev.type === 'question' ? '質問' : '完了通知';
+        document.getElementById('event-type-badge').innerText = `✨ 【${ev.agent_name || 'AI'}】${typeLabel}`;
+        document.getElementById('banner-hint').innerText = 'タップで詳細';
+        document.getElementById('event-title').innerText = ev.summary || ev.title || '';
+        document.getElementById('event-desc').innerText = 'タップして確認';
+        // ✖ dismiss button: completed 時にのみ表示
+        const dismissBtn = document.getElementById('banner-dismiss-btn');
+        if (dismissBtn) dismissBtn.style.display = ev.type === 'completed' ? '' : 'none';
+        if (isNew) {
+          window._notifDisplayedAt = Date.now();
+          playAlertChime(2);
+          // 🛡️ 重複排除: バナーが表示されるため上部HUDトーストは出さない
+          if (navigator.vibrate) navigator.vibrate([120, 80, 120, 80, 240]);
+          triggerCelebrateReaction(4000);
+          if (window.EasterEggEngine) EasterEggEngine.playSound('revive');
+        }
+      }
+    } else if (data.due_reminders && data.due_reminders.length > 0) {
+      const rem = data.due_reminders[0];
+      const remKey = `${rem.type || 'reminder'}:${rem.title || ''}:${rem.due_at || ''}`;
+      const isNew = (lastReminderKey !== remKey);
+      lastReminderKey = remKey;
+      currentActiveEvent = rem;
+      window.currentActiveEvent = rem;
+      eventBanner.style.display = 'block';
+      eventBanner.style.opacity = '1';
+      eventBanner.style.transform = '';
+      eventBanner.style.transition = '';
+      eventBanner.className = 'reminder';
+      document.getElementById('event-type-badge').innerText = '⏰ 予定リマインダー';
+      document.getElementById('banner-hint').innerText = '10分前のお知らせ';
+      document.getElementById('event-title').innerText = rem.title || '予定の時間です';
+      document.getElementById('event-desc').innerText = rem.message || rem.due_at || '';
+      const dismissBtn = document.getElementById('banner-dismiss-btn');
+      if (dismissBtn) dismissBtn.style.display = '';
+      if (bannerActions) bannerActions.style.display = 'none';
+      if (isNew) {
+        window._notifDisplayedAt = Date.now();
+        playAlertChime(3);
+        // 🛡️ 重複排除: リマインダーバナーが表示されるため上部HUDトーストは出さない
+        if (navigator.vibrate) navigator.vibrate([150, 100, 150, 100, 300]);
+        petStateNow = 'alarm_ask';
+        if (window.EasterEggEngine) EasterEggEngine.playSound('alarm');
+      }
+    } else {
+      currentActiveEvent = null;
+      window.currentActiveEvent = null;
+      lastActiveEventKey = null;
+      lastReminderKey = null;
+      eventBanner.style.display = 'none';
+    }
+  }
+}
+
+function _updateLatestNotificationAndExtras(data) {
+  // 5.4. 🌟 最新通知（latest_notification）の即座フィードバック
+  if (data.latest_notification) {
+    const notif = data.latest_notification;
+    const notifKey = `${notif.id || ''}:${notif.timestamp || ''}`;
+    if (window._lastNotifKey !== notifKey) {
+      window._lastNotifKey = notifKey;
+      try {
+        sessionStorage.setItem('lastNotifKey', notifKey);
+      } catch (e) { /* プライベートモード等では永続化を諦める */ }
+      window._notifDisplayedAt = Date.now();
+      window._notifShownWhileHidden = document.hidden;
+      triggerCelebrateReaction(4000);
+      const msgEl = document.getElementById('speech-bubble');
+      if (msgEl) {
+        msgEl.innerText = `🎉 【${notif.agent_name}】${notif.title}
+${notif.message}`;
+      }
+      // 🛡️ 重複排除: ペットの頭上コミック吹き出しで愛らしく伝えるため上部トーストは出さない
+      if (navigator.vibrate) navigator.vibrate([120, 80, 120, 80, 240]);
+      if (window.EasterEggEngine) {
+        EasterEggEngine.playSound('revive');
+      } else {
+        playAlertChime(2);
+      }
+    }
+  }
+
+  // 5.5. ⬆ アップデート通知バナー（新バージョン検知時）
+  const updateBanner = document.getElementById('update-banner');
+  const updateText = document.getElementById('update-banner-text');
+  const updateLink = document.getElementById('update-banner-link');
+  if (data.update && data.update.update_available && updateBanner && updateText && updateLink) {
+    const latest = data.update.latest_version || '';
+    const current = data.update.current_version || '';
+    updateText.innerText = `⬆ ${latest} が利用可能です（現在: v${current}）`;
+    updateLink.href = data.update.release_url || '#';
+    // dismissedフラグがなければ表示
+    if (!sessionStorage.getItem('update_banner_dismissed')) {
+      updateBanner.style.display = 'block';
+    }
+  } else if (updateBanner) {
+    updateBanner.style.display = 'none';
+  }
+
+  // 5.6. PCからの呼び出し信号 (Buzz)
+  if (data.buzz && !data.pending_approval && !data.active_event) {
+    // 🛡️ バナー（承認・完了）表示中はバナーに集中させるためトーストを出さない
+    const sinceNotif = Date.now() - (window._notifDisplayedAt || 0);
+    if (sinceNotif > 1500) {
+      playAlertChime(2);
+      showToast('📲 ボスが呼んでいます！');
+    }
+  }
+
+  // 5.7. ⚡ イースターエッグ演出同期
+  if (window.EasterEggEngine && data.easter_egg) {
+    EasterEggEngine.syncFromStatus(data);
+  }
+
+  // 5.8. 📍 地域設定の同期
+  if (typeof data.weather_location === 'string') {
+    currentSavedLocation = data.weather_location;
+  }
+}
+
+function _updateLifeDreamerState(data) {
+  // 6. 🌈 自律生活ドリーマー状態（天候・生活イベント）
+  if (data.life_state) {
+    const ls = data.life_state;
+    // 天候バッジの更新
+    const wBadge = document.getElementById('weather-badge');
+    const weatherKey = ls.weather || 'sunny';
+    if (wBadge) {
+      const temp = ls.temperature != null ? ` ${ls.temperature}°C` : '';
+      const city = ls.city || '';
+      wBadge.innerText = `${WEATHER_LABELS_JS[weatherKey] || '☀️ 晴れ'}${temp}${city ? '（' + city + '）' : ''}`;
+      wBadge.className = `weather-badge w-${weatherKey}`;
+    }
+    currentWeather = weatherKey;
+    currentActivity = ls.current_activity || 'resting';
+    // 活動に応じたスプライトへ切替
+    // ※ ポモドーロ実行中は §4 で設定した集中/休憩スプライトを維持する。
+    //   ここで無条件に updateLifeSprite(currentActivity) を呼ぶと2秒毎に
+    //   生活活動スプライトで上書きされ「ポモドーロなのにキャラが変わらない」
+    //   障害の原因になっていた (2026-08-30 実機検証)。
+    if (currentPomodoro && currentPomodoro.active) {
+      updateLifeSprite(currentPomodoro.is_break ? 'resting' : 'working');
+    } else {
+      updateLifeSprite(currentActivity);
+    }
+    // 新しい生活イベントが届いたらトースト＋バイブ＋ペット状態を更新
+    const msg = ls.message || '';
+    if (msg && msg !== lastLifeMessage && ls.last_generated_at > 0) {
+      lastLifeMessage = msg;
+      showToast(`🌈 ${msg}`);
+      if (navigator.vibrate) navigator.vibrate([40, 60, 40]);
+    }
+  }
+}
+
 async function fetchStatus() {
   try {
     const res = await authFetch('/api/status');
@@ -275,345 +633,15 @@ async function fetchStatus() {
     // 🛡️ P0-1 (2026-09-22): ステータス応答で Bearer トークンを上書きしない。
     // /api/status はマスターキーを配布しなくなったため、トークン更新の唯一の経路は
     // pet_auth.js の requestSyncToken() (401/403 時の /api/auth/token = ペアリング開放 + 人間承認) のみ。
-    // 旧実装はここでステータス応答内のトークンを保存し、端末個別トークンをマスターキーへ
-    // 昇格させていた (「個別失効させても通信が通り続ける」権限昇格の真因)。
 
-    // 0. ペット状態（歩行コントローラーのガード用 ＆ 歓喜アニメーション連動）
-    if (!window._celebratingUntil || Date.now() > window._celebratingUntil) {
-      if (data.pet_state === 'celebrate' && petStateNow !== 'celebrate') {
-        triggerCelebrateReaction(4000);
-      } else {
-        petStateNow = data.pet_state || 'idle';
-        window.petStateNow = petStateNow;
-      }
-    }
-
-    // 🌐 デスクトップ側言語設定との自動同期（直近ユーザー手動切替時は巻き戻しを抑止）
-    if (data.language && window.NeoLang) {
-      const isOverride = typeof window.NeoLang.isUserOverrideActive === 'function' && window.NeoLang.isUserOverrideActive();
-      if (!isOverride && window.NeoLang.getLang() !== data.language) {
-        window.NeoLang.setLang(data.language, false);
-      }
-    }
-
-    // 0.5 🤖 AIエージェント稼働ライブバッジ (Phase H: agent_activity 連動)
-    updateAgentActivityBadge(data.agent_activity);
-
-    // 1. メッセージ
-    if (data.message) {
-      const bubble = document.getElementById('speech-bubble');
-      if (bubble && !bubble.matches(':hover')) {
-        bubble.innerText = data.message;
-      }
-    }
-
-    // 2. キャラクター
-    if (data.character) {
-      // 🐛 S3 (2026-09-26): 初回同期時はキャラ ID 一致でも sprite を再確定する。
-      // HTML 静的初期 src が誤キャラ (ロースター除外中の seal 等) のまま残る事故の恒久修理。
-      const needsSpriteResync = !spriteSynced || data.character.id !== currentCharacterId;
-      spriteSynced = true;
-      if (needsSpriteResync) {
-        currentCharacterId = data.character.id;
-        window.currentCharacterId = currentCharacterId;
-        const emojiEl = document.getElementById('char-emoji');
-        if (emojiEl) emojiEl.innerText = data.character.emoji;
-        preloadSprites(currentCharacterId);
-      }
-    }
-
-    // 3. サジェストデータ
-    if (data.suggestions) {
-      suggestionsData = data.suggestions;
-      window.suggestionsData = suggestionsData;
-      renderSuggestionCard();
-    }
-
-    // 3.5. 手帳データ（予定・TODO・習慣）→ 手帳モーダルで使用
-    if (data.events) eventsData = data.events;
-    if (data.tasks) tasksData = data.tasks;
-    if (data.habits) habitsData = data.habits;
-
-    // 4. ポモドーロ状態
-    if (data.pomodoro) {
-      const wasActive = currentPomodoro && currentPomodoro.active;
-      currentPomodoro = data.pomodoro;
-      window.currentPomodoro = currentPomodoro;
-      const pomoBtn = document.getElementById('pomodoro-btn');
-      const timerText = document.getElementById('pomodoro-timer-text');
-      if (pomoBtn && timerText) {
-        const iconEl = document.getElementById('pomodoro-icon');
-        if (currentPomodoro.active) {
-          pomoBtn.classList.add('active');
-          const mins = Math.floor(currentPomodoro.remaining_seconds / 60);
-          const secs = currentPomodoro.remaining_seconds % 60;
-          timerText.innerText = `${mins}:${String(secs).padStart(2, '0')}`;
-          // 実行中は「押すと止まる」ことを可視化
-          if (iconEl) iconEl.innerText = '⏹';
-          pomoBtn.title = '⏹ タップでポモドーロ停止';
-        } else {
-          pomoBtn.classList.remove('active');
-          timerText.innerText = "25:00";
-          if (iconEl) iconEl.innerText = '🍅';
-          pomoBtn.title = '🍅 ポモドーロ開始（25分）';
-        }
-      }
-
-      // ポモドーロ完了検知 (active -> inactive に遷移、または残り0秒)
-      if (wasActive && (!currentPomodoro.active || currentPomodoro.remaining_seconds === 0)) {
-        updateLifeSprite('playing');
-        const bubble = document.getElementById('speech-bubble');
-        if (bubble) bubble.innerText = '🎉 集中タイム完了！ボス、素晴らしい集中力でした！！🔥';
-        showToast('🎉 ポモドーロ完了！お疲れ様でした！', 4000, true);
-        if (typeof addBondExp === 'function') addBondExp(30);
-      } else if (currentPomodoro.active && !currentPomodoro.is_break) {
-        // ポモドーロ中はペットスプライトを集中モードに切替
-        updateLifeSprite('working');
-      } else if (currentPomodoro.active && currentPomodoro.is_break) {
-        // 休憩中は rest スプライトへ切替（集中スプライトの引きずり防止）
-        updateLifeSprite('resting');
-      }
-    }
-
-    // 5. 承認・質問イベントバナー（新規着信時はチャイム＋振動で強調）
-    const eventBanner = document.getElementById('active-event-banner');
-    const bannerActions = document.getElementById('banner-actions');
-    if (data.pending_approval && !_resolvedRequestIds.has(data.pending_approval.request_id)) {
-      const req = data.pending_approval;
-      const isNew = (!currentApprovalRequest || currentApprovalRequest.request_id !== req.request_id);
-      currentApprovalRequest = req;
-      currentActiveEvent = req;
-      window.currentApprovalRequest = req;
-      window.currentActiveEvent = req;
-      eventBanner.style.display = 'block';
-      eventBanner.style.opacity = '1';
-      eventBanner.style.transform = '';
-      eventBanner.style.transition = '';
-      const isQuestion = (req.type === 'question');
-      if (isQuestion) {
-        eventBanner.className = 'question';
-        document.getElementById('event-type-badge').innerText = `❓ 【${req.agent_name}】質問`;
-        document.getElementById('banner-hint').innerText = 'タップで回答';
-        document.getElementById('event-title').innerText = req.title || req.question || '';
-        document.getElementById('event-desc').innerText = (req.choices && req.choices.length > 0) ? `選択肢: ${req.choices.join(' / ')}` : 'タップして回答';
-        if (bannerActions) bannerActions.style.display = 'none';
-      } else {
-        const isStrict = (req.risk_level === 'strict');
-        eventBanner.className = isStrict ? 'strict' : 'prompt';
-        const badgeIcon = isStrict ? '🚨' : '🛡️';
-        const badgeLabel = isStrict ? '高リスク承認要請' : '承認要請';
-        document.getElementById('event-type-badge').innerText = `${badgeIcon} 【${req.agent_name}】${badgeLabel}`;
-        document.getElementById('banner-hint').innerText = isStrict ? '破壊的変更の可能性' : 'ボタンでワンタップ回答';
-        document.getElementById('event-title').innerText = req.summary || req.command || '';
-        document.getElementById('event-desc').innerText = req.command ? `⌨️ ${req.command}` : '';
-        if (bannerActions) bannerActions.style.display = 'flex';
-      }
-      if (isNew) {
-        lastApprovalRequestId = req.request_id;
-        window._notifDisplayedAt = Date.now(); // 🛡 buzzによる上書きトースト防止
-        const isStrict = (req.risk_level === 'strict');
-        if (isStrict) {
-          playAlertChime(5);
-          if (navigator.vibrate) navigator.vibrate([200, 100, 200, 100, 400]);
-        } else {
-          playAlertChime(4);
-          if (navigator.vibrate) navigator.vibrate([100, 60, 100]);
-        }
-        // 重複防止: 中央バナー（active-event-banner）に操作面を一本化しトーストは出さない
-      }
-      // 📱 案α (ID 63・2026-09-26): 質問着信時にシートを自動オープン
-      // (PWA 既定表示のまま「タップで回答」を見失くさない。ガードは関数内・同一 request_id 1回のみ)
-      if (isQuestion) {
-        maybeAutoOpenQuestionSheet();
-      }
-    } else {
-      // 📱 PC側で承認/回答が完了、または保留要求がキャンセルされた場合の自動クローズ (手帳 ID 80)
-      if (window.currentApprovalRequest || (window.currentSheetItem && (window.currentSheetItem.tag === '質問' || window.currentSheetItem.tag === '承認要請' || window.currentSheetItem.tag === '高リスク承認' || window.currentSheetItem.isApproval || window.currentSheetItem.isQuestion))) {
-        var bottomSheet = document.getElementById('bottom-sheet');
-        if (bottomSheet && bottomSheet.classList.contains('open')) {
-          if (typeof closeBottomSheet === 'function') {
-            closeBottomSheet();
-            if (typeof showToast === 'function') {
-              showToast('✨ PC側で操作が完了しました', 2000, true);
-            }
-          }
-        }
-      }
-      _autoOpenedQuestionId = null;
-      currentApprovalRequest = null;
-      window.currentApprovalRequest = null;
-      if (bannerActions) bannerActions.style.display = 'none';
-      if (data.active_event) {
-        const ev = data.active_event;
-        // 🛡️ 完了通知かつユーザーが消去（dismiss）済みなら即座に非表示を維持
-        const isDismissed = (ev.type === 'completed') && (
-          (typeof isCompletedDismissed === 'function' && isCompletedDismissed(ev)) ||
-          (ev.id && sessionStorage.getItem('dismissed_completed_' + ev.id) === '1') ||
-          (ev.timestamp && sessionStorage.getItem('dismissed_completed_' + ev.timestamp) === '1')
-        );
-        if (isDismissed) {
-          eventBanner.style.display = 'none';
-          currentActiveEvent = null;
-          window.currentActiveEvent = null;
-        } else {
-          const eventKey = `${ev.type || ''}:${ev.timestamp || ''}:${ev.summary || ev.title || ''}`;
-          const isNew = (lastActiveEventKey !== eventKey);
-          lastActiveEventKey = eventKey;
-          currentActiveEvent = ev;
-          window.currentActiveEvent = ev;
-          eventBanner.style.display = 'block';
-          eventBanner.style.opacity = '1';
-          eventBanner.style.transform = '';
-          eventBanner.style.transition = '';
-          eventBanner.className = ev.type || 'completed';
-          const typeLabel = ev.type === 'question' ? '質問' : '完了通知';
-          document.getElementById('event-type-badge').innerText = `✨ 【${ev.agent_name || 'AI'}】${typeLabel}`;
-          document.getElementById('banner-hint').innerText = 'タップで詳細';
-          document.getElementById('event-title').innerText = ev.summary || ev.title || '';
-          document.getElementById('event-desc').innerText = 'タップして確認';
-          // ✖ dismiss button: completed 時にのみ表示
-          const dismissBtn = document.getElementById('banner-dismiss-btn');
-          if (dismissBtn) dismissBtn.style.display = ev.type === 'completed' ? '' : 'none';
-          if (isNew) {
-            window._notifDisplayedAt = Date.now();
-            playAlertChime(2);
-            // 🛡️ 重複排除: バナーが表示されるため上部HUDトーストは出さない
-            if (navigator.vibrate) navigator.vibrate([120, 80, 120, 80, 240]);
-            triggerCelebrateReaction(4000);
-            if (window.EasterEggEngine) EasterEggEngine.playSound('revive');
-          }
-        }
-      } else if (data.due_reminders && data.due_reminders.length > 0) {
-        const rem = data.due_reminders[0];
-        const remKey = `${rem.type || 'reminder'}:${rem.title || ''}:${rem.due_at || ''}`;
-        const isNew = (lastReminderKey !== remKey);
-        lastReminderKey = remKey;
-        currentActiveEvent = rem;
-        window.currentActiveEvent = rem;
-        eventBanner.style.display = 'block';
-        eventBanner.style.opacity = '1';
-        eventBanner.style.transform = '';
-        eventBanner.style.transition = '';
-        eventBanner.className = 'reminder';
-        document.getElementById('event-type-badge').innerText = '⏰ 予定リマインダー';
-        document.getElementById('banner-hint').innerText = '10分前のお知らせ';
-        document.getElementById('event-title').innerText = rem.title || '予定の時間です';
-        document.getElementById('event-desc').innerText = rem.message || rem.due_at || '';
-        const dismissBtn = document.getElementById('banner-dismiss-btn');
-        if (dismissBtn) dismissBtn.style.display = '';
-        if (bannerActions) bannerActions.style.display = 'none';
-        if (isNew) {
-          window._notifDisplayedAt = Date.now();
-          playAlertChime(3);
-          // 🛡️ 重複排除: リマインダーバナーが表示されるため上部HUDトーストは出さない
-          if (navigator.vibrate) navigator.vibrate([150, 100, 150, 100, 300]);
-          petStateNow = 'alarm_ask';
-          if (window.EasterEggEngine) EasterEggEngine.playSound('alarm');
-        }
-      } else {
-        currentActiveEvent = null;
-        window.currentActiveEvent = null;
-        lastActiveEventKey = null;
-        lastReminderKey = null;
-        eventBanner.style.display = 'none';
-      }
-    }
-
-    // 5.4. 🌟 最新通知（latest_notification）の即座フィードバック
-    if (data.latest_notification) {
-      const notif = data.latest_notification;
-      const notifKey = `${notif.id || ''}:${notif.timestamp || ''}`;
-      if (window._lastNotifKey !== notifKey) {
-        window._lastNotifKey = notifKey;
-        try {
-          sessionStorage.setItem('lastNotifKey', notifKey);
-        } catch (e) { /* プライベートモード等では永続化を諦める */ }
-        window._notifDisplayedAt = Date.now();
-        window._notifShownWhileHidden = document.hidden;
-        triggerCelebrateReaction(4000);
-        const msgEl = document.getElementById('speech-bubble');
-        if (msgEl) {
-          msgEl.innerText = `🎉 【${notif.agent_name}】${notif.title}\n${notif.message}`;
-        }
-        // 🛡️ 重複排除: ペットの頭上コミック吹き出しで愛らしく伝えるため上部トーストは出さない
-        if (navigator.vibrate) navigator.vibrate([120, 80, 120, 80, 240]);
-        if (window.EasterEggEngine) {
-          EasterEggEngine.playSound('revive');
-        } else {
-          playAlertChime(2);
-        }
-      }
-    }
-
-    // 5.5. ⬆ アップデート通知バナー（新バージョン検知時）
-    const updateBanner = document.getElementById('update-banner');
-    const updateText = document.getElementById('update-banner-text');
-    const updateLink = document.getElementById('update-banner-link');
-    if (data.update && data.update.update_available && updateBanner && updateText && updateLink) {
-      const latest = data.update.latest_version || '';
-      const current = data.update.current_version || '';
-      updateText.innerText = `⬆ ${latest} が利用可能です（現在: v${current}）`;
-      updateLink.href = data.update.release_url || '#';
-      // dismissedフラグがなければ表示
-      if (!sessionStorage.getItem('update_banner_dismissed')) {
-        updateBanner.style.display = 'block';
-      }
-    } else if (updateBanner) {
-      updateBanner.style.display = 'none';
-    }
-
-    // 5.6. PCからの呼び出し信号 (Buzz)
-    if (data.buzz && !data.pending_approval && !data.active_event) {
-      // 🛡️ バナー（承認・完了）表示中はバナーに集中させるためトーストを出さない
-      const sinceNotif = Date.now() - (window._notifDisplayedAt || 0);
-      if (sinceNotif > 1500) {
-        playAlertChime(2);
-        showToast('📲 ボスが呼んでいます！');
-      }
-    }
-
-    // 5.7. ⚡ イースターエッグ演出同期
-    if (window.EasterEggEngine && data.easter_egg) {
-      EasterEggEngine.syncFromStatus(data);
-    }
-
-    // 5.8. 📍 地域設定の同期
-    if (typeof data.weather_location === 'string') {
-      currentSavedLocation = data.weather_location;
-    }
-
-    // 6. 🌈 自律生活ドリーマー状態（天候・生活イベント）
-    if (data.life_state) {
-      const ls = data.life_state;
-      // 天候バッジの更新
-      const wBadge = document.getElementById('weather-badge');
-      const weatherKey = ls.weather || 'sunny';
-      if (wBadge) {
-        const temp = ls.temperature != null ? ` ${ls.temperature}°C` : '';
-        const city = ls.city || '';
-        wBadge.innerText = `${WEATHER_LABELS_JS[weatherKey] || '☀️ 晴れ'}${temp}${city ? '（' + city + '）' : ''}`;
-        wBadge.className = `weather-badge w-${weatherKey}`;
-      }
-      currentWeather = weatherKey;
-      currentActivity = ls.current_activity || 'resting';
-      // 活動に応じたスプライトへ切替
-      // ※ ポモドーロ実行中は §4 で設定した集中/休憩スプライトを維持する。
-      //   ここで無条件に updateLifeSprite(currentActivity) を呼ぶと2秒毎に
-      //   生活活動スプライトで上書きされ「ポモドーロなのにキャラが変わらない」
-      //   障害の原因になっていた (2026-08-30 実機検証)。
-      if (currentPomodoro && currentPomodoro.active) {
-        updateLifeSprite(currentPomodoro.is_break ? 'resting' : 'working');
-      } else {
-        updateLifeSprite(currentActivity);
-      }
-      // 新しい生活イベントが届いたらトースト＋バイブ＋ペット状態を更新
-      const msg = ls.message || '';
-      if (msg && msg !== lastLifeMessage && ls.last_generated_at > 0) {
-        lastLifeMessage = msg;
-        showToast(`🌈 ${msg}`);
-        if (navigator.vibrate) navigator.vibrate([40, 60, 40]);
-      }
-    }
+    _updatePetStateFromStatus(data);
+    _updateLanguageAndAgentActivity(data);
+    _updateMessageAndCharacter(data);
+    _updateSuggestionsAndNotebookData(data);
+    _updatePomodoroState(data);
+    _updateEventBanners(data);
+    _updateLatestNotificationAndExtras(data);
+    _updateLifeDreamerState(data);
 
   } catch (err) {
     console.debug("Status fetch error:", err);
@@ -622,7 +650,6 @@ async function fetchStatus() {
   }
 }
 
-// ポーリング間隔を返す（非表示時は30秒、バックオフ中は30秒、通常表示中は2秒）
 function getNextFetchInterval() {
   if (fetchBackoffActive) return FETCH_BACKOFF_INTERVAL;
   if (typeof document !== 'undefined' && document.hidden) return FETCH_HIDDEN_INTERVAL;

@@ -1879,8 +1879,8 @@ class SettingsWindow(ctk.CTkToplevel):
         try:
             from i18n import unsubscribe_language_change
             unsubscribe_language_change(self._on_language_changed)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(f"設定画面破棄時の i18n 解除エラー: {e}")
         super().destroy()
 
     def _on_language_changed(self, lang: str) -> None:
@@ -1924,7 +1924,7 @@ class SettingsWindow(ctk.CTkToplevel):
         try:
             if os.path.exists(flag_file):
                 os.remove(flag_file)
-        except Exception:
-            pass
+        except OSError as e:
+            logger.warning(f"ツアー完了フラグファイル削除失敗 ({flag_file}): {e}")
         self.parent_gui.post_action(self.parent_gui._start_tour)
         self.destroy()
