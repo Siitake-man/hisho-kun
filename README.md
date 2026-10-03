@@ -1,64 +1,83 @@
-# ネオ秘書くん (Neo-Secretary)
+# Neo-Secretary (ネオ秘書くん) 🐾
+### Remote Approval Companion & Pixel Desk Pet for Autonomous AI Coding Agents
 
 [![CI](https://github.com/Siitake-man/hisho-kun/actions/workflows/ci.yml/badge.svg)](https://github.com/Siitake-man/hisho-kun/actions/workflows/ci.yml)
 ![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
 [![Python](https://img.shields.io/badge/Python-3.11%20%7C%203.12%20%7C%203.13-blue.svg)](https://www.python.org/)
-[![English README](https://img.shields.io/badge/README-English-red.svg)](README_en.md)
+[![Latest Release](https://img.shields.io/badge/Release-v1.1.17-emerald.svg)](https://github.com/Siitake-man/hisho-kun/releases/tag/v1.1.17)
+[![Tests Passing](https://img.shields.io/badge/Tests-964%20Passed-brightgreen.svg)](tests/)
+[![Japanese README](https://img.shields.io/badge/README-日本語-red.svg)](README_ja.md)
 
-> 🇬🇧 **English documentation is available!** ➔ Check out [README_en.md](README_en.md) for full English guide.  
-> **"Approve your AI coding agent from your phone while taking a coffee break."** ☕
+> 🇯🇵 **日本語のドキュメントはこちら！** ➔ [README_ja.md](README_ja.md) をご覧ください。  
+> ☕ **"Approve your AI coding agent from your phone while taking a coffee break."**  
+> Turn your spare smartphone into an adorable retro-style **Desk Pet** & zero-trust remote approval cockpit for **OpenCode, Antigravity, Claude Code, Cline, Cursor, and Codex**.
 
-### 📱 引き出しで眠る古いスマホが、AI開発の「卓上スマート相棒」に化ける。
-
-**ネオ秘書くん (Neo-Secretary)** は、使わなくなったスマートフォンをQRコード1発で**「Desk Pet（卓上スマート秘書）」**へと生まれ変わらせるデスクトップ常駐AIアシスタントです。
-
-Claude Code や Cline などの自律AIコーディングを回しながら、**「離席中に『コマンド実行していい？』で停止して開発が進まない…」**という経験はありませんか？  
-ネオ秘書くんなら、PC右下のドット絵ペットがAIの思考とリアルタイムに連動し、離席中でも**手元のスマホからワンタップで遠隔承認**。コーヒーを淹れている間も、トイレに行っている間も、開発が止まりません。
+---
 
 <p align="center">
-  <img src="docs/guides/assets/banner_main.jpg" width="100%" alt="ネオ秘書くん - あなたの専属卓上AI秘書">
+  <img src="docs/guides/assets/banner_main_en.jpg" width="100%" alt="Neo-Secretary - Autonomous Desk AI Companion">
 </p>
-
-<p align="center">
-  <img src="assets/dot/hisho_animated.gif" width="104" alt="ネオ秘書くん（ヒショ）— まばたきするドット絵ペット">
-  &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
-  <img src="assets/dot/kyle_animated.gif" width="104" alt="ネオカイル — 泳ぐドット絵ペット">
-</p>
-
-<p align="center"><sub>▲ デスクトップやスマホで表情豊かに呼吸し、あなたの仕事を応援します 👔🐬</sub></p>
-
-<p align="center">
-  <img src="assets/screenshots/pc_pet.png" width="320" alt="PCペット: 会話とTODO操作">
-  &nbsp;&nbsp;
-  <img src="assets/screenshots/phone_pet.png" width="180" alt="スマホ Desk Pet (PWA): 手帳・天気・ブリーフィング">
-  &nbsp;&nbsp;
-  <img src="assets/screenshots/phone_approval.png" width="180" alt="エージェント承認要請をスマホでワンタップ承認">
-</p>
-
-<p align="center"><b>🔔 エージェント（Cline / Claude Code 等）の「コマンド実行していい？」をスマホでワンタップ承認</b></p>
-
-### 💡 こんなあなたのためのツールです
-- ☕ **AIエージェント（Claude Code / Cline 等）を回しながら、気兼ねなく離席・休憩したい人**
-- 📱 **使わなくなった古いスマホ（iPhone / Android）のカッコいい再利用先を探している人**
-- 👾 **無機質なコマンドライン作業に、90年代のレトロゲームのような「愛着と生命感」が欲しい人**
 
 <p align="center" style="margin: 24px 0;">
-  <a href="https://siitake-man.github.io/hisho-kun/neo-secretary-showcase.html">
-    <img src="https://img.shields.io/badge/🌟_Interactive_Showcase-全体俯瞰図を見る-40458f?style=for-the-badge&logo=google-cloud&logoColor=white" alt="Interactive Architecture Showcase">
+  <a href="https://siitake-man.github.io/hisho-kun/neo-secretary-showcase-en.html">
+    <img src="https://img.shields.io/badge/🌟_Interactive_Showcase-Explore_System_Blueprint-40458f?style=for-the-badge&logo=google-cloud&logoColor=white" alt="Interactive Architecture Showcase">
   </a>
   &nbsp;&nbsp;
-  <a href="https://siitake-man.github.io/hisho-kun/guides/NEO_HISHO_CHEAT_SHEETS.html">
-    <img src="https://img.shields.io/badge/📘_Cheat_Sheets-公式利用ガイド完全版-8b5e3c?style=for-the-badge&logo=readthedocs&logoColor=white" alt="Official Cheat Sheets">
+  <a href="https://siitake-man.github.io/hisho-kun/guides/NEO_HISHO_CHEAT_SHEETS_en.html">
+    <img src="https://img.shields.io/badge/📘_Cheat_Sheets-Official_Infographic_Guide-8b5e3c?style=for-the-badge&logo=readthedocs&logoColor=white" alt="Official Cheat Sheets">
   </a>
   &nbsp;&nbsp;
-  <a href="https://github.com/Siitake-man/hisho-kun/releases/tag/v1.1.0">
-    <img src="https://img.shields.io/badge/📦_Download_v1.1.0-最新ZIPを入手-10b981?style=for-the-badge&logo=windows&logoColor=white" alt="Download Release v1.1.0">
+  <a href="https://github.com/Siitake-man/hisho-kun/releases/tag/v1.1.17">
+    <img src="https://img.shields.io/badge/📦_Download_v1.1.17-Get_Latest_Release-10b981?style=for-the-badge&logo=windows&logoColor=white" alt="Download Release v1.1.17">
   </a>
+</p>
+
+<p align="center">
+  <img src="assets/dot/hisho_animated.gif" width="104" alt="Neo-Secretary (Hisho) - Pixel Pet">
+  &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+  <img src="assets/dot/kyle_animated.gif" width="104" alt="Neo-Kyle - Nostalgic Shell Spirit">
+</p>
+
+<p align="center"><sub>▲ Breathing pixel mascots live on your desktop and phone to support your autonomous development 👔🐚</sub></p>
+
+<p align="center">
+  <img src="assets/screenshots/pc_pet.png" width="300" alt="PC Desktop Pet">
+  &nbsp;&nbsp;
+  <img src="assets/screenshots/phone_pet.png" width="170" alt="Mobile Desk Pet PWA">
+  &nbsp;&nbsp;
+  <img src="assets/screenshots/phone_approval.png" width="170" alt="One-Tap Remote Approval on Phone">
 </p>
 
 ---
 
-## 🏛️ システムアーキテクチャ ＆ データフロー
+## ⚡ The Problem: AI Coding Stops When You Step Away
+
+Autonomous coding agents (**OpenCode, Antigravity, Claude Code, Cline, Cursor, Codex**) are incredible, but they hit an inevitable bottleneck:  
+**They constantly pause to ask for user permission before executing terminal commands or editing files.**
+
+- You step away to brew coffee or take a walk ➔ **Agent halts at `git push`, `npm test`, or file writes.**
+- You sit on the couch or leave your desk ➔ **Your autonomous development completely freezes.**
+
+### 💡 The Solution: Neo-Secretary Remote Cockpit
+
+1. **Zero-Config Mobile Pairing**: Scan a QR code from your spare smartphone (iOS/Android). No app store installation required — runs seamlessly as an offline-capable PWA.
+2. **One-Tap Remote Approval & Direct Injection**: When an agent requests command approval, your phone vibrates and pulses an alert banner. Review the full command and tap **✅ Approve (Once)**, **✅ Always**, or **🛑 Reject**. The decision is injected directly into the agent runtime in real-time.
+3. **PC & Mobile State Auto-Sync (`cancel_pending`)**: If you approve on your PC first, the mobile card dismisses automatically in sub-seconds. No lingering notification cards.
+4. **Desk Pet & Retro Aesthetic**: A 16-bit pixel companion breathes and reacts on both screens, bringing warmth, nostalgia, and companionship to sterile terminal workflows.
+
+---
+
+## 🌟 What's New in v1.1.17 (Two-Way Bridge & Robustness)
+
+- 🔄 **Bidirectional Approval Injection & PC Cancel Sync**: OpenCode (`hisho-approval-notify` v1.3.2) and Antigravity hooks now support two-way approval injection (`once`/`always`/`reject`). When an approval or question is resolved on PC, the mobile card is automatically dismissed via `POST /api/agent/cancel_pending`.
+- 💬 **Interactive Question & Choice Forwarding**: Agent clarification modals (`ask_question`, `ask_input`) are delivered directly to your mobile Desk Pet sheet with interactive choice buttons.
+- 🔀 **20-Second Auto-Rotating Suggestion Carousel**: Re-enabled smooth auto-rotation of pending tasks, calendar schedules, and AI news headlines on the mobile UI without freezing Canvas render loops.
+- 🛡️ **Hardened Zero-Trust & Identity-Based Isolation**: Cryptographic 256-bit device token ledger, anti-self-approval domain boundary (PC loopback vs remote devices), and strict fail-closed LAN defense.
+- 🧪 **964+ Automated Tests Passing**: Robust test suite spanning unit tests, integration tests, fuzzing, and regression tests ensuring zero-drift reliability.
+
+---
+
+## 🏛️ System Architecture & Data Flow
 
 ```mermaid
 graph TD
@@ -67,19 +86,19 @@ graph TD
     classDef server fill:#0f7c78,stroke:#14b8a6,stroke-width:2px,color:#fff;
     classDef phone fill:#8b5e3c,stroke:#b47c50,stroke-width:2px,color:#fff;
 
-    Agents["🤖 AIコーディングエージェント<br/>(Claude Code / Cline / Cursor / Codex 等)"]:::agent
-    MCP["🔌 自作MCPサーバー<br/>(neo_hisho_bridge)"]:::bridge
-    Server["⚡ ネオ秘書くん同期サーバー<br/>(Python / asyncio)"]:::server
-    PWA["📱 卓上スマホ<br/>(Desk Pet PWA)"]:::phone
+    Agents["🤖 AI Coding Agents<br/>(OpenCode / Antigravity / Claude Code / Cline / Codex)"]:::agent
+    MCP["🔌 Built-in MCP Server<br/>(neo_hisho_bridge)"]:::bridge
+    Server["⚡ Neo-Secretary Hub & Sync Server<br/>(Python / asyncio / Zero-Trust Token Store)"]:::server
+    PWA["📱 Spare Smartphone<br/>(Desk Pet PWA / Auto-Close Sync)"]:::phone
 
     Agents -->|"stdio / JSON-RPC<br/>ask_human_approval"| MCP
-    MCP -->|"ローカル HTTP / SSE<br/>共通DTO AgentApprovalRequest"| Server
+    MCP -->|"Local HTTP / SSE<br/>AgentApprovalRequest DTO"| Server
 
-    subgraph DefenseEngine ["🛡️ 3段階判定エンジン ＆ 監査ログ基盤"]
-        Auto["🟢 Auto-Allow (自動許可)<br/>git status, pytest - 即時0秒通過"]
-        Prompt["🟡 Prompt (通常確認)<br/>git commit, 通常編集 - スマホへ通知"]
-        Strict["🔴 Strict (厳格承認)<br/>rm -rf, git reset - 赤バナー警告"]
-        Audit[("📝 SQLite 監査ログ<br/>改ざん不可の承認証跡")]
+    subgraph DefenseEngine ["🛡️ 3-Tier Policy, Safety Badge & Audit Engine"]
+        Auto["🟢 Auto-Allow<br/>(git status, pytest - 0s instant pass)"]
+        Prompt["🟡 Prompt with Jev Badge<br/>(git commit, edits - phone alert)"]
+        Strict["🔴 Strict Warning<br/>(rm -rf, git reset - crimson banner)"]
+        Audit[("📝 SQLite Audit Log<br/>tamper-resistant trail")]
     end
 
     Server --> Auto
@@ -87,268 +106,85 @@ graph TD
     Server --> Strict
     Server -.-> Audit
 
-    Auto -->|"即時自動解決 (0ms)"| MCP
-    Prompt -->|"自宅Wi-Fi / Tailscale (Bearer認証)"| PWA
-    Strict -->|"自己承認防止 (RCE遮断)"| PWA
+    Auto -->|"0ms Instant Pass"| MCP
+    Prompt -->|"Local Wi-Fi / Tailscale (Bearer Auth)"| PWA
+    Strict -->|"Anti-Self-Approval Isolation"| PWA
 
-    PWA -->|"ワンタップ判定 (承認 / 却下)"| Server
+    PWA -->|"One-Tap Decision (Approve / Reject)"| Server
+    Server -->|"Direct Decision Injection"| Agents
+    Agents -.->|"Auto-Dismiss on Desktop Resolution"| Server
 ```
-
-### 📡 リアルタイム通信データフロー
-
-```text
-[ 各種AIエージェント ] (Claude Code / Cline / Cursor / Codex 等)
-       │
-       ▼ (stdio / JSON-RPC: Model Context Protocol)
-[ 自作 MCPサーバー ] (neo_hisho_bridge)
-       │
-       ▼ (ローカル HTTP / 共通DTO AgentApprovalRequest)
-[ ネオ秘書くん同期サーバー ] (Python / asyncio)
-       │ ├─ 🟢 Auto-Allow : 安全な閲覧・テストコマンドは即時0秒で自動通過
-       │ ├─ 🟡 Prompt     : 通常編集・コミットはスマホへ通知
-       │ ├─ 🔴 Strict     : 破壊的変更は深紅の警告パルスバナーを発火
-       │ └─ 📝 Audit Log  : 全承認履歴をSQLiteに監査証跡として完全保存
-       ▼ (自宅Wi-Fi / Tailscale: Bearer認証 ＆ 自己承認RCE遮断)
-[ 卓上スマホ (Desk Pet) ] 📱「ベッドやキッチンからワンタップでポチッ！」
-```
-
-## ✨ 機能一覧
-
-| 機能 | 説明 |
-|---|---|
-| 🤖 **AI秘書ペット** | PC右下に常駐。ドット絵アニメーション（秘書くん＋案内精霊カイル、設定から切替可能） |
-| 📱 **スマホ連携 (PWA)** | QRコードを読むだけでペアリング。タスク・手帳・習慣をスマホから操作 |
-| 🔔 **承認ブリッジ** | Cline / Codex 等の「コマンド実行して良い？」をスマホに通知・ワンタップ承認 |
-| 📅 **カレンダー連携** | Googleカレンダーの秘密iCal URLを読み取り（OAuth不要・読み取り専用） |
-| ☀️ **リアル天気** | 現在地の天気を自動取得。雨の日は画面に雨粒エフェクト |
-| 🌈 **生活ドリーマー** | AIがペットの生活（食事・お風呂・読書・睡眠）を自動生成 |
-| 🍅 **ポモドーロタイマー** | 集中タイマー。ペットが集中モードに変化 |
-| 📣 **朝会/終礼ブリーフィング** | 朝は今日の予定・TODO・天気を音声付きで報告。夜は日報 |
-| 👾 **シークレット要素** | 「お前を消す方法」と話しかけると…グリッチ演出と隠しミニゲーム（Pixel Defense）が解放 |
-| 📴 **オフラインAI同梱** | LFM2.5 (Liquid AI) をローカル推論。APIキー無し・完全オフラインで会話可能 |
 
 ---
 
-## 🚀 クイックスタート
+## 🚀 Quick Start
 
-### 必要なもの
-- **Windows PC**（Python 3.11以上）
-- **スマートフォン**（iOS / Android。PWA対応ブラウザ）
-- **Wi-Fi**（PCとスマホが同じネットワークに接続）
+### Prerequisites
+- **Windows PC** (Python 3.11+)
+- **Smartphone** (iOS / Android with any modern browser)
+- **Local Wi-Fi** (PC and phone on the same network, or Tailscale VPN)
 
-### 1. ダウンロード＆インストール
+### 1. Installation
 
 ```bash
-# リポジトリをクローン
 git clone https://github.com/Siitake-man/hisho-kun.git
 cd hisho-kun
 
-# 仮想環境を作成
+# Setup virtual environment
 python -m venv venv
+venv\Scripts\activate
 
-# 仮想環境を有効化
-venv\\Scripts\\activate
-
-# 依存パッケージをインストール
+# Install dependencies
 pip install -r requirements.txt
 ```
 
-### 2. 環境設定
-
-`.env.example` をコピーして `.env` を作成し、APIキーを設定します：
+### 2. Configuration
 
 ```bash
 copy .env.example .env
-# メモ帳などで .env を開き、使用するLLMのAPIキーを記入
+# Open .env and insert at least one LLM API key (OpenCode GO, Gemini, OpenAI, Claude, etc.)
 ```
 
-**最低限必要なもの**: いずれか1つのAPIキー
-- OpenCode GO（推奨・安価格）
-- Google Gemini（無料枠あり）
-- OpenAI / Anthropic / Groq 等
-
-### 3. 起動
+### 3. Launch
 
 ```bash
-venv\\Scripts\\python.exe main.py
+venv\Scripts\python.exe main.py
 ```
 
-PC画面右下にペットが現れます 🎉
+A pixel companion will appear in the bottom-right corner of your desktop! 🎉
 
-### 4. スマホとペアリング
+### 4. Connect Phone
 
-1. PCのペットを **右クリック → 📱 スマホ接続**
-2. QRコードが表示されます
-3. **スマホでQRコードを読み取る**
-4. スマホにペット画面が表示されれば完了！
+1. Right-click the PC companion ➔ **📱 Smartphone Connection**
+2. Scan the displayed QR code with your phone camera
+3. Tap "Add to Home Screen" to install as a fullscreen PWA!
 
 ---
 
-## 📴 オフラインAI同梱 (LFM2.5)
+## 🤖 AI Agent MCP Setup (One-Liner)
 
-APIキーがなくても、PC内で完結するローカルAIと会話できます。
-`start.bat` 初回起動時にモデルが未ダウンロードなら、自動的にセットアップを案内します。
-
-### モデルの選択
-
-| モデル | サイズ | おすすめ環境 |
-|---|---|---|
-| ⭐ **超軽量モード** (LFM2.5-350M QAD-Q4_0) | 約230MB | 大体のPCでサクサク動く推奨サイズ |
-| **高品質モード** (LFM2.5-1.2B-Instruct QAD-Q4_0) | 約770MB | 4GB RAM以上。より賢い応答 |
-
-手動でセットアップする場合:
+Neo-Secretary includes a native **Model Context Protocol (MCP)** server (`neo_hisho_bridge`). You can register it to all your AI agent environments with a single command:
 
 ```bash
-python tools/setup_local_model.py              # 対話式で選択
-python tools/setup_local_model.py --model 1.2b # 高品質モードを直接指定
+venv\Scripts\python.exe mcp_installer.py --all
 ```
 
-セットアップ後は `.env` に `DEFAULT_LLM_PROVIDER=local_gguf` が自動設定され、次回起動からオフラインAIが有効になります。
-設定画面や `.env` でいつでもクラウドLLMへ切り替え可能です。
-
-> 📄 **モデルクレジット**: 本プロダクトは [Liquid AI](https://liquid.ai) の **LFM2.5** を使用しています。
-> モデルは **LFM Open License v1.0** の下で提供されています（[ライセンス全文](https://huggingface.co/LiquidAI/LFM2.5-350M-GGUF/blob/main/LICENSE)）。
+- **Supported Clients**: OpenCode, Antigravity, Claude Code, Claude Desktop, Cursor, Cline, VS Code.
 
 ---
 
-## 📖 スマホの使い方
+## 🎮 Interactive Web Blueprints & Cheat Sheets
 
-| 操作 | 方法 |
-|---|---|
-| キャラ切替 | ⚙️ 設定 → 🎭 キャラクター切り替え |
-| 🎨 テーマ変更 | 書斎→カフェ→森→海→サイバー |
-| 常時画面ON | ⚙️ 設定 → 💡 常時画面ON |
-| 全画面表示 | ⛶ ボタン |
-| 手帳（予定・TODO） | 📝 ボタン |
-| ポモドーロ | 🍅 ボタン |
+Explore our live interactive architecture diagrams and cheat sheets:
+- [🌟 Interactive System Blueprint (English)](https://siitake-man.github.io/hisho-kun/neo-secretary-showcase-en.html)
+- [📘 Official Infographic Guide & Cheat Sheets (English)](https://siitake-man.github.io/hisho-kun/guides/NEO_HISHO_CHEAT_SHEETS_en.html)
 
 ---
 
-## 🔗 Google カレンダー連携（オプション）
+## 📄 License
 
-1. PC版 Googleカレンダーを開く
-2. 左のカレンダー名「⋮」→「設定と共有」
-3. ページ下までスクロール→「秘密のiCalアドレス」のURLをコピー
-4. ネオ秘書くん設定 → 外部ツールタブ → iCal URL欄に貼り付け
-5. 「今すぐ同期」
-
-> ⚠️ **読み取り専用**です。スマホからの予定追加はローカルのみで、Googleカレンダーへは反映されません。
+Distributed under the MIT License. See [LICENSE](LICENSE) for more information.
 
 ---
 
-## 🌐 外出先からの接続（Tailscale）
-
-スマホが同じWi-Fiにいない場合も、Tailscale VPN で接続できます：
-
-1. PCとスマホに **Tailscale** をインストール
-2. 同じアカウントでサインイン
-3. PC側で管理者PowerShellから `tailscale serve 8765` を実行（初回のみ。`8765` は既定ポートで、`NEO_HISHO_PORT` で変更した場合はその値に読み替え）
-4. `main.py` を起動 → QR接続ダイアログ →「Tailscale VPN経由」のQRをスマホで読取
-
-> 設定画面の「外部ツール」タブでホスト名を保存すると、次回から自動設定されます。
-
----
-
-## 🤖 AIエージェント連携（MCP）— 1コマンドでセットアップ
-
-ネオ秘書くんは **MCP (Model Context Protocol) サーバー** を内蔵しており、Cline / Claude Desktop / Claude Code / Cursor / Antigravity / VS Code などから「スマホへの承認依頼」「TODO登録」「長期記憶の保存」などのツールを呼び出せます。
-
-### おすすめの方法：AIエージェント自身に設定させる
-
-インストール後、お使いのAIエージェント（Claude / Cline 等）に次の1文を伝えるだけでOKです：
-
-> ネオ秘書くんをインストールしたので、プロジェクトフォルダでMCP設定コマンドを実行して、対応すべてのクライアントに登録してください
-
-エージェントは本READMEの手順どおり、以下のコマンドを1発実行するだけです：
-
-```bash
-# プロジェクトルートで実行（対応全クライアントへ一括登録・既存設定はバックアップ付き）
-venv\\Scripts\\python.exe mcp_installer.py --all
-
-# 特定クライアントのみ登録する場合
-venv\\Scripts\\python.exe mcp_installer.py --tool claude_desktop cursor cline
-
-# 対応クライアントとパスの一覧表示
-venv\\Scripts\\python.exe mcp_installer.py --list
-```
-
-- **対応クライアント**: Antigravity / Claude Desktop / Cursor / Cline / Claude Code / VS Code（ワークスペース）
-- 既存の設定は上書きされず**マージ**されます。書き込み直前の状態は `<設定ファイル>.bak` に退避されるので安心
-- 登録後、各クライアントを再起動すると `neo_hisho_bridge` のツール群（承認要請・TODO・知見保存等）が使えるようになります
-- Codex（config.toml）のみTOML形式のため自動登録非対象です。手動で追加してください
-
-### 手動設定（JSONをコピーしたい場合）
-
-PCペット右クリック → ⚙ 設定 → 「🤖 外部AI・MCP連携」タブの「MCP設定JSONをコピー」ボタンからも取得できます。
-
----
-
-## 🔔 アップデート確認について
-
-ネオ秘書くんは起動時と約6時間ごとに **GitHub Releases** へアクセスし、新しいバージョンが公開されていないかを確認します（読み取り専用・テレメトリ送信ゼロ）。
-
-- 新バージョン検知時はPCペットがセリフでお知らせし、スマホPWAにも通知が表示されます
-- オフライン環境では静かにスキップされ、エラーや起動遅延は発生しません
-
----
-
-## 🗂️ プロジェクト構成
-
-```
-ネオ秘書くん／
-├── main.py                 # メイン起動ファイル
-├── version.py              # バージョン定義 (Single Source of Truth)
-├── update_checker.py       # 更新チェック (GitHub Releases・通知のみ)
-├── gui.py                   # PCペットUI
-├── agent.py                  # LangGraph エージェント
-├── life_dreamer.py           # 自律生活生成エンジン
-├── weather_tools.py          # リアルタイム天気取得
-├── local_sync_server.py      # スマホ連携・同期サーバー
-├── database.py               # データベース操作
-├── ui／                      # Tkinter UI 部品
-├── web_pet／                 # スマホPWA フロントエンド
-├── assets／dot／              # ドット絵アセット（2キャラ: 秘書くん／カイル）
-├── tools／                    # 開発ツール類
-├── tests／                    # テストスイート
-├── docs／                     # ドキュメント
-└── .env.example               # 環境設定テンプレート
-```
-
-## 🔮 今後のアップデート予定 (Roadmap & Coming Soon)
-
-ネオ秘書くんは、コミュニティと共に進化し続けます。以下の機能を近日順次リリース予定です：
-
-- 🎨 **自作キャラクター・スキン取り込み機能 (Custom Pet Skins / Modding)**:
-  - 自分の描いたオリジナルドット絵や推しキャラの画像をフォルダに置くだけで、デスクトップ＆スマホに召喚できるスキン拡張機能
-- 🌐 **フル英語・多言語対応 (Full English Support)**:
-  - 海外のAIギークに向けて、スマホPWA・PCペットのワンタップ日英切り替え
-- 🎙️ **リアルタイム音声対話 (Voice Conversation)**:
-  - スマホマイクから話しかけて、ペットが音声で答えてくれる完全ハンズフリー対話
-- 🌧️ **ポモドーロ連動・集中ホワイトノイズ (Ambient Focus Sounds)**:
-  - 集中タイマーに合わせた雨音、深夜のカフェ、サイバーパンクな環境BGM
-- 🔗 **マルチSaaS Webhook連携**:
-  - Notion / Slack / LINE への予定・タスク双方向同期
-
-フィードバックや機能リクエストは、ぜひ [GitHub Issues](https://github.com/Siitake-man/hisho-kun/issues) へお寄せください！✨
-
----
-
-## 🎮 開発者向け情報
-
-詳細は `docs/` 配下のドキュメントを参照してください：
-
-- `docs/specs/DESIGN_SPEC.md` — システム設計書
-- `docs/specs/機能ロードマップ.md` — 機能一覧と進捗
-- `docs/guides/` — 利用者向けガイド・チートシート集
-- `docs/specs/MCP_INTEGRATION.md` — MCP (Model Context Protocol) 連携仕様
-
----
-
-## 📄 ライセンス
-
-MIT License — 詳細は [LICENSE](LICENSE) を参照してください。
-（同梱の LFM2.5 モデルは [LFM Open License v1.0](https://huggingface.co/LiquidAI/LFM2.5-350M-GGUF/blob/main/LICENSE) の下で提供されます）
-
----
-
-*ネオ秘書くん — あなたのデスクトップに住む AI 秘書ペット 🤖✨*
+*Neo-Secretary — Your Desktop & Mobile Autonomous AI Companion 🤖✨*
