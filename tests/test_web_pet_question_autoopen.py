@@ -77,6 +77,19 @@ class TestQuestionSheetAutoOpen(unittest.TestCase):
             "回答不能な割り込みになるため禁止します",
         )
 
+    def test_auto_close_bottom_sheet_when_pending_cleared(self) -> None:
+        """PC側で承認・回答が完了して pending_approval が消滅した際、ボトムシートが自動で閉じられ、自動オープンIDがリセットされること."""
+        self.assertIn(
+            "closeBottomSheet()",
+            self.pet_js,
+            "pet.js の pending_approval 消滅時処理に closeBottomSheet() の呼出がありません",
+        )
+        self.assertIn(
+            "_autoOpenedQuestionId = null",
+            self.pet_js,
+            "pet.js の pending_approval 消滅時処理に _autoOpenedQuestionId のリセットがありません",
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

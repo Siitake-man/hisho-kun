@@ -105,7 +105,7 @@ class TestToolGuardHook(unittest.TestCase):
             self.assertEqual(payload["agent_name"], "Antigravity")
             self.assertEqual(payload["wait_decision"], False)
             self.assertEqual(payload["choices"], [])
-            self.assertEqual(payload["timeout"], 5)
+            self.assertEqual(payload["timeout"], 180)
             self.assertIn("git status", payload["details"])
             self.assertTrue(mock_save.called)
 
@@ -124,6 +124,7 @@ class TestToolGuardHook(unittest.TestCase):
 
         with mock.patch("tool_guard_hook._load_state", return_value={}), \
              mock.patch("tool_guard_hook._save_state"), \
+             mock.patch("urllib.request.urlopen", side_effect=OSError("test isolation: 実ハブへ送らない")), \
              mock.patch("agent_bridge_client._post_to_hub", side_effect=Exception("Server Offline")):
             try:
                 tgh.notify_waiting("pytest tests/", reason="安全テスト")
@@ -210,6 +211,167 @@ class TestToolGuardHook(unittest.TestCase):
                             mock_notify.called,
                             f"読み取り系 {tool_name} は通知対象外（ボス承認 2026-09-26）",
                         )
+
+    def test_ask_question_notifies_and_auto_cancels_on_next_tool(self):
+        """ask_question 実行時に通知が飛び、次回ツール実行時に保留中リクエストが自動キャンセルされること."""
+        from unittest import mock
+        import io
+        import json
+
+        state_store = {}
+
+        def mock_load():
+            return dict(state_store)
+
+        def mock_save(s):
+            state_store.clear()
+            state_store.update(s)
+
+        with mock.patch("tool_guard_hook._load_state", side_effect=mock_load), \
+             mock.patch("tool_guard_hook._save_state", side_effect=mock_save), \
+             mock.patch("tool_guard_hook.notify_ask_input", return_value="req_test_question_123") as mock_ask, \
+             mock.patch("tool_guard_hook.cancel_hisho_pending") as mock_cancel, \
+             mock.patch("sys.stdin") as mock_stdin:
+
+            # 1. ask_question を呼び出し
+            payload_q = {
+                "toolCall": {
+                    "name": "ask_question",
+                    "args": {
+                        "questions": [
+                            {"question": "デプロイしますか？", "options": ["はい", "いいえ"]}
+                        ],
+                        "toolSummary": "デプロイ確認",
+                    }
+                }
+            }
+            mock_stdin.read.return_value = json.dumps(payload_q)
+
+            with mock.patch("sys.stdout", new_callable=io.StringIO) as mock_stdout:
+                tgh.main()
+                out = json.loads(mock_stdout.getvalue())
+                self.assertEqual(out["decision"], "allow")
+                self.assertTrue(mock_ask.called)
+                self.assertEqual(state_store.get("last_pending_request_id"), "req_test_question_123")
+                self.assertFalse(mock_cancel.called)
+
+            # 2. 次のツール呼び出し (ユーザーがPCで回答完了した後の実行)
+            payload_next = {
+                "toolCall": {
+                    "name": "view_file",
+                    "args": {"AbsolutePath": "sample.py"}
+                }
+            }
+            mock_stdin.read.return_value = json.dumps(payload_next)
+
+            with mock.patch("sys.stdout", new_callable=io.StringIO) as mock_stdout:
+                tgh.main()
+                out = json.loads(mock_stdout.getvalue())
+                self.assertEqual(out["decision"], "allow")
+                self.assertTrue(mock_cancel.called)
+                mock_cancel.assert_called_with("req_test_question_123", reason="resolved_on_pc")
+                self.assertNotIn("last_pending_request_id", state_store)
+
+    def test_ask_permission_notifies_and_auto_cancels_on_next_tool(self):
+        """ask_permission 実行時に通知が飛び、次回ツール実行時に保留中リクエストが自動キャンセルされること."""
+        from unittest import mock
+        import io
+        import json
+
+        state_store = {}
+
+        def mock_load():
+            return dict(state_store)
+
+        def mock_save(s):
+            state_store.clear()
+            state_store.update(s)
+
+        with mock.patch("tool_guard_hook._load_state", side_effect=mock_load), \
+             mock.patch("tool_guard_hook._save_state", side_effect=mock_save), \
+             mock.patch("tool_guard_hook.notify_ask_input", return_value="req_test_perm_456") as mock_ask, \
+             mock.patch("tool_guard_hook.cancel_hisho_pending") as mock_cancel, \
+             mock.patch("sys.stdin") as mock_stdin:
+
+            # 1. ask_permission を呼び出し
+            payload_p = {
+                "toolCall": {
+                    "name": "ask_permission",
+                    "args": {
+                        "Action": "command",
+                        "Target": "git push",
+                        "Reason": "変更を反映するため",
+                        "toolSummary": "git push 実行許可要請"
+                    }
+                }
+            }
+            mock_stdin.read.return_value = json.dumps(payload_p)
+
+            with mock.patch("sys.stdout", new_callable=io.StringIO) as mock_stdout:
+                tgh.main()
+                out = json.loads(mock_stdout.getvalue())
+                self.assertEqual(out["decision"], "allow")
+                self.assertTrue(mock_ask.called)
+                self.assertEqual(state_store.get("last_pending_request_id"), "req_test_perm_456")
+                self.assertFalse(mock_cancel.called)
+
+            # 2. 次のツール呼び出し (ユーザーがPCで許可ボタンを押した後の実行)
+            payload_next = {
+                "toolCall": {
+                    "name": "view_file",
+                    "args": {"AbsolutePath": "sample.py"}
+                }
+            }
+            mock_stdin.read.return_value = json.dumps(payload_next)
+
+            with mock.patch("sys.stdout", new_callable=io.StringIO) as mock_stdout:
+                tgh.main()
+                out = json.loads(mock_stdout.getvalue())
+                self.assertEqual(out["decision"], "allow")
+                self.assertTrue(mock_cancel.called)
+                mock_cancel.assert_called_with("req_test_perm_456", reason="resolved_on_pc")
+                self.assertNotIn("last_pending_request_id", state_store)
+
+    def test_ask_permission_fallback_to_notify_waiting(self):
+        """notify_ask_input が失敗した際に notify_waiting へフォールバックすること."""
+        from unittest import mock
+        import io
+        import json
+
+        state_store = {}
+
+        def mock_load():
+            return dict(state_store)
+
+        def mock_save(s):
+            state_store.clear()
+            state_store.update(s)
+
+        with mock.patch("tool_guard_hook._load_state", side_effect=mock_load), \
+             mock.patch("tool_guard_hook._save_state", side_effect=mock_save), \
+             mock.patch("tool_guard_hook.notify_ask_input", return_value=None), \
+             mock.patch("tool_guard_hook.notify_waiting", return_value="req_waiting_789") as mock_wait, \
+             mock.patch("sys.stdin") as mock_stdin:
+
+            payload = {
+                "toolCall": {
+                    "name": "ask_permission",
+                    "args": {
+                        "Action": "command",
+                        "Target": "git push",
+                        "Reason": "テスト",
+                        "toolSummary": "テスト要請"
+                    }
+                }
+            }
+            mock_stdin.read.return_value = json.dumps(payload)
+
+            with mock.patch("sys.stdout", new_callable=io.StringIO) as mock_stdout:
+                tgh.main()
+                out = json.loads(mock_stdout.getvalue())
+                self.assertEqual(out["decision"], "allow")
+                self.assertTrue(mock_wait.called)
+                self.assertEqual(state_store.get("last_pending_request_id"), "req_waiting_789")
 
 
 if __name__ == "__main__":

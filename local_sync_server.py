@@ -467,9 +467,13 @@ class AgentBridgeRequest:
         risk_level: str = "prompt",
         agent_type: str = "generic",
         summary: str = "",
-        safety_level: Optional[str] = None
+        safety_level: Optional[str] = None,
+        request_id: Optional[str] = None,
     ):
-        self.request_id = f"req_{uuid.uuid4().hex[:8]}"
+        if request_id and isinstance(request_id, str) and request_id.strip():
+            self.request_id = request_id.strip()
+        else:
+            self.request_id = f"req_{uuid.uuid4().hex[:8]}"
         self.req_type = req_type
         self.agent_name = agent_name
         self.agent_type = agent_type
@@ -569,7 +573,8 @@ class AgentBridgeHub:
         requester_identity: str = "",
         risk_level: str = "prompt",
         agent_type: str = "generic",
-        safety_level: Optional[str] = None
+        safety_level: Optional[str] = None,
+        request_id: Optional[str] = None,
     ) -> AgentBridgeRequest:
         req = AgentBridgeRequest(
             req_type="approval",
@@ -583,7 +588,8 @@ class AgentBridgeHub:
             requester_identity=requester_identity,
             risk_level=risk_level,
             agent_type=agent_type,
-            safety_level=safety_level
+            safety_level=safety_level,
+            request_id=request_id,
         )
         with self._lock:
             self.pending_requests[req.request_id] = req
@@ -599,6 +605,7 @@ class AgentBridgeHub:
         timeout_sec: int = 180,
         requester_ip: str = "",
         requester_identity: str = "",
+        request_id: Optional[str] = None,
     ) -> AgentBridgeRequest:
         req = AgentBridgeRequest(
             req_type="question",
@@ -608,7 +615,8 @@ class AgentBridgeHub:
             choices=choices or [],
             timeout_sec=timeout_sec,
             requester_ip=requester_ip,
-            requester_identity=requester_identity
+            requester_identity=requester_identity,
+            request_id=request_id,
         )
         with self._lock:
             self.pending_requests[req.request_id] = req
@@ -849,6 +857,46 @@ class AgentBridgeHub:
             logger.info(f"📱 [Agent Bridge] スマホから判定・回答を受信: ID={request_id} -> {decision} (msg: {message})")
             return True, "ok"
 
+    def cancel_pending(self, request_id: str, reason: str = "") -> str:
+        """エージェント側（PC側）で解決・キャンセルされた保留中リクエストを取り消す。
+
+        Args:
+            request_id: 対象リクエストID。
+            reason: 取消理由（例: "resolved_on_pc"）。
+
+        Returns:
+            str: "cancelled"（取消成功）、"already_resolved"（既に解決済み）、"not_found"（未発見）。
+        """
+        with self._lock:
+            req = self.pending_requests.get(request_id)
+            target_id = request_id
+            if not req:
+                # プレフィックス違い（例: "perm:req1" vs "req1"）も柔軟に探索
+                for rid, r in list(self.pending_requests.items()):
+                    if rid.endswith(f":{request_id}") or request_id.endswith(f":{rid}"):
+                        req = r
+                        target_id = rid
+                        break
+
+            if not req:
+                # 既に解決済みで history に存在するか確認
+                for hist in reversed(self.history):
+                    hid = str(hist.get("request_id", ""))
+                    if hid == request_id or hid.endswith(f":{request_id}") or request_id.endswith(f":{hid}"):
+                        return "already_resolved"
+                return "not_found"
+
+            if req.status != "pending":
+                return "already_resolved"
+
+            req.resolve("cancelled", reason or "cancelled")
+            self.history.append(req.to_dict())
+            self.pending_requests.pop(target_id, None)
+            logger.info(
+                f"🚫 [Agent Bridge] リクエストが取り消されました: ID={target_id} (理由: {reason})"
+            )
+            return "cancelled"
+
 
 _global_bridge_hub = AgentBridgeHub()
 
@@ -905,6 +953,7 @@ POST_PATH_HANDLERS = {
     "/api/agent/ask_input": api_agent_bridge.handle_agent_ask_input,
     "/api/agent/respond": api_agent_bridge.handle_agent_respond,
     "/api/agent/dismiss_completed": api_agent_bridge.handle_agent_dismiss_completed,
+    "/api/agent/cancel_pending": api_agent_bridge.handle_agent_cancel_pending,
     "/api/agent/notify": api_agent_bridge.handle_agent_notify,
     "/api/test_buzz": api_agent_bridge.handle_test_buzz,
     "/api/webhook/calendar": api_calendar.handle_webhook_calendar,
@@ -1992,7 +2041,12 @@ class DeskPetSyncHandler(SimpleHTTPRequestHandler):
         # 外部コーディングエージェント(Claude Code等)は localhost 経由で利用するため影響なし。
         # これにより、LAN上の攻撃者がトークンを入手しても ask を作成できず、
         # 「自作リクエスト → 自己承認」の RCE チェーンが成立しなくなる (要求元/承認者の分離)。
-        AGENT_ONLY_PATHS = ("/api/agent/ask", "/api/agent/ask_input", "/api/agent/notify")
+        AGENT_ONLY_PATHS = (
+            "/api/agent/ask",
+            "/api/agent/ask_input",
+            "/api/agent/notify",
+            "/api/agent/cancel_pending",
+        )
         if self.path in AGENT_ONLY_PATHS and not self._request_is_trusted_loopback():
             logger.warning(f"🚫 [Security] 非ループバック({client_ip})からのエージェントAPI呼び出しを拒否: {self.path}")
             self.send_response(403)

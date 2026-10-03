@@ -4,11 +4,12 @@
 [![CI](https://github.com/Siitake-man/hisho-kun/actions/workflows/ci.yml/badge.svg)](https://github.com/Siitake-man/hisho-kun/actions/workflows/ci.yml)
 ![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
 [![Python](https://img.shields.io/badge/Python-3.11%20%7C%203.12%20%7C%203.13-blue.svg)](https://www.python.org/)
-[![Latest Release](https://img.shields.io/badge/Release-v1.1.0-emerald.svg)](https://github.com/Siitake-man/hisho-kun/releases/tag/v1.1.0)
+[![Latest Release](https://img.shields.io/badge/Release-v1.1.17-emerald.svg)](https://github.com/Siitake-man/hisho-kun/releases/tag/v1.1.17)
+[![Tests Passing](https://img.shields.io/badge/Tests-964%20Passed-brightgreen.svg)](tests/)
 [![Japanese README](https://img.shields.io/badge/README-日本語-red.svg)](README.md)
 
 > ☕ **"Approve your AI coding agent from your phone while taking a coffee break."**  
-> Turn your spare smartphone into an adorable retro-style **Desk Pet** & remote approval cockpit for **Claude Code, Cline, Cursor, Codex, and Antigravity**.
+> Turn your spare smartphone into an adorable retro-style **Desk Pet** & remote approval cockpit for **OpenCode, Antigravity, Claude Code, Cline, Cursor, and Codex**.
 
 ---
 
@@ -25,8 +26,8 @@
     <img src="https://img.shields.io/badge/📘_Cheat_Sheets-Official_Infographic_Guide-8b5e3c?style=for-the-badge&logo=readthedocs&logoColor=white" alt="Official Cheat Sheets">
   </a>
   &nbsp;&nbsp;
-  <a href="https://github.com/Siitake-man/hisho-kun/releases/tag/v1.1.0">
-    <img src="https://img.shields.io/badge/📦_Download_v1.1.0-Get_Latest_Release-10b981?style=for-the-badge&logo=windows&logoColor=white" alt="Download Release v1.1.0">
+  <a href="https://github.com/Siitake-man/hisho-kun/releases/tag/v1.1.17">
+    <img src="https://img.shields.io/badge/📦_Download_v1.1.17-Get_Latest_Release-10b981?style=for-the-badge&logo=windows&logoColor=white" alt="Download Release v1.1.17">
   </a>
 </p>
 
@@ -50,7 +51,7 @@
 
 ## ⚡ The Problem: AI Coding Stops When You Step Away
 
-Autonomous coding agents (**Claude Code, Cline, Cursor, Codex, Antigravity**) are incredible, but they hit an inevitable bottleneck:  
+Autonomous coding agents (**OpenCode, Antigravity, Claude Code, Cline, Cursor, Codex**) are incredible, but they hit an inevitable bottleneck:  
 **They constantly pause to ask for user permission before executing terminal commands or editing files.**
 
 - You step away to brew coffee or take a walk ➔ **Agent halts at `git push`, `npm test`, or file writes.**
@@ -59,17 +60,19 @@ Autonomous coding agents (**Claude Code, Cline, Cursor, Codex, Antigravity**) ar
 ### 💡 The Solution: Neo-Secretary Remote Cockpit
 
 1. **Zero-Config Mobile Pairing**: Scan a QR code from your spare smartphone (iOS/Android). No app store installation required — runs seamlessly as an offline-capable PWA.
-2. **One-Tap Remote Approval**: When an agent requests command approval, your phone vibrates and pulses an alert banner. Review the full command and tap **✅ Approve** or **🛑 Reject** with one hand (or via earphone controls).
-3. **Desk Pet & Retro Aesthetic**: A 16-bit pixel companion breathes and reacts on both screens, bringing warmth, nostalgia, and companionship to sterile terminal workflows.
+2. **One-Tap Remote Approval & Direct Injection**: When an agent requests command approval, your phone vibrates and pulses an alert banner. Review the full command and tap **✅ Approve (Once)**, **✅ Always**, or **🛑 Reject**. The decision is injected directly into the agent runtime in real-time.
+3. **PC & Mobile State Auto-Sync (`cancel_pending`)**: If you approve on your PC first, the mobile card dismisses automatically in sub-seconds. No lingering notification cards.
+4. **Desk Pet & Retro Aesthetic**: A 16-bit pixel companion breathes and reacts on both screens, bringing warmth, nostalgia, and companionship to sterile terminal workflows.
 
 ---
 
-## 🌟 What's New in v1.1.0 (Zero-Trust & Agent Bridge)
+## 🌟 What's New in v1.1.17 (Two-Way Bridge & Robustness)
 
-- 🛡️ **Zero-Trust Device-Individual Authentication**: Each paired phone receives a cryptographically secure 256-bit token. When an unrecognized phone attempts connection, a 10-second countdown Human-in-the-Loop dialog appears on host PC, enforcing fail-closed isolation against unauthorized LAN requests.
-- 🟢 **Intelligent Approval Cards & AI Safety Badge**: When coding agents conduct automated security audits (such as TypeSafe Jev Tool Guard), Neo-Secretary parses the audit score and renders an emerald-green neon badge (`🟢 Jev Safety: ALLOW`) directly on your mobile screen.
-- 🔋 **Adaptive Canvas 0fps Battery Optimization**: Prevents heat and battery drain by automatically sleeping the Canvas render loop to 0fps when the pet is idle, waking instantly upon alerts or touch (Wake-on-Demand).
-- 🚀 **Full Headless Cross-Platform CI/CD**: Verified with GitHub Actions running 660+ tests across Ubuntu (with headless Xvfb) and Windows 64-bit on Python 3.11, 3.12, and 3.13.
+- 🔄 **Bidirectional Approval Injection & PC Cancel Sync**: OpenCode (`hisho-approval-notify` v1.3.2) and Antigravity hooks now support two-way approval injection (`once`/`always`/`reject`). When an approval or question is resolved on PC, the mobile card is automatically dismissed via `POST /api/agent/cancel_pending`.
+- 💬 **Interactive Question & Choice Forwarding**: Agent clarification modals (`ask_question`, `ask_input`) are delivered directly to your mobile Desk Pet sheet with interactive choice buttons.
+- 🔀 **20-Second Auto-Rotating Suggestion Carousel**: Re-enabled smooth auto-rotation of pending tasks, calendar schedules, and AI news headlines on the mobile UI without freezing Canvas render loops.
+- 🛡️ **Hardened Zero-Trust & Identity-Based Isolation**: Cryptographic 256-bit device token ledger, anti-self-approval domain boundary (PC loopback vs remote devices), and strict fail-closed LAN defense.
+- 🧪 **964+ Automated Tests Passing**: Robust test suite spanning unit tests, integration tests, fuzzing, and regression tests ensuring zero-drift reliability.
 
 ---
 

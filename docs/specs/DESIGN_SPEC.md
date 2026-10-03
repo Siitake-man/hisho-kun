@@ -1,7 +1,7 @@
 # ネオ秘書くん システム設計書 (DESIGN_SPEC.md)
 
-- **アプリバージョン**: 1.1.16 (🔒 SSOT: `version.py`・**版数規約 §6.0.1 参照**) ／ **文書進捗**: Rev 45 (仕様書更新回数連番・旧「1.5.8-dev」表記から移行〔ID 75 案A〕・2026-09-28 wrap-up)
-- **最終更新日時**: 2026-09-27 18:30 (🤖 OpenCode: **版数体系統一・案A 実施 (ID 75)** — 文書ヘッダを「アプリバージョン (= SSOT) ＋ 文書進捗 (Rev)」の2軸表記に正規化・§6.1 版数規約を新設。Phase 1: §6 Approval Policy へ v1.1.16 の締め付け反映。前回: 2026-09-26 16:55 §23.4 plugin v1.3 双方向化)
+- **アプリバージョン**: 1.1.17 (🔒 SSOT: `version.py`・**版数規約 §6.0.1 参照**) ／ **文書進捗**: Rev 47 (仕様書更新回数連番・2026-10-03 wrap-up)
+- **最終更新日時**: 2026-10-03 23:55 (🤖 Antigravity: **世界水準ブランディング ＆ 3大冷徹コードレビュー(総合8.8) ＆ 手帳タスク大整理・型エラー修復 ＆ session-wrap-up 二重資産化 完遂** — README_ja新設・OGP看板/アバター配置・3大レビュー総括・手帳24タスクlist_id=6隔離・知見ID 53恒久化・ELI5動く図解HTML配備・学習メモ生成・SKILL.md frontmatter修復)
 - **アーキテクチャ方針**: 完全ローカル完結型 非ブロッキング並行システム (Tkinter Desktop Overlay × Mobile PWA × LangGraph Agent × Zero-Trust Local Bridge ＆ Cross-Platform Headless CI/CD)
 
 
@@ -112,8 +112,23 @@ Manusの設計をSQLite用に正規化して採用する。
 - `description`: TEXT
 - `due_date`: INTEGER (Unix Timestamp ms)
 - `priority`: INTEGER (0: なし, 1: 低, 2: 中, 3: 高)
-- `status`: TEXT ('inbox', 'todo', 'in_progress', 'completed')
-- `parent_id`: INTEGER (サブタスク用)
+- `status`: TEXT ('todo', 'in_progress', 'completed')
+- `parent_id`: INTEGER (サブタスク用 FK)
+- `list_id`: INTEGER (リスト分類 FK / 秘書くん開発: 6 / 知見ID 53)
+- `tags`: TEXT (カンマ区切りタグ)
+- `importance_flag`: INTEGER (0 or 1 / None)
+- `urgency_flag`: INTEGER (0 or 1 / None)
+- `recurrence`: TEXT ('daily', 'weekly', 'monthly' / None)
+- `created_at`: INTEGER (Unix Timestamp ms / 厳格int / SSOT)
+- `updated_at`: INTEGER (Unix Timestamp ms / 厳格int / SSOT)
+
+### Table: task_lists (タスクリスト / TickTick風分類)
+- `id`: INTEGER PK
+- `name`: TEXT (例: '秘書くん開発', '買い物', '仕事')
+- `emoji`: TEXT (例: '📋', '🍄')
+- `parent_id`: INTEGER (フォルダ/サブリスト階層用)
+- `sort_order`: INTEGER
+- `created_at`: INTEGER (Unix Timestamp ms)
 
 ### Table: user_insights (知識の宝庫 ユーザー長期知見テーブル - 新規追加)
 - `id`: INTEGER PK
@@ -1199,6 +1214,24 @@ OpenCode Desktop (v2.0.11) へ **同一の開発体験・安全規約・品質�
 - TDD: `tests/test_jev_model_planner.py` 34件（Red 29 failed → Green 22 passed の実証を含む）
 - 全回帰: **753 passed / 2 skipped**
 
+### 23.7 保留中要求の取消・PC側解消連動 (cancel_pending API & OpenCode/Antigravity 連動 — 2026-10-03 / 手帳 ID 80 完達)
+
+- **課題（Why）**: PC側でIDEの「許可」ボタンや選択肢をクリックして操作を完了した場合、スマホ側の待機通知（承認カードや質問シート）が最大120秒間（タイムアウトまで）画面に残り続ける。席に戻ってPCで作業を継続した際にスマホを手動で閉じる手間が生じ、UXの心地よさを損ねていた。
+- **取消API（Node A: cancel_pending API）**:
+  - `local_sync_server.py`: `AgentBridgeHub.cancel_pending(request_id, reason)` を新設。保留中要求を `cancelled` で解決し、待機中スレッド（`wait()`）を即座に解放して `pending_requests` から除去する。
+  - ルーティング: `POST /api/agent/cancel_pending` を `POST_PATH_HANDLERS` および `AGENT_ONLY_PATHS`（localhost限定）へ登録。
+  - `api_agent_bridge.py`: `handle_agent_cancel_pending(ctx)` を実装。ゼロトラスト入力検証（ID長・理由長・型検証）および `status: "success"` / `result: "cancelled"` / `already_resolved` / `not_found` を返却。
+- **OpenCode PC操作検知連動 (Node B: plugin v1.3.2)**:
+  - `tools/opencode_plugins/hisho-approval-notify/index.ts`（v1.3.2）: `scanPending` のポーリングループにおいて、直前まで存在した要求が `permissionApi.list` から消滅したことを検知。
+  - PC側での承認・拒否操作による要求解消と判定し、バックグラウンドで `POST /api/agent/cancel_pending` を呼び出してスマホ側カードをサブ秒で自動消去。
+- **Antigravity 質問・許可ダイアログ連動 (Node C: tool_guard_hook)**:
+  - `~/.gemini/tools/jev_router/tool_guard_hook.py`: `ask_question` 分岐を新設し、質問と選択肢を `POST /api/agent/ask_input`（`wait_decision=False`）経由でスマホDesk Petへリアルタイム通知。
+  - `ask_permission` も同様に `channel="permission"` で通知。
+  - ユーザーがPCで回答/許可して次回ツールが実行された際、前回の保留IDを検知して自動で `cancel_pending` を発火・スマホ側を消去。
+- **スマホUI サジェスト自動ローテーション復元 (Node D: PWA)**:
+  - `web_pet/pet_ui.js`: 20秒間隔のサジェストローテーション（TODO・予定・ニュース）を復元完了（v1.1.17 一斉バンプ）。
+- **検証**: `tests/test_hub_cancel_pending.py` 単体テスト通過 ＆ `tests/test_tool_guard_hook.py` 新設テスト通過。
+
 ## 24. スマホ通知の Web Push API 導入 (As-Built 2026-09-22 / ロードマップ §13.19 第4項・手帳 TODO ID 30)
 
 ### 24.1 課題と設計判断（Why）
@@ -1293,6 +1326,20 @@ OpenCode Desktop (v2.0.11) へ **同一の開発体験・安全規約・品質�
 - **配置境界**: 本ツール群は秘書くんアプリ本体（OSS）のコードではなく、ボスの全エージェント共通AI開発基盤（`C:/Users/bonob/.gemini/tools/jev_triage/`）へ正式配備された。秘書くん本体のコードベースは1行も汚さず、OSSとしての純度と軽量性を100%死守する（AGENTS.md §2.11 遵守）。
 - TDD: 全8件 PASSED（0.17秒実測）
 - 独立検証（`agent-tester`, `703a2c81-50cc-4c32-8f23-a02f479221f0`）: **PASSED**
+
+## 28. 手帳TODO起票時のリスト分離規約（知見ID 53）とPydantic厳格型タイムスタンプ規約 (2026-10-03 制定)
+
+### 28.1 背景と設計判断（Why）
+1. **タスク混同リスクの排除**: AIエージェントが自律的に手帳（`tasks` テーブル）へ開発課題や宿題を登録する際、`list_id` を未指定にするとボスの個人タスク（`list_id=1`「未分類」等）と同一空間に混入し、誤完了や認知負荷の増大を招くリスクがあった。
+2. **タイムスタンプ型不一致の根絶**: SQLite の動的型付けにより一部の登録経路で ISO 8601 文字列（`"2026-10-03T21:00:00Z"`）が直接書き込まれ、Pydantic モデル読み出し時に `ValidationError: Input should be a valid integer` でシステムが停止する障害が発生した。
+
+### 28.2 恒久化された規約（What & How）
+- **リスト分離原則 (知見ID 53 / AGENTS.md §2.13)**:
+  AIエージェント（Antigravity, OpenCode, Jules, Codex等）が `create_task` や直接SQLで開発用課題・宿題を起票する際は、**必ず登録先リストに「秘書くん開発」（`list_id=6`）を明示指定**しなければならない。
+- **エポックミリ秒整数の一元管理 (SSOT)**:
+  `created_at`, `updated_at`, `due_date` 等のタイムスタンプフィールドは、**常に Unix エポックミリ秒整数（64bit int）として記録**する。ISO 文字列での保存を禁止し、文字列表記へのフォーマットはフロントエンドUI表示層のみで行う。
+- **検証実績**: SQLite 内の既存不正データ 36件を一括修復し、Pydantic 全件バリデーション Green を確認。未完了開発タスク 24件を `list_id=6` へ隔離移設完了。
+
 
 
 

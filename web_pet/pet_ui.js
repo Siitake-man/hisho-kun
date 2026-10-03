@@ -143,6 +143,7 @@
 
   function nextSuggest(e) {
     if (e && e.stopPropagation) e.stopPropagation();
+    resetSuggestRotateTimer();
     var suggestions = window.suggestionsData || [];
     if (!suggestions || suggestions.length === 0) return;
     window.suggestIndex = ((window.suggestIndex || 0) + 1) % suggestions.length;
@@ -152,6 +153,7 @@
 
   function prevSuggest(e) {
     if (e && e.stopPropagation) e.stopPropagation();
+    resetSuggestRotateTimer();
     var suggestions = window.suggestionsData || [];
     if (!suggestions || suggestions.length === 0) return;
     window.suggestIndex = ((window.suggestIndex || 0) - 1 + suggestions.length) % suggestions.length;
@@ -581,7 +583,7 @@
       '</div>';
     var sheetIcon = isStrict ? '🚨' : '🛡️';
     var sheetTag = isStrict ? '高リスク承認' : '承認要請';
-    openBottomSheet({ icon: sheetIcon, tag: sheetTag, title: req.summary || req.title || 'コマンド実行の承認' }, html);
+    openBottomSheet({ icon: sheetIcon, tag: sheetTag, title: req.summary || req.title || 'コマンド実行の承認', isApproval: true }, html);
   }
 
   /** 質問シート（選択肢を大ボタンで表示） */
@@ -601,7 +603,7 @@
       '<div class="approval-sheet-actions column" style="flex-direction:column;gap:6px;">' +
       choicesHtml +
       '</div>';
-    openBottomSheet({ icon: '❓', tag: '質問', title: (req.agent_name || 'AI Agent') + ' からの質問' }, html);
+    openBottomSheet({ icon: '❓', tag: '質問', title: (req.agent_name || 'AI Agent') + ' からの質問', isQuestion: true }, html);
   }
 
   /** 質問シートの選択肢ボタンから呼ばれるヘルパー */
@@ -955,6 +957,52 @@
   window.respondApproval = respondApproval;
   window.setupMediaKeyApproval = setupMediaKeyApproval;
   window.updateClock = updateClock;
+  // =============================================================================
+  // 11. サジェスト自動ローテーション（パラパラ送り・20秒周期）
+  // =============================================================================
+  var SUGGEST_AUTOROTATE_INTERVAL_MS = 20000;
+  var _suggestRotateTimer = null;
+  var _lastSuggestUserInteraction = 0;
+
+  function resetSuggestRotateTimer() {
+    _lastSuggestUserInteraction = Date.now();
+  }
+
+  function tickSuggestAutoRotate() {
+    try {
+      // 1. バックグラウンド（画面非表示）時はスキップ（省電力）
+      if (document.hidden) return;
+
+      // 2. ボトムシート（詳細モーダル等）表示中はスキップ（読書中の誤ページめくり防止）
+      var sheet = document.getElementById('bottom-sheet');
+      if (sheet && sheet.classList.contains('open')) return;
+
+      // 3. ユーザーの手動操作（スワイプ・ボタン）から20秒未満はスキップ
+      if (Date.now() - _lastSuggestUserInteraction < SUGGEST_AUTOROTATE_INTERVAL_MS) return;
+
+      // 4. サジェストが2件以上ある場合のみ次へ送る
+      var list = window.suggestionsData || [];
+      if (list && list.length > 1) {
+        window.suggestIndex = ((window.suggestIndex || 0) + 1) % list.length;
+        renderSuggestionCard();
+      }
+    } catch (e) {
+      console.warn('[pet_ui] tickSuggestAutoRotate error:', e);
+    }
+  }
+
+  function startSuggestAutoRotate() {
+    if (_suggestRotateTimer) clearInterval(_suggestRotateTimer);
+    _suggestRotateTimer = setInterval(tickSuggestAutoRotate, SUGGEST_AUTOROTATE_INTERVAL_MS);
+  }
+
+  // 初期起動
+  startSuggestAutoRotate();
+
+  window.SUGGEST_AUTOROTATE_INTERVAL_MS = SUGGEST_AUTOROTATE_INTERVAL_MS;
+  window.resetSuggestRotateTimer = resetSuggestRotateTimer;
+  window.tickSuggestAutoRotate = tickSuggestAutoRotate;
+  window.startSuggestAutoRotate = startSuggestAutoRotate;
   window.togglePomodoro = togglePomodoro;
   window.AGENT_BADGE_STYLES = AGENT_BADGE_STYLES;
   window.updateAgentActivityBadge = updateAgentActivityBadge;
@@ -993,3 +1041,7 @@ var updateAgentActivityBadge = window.updateAgentActivityBadge;
 var updateBriefingBannerText = window.updateBriefingBannerText;
 var renderBottomDock = window.renderBottomDock;
 var updateBannerLabels = window.updateBannerLabels;
+var resetSuggestRotateTimer = window.resetSuggestRotateTimer;
+var tickSuggestAutoRotate = window.tickSuggestAutoRotate;
+var startSuggestAutoRotate = window.startSuggestAutoRotate;
+

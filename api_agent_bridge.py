@@ -79,6 +79,7 @@ def handle_agent_ask(ctx: ApiContext) -> None:
                 safety_level = m.group(1).lower()
 
         hub = get_bridge_hub()
+        custom_req_id = raw_data.get("request_id")
         req = hub.create_approval_request(
             agent_name=req_dto.agent_name,
             command=req_dto.command,
@@ -89,7 +90,8 @@ def handle_agent_ask(ctx: ApiContext) -> None:
             requester_identity=getattr(ctx, "auth_identity", ""),
             risk_level=req_dto.risk_level.value,
             agent_type=req_dto.agent_type,
-            safety_level=safety_level
+            safety_level=safety_level,
+            request_id=custom_req_id if (custom_req_id and isinstance(custom_req_id, str) and len(custom_req_id) <= 256) else None
         )
 
         audit_logger = get_global_audit_logger()
@@ -143,6 +145,8 @@ def handle_agent_ask(ctx: ApiContext) -> None:
                 # タイムアウト等の非決定は従来語彙 "timeout" を維持する。
                 if decision in ("approve", "approved", "rejected"):
                     decision_by = (getattr(req, "responder_identity", "") or "human")
+                elif decision == "cancelled":
+                    decision_by = "cancelled"
                 else:
                     decision_by = "timeout"
                 audit_logger.log(AuditLogEntry(
@@ -194,6 +198,7 @@ def handle_agent_ask_input(ctx: ApiContext) -> None:
         choices = data.get("choices", [])
         details = data.get("details", "")
         timeout = int(data.get("timeout", 180))
+        custom_req_id = data.get("request_id")
 
         hub = get_bridge_hub()
         req = hub.create_question_request(
@@ -204,6 +209,7 @@ def handle_agent_ask_input(ctx: ApiContext) -> None:
             timeout_sec=timeout,
             requester_ip=ctx.client_ip,
             requester_identity=getattr(ctx, "auth_identity", ""),
+            request_id=custom_req_id if (custom_req_id and isinstance(custom_req_id, str) and len(custom_req_id) <= 256) else None
         )
         get_link_monitor().trigger_buzz()
 
@@ -229,7 +235,9 @@ def handle_agent_ask_input(ctx: ApiContext) -> None:
         if data.get("wait_decision", True):
             decision = req.wait(timeout=timeout)
             duration = time.time() - start_time
-            if decision not in ("timeout", "expired"):
+            if decision == "cancelled":
+                decision_by = "cancelled"
+            elif decision not in ("timeout", "expired"):
                 decision_by = getattr(req, "responder_identity", "") or "human"
             else:
                 decision_by = "timeout"
@@ -340,6 +348,66 @@ def handle_agent_dismiss_completed(ctx: ApiContext) -> None:
     ctx.begin_json_response()
     get_bridge_hub().dismiss_completed()
     ctx.write_json({"status": "success"})
+
+
+def handle_agent_cancel_pending(ctx: ApiContext) -> None:
+    """エージェント側（PC等）からの保留中リクエスト取消 (POST /api/agent/cancel_pending) を処理する。
+
+    エージェント側のUI（IDEダイアログ等）でユーザーが承認/選択を完了した場合や、
+    エージェント側で操作がキャンセルされた場合に、スマホ側の待機通知（承認カード/質問シート）
+    を即座に消去し、待機中スレッドを解放する。
+
+    Args:
+        ctx: リクエストコンテキスト。
+    """
+    from local_sync_server import get_bridge_hub
+    try:
+        if isinstance(ctx.body, bytes):
+            data = json.loads(ctx.body.decode("utf-8"))
+        elif isinstance(ctx.body, str):
+            data = json.loads(ctx.body)
+        else:
+            data = {}
+
+        request_id = data.get("request_id")
+        reason = data.get("reason", "cancelled_by_agent")
+
+        # ゼロトラスト入力検証
+        if not request_id or not isinstance(request_id, str) or len(request_id) > 256:
+            ctx.send_error_json("Invalid request_id", status_code=400)
+            return
+
+        if not isinstance(reason, str) or len(reason) > 256:
+            reason = "cancelled_by_agent"
+
+        hub = get_bridge_hub()
+        res = hub.cancel_pending(request_id, reason=reason)
+
+        if res == "cancelled":
+            ctx.write_json({
+                "status": "success",
+                "result": "cancelled",
+                "request_id": request_id,
+                "message": "保留中リクエストを取り消しました"
+            }, ensure_ascii=False)
+        elif res == "already_resolved":
+            ctx.write_json({
+                "status": "success",
+                "result": "already_resolved",
+                "request_id": request_id,
+                "duplicate": True,
+                "message": "対象リクエストは既に解決済みです"
+            }, ensure_ascii=False)
+        else:
+            ctx.write_json({
+                "status": "not_found",
+                "result": "not_found",
+                "request_id": request_id,
+                "message": "対象のリクエストが見つかりません"
+            }, ensure_ascii=False)
+    except Exception as e:
+        logger.error(f"Agent Cancel Pending API エラー: {e}")
+        ctx.send_error_json(str(e))
 
 
 def handle_agent_notify(ctx: ApiContext) -> None:

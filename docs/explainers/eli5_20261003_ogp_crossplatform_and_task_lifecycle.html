@@ -1,0 +1,700 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ELI5: OGP看板物理・二段階クロスプラットフォームADR・手帳タスクライフサイクル (2026-10-03)</title>
+<style>
+  :root {
+    --bg: #0b0f19;
+    --card: #151d30;
+    --card-hover: #1c2742;
+    --line: #243354;
+    --fg: #e2e8f0;
+    --dim: #94a3b8;
+    --gold: #f59e0b;
+    --cyan: #38bdf8;
+    --red: #f87171;
+    --green: #4ade80;
+    --purple: #c084fc;
+    --indigo: #818cf8;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 24px;
+    background: var(--bg);
+    color: var(--fg);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Yu Gothic UI", "Meiryo UI", sans-serif;
+    line-height: 1.7;
+  }
+  .header {
+    border-bottom: 1px solid var(--line);
+    padding-bottom: 16px;
+    margin-bottom: 24px;
+  }
+  h1 { font-size: 24px; margin: 0 0 6px; color: #fff; display: flex; align-items: center; gap: 10px; }
+  .meta { color: var(--dim); font-size: 13px; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 99px; font-size: 11px; font-weight: bold; background: #1e293b; border: 1px solid var(--line); color: var(--gold); }
+  
+  .card {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 22px;
+    margin-bottom: 24px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+  }
+  .card h2 {
+    font-size: 18px;
+    margin: 0 0 8px;
+    color: var(--cyan);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .card p.lead {
+    color: var(--dim);
+    font-size: 13px;
+    margin: 0 0 16px;
+    border-left: 3px solid var(--gold);
+    padding-left: 10px;
+  }
+
+  .controls {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    align-items: center;
+    margin-bottom: 16px;
+  }
+  button {
+    background: #1e293b;
+    color: var(--fg);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 8px 16px;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+  button:hover { background: #283750; border-color: var(--cyan); }
+  button.active {
+    background: var(--cyan);
+    color: #0b0f19;
+    border-color: var(--cyan);
+    font-weight: bold;
+    box-shadow: 0 0 12px rgba(56, 189, 248, 0.4);
+  }
+
+  .stage {
+    position: relative;
+    background: #0d1322;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 16px;
+    overflow: hidden;
+  }
+
+  /* Chapter 1: OGP Simulator */
+  .ogp-display {
+    display: flex;
+    gap: 20px;
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+  .browser-mock {
+    flex: 1;
+    min-width: 320px;
+    background: #111827;
+    border: 1px solid #374151;
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  .browser-bar {
+    background: #1f2937;
+    padding: 6px 12px;
+    font-size: 11px;
+    color: #9ca3af;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    border-bottom: 1px solid #374151;
+  }
+  .card-preview {
+    border: 1px solid #374151;
+    border-radius: 10px;
+    margin: 14px;
+    overflow: hidden;
+    background: #0f172a;
+    transition: transform 0.3s;
+  }
+  .card-preview:hover { transform: translateY(-2px); }
+  .card-img-box {
+    width: 100%;
+    aspect-ratio: 1.91 / 1;
+    background: linear-gradient(135deg, #1e1b4b, #311042);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    border-bottom: 1px solid #374151;
+    color: #fff;
+    font-size: 13px;
+  }
+  .preview-content { padding: 12px; }
+  .preview-title { font-weight: bold; font-size: 14px; color: #f8fafc; margin-bottom: 4px; }
+  .preview-desc { font-size: 12px; color: #94a3b8; line-height: 1.5; }
+
+  /* Chapter 2: Cross-platform ADR */
+  .arch-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 16px;
+    margin-top: 14px;
+  }
+  .arch-box {
+    background: #0f172a;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 14px;
+    position: relative;
+  }
+  .arch-box.highlight {
+    border-color: var(--green);
+    box-shadow: 0 0 14px rgba(74, 222, 128, 0.15);
+  }
+  .arch-box h3 {
+    margin: 0 0 8px;
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .arch-box ul {
+    margin: 0;
+    padding-left: 18px;
+    font-size: 12px;
+    color: var(--dim);
+  }
+  .arch-box li { margin-bottom: 4px; }
+
+  /* Chapter 3: Task Lifecycle */
+  .pipeline {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin: 16px 0;
+  }
+  .pipe-step {
+    flex: 1;
+    min-width: 130px;
+    background: #111a2e;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 10px;
+    text-align: center;
+    font-size: 12px;
+  }
+  .pipe-step.current {
+    border-color: var(--gold);
+    background: #1f2719;
+    color: #fef08a;
+    font-weight: bold;
+  }
+  .pipe-arrow { color: var(--dim); font-size: 16px; }
+
+  /* Common UI */
+  .tag {
+    display: inline-block;
+    padding: 2px 7px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: bold;
+  }
+  .tag.blue { background: rgba(56, 189, 248, 0.2); color: var(--cyan); border: 1px solid var(--cyan); }
+  .tag.green { background: rgba(74, 222, 128, 0.2); color: var(--green); border: 1px solid var(--green); }
+  .tag.yellow { background: rgba(245, 158, 11, 0.2); color: var(--gold); border: 1px solid var(--gold); }
+  .tag.red { background: rgba(248, 113, 113, 0.2); color: var(--red); border: 1px solid var(--red); }
+
+  table { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 10px; }
+  th, td { border: 1px solid var(--line); padding: 8px 10px; text-align: left; }
+  th { background: #162238; color: var(--dim); font-weight: 600; }
+  tr:nth-child(even) { background: rgba(255,255,255,0.015); }
+
+  .accordion {
+    margin-top: 8px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  .accordion-item { border-bottom: 1px solid var(--line); }
+  .accordion-item:last-child { border-bottom: none; }
+  .accordion-title {
+    background: #131b2e;
+    padding: 10px 14px;
+    font-size: 13px;
+    font-weight: bold;
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .accordion-title:hover { background: #1b2640; }
+  .accordion-body {
+    padding: 12px 14px;
+    font-size: 12px;
+    color: var(--dim);
+    background: #0f1626;
+    display: none;
+    line-height: 1.6;
+  }
+  .accordion-body.open { display: block; }
+
+  .analogy-box {
+    background: #161f33;
+    border-left: 4px solid var(--purple);
+    border-radius: 4px;
+    padding: 12px 16px;
+    margin-top: 14px;
+    font-size: 13px;
+  }
+  .analogy-box b { color: var(--purple); }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>🛡️ ELI5 動くビジュアル図解：OGP看板物理 ＆ 二段階クロスプラットフォームADR ＆ 手帳タスクライフサイクル</h1>
+  <div class="meta">
+    セッション実施日: 2026-10-03 ｜ 対象: ネオ秘書くん (Neo-Secretary) v1.1.17 ｜ 作成者: 🤖 Antigravity
+    <span class="badge">二重資産化 正本</span>
+  </div>
+</div>
+
+<!-- ======================= 第1章: GitHub OGPカードの仕組みとマスコット看板 ======================= -->
+<section class="card">
+  <h2>① 街の看板と名刺の物理：GitHub OGPカードとマスコット配置</h2>
+  <p class="lead">
+    「どんなに料理が美味しい名店でも、看板が真っ白なら人は通り過ぎる」。<br>
+    SNSやチャット（X, Discord, Slack）にURLが貼られた瞬間に自動展開されるOGP（Open Graph Protocol）カードの仕組みと、1280x640（1.91:1）の看板物理を可視化します。
+  </p>
+
+  <div class="controls">
+    <button id="btn-ogp-x" class="active">🐦 X (Twitter) カード表示</button>
+    <button id="btn-ogp-gh">🐙 GitHub ソーシャルプレビュー表示</button>
+    <button id="btn-ogp-crawl">🤖 クローラーのリクエストパケット</button>
+  </div>
+
+  <div class="stage">
+    <div class="ogp-display">
+      <!-- プレビューモック -->
+      <div class="browser-mock">
+        <div class="browser-bar">
+          <span style="color:#ef4444">●</span> <span style="color:#eab308">●</span> <span style="color:#22c55e">●</span>
+          <span id="ogp-target-url">https://twitter.com/i/cards/preview</span>
+        </div>
+        <div class="card-preview">
+          <div class="card-img-box" id="ogp-img-box">
+            <!-- 擬似看板アートワーク -->
+            <div style="text-align:center; padding: 20px;">
+              <div style="font-size: 26px; font-weight: bold; letter-spacing: 2px; color: #facc15; text-shadow: 0 2px 8px rgba(0,0,0,0.8);">
+                🍄 ネオ秘書くん
+              </div>
+              <div style="font-size: 13px; color: #e2e8f0; margin-top: 6px;">
+                AI Agent Bridge × Desk Pet System
+              </div>
+              <div style="font-size: 11px; color: #94a3b8; margin-top: 10px; border: 1px solid rgba(255,255,255,0.2); border-radius: 99px; padding: 2px 10px; display: inline-block;">
+                桜並木と富士山のしいたけくん (Avatar B) ＆ 初代看板ドット絵
+              </div>
+            </div>
+          </div>
+          <div class="preview-content">
+            <div class="preview-title" id="ogp-card-title">Siitake-man/hisho-kun: AI Coding Agent Remote Approval & Desk Pet</div>
+            <div class="preview-desc" id="ogp-card-desc">
+              Sleepy smartphone resurrected as a zero-trust AI desktop companion. ワンタップでClaude Code / Cline / OpenCode を遠隔承認。
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- パケット・メタタグ解説 -->
+      <div style="flex: 1; min-width: 280px;">
+        <h4 style="margin: 0 0 8px; color: var(--gold); font-size: 14px;">📡 取得されるHTMLメタタグ（正本）</h4>
+        <pre style="background: #060913; padding: 10px; border-radius: 6px; border: 1px solid var(--line); font-size: 11px; color: #7dd3fc; overflow-x: auto;">
+&lt;meta property="og:title" content="ネオ秘書くん (Neo-Secretary)" /&gt;
+&lt;meta property="og:image" content="assets/neo_secretary_social_preview.jpg" /&gt;
+&lt;meta property="og:image:width" content="1280" /&gt;
+&lt;meta property="og:image:height" content="640" /&gt;
+&lt;meta name="twitter:card" content="summary_large_image" /&gt;
+&lt;meta name="twitter:creator" content="@Siitake_man" /&gt;</pre>
+        <div class="analogy-box">
+          <b>💡 身近な例えでの理解（名刺と看板）:</b><br>
+          URLは「住所（番地）」に過ぎません。OGPカードは、宅配便や配達員（クローラー）がその住所を見上げたときに掲げられている「立体的な看板と名刺」です。1280×640pxの比率を守らないと、看板の端が切り落とされ、肝心の秘書くんの顔が見えなくなります。
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ======================= 第2章: Tkinter限界と二段階クロスプラットフォームADR ======================= -->
+<section class="card">
+  <h2>② Tkinterの壁と二段階クロスプラットフォームADR（DESIGN_SPEC §6.0）</h2>
+  <p class="lead">
+    「なぜ重たいElectron（150MBのChromiumメモリ喰い）に書き換えないのか？」「LinuxやMacでのウィンドウ透過はどうするのか？」<br>
+    Grokやシリコンバレーのレビューで指摘されたTkinterの描画限界に対し、ネオ秘書くんが下した「引き算の美学」と二段階移行パスを解剖します。
+  </p>
+
+  <div class="controls">
+    <button id="btn-adr-v1" class="active">🟢 v1.x 現行: スマホ逃がし（役割の引き算）</button>
+    <button id="btn-adr-v2">🚀 v2.0 次世代: Tauri / pywebview 移行パス</button>
+    <button id="btn-adr-electron">❌ 却下案: 重厚Electron全面刷新（リソース浪費）</button>
+  </div>
+
+  <div class="stage">
+    <div class="arch-grid">
+      <!-- レイヤー1: PC Desktop -->
+      <div class="arch-box" id="box-pc">
+        <h3>
+          <span>🖥️ PCデスクトップ層</span>
+          <span class="tag blue" id="tag-pc">Tkinter (超軽量)</span>
+        </h3>
+        <ul id="list-pc">
+          <li>常駐メモリ: わずか <b>30〜50MB</b></li>
+          <li>役割: トレイ常駐・透過キャラ・最小限の通知</li>
+          <li>スマホ接続時: <b>自動最小化（withdraw）で画面占有ゼロ</b></li>
+          <li>OS差異: Windows/Mac/Linux で透過APIが壊れても、メイン業務はスマホへ退避済みのため影響なし</li>
+        </ul>
+      </div>
+
+      <!-- レイヤー2: Mobile PWA -->
+      <div class="arch-box highlight" id="box-mobile">
+        <h3>
+          <span>📱 スマホPWA層 (卓上リモコン)</span>
+          <span class="tag green">Web標準 (HTML/CSS/JS)</span>
+        </h3>
+        <ul>
+          <li>画面占有ゼロ化の主役（古いスマホを卓上ディスプレイへ）</li>
+          <li>スプリング物理・アニメーション・TODO・承認ボタンを完備</li>
+          <li>iOS / Android の全ブラウザで <b>100% 同一描画</b></li>
+          <li>将来の移行時: この資産（<code>web_pet/</code>）がそのままPCアプリの中身になる</li>
+        </ul>
+      </div>
+
+      <!-- レイヤー3: Agent Bridge -->
+      <div class="arch-box" id="box-bridge">
+        <h3>
+          <span>⚙️ Agent Bridge ＆ Zero-Trust</span>
+          <span class="tag yellow">Python Async Native</span>
+        </h3>
+        <ul>
+          <li>Claude Code / Cline / OpenCode の承認要求を中継</li>
+          <li>同一LAN / Tailscale 上で暗号照合（Bearer Token）</li>
+          <li>PC解決時のスマホ待機カード即時自動消去 (<code>cancel_pending</code>)</li>
+          <li>描画方式が変わっても、このバックエンド層は1行も壊れない</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="analogy-box" style="margin-top: 16px;">
+      <b>💡 身近な例えでの理解（トラックの運転席と荷台）:</b><br>
+      Tkinterを無理やり魔改造して豪華な3DやリッチUIを積むのは、「軽トラックの運転席に大理石のオフィスを作ろうとする」ような無謀な行為です。ネオ秘書くんは、オフィス（リッチUI）をすべてスマホという外付けディスプレイへ引っ越しさせ、トラック（PC）はエンジンと通信だけに徹させました。これが世界水準レビューで高評価を得た「二段階ADR」です。
+    </div>
+  </div>
+</section>
+
+<!-- ======================= 第3章: 手帳タスクライフサイクルとPydantic厳格型 ======================= -->
+<section class="card">
+  <h2>③ 手帳タスクライフサイクルとPydantic厳格型（ミリ秒整数 vs ISO文字列・知見53）</h2>
+  <p class="lead">
+    「なぜタイムスタンプがISO文字列だと型エラーになるのか？」「なぜタスクは専用リスト（list_id=6）に隔離するのか？」<br>
+    SQLiteの動的型付けとPydanticの厳格バリデーションの接合部で発生した型エラーのメカニズムと、知見53のリスト分離原則を可視化します。
+  </p>
+
+  <div class="controls">
+    <button id="btn-type-ms" class="active">✅ 正常系: ミリ秒整数 (Unix Epoch int)</button>
+    <button id="btn-type-iso">💥 異常系: ISO文字列混入 (Pydantic爆発)</button>
+    <button id="btn-list-separate">📋 知見53: リスト分離規約 (list_id=6)</button>
+  </div>
+
+  <div class="stage">
+    <div class="pipeline">
+      <div class="pipe-step current" id="step-db">
+        🗄️ SQLite DB<br>
+        <span style="font-size: 10px; color: var(--dim);" id="step-db-val">created_at: 1791032744811</span>
+      </div>
+      <div class="pipe-arrow">➔</div>
+      <div class="pipe-step" id="step-fetch">
+        📡 task_repo.py<br>
+        <span style="font-size: 10px; color: var(--dim);">Row 取得</span>
+      </div>
+      <div class="pipe-arrow">➔</div>
+      <div class="pipe-step" id="step-model">
+        🛡️ Task Model (Pydantic)<br>
+        <span style="font-size: 10px; color: var(--dim);" id="step-model-val">created_at: int</span>
+      </div>
+      <div class="pipe-arrow">➔</div>
+      <div class="pipe-step" id="step-ui">
+        📱 PWA / 手帳UI<br>
+        <span style="font-size: 10px; color: var(--dim);">日付フォーマット表示</span>
+      </div>
+    </div>
+
+    <div id="type-verdict" style="margin-top: 12px; font-size: 12px; padding: 10px; border-radius: 6px; background: rgba(74, 222, 128, 0.1); border: 1px solid var(--green); color: var(--green);">
+      ✅ <b>完全整合:</b> DBの保存値（1791032744811）が Pydantic の <code>int</code> 型定義と完全一致。ソートも数値比較で 0.001ms の超高速処理。
+    </div>
+
+    <table>
+      <thead>
+        <tr>
+          <th>項目</th>
+          <th>ミリ秒整数（本採用・正本）</th>
+          <th>ISO 8601 文字列（禁止）</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>データ例</td>
+          <td><code>1791032744811</code> (64bit int)</td>
+          <td><code>"2026-10-03T21:00:00Z"</code> (string)</td>
+        </tr>
+        <tr>
+          <td>Pydantic型チェック</td>
+          <td><span class="tag green">合格 (int)</span></td>
+          <td><span class="tag red">ValidationError (int expected)</span></td>
+        </tr>
+        <tr>
+          <td>ソート・大小比較</td>
+          <td>数値の引き算で一発（CPU直接命令）</td>
+          <td>文字列パースが必要（遅い・タイムゾーン地雷）</td>
+        </tr>
+        <tr>
+          <td>リスト分離（知見53）</td>
+          <td colspan="2">開発用宿題・タスクは必ず <b>「秘書くん開発」（list_id=6）</b> に格納。ボスの個人TODO（list_id=1等）と混ぜない！</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="analogy-box">
+      <b>💡 身近な例えでの理解（通し番号伝票 vs 手書き日付）:</b><br>
+      伝票整理で「令和8年10月3日午後」と「2026/10/03」が混在すると、自動仕分け機はエラーで止まってしまいます。一番確実なのは、発行順に「0001, 0002, ...」と通し番号（ミリ秒整数）を機械的に刻印することです。
+    </div>
+  </div>
+</section>
+
+<!-- ======================= 第4章: 登場した専門用語の完全解体辞典 ======================= -->
+<section class="card">
+  <h2>📖 登場した専門用語の完全解体辞典（クリックで開閉）</h2>
+  <p class="lead">本セッションで登場したアーキテクチャ・プロトコル用語を初心者にも腹落ちする言葉で解説します。</p>
+
+  <div class="accordion">
+    <div class="accordion-item">
+      <div class="accordion-title" onclick="toggleAcc(this)">
+        <span>1. OGP (Open Graph Protocol)</span>
+        <span>▼</span>
+      </div>
+      <div class="accordion-body">
+        SNS（X/Twitter、Facebook、Slack、Discord）にWebサイトのリンクを貼り付けた際、自動的にリッチなタイトル・概要・画像カードを表示させるための世界共通メタデータ規格です。
+      </div>
+    </div>
+
+    <div class="accordion-item">
+      <div class="accordion-title" onclick="toggleAcc(this)">
+        <span>2. ソーシャルプレビュー (Social Preview)</span>
+        <span>▼</span>
+      </div>
+      <div class="accordion-body">
+        GitHub等のリポジトリ設定画面で登録する、SNS共有時の看板画像（推奨1280×640ピクセル）。未設定の場合は味気ないリポジトリ名だけの文字カードになりますが、看板を設定すると一目でプロダクトの世界観が伝わります。
+      </div>
+    </div>
+
+    <div class="accordion-item">
+      <div class="accordion-title" onclick="toggleAcc(this)">
+        <span>3. ADR (Architectural Decision Record)</span>
+        <span>▼</span>
+      </div>
+      <div class="accordion-body">
+        「なぜその設計・技術を選び、なぜ他方を却下したのか」という技術的意思決定の背景・理由・トレードオフを公式に記録した文書。「なんとなく動いたから」ではなく、1年後の自分が読んでも納得できるように残す設計の意思決定ログです。
+      </div>
+    </div>
+
+    <div class="accordion-item">
+      <div class="accordion-title" onclick="toggleAcc(this)">
+        <span>4. Tauri (タウリ) ＆ pywebview</span>
+        <span>▼</span>
+      </div>
+      <div class="accordion-body">
+        デスクトップアプリを作成するための次世代フレームワーク。重たいブラウザ丸ごと（Chromium）を内包するElectronと異なり、OS標準のWebView（Edge/Safari）とRustまたはPythonを直結するため、数MBの極小サイズと超軽量動作を実現します。
+      </div>
+    </div>
+
+    <div class="accordion-item">
+      <div class="accordion-title" onclick="toggleAcc(this)">
+        <span>5. Pydantic (パイダンティック)</span>
+        <span>▼</span>
+      </div>
+      <div class="accordion-body">
+        Pythonにおいてデータの型（数値、文字、真偽値等）が正しいかを実行時に厳格にチェックする型バリデーションライブラリ。想定外の文字列やNoneが混入した瞬間にエラーを検知し、バグの侵入を防ぎます。
+      </div>
+    </div>
+
+    <div class="accordion-item">
+      <div class="accordion-title" onclick="toggleAcc(this)">
+        <span>6. Unix Epoch (エポックミリ秒)</span>
+        <span>▼</span>
+      </div>
+      <div class="accordion-body">
+        1970年1月1日午前0時0分0秒（UTC）からの経過時間をミリ秒単位の数値で表した時刻表現。タイムゾーンや言語フォーマットの違いに惑わされず、単純な引き算だけで「何秒前」「どちらが先か」を計算できる標準形式です。
+      </div>
+    </div>
+
+    <div class="accordion-item">
+      <div class="accordion-title" onclick="toggleAcc(this)">
+        <span>7. 知見ID 53（手帳リスト分離規約）</span>
+        <span>▼</span>
+      </div>
+      <div class="accordion-body">
+        秘書くんアプリ内でTODOや宿題を起票する際、ボスのプライベートTODOや未分類タスク（list_id=1等）と混ぜず、必ず専用の「秘書くん開発」（list_id=6）へ隔離して登録するプロジェクト恒久ルールです。
+      </div>
+    </div>
+  </div>
+</section>
+
+<script>
+  // OGPシミュレータ制御
+  const btnOgpX = document.getElementById('btn-ogp-x');
+  const btnOgpGh = document.getElementById('btn-ogp-gh');
+  const btnOgpCrawl = document.getElementById('btn-ogp-crawl');
+  const ogpUrl = document.getElementById('ogp-target-url');
+  const ogpTitle = document.getElementById('ogp-card-title');
+  const ogpDesc = document.getElementById('ogp-card-desc');
+  const ogpImg = document.getElementById('ogp-img-box');
+
+  btnOgpX.addEventListener('click', () => {
+    setActive(btnOgpX, [btnOgpGh, btnOgpCrawl]);
+    ogpUrl.innerText = 'https://twitter.com/Siitake_man/status/preview';
+    ogpTitle.innerText = 'Siitake-man/hisho-kun: AI Coding Agent Remote Approval & Desk Pet';
+    ogpDesc.innerText = 'Sleepy smartphone resurrected as a zero-trust AI desktop companion. ワンタップでClaude Code / Cline / OpenCode を遠隔承認。';
+    ogpImg.style.background = 'linear-gradient(135deg, #1e1b4b, #311042)';
+  });
+
+  btnOgpGh.addEventListener('click', () => {
+    setActive(btnOgpGh, [btnOgpX, btnOgpCrawl]);
+    ogpUrl.innerText = 'https://github.com/Siitake-man/hisho-kun';
+    ogpTitle.innerText = 'Siitake-man / hisho-kun ── Public Repository';
+    ogpDesc.innerText = 'Official Social Preview Card (1280x640) loaded from assets/neo_secretary_social_preview.jpg';
+    ogpImg.style.background = 'linear-gradient(135deg, #0f172a, #1e293b)';
+  });
+
+  btnOgpCrawl.addEventListener('click', () => {
+    setActive(btnOgpCrawl, [btnOgpX, btnOgpGh]);
+    ogpUrl.innerText = 'HTTP GET / (User-Agent: Twitterbot/1.0)';
+    ogpTitle.innerText = '📦 Crawler Packet: 200 OK (Content-Type: text/html)';
+    ogpDesc.innerText = 'og:image, og:title, og:description を即時抽出完了。キャッシュTTL: 7日間。';
+    ogpImg.style.background = 'linear-gradient(135deg, #064e3b, #047857)';
+  });
+
+  // ADR制御
+  const btnAdrV1 = document.getElementById('btn-adr-v1');
+  const btnAdrV2 = document.getElementById('btn-adr-v2');
+  const btnAdrEle = document.getElementById('btn-adr-electron');
+  const boxPc = document.getElementById('box-pc');
+  const tagPc = document.getElementById('tag-pc');
+  const listPc = document.getElementById('list-pc');
+
+  btnAdrV1.addEventListener('click', () => {
+    setActive(btnAdrV1, [btnAdrV2, btnAdrEle]);
+    tagPc.className = 'tag blue';
+    tagPc.innerText = 'Tkinter (超軽量)';
+    listPc.innerHTML = `
+      <li>常駐メモリ: わずか <b>30〜50MB</b></li>
+      <li>役割: トレイ常駐・透過キャラ・最小限の通知</li>
+      <li>スマホ接続時: <b>自動最小化（withdraw）で画面占有ゼロ</b></li>
+      <li>OS差異: Windows/Mac/Linux で透過APIが壊れても、メイン業務はスマホへ退避済みのため影響なし</li>
+    `;
+  });
+
+  btnAdrV2.addEventListener('click', () => {
+    setActive(btnAdrV2, [btnAdrV1, btnAdrEle]);
+    tagPc.className = 'tag green';
+    tagPc.innerText = 'Tauri / pywebview (次世代PoC)';
+    listPc.innerHTML = `
+      <li>常駐メモリ: <b>40〜60MB</b> (超低消費)</li>
+      <li>役割: <code>web_pet/</code> のフロントエンド資産をそのままPC画面としてラップ</li>
+      <li>クロスプラットフォーム: macOS (WebKit) / Linux (WebKitGTK) / Windows (WebView2) で100%同一透過描画</li>
+      <li>段階的移行: v1.x のPWA運用でUIを磨き上げ、v2.0でPC側シェルを差し替える</li>
+    `;
+  });
+
+  btnAdrEle.addEventListener('click', () => {
+    setActive(btnAdrEle, [btnAdrV1, btnAdrV2]);
+    tagPc.className = 'tag red';
+    tagPc.innerText = 'Electron (却下・リソース浪費)';
+    listPc.innerHTML = `
+      <li>常駐メモリ: <b>150〜300MB</b> (Chromium常駐による激重化)</li>
+      <li>問題点: 「古いPCでも軽快に動く」という秘書くんの存在意義を破壊</li>
+      <li>結論: 表面的な美しさに流されず、軽量なWeb標準PWAとTauriを選択（ADR確定）</li>
+    `;
+  });
+
+  // タスク型制御
+  const btnTypeMs = document.getElementById('btn-type-ms');
+  const btnTypeIso = document.getElementById('btn-type-iso');
+  const btnListSep = document.getElementById('btn-list-separate');
+  const stepDbVal = document.getElementById('step-db-val');
+  const stepModelVal = document.getElementById('step-model-val');
+  const typeVerdict = document.getElementById('type-verdict');
+
+  btnTypeMs.addEventListener('click', () => {
+    setActive(btnTypeMs, [btnTypeIso, btnListSep]);
+    stepDbVal.innerText = 'created_at: 1791032744811';
+    stepModelVal.innerText = 'created_at: int';
+    typeVerdict.style.background = 'rgba(74, 222, 128, 0.1)';
+    typeVerdict.style.borderColor = 'var(--green)';
+    typeVerdict.style.color = 'var(--green)';
+    typeVerdict.innerHTML = '✅ <b>完全整合:</b> DBの保存値（1791032744811）が Pydantic の <code>int</code> 型定義と完全一致。ソートも数値比較で 0.001ms の超高速処理。';
+  });
+
+  btnTypeIso.addEventListener('click', () => {
+    setActive(btnTypeIso, [btnTypeMs, btnListSep]);
+    stepDbVal.innerText = 'created_at: "2026-10-03T21:00:00Z"';
+    stepModelVal.innerText = 'created_at: int (型不一致!)';
+    typeVerdict.style.background = 'rgba(248, 113, 113, 0.15)';
+    typeVerdict.style.borderColor = 'var(--red)';
+    typeVerdict.style.color = 'var(--red)';
+    typeVerdict.innerHTML = '💥 <b>ValidationError 発生:</b> 文字列（ISO 8601）を <code>int</code> に代入しようとしてアプリが停止！本セッションで36件の不正データを整数ミリ秒へ完全修復しました。';
+  });
+
+  btnListSep.addEventListener('click', () => {
+    setActive(btnListSep, [btnTypeMs, btnTypeIso]);
+    stepDbVal.innerText = 'list_id: 6 (秘書くん開発)';
+    stepModelVal.innerText = 'list_id: 6';
+    typeVerdict.style.background = 'rgba(245, 158, 11, 0.15)';
+    typeVerdict.style.borderColor = 'var(--gold)';
+    typeVerdict.style.color = 'var(--gold)';
+    typeVerdict.innerHTML = '📋 <b>知見53 適用中:</b> 開発タスク24件を専用リスト（list_id=6）へ隔離移動完了。ボスの個人タスク（買い物・日課等）をAIが誤って巻き込み完了する事故を構造遮断！';
+  });
+
+  function setActive(activeBtn, otherBtns) {
+    activeBtn.classList.add('active');
+    otherBtns.forEach(b => b.classList.remove('active'));
+  }
+
+  function toggleAcc(el) {
+    const body = el.nextElementSibling;
+    const arrow = el.querySelector('span:last-child');
+    if (body.classList.contains('open')) {
+      body.classList.remove('open');
+      arrow.innerText = '▼';
+    } else {
+      body.classList.add('open');
+      arrow.innerText = '▲';
+    }
+  }
+</script>
+
+</body>
+</html>

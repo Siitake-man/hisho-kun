@@ -427,6 +427,19 @@ async function fetchStatus() {
         maybeAutoOpenQuestionSheet();
       }
     } else {
+      // 📱 PC側で承認/回答が完了、または保留要求がキャンセルされた場合の自動クローズ (手帳 ID 80)
+      if (window.currentApprovalRequest || (window.currentSheetItem && (window.currentSheetItem.tag === '質問' || window.currentSheetItem.tag === '承認要請' || window.currentSheetItem.tag === '高リスク承認' || window.currentSheetItem.isApproval || window.currentSheetItem.isQuestion))) {
+        var bottomSheet = document.getElementById('bottom-sheet');
+        if (bottomSheet && bottomSheet.classList.contains('open')) {
+          if (typeof closeBottomSheet === 'function') {
+            closeBottomSheet();
+            if (typeof showToast === 'function') {
+              showToast('✨ PC側で操作が完了しました', 2000, true);
+            }
+          }
+        }
+      }
+      _autoOpenedQuestionId = null;
       currentApprovalRequest = null;
       window.currentApprovalRequest = null;
       if (bannerActions) bannerActions.style.display = 'none';
