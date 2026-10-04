@@ -1,0 +1,603 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ELI5: Jev創業者直伝 — エージェントを200倍高速・400倍安価にする『Jevエンジニアリング』実践導入図解 (2026-10-04)</title>
+<style>
+  :root {
+    --bg: #0b0f19;
+    --card: #151d30;
+    --card-hover: #1c2742;
+    --line: #243354;
+    --fg: #e2e8f0;
+    --dim: #94a3b8;
+    --gold: #f59e0b;
+    --cyan: #38bdf8;
+    --red: #f87171;
+    --green: #4ade80;
+    --purple: #c084fc;
+    --indigo: #818cf8;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 24px;
+    background: var(--bg);
+    color: var(--fg);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Yu Gothic UI", "Meiryo UI", sans-serif;
+    line-height: 1.7;
+  }
+  .header {
+    border-bottom: 1px solid var(--line);
+    padding-bottom: 16px;
+    margin-bottom: 24px;
+  }
+  h1 { font-size: 24px; margin: 0 0 6px; color: #fff; display: flex; align-items: center; gap: 10px; }
+  .meta { color: var(--dim); font-size: 13px; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 99px; font-size: 11px; font-weight: bold; background: #1e293b; border: 1px solid var(--line); color: var(--gold); }
+  
+  .card {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 22px;
+    margin-bottom: 24px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+  }
+  .card h2 {
+    font-size: 18px;
+    margin: 0 0 8px;
+    color: var(--cyan);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .card p.lead {
+    color: var(--dim);
+    font-size: 13px;
+    margin: 0 0 16px;
+    border-left: 3px solid var(--gold);
+    padding-left: 10px;
+  }
+
+  .controls {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    align-items: center;
+    margin-bottom: 16px;
+  }
+  button {
+    background: #1e293b;
+    color: var(--fg);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 8px 16px;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+  button:hover { background: #283750; border-color: var(--cyan); }
+  button.active {
+    background: var(--cyan);
+    color: #0b0f19;
+    border-color: var(--cyan);
+    font-weight: bold;
+    box-shadow: 0 0 12px rgba(56, 189, 248, 0.4);
+  }
+
+  .stage {
+    position: relative;
+    background: #0d1322;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 16px;
+    overflow: hidden;
+  }
+
+  svg { width: 100%; height: auto; display: block; }
+
+  /* Explanation styles */
+  .grid-2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-top: 16px;
+  }
+  @media (max-width: 768px) {
+    .grid-2 { grid-template-columns: 1fr; }
+  }
+  .box {
+    background: #0d1322;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 16px;
+  }
+  .box h3 {
+    margin: 0 0 10px;
+    font-size: 15px;
+    color: var(--gold);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .box p { margin: 0 0 10px; font-size: 13px; color: #cbd5e1; }
+  .box ul { margin: 0; padding-left: 18px; font-size: 13px; color: var(--dim); }
+  .box li { margin-bottom: 6px; }
+
+  /* Comparison table */
+  table.comp-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 14px;
+    font-size: 13px;
+  }
+  table.comp-table th, table.comp-table td {
+    border: 1px solid var(--line);
+    padding: 10px 12px;
+    text-align: left;
+  }
+  table.comp-table th { background: #1a233a; color: var(--cyan); font-weight: 600; }
+  table.comp-table tr:nth-child(even) { background: #0f172a; }
+
+  /* Dictionary Accordion */
+  .dict-item {
+    background: #0d1322;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    margin-bottom: 10px;
+    overflow: hidden;
+  }
+  .dict-header {
+    padding: 12px 16px;
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: #131c31;
+    transition: background 0.2s;
+  }
+  .dict-header:hover { background: #1a2642; }
+  .dict-title { font-weight: 600; font-size: 14px; color: #fff; display: flex; align-items: center; gap: 8px; }
+  .dict-tag { font-size: 11px; padding: 2px 8px; border-radius: 4px; background: #1e293b; color: var(--cyan); border: 1px solid var(--line); }
+  .dict-body {
+    padding: 14px 16px;
+    font-size: 13px;
+    color: #cbd5e1;
+    border-top: 1px solid var(--line);
+    display: none;
+    line-height: 1.8;
+  }
+  .dict-body.open { display: block; }
+  .dict-body code { background: #1e293b; color: var(--gold); padding: 2px 6px; border-radius: 4px; font-size: 12px; }
+
+  .highlight-tag {
+    color: var(--green);
+    font-weight: bold;
+  }
+  .stat-callout {
+    display: flex;
+    gap: 16px;
+    margin: 16px 0;
+    flex-wrap: wrap;
+  }
+  .stat-card {
+    flex: 1;
+    min-width: 140px;
+    background: #10182b;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 12px;
+    text-align: center;
+  }
+  .stat-num { font-size: 22px; font-weight: bold; color: var(--gold); }
+  .stat-lbl { font-size: 11px; color: var(--dim); margin-top: 4px; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+    <h1>⚡ Jev創業者直伝：エージェント200倍速化『Jevエンジニアリング』実践導入図解</h1>
+    <span class="badge">2026-10-04 実践仕様書</span>
+  </div>
+  <div class="meta">
+    対象：ボスの開発エコシステム（Antigravity ⇆ OpenCode ⇆ ネオ秘書くん ⇆ TypeSafe Jev 1.13）<br>
+    情報源：Diogo Almeida（InstructGPT共著者・TypeSafe Jev創業者）公式ハーネス仕様 ＆ 10大ステップ
+  </div>
+</div>
+
+<!-- ========================================== -->
+<!-- 第1層: 動くSVGシミュレータ ＆ ビジュアル図解 -->
+<!-- ========================================== -->
+<div class="card">
+  <h2>🎮 第1層：動くSVGシミュレータ ＆ アーキテクチャ変革</h2>
+  <p class="lead">下のボタンを切り替えて、「従来の無駄な巨大LLM往復」が「Jev導入でいかに劇的にスリム化されるか」を体感してください。</p>
+
+  <div class="controls">
+    <button id="btn-mode1" class="active" onclick="switchMode(1)">1. 現状の課題：全ルール投入 ＆ 盲目往復（遅延と高コスト）</button>
+    <button id="btn-mode2" onclick="switchMode(2)">2. 改革①：Speculative Fan-out（1回で3問並列判定）</button>
+    <button id="btn-mode3" onclick="switchMode(3)">3. 改革②：条件付き指示ロード ＆ ツール階層開示</button>
+    <button id="btn-mode4" onclick="switchMode(4)">4. 完成形：4層カスケード（Code ➔ Jev ➔ Kimi K3 ➔ ボス）</button>
+  </div>
+
+  <div class="stage">
+    <!-- SVG Viewport -->
+    <svg viewBox="0 0 960 460" id="main-svg">
+      <defs>
+        <!-- 矢印マーカー -->
+        <marker id="arrow-cyan" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+          <path d="M 0 1 L 8 5 L 0 9 z" fill="#38bdf8" />
+        </marker>
+        <marker id="arrow-gold" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+          <path d="M 0 1 L 8 5 L 0 9 z" fill="#f59e0b" />
+        </marker>
+        <marker id="arrow-green" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+          <path d="M 0 1 L 8 5 L 0 9 z" fill="#4ade80" />
+        </marker>
+        <marker id="arrow-red" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+          <path d="M 0 1 L 8 5 L 0 9 z" fill="#f87171" />
+        </marker>
+
+        <!-- グローフィルター -->
+        <filter id="glow-cyan" x="-20%" y="-20%" width="140%" height="140%">
+          <feGaussianBlur stdDeviation="3" result="blur" />
+          <feComposite in="SourceGraphic" in2="blur" operator="over" />
+        </filter>
+        <filter id="glow-gold" x="-20%" y="-20%" width="140%" height="140%">
+          <feGaussianBlur stdDeviation="3" result="blur" />
+          <feComposite in="SourceGraphic" in2="blur" operator="over" />
+        </filter>
+      </defs>
+
+      <!-- 背景グリッド装飾 -->
+      <g opacity="0.1">
+        <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+          <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#38bdf8" stroke-width="0.5"/>
+        </pattern>
+        <rect width="960" height="460" fill="url(#grid)" />
+      </g>
+
+      <!-- 動的コンテンツ領域（JSで切り替え） -->
+      <g id="svg-content"></g>
+    </svg>
+  </div>
+  <div id="mode-desc" style="margin-top:14px; font-size:13px; color:var(--dim); padding:10px 14px; background:#0d1322; border-radius:8px; border:1px solid var(--line);"></div>
+</div>
+
+<!-- ========================================== -->
+<!-- 第2層: 初級エンジニアのための物理構造解説 -->
+<!-- ========================================== -->
+<div class="card">
+  <h2>🏗️ 第2層：初級エンジニアのための物理構造解説（Why / What）</h2>
+  <p class="lead">「なぜJevを使うと劇的に速く安くなるのか？」を、工場のラインと会社の組織に例えて第一原理から紐解きます。</p>
+
+  <div class="stat-callout">
+    <div class="stat-card">
+      <div class="stat-num">56.2%</div>
+      <div class="stat-lbl">ツール実行中の「検索・読取」比率</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-num">46.5%</div>
+      <div class="stat-lbl">消費トークン中の「読取」比率</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-num">&lt; 10%</div>
+      <div class="stat-lbl">実際にコードを書いている比率</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-num">12.2倍</div>
+      <div class="stat-lbl">Fan-out一括質問によるコスト削減</div>
+    </div>
+  </div>
+
+  <div class="grid-2">
+    <div class="box">
+      <h3>🏢 身近な例え：超高給エリートと高速専任受付</h3>
+      <p>
+        <strong>【従来の姿（巨大LLM単独）】</strong><br>
+        時給3万円のシニア建築士に「この書類は総務部？それとも開発部？」「鉛筆削っていいですか？」という1秒のYES/NO確認を何百回も相談している状態です。建築士は毎回、会社の全社規程集（巨大ルール）を最初から最後までめくってから返事をするため、待ち時間も費用も莫大になります。
+      </p>
+      <p>
+        <strong>【Jev導入後の姿（二重知能）】</strong><br>
+        入口に月給数千円の「超高速な専任受付（Jev）」を配置。仕分け、危険物チェック、部署ルーティングは受付が100ミリ秒で即決。シニア建築士（フロンティアLLM）には「本当に設計図を描く仕事」だけを渡します。
+      </p>
+    </div>
+
+    <div class="box">
+      <h3>⚙️ 物理構造の真実：KVキャッシュとコンテキストの壁</h3>
+      <p>
+        LLMが文字を出力する際、毎回過去の全履歴（コンテキスト）をメモリ（KVキャッシュ）上に展開して行列計算を行います。
+      </p>
+      <ul>
+        <li><strong>盲目ルーティングの罠</strong>: エージェント間でバトンタッチ（引き継ぎ）するたびに、過去の全履歴が別のモデルへ丸ごと転送され、再計算の二重課金が発生します。</li>
+        <li><strong>Jevの物理的強み</strong>: Jevはテキストを生成（執筆）しません。State（状態）を受け取り、重み固定の分類ネットワークで「確率ベクトル」を一発で計算して返すだけなので、GPUメモリを占有せずミリ秒で完了します。</li>
+      </ul>
+    </div>
+  </div>
+
+  <h3 style="color:var(--cyan); margin-top:24px; font-size:16px;">🎯 ボスの開発環境への具体的「3段階取り入れ方」</h3>
+  <table class="comp-table">
+    <thead>
+      <tr>
+        <th style="width:18%;">導入フェーズ</th>
+        <th style="width:27%;">具体的施策</th>
+        <th style="width:30%;">何がどう変わるか（効果）</th>
+        <th style="width:25%;">対象ファイル・場所</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong style="color:var(--green);">Step 1: 即日<br>(質問設計の掟)</strong></td>
+        <td>
+          Jevへの質問（Criteria）に必ず<strong>「other/none（逃げ道）」</strong>を付け、<strong>「1問1判断」</strong>と<strong>「状況記述」</strong>に是正する。
+        </td>
+        <td>
+          Jevが無理な分類をしなくなり、確信度の信頼性（キャリブレーション）が極限まで向上。誤診による手戻りが激減。
+        </td>
+        <td>
+          <code>jev_route_agent</code> /<br>
+          <code>tools/jev_triage/</code>
+        </td>
+      </tr>
+      <tr>
+        <td><strong style="color:var(--cyan);">Step 2: 近日中<br>(Speculative Fan-out)</strong></td>
+        <td>
+          「ルーティング判定」と「コマンド危険度判定」を別々に2回呼ぶのをやめ、<strong>1回のリクエストで複数質問を同時送信</strong>する。
+        </td>
+        <td>
+          Jev呼び出しの通信遅延（RTT）が半減し、APIコストがさらに1/10へ圧縮される。
+        </td>
+        <td>
+          <code>jev-mcp</code> /<br>
+          <code>tool_guard_hook.py</code>
+        </td>
+      </tr>
+      <tr>
+        <td><strong style="color:var(--purple);">Step 3: 中期<br>(条件付きルールロード)</strong></td>
+        <td>
+          <code>GEMINI.md</code>（全規約）を常時全開示せず、<strong>編集対象ファイルに応じて「必要なルール・Gotcha」だけを動的注入</strong>する。
+        </td>
+        <td>
+          メインLLMのコンテキストウィンドウの初期消費が数万トークン単位で削減され、推論速度が大幅に向上。
+        </td>
+        <td>
+          <code>.gemini/</code> 共通フック /<br>
+          エージェント読み込み層
+        </td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- ========================================== -->
+<!-- 第3層: 登場した専門用語の完全解体辞典 -->
+<!-- ========================================== -->
+<div class="card">
+  <h2>📖 第3層：登場した専門用語の完全解体辞典（クリックで展開）</h2>
+  <p class="lead">Jev創業者ガイドに登場した最重要キーワードを、初級エンジニアにもわかる言葉で解剖します。</p>
+
+  <div class="dict-item">
+    <div class="dict-header" onclick="toggleDict(this)">
+      <div class="dict-title"><span>⚡ Speculative Fan-out（推論ファンアウト）</span></div>
+      <span class="dict-tag">コスト削減の奥義</span>
+    </div>
+    <div class="dict-body">
+      <strong>【定義】</strong>: 1つの入力データ（State）に対して、複数の独立した質問（例：「どこの部署？」「緊急度は？」「返金希望か？」）を<strong>単一のHTTPリクエストで一括送信し、並列計算させる技術</strong>。<br>
+      <strong>【Why（なぜ効くか）】</strong>: 質問ごとに個別にAPIを呼ぶと、毎回State（チケット本文など）の転送・再パースが発生します。1回にまとめることで、13個の質問を個別実行するより<strong>12.2倍安く、10倍速く</strong>なります。<br>
+      <strong>【注意点】</strong>: 質問同士が前回の答えに依存する場合は一括化できません（前の結果が必要な場合は分割する）。
+    </div>
+  </div>
+
+  <div class="dict-item">
+    <div class="dict-header" onclick="toggleDict(this)">
+      <div class="dict-title"><span>🎯 RLCD (Reinforcement Learning for Calibrated Decisions)</span></div>
+      <span class="dict-tag">Jevの訓練原理</span>
+    </div>
+    <div class="dict-body">
+      <strong>【定義】</strong>: 「校正された決定のための強化学習」。モデルが出力する「確信度（90%など）」が、実際の正解率と完全に一致するように訓練する手法。<br>
+      <strong>【LLM（RLHF）との違い】</strong>: 通常のChatGPTやClaudeは「人間を喜ばせる（RLHF）」ように訓練されているため、自信満々に嘘をつきます（確信度95%と言いながら間違える）。Jevは「90%と答えたら、本当に100回中90回当たる」という**正直な確率（Calibrated Confidence）**を出力するため、プログラム側で「95%以上は即自動化、未満は人間へ」という自動分岐コードが組めます。
+    </div>
+  </div>
+
+  <div class="dict-item">
+    <div class="dict-header" onclick="toggleDict(this)">
+      <div class="dict-title"><span>🗂️ Tiered Tools（ツールの階層化開示）</span></div>
+      <span class="dict-tag">コンテキスト節約</span>
+    </div>
+    <div class="dict-body">
+      <strong>【定義】</strong>: エージェントが使えるツールが数十〜数百個ある場合、最初から全てのJSON引数定義（スキーマ）を渡さず、<strong>「1行の名前と説明だけ」を渡し、ツールを使うと決めた瞬間だけ詳細スキーマを開示する二段階方式</strong>。<br>
+      <strong>【効果】</strong>: ツール定義だけで数万トークンを食い潰し、モデルの推論を鈍らせる「コンテキスト汚染」を防止します。
+    </div>
+  </div>
+
+  <div class="dict-item">
+    <div class="dict-header" onclick="toggleDict(this)">
+      <div class="dict-title"><span>🚪 Exit Option（逃げ道の必須化）</span></div>
+      <span class="dict-tag">Jev質問設計の掟</span>
+    </div>
+    <div class="dict-body">
+      <strong>【定義】</strong>: Jevに選択肢（Choice）を与える際、必ず <code>"other"</code> や <code>"none"</code>（どれにも当てはまらない）という選択肢を配列に含める設計規則。<br>
+      <strong>【Why（なぜ必須か）】</strong>: Jevは与えられた候補の中から必ずどれか1つを選ぼうとします。逃げ道がないと、想定外の入力が来た時に「最も近い全然違う選択肢」を無理やり選んでしまい、重大な誤作動の原因になります。迷ったときは <code>other</code> を選ばせ、次のレイヤー（LLMや人間）にパスさせます。
+    </div>
+  </div>
+
+  <div class="dict-item">
+    <div class="dict-header" onclick="toggleDict(this)">
+      <div class="dict-title"><span>🛡️ 4-Layer Cascade（4層カスケード防御）</span></div>
+      <span class="dict-tag">システム全体の鉄則</span>
+    </div>
+    <div class="dict-body">
+      <strong>【定義】</strong>: エージェントの全判断を4つの階層に流し込み、確信が得られた最も浅い層で即座に処理を確定させる設計思想。<br>
+      <code>1. Code (0円・0ms)</code>: 日時計算、文字列一致、ハードACLなど確実なルール。<br>
+      <code>2. Jev (極小・100ms)</code>: 閾値（95%等）以上の確信度を持つ定型判断・ルーティング。<br>
+      <code>3. LLM (Kimi K3等・数秒)</code>: Jevが迷ったケース（&lt;95%）や、長文理由付け・画像読解が必要な処理。<br>
+      <code>4. Human (ボス・可処分時間)</code>: ファイル削除・本番デプロイ等の不可逆操作、および両者が迷ったケース。
+    </div>
+  </div>
+</div>
+
+<script>
+  function toggleDict(header) {
+    const body = header.nextElementSibling;
+    body.classList.toggle('open');
+  }
+
+  const modes = {
+    1: {
+      desc: "<strong>モード 1【現状の課題】</strong>: 1回の単純な判断（安全か？どこへルーティングするか？）のために、毎回巨大な全規約と全ツール定義をLLMに丸投げ。トークンの46.5%が読取に消え、応答が重くなりAPI課金が跳ね上がる。",
+      render: () => `
+        <!-- モード 1: 現状の全投入 ＆ 直列往復 -->
+        <rect x="40" y="80" width="220" height="300" rx="10" fill="#151d30" stroke="#f87171" stroke-width="2"/>
+        <text x="150" y="115" text-anchor="middle" fill="#f87171" font-weight="bold" font-size="16">ボスの指示 / タスク</text>
+        <rect x="60" y="140" width="180" height="40" rx="6" fill="#1e293b" stroke="#334155"/>
+        <text x="150" y="165" text-anchor="middle" fill="#e2e8f0" font-size="12">全規約 (GEMINI.md)</text>
+        <rect x="60" y="195" width="180" height="40" rx="6" fill="#1e293b" stroke="#334155"/>
+        <text x="150" y="220" text-anchor="middle" fill="#e2e8f0" font-size="12">全ツールスキーマ (数十個)</text>
+        <rect x="60" y="250" width="180" height="40" rx="6" fill="#1e293b" stroke="#334155"/>
+        <text x="150" y="275" text-anchor="middle" fill="#e2e8f0" font-size="12">過去の全会話コンテキスト</text>
+        <text x="150" y="340" text-anchor="middle" fill="#f87171" font-size="13">💥 合計 30,000+ tokens</text>
+
+        <!-- 巨大矢印 -->
+        <path d="M 270 230 L 460 230" stroke="#f87171" stroke-width="3" stroke-dasharray="6,4" marker-end="url(#arrow-red)"/>
+        <text x="365" y="215" text-anchor="middle" fill="#f87171" font-size="12">毎ターン巨大転送 (高コスト)</text>
+
+        <!-- 巨大LLM -->
+        <rect x="480" y="80" width="240" height="300" rx="10" fill="#151d30" stroke="#f59e0b" stroke-width="2"/>
+        <text x="600" y="115" text-anchor="middle" fill="#f59e0b" font-weight="bold" font-size="16">巨大フロンティアLLM</text>
+        <circle cx="600" cy="190" r="45" fill="#1e293b" stroke="#f59e0b" stroke-width="2"/>
+        <text x="600" y="195" text-anchor="middle" fill="#f59e0b" font-size="14">KV Cache 再計算</text>
+        <text x="600" y="280" text-anchor="middle" fill="#cbd5e1" font-size="12">「このコマンドは安全か？」</text>
+        <text x="600" y="305" text-anchor="middle" fill="#cbd5e1" font-size="12">「次はどのアクションか？」</text>
+        <text x="600" y="345" text-anchor="middle" fill="#f87171" font-size="13">⏳ 応答遅延 3〜5秒 / 回</text>
+
+        <!-- 往復線 -->
+        <path d="M 480 320 L 270 320" stroke="#94a3b8" stroke-width="2" stroke-dasharray="4,4" marker-end="url(#arrow-gold)"/>
+      `
+    },
+    2: {
+      desc: "<strong>モード 2【Speculative Fan-out（推論ファンアウト）】</strong>: 1つのState（作業状況）に対し、「ルーティング先」「破壊性」「完了判定」の3問を1つのJevリクエストにまとめて並列判定。通信往復が激減し、10倍速く12倍安い！",
+      render: () => `
+        <!-- モード 2: Fan-out -->
+        <rect x="40" y="120" width="200" height="220" rx="10" fill="#151d30" stroke="#38bdf8" stroke-width="2"/>
+        <text x="140" y="155" text-anchor="middle" fill="#38bdf8" font-weight="bold" font-size="15">State (単一の状態)</text>
+        <text x="140" y="190" text-anchor="middle" fill="#cbd5e1" font-size="12">タスク内容 ＋ 実行コマンド</text>
+        <rect x="60" y="220" width="160" height="70" rx="6" fill="#10182b" stroke="#243354"/>
+        <text x="140" y="245" text-anchor="middle" fill="#4ade80" font-size="12">📦 1回だけ送信</text>
+        <text x="140" y="270" text-anchor="middle" fill="#94a3b8" font-size="11">（重複転送ゼロ）</text>
+
+        <!-- 分岐矢印 (Fan-out) -->
+        <path d="M 250 210 Q 340 160 410 160" stroke="#38bdf8" stroke-width="2" fill="none" marker-end="url(#arrow-cyan)"/>
+        <path d="M 250 230 L 410 230" stroke="#38bdf8" stroke-width="2" fill="none" marker-end="url(#arrow-cyan)"/>
+        <path d="M 250 250 Q 340 300 410 300" stroke="#38bdf8" stroke-width="2" fill="none" marker-end="url(#arrow-cyan)"/>
+
+        <!-- Jev System One 箱 -->
+        <rect x="420" y="70" width="480" height="320" rx="10" fill="#151d30" stroke="#4ade80" stroke-width="2"/>
+        <text x="660" y="105" text-anchor="middle" fill="#4ade80" font-weight="bold" font-size="16">⚡ TypeSafe Jev 1.13（1回のリクエスト内で並列評価）</text>
+
+        <!-- 3つの質問カード -->
+        <rect x="450" y="130" width="420" height="60" rx="8" fill="#10182b" stroke="#38bdf8"/>
+        <text x="470" y="155" fill="#38bdf8" font-weight="bold" font-size="13">Q1: 部署/エージェント選定 (Choice)</text>
+        <text x="470" y="175" fill="#94a3b8" font-size="11">Architect (96%) / Tester (3%) / other (1%) ➔ <span class="highlight-tag">即時決定</span></text>
+
+        <rect x="450" y="200" width="420" height="60" rx="8" fill="#10182b" stroke="#f59e0b"/>
+        <text x="470" y="225" fill="#f59e0b" font-weight="bold" font-size="13">Q2: コマンド破壊性審査 (Score: 0〜1)</text>
+        <text x="470" y="245" fill="#94a3b8" font-size="11">Score: 0.12 (安全) ➔ <span class="highlight-tag">Tool Guard: Allow</span></text>
+
+        <rect x="450" y="270" width="420" height="60" rx="8" fill="#10182b" stroke="#c084fc"/>
+        <text x="470" y="295" fill="#c084fc" font-weight="bold" font-size="13">Q3: 終了・完了判定 (Noul: Yes/No)</text>
+        <text x="470" y="315" fill="#94a3b8" font-size="11">is_done: False (継続) ➔ <span class="highlight-tag">Next Step へ進行</span></text>
+
+        <text x="660" y="365" text-anchor="middle" fill="#4ade80" font-size="13">⚡ わずか 120ms で 3判断が一括確定！($0.0001)</text>
+      `
+    },
+    3: {
+      desc: "<strong>モード 3【条件付き指示ロード ＆ ツール階層開示】</strong>: 最初から全ルール・全スキーマを渡さない。Jevが『今何の作業か（例: *.py編集）』を判定し、必要なルール（コーディング規約等）だけを動的注入。コンテキスト肥大化を根本解決！",
+      render: () => `
+        <!-- モード 3: 条件付きロード -->
+        <rect x="40" y="100" width="220" height="260" rx="10" fill="#151d30" stroke="#c084fc" stroke-width="2"/>
+        <text x="150" y="135" text-anchor="middle" fill="#c084fc" font-weight="bold" font-size="15">中央ルール保管庫</text>
+        <rect x="60" y="160" width="180" height="30" rx="4" fill="#1e293b"/>
+        <text x="150" y="180" text-anchor="middle" fill="#94a3b8" font-size="11">TS/Frontend 規約</text>
+        <rect x="60" y="200" width="180" height="30" rx="4" fill="#1e293b"/>
+        <text x="150" y="220" text-anchor="middle" fill="#94a3b8" font-size="11">Python/LangGraph 規約</text>
+        <rect x="60" y="240" width="180" height="30" rx="4" fill="#1e293b"/>
+        <text x="150" y="260" text-anchor="middle" fill="#94a3b8" font-size="11">DB/マイグレーション Gotcha</text>
+        <rect x="60" y="280" width="180" height="30" rx="4" fill="#1e293b"/>
+        <text x="150" y="300" text-anchor="middle" fill="#94a3b8" font-size="11">セキュリティ/認証ポリシー</text>
+
+        <!-- Jev フィルターゲート -->
+        <polygon points="340,150 420,230 340,310" fill="#1e293b" stroke="#38bdf8" stroke-width="2"/>
+        <text x="360" y="235" text-anchor="middle" fill="#38bdf8" font-weight="bold" font-size="12">Jev 判定</text>
+
+        <!-- 矢印 -->
+        <path d="M 260 215 L 340 215" stroke="#38bdf8" stroke-width="2" marker-end="url(#arrow-cyan)"/>
+        <path d="M 420 230 L 520 230" stroke="#4ade80" stroke-width="3" marker-end="url(#arrow-green)"/>
+        <text x="470" y="210" text-anchor="middle" fill="#4ade80" font-size="11">合致分のみ通過</text>
+
+        <!-- 実装LLMへの軽量入力 -->
+        <rect x="530" y="110" width="380" height="240" rx="10" fill="#151d30" stroke="#4ade80" stroke-width="2"/>
+        <text x="720" y="145" text-anchor="middle" fill="#4ade80" font-weight="bold" font-size="15">LLMへ届く極小コンテキスト</text>
+        <rect x="560" y="170" width="320" height="40" rx="6" fill="#10182b" stroke="#243354"/>
+        <text x="720" y="195" text-anchor="middle" fill="#e2e8f0" font-size="12">✅ 現在のタスク指示</text>
+        <rect x="560" y="225" width="320" height="40" rx="6" fill="#10182b" stroke="#4ade80"/>
+        <text x="720" y="250" text-anchor="middle" fill="#4ade80" font-size="12">🎯 Python規約 ＋ 関連Gotcha のみ注入</text>
+        <text x="720" y="315" text-anchor="middle" fill="#gold" font-size="13">✨ トークン消費 85% 削減！思考がブレない！</text>
+      `
+    },
+    4: {
+      desc: "<strong>モード 4【4層カスケード防御（完成形）】</strong>: 確実なルールはCode、95%確信の定型はJev、迷う案件や深い理由はKimi K3等のLLM、不可逆な破壊操作だけをボスのスマホ（ネオ秘書くん）へ届ける究極の分業ライン。",
+      render: () => `
+        <!-- モード 4: 4層カスケード -->
+        <!-- Layer 1: Code -->
+        <rect x="50" y="60" width="860" height="70" rx="8" fill="#151d30" stroke="#38bdf8" stroke-width="2"/>
+        <text x="80" y="100" fill="#38bdf8" font-weight="bold" font-size="16">Layer 1: Code (厳密ルール)</text>
+        <text x="350" y="100" fill="#cbd5e1" font-size="13">日時計算、ホワイトリスト、Hard ACL、構文コンパイル</text>
+        <text x="800" y="100" fill="#4ade80" font-weight="bold" font-size="13">0 ms / 無料</text>
+
+        <!-- 矢印 1->2 -->
+        <path d="M 480 130 L 480 155" stroke="#94a3b8" stroke-width="2" marker-end="url(#arrow-cyan)"/>
+
+        <!-- Layer 2: Jev -->
+        <rect x="50" y="160" width="860" height="70" rx="8" fill="#151d30" stroke="#4ade80" stroke-width="2"/>
+        <text x="80" y="200" fill="#4ade80" font-weight="bold" font-size="16">Layer 2: Jev System One</text>
+        <text x="350" y="200" fill="#cbd5e1" font-size="13">ルーティング、完了判定、Tool Guard（確信度 ≥ 0.95）</text>
+        <text x="800" y="200" fill="#4ade80" font-weight="bold" font-size="13">100 ms / $0.00004</text>
+
+        <!-- 矢印 2->3 (迷った場合) -->
+        <path d="M 480 230 L 480 255" stroke="#f59e0b" stroke-width="2" marker-end="url(#arrow-gold)"/>
+        <text x="540" y="248" fill="#f59e0b" font-size="11">確信度 &lt; 0.95 (迷う場合)</text>
+
+        <!-- Layer 3: LLM -->
+        <rect x="50" y="260" width="860" height="70" rx="8" fill="#151d30" stroke="#f59e0b" stroke-width="2"/>
+        <text x="80" y="300" fill="#f59e0b" font-weight="bold" font-size="16">Layer 3: Kimi K3 / Frontier LLM</text>
+        <text x="350" y="300" fill="#cbd5e1" font-size="13">境界ケースの精査、コード生成、長文解説、画像・PDF読解</text>
+        <text x="800" y="300" fill="#f59e0b" font-weight="bold" font-size="13">2〜5 秒 / 標準API費</text>
+
+        <!-- 矢印 3->4 (不可逆・人間承認) -->
+        <path d="M 480 330 L 480 355" stroke="#f87171" stroke-width="2" marker-end="url(#arrow-red)"/>
+        <text x="560" y="348" fill="#f87171" font-size="11">不可逆操作 / 両者未解決</text>
+
+        <!-- Layer 4: Boss -->
+        <rect x="50" y="360" width="860" height="70" rx="8" fill="#151d30" stroke="#f87171" stroke-width="2"/>
+        <text x="80" y="400" fill="#f87171" font-weight="bold" font-size="16">Layer 4: ボス (スマホ ネオ秘書くん)</text>
+        <text x="350" y="400" fill="#cbd5e1" font-size="13">ワンタップ承認（今回のみ許可/常に許可/拒否）＋ 歓喜通知</text>
+        <text x="800" y="400" fill="#f87171" font-weight="bold" font-size="13">可処分時間 5秒</text>
+      `
+    }
+  };
+
+  function switchMode(m) {
+    document.querySelectorAll('.controls button').forEach(b => b.classList.remove('active'));
+    document.getElementById(`btn-mode${m}`).classList.add('active');
+    document.getElementById('svg-content').innerHTML = modes[m].render();
+    document.getElementById('mode-desc').innerHTML = modes[m].desc;
+  }
+
+  // 初期描画
+  switchMode(1);
+</script>
+</body>
+</html>

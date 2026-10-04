@@ -1,7 +1,7 @@
 # ネオ秘書くん システム設計書 (DESIGN_SPEC.md)
 
-- **アプリバージョン**: 1.1.18 (🔒 SSOT: `version.py`・**版数規約 §6.0.1 参照**) ／ **文書進捗**: Rev 51 (仕様書更新回数連番・2026-10-04 ClineレビューP0/P1/P2是正・音声入力記述完全根絶・公式2スキン誠実化・Cockpit完全撤去同期)
-- **最終更新日時**: 2026-10-04 23:59 (🤖 Antigravity: **Clineレビュー指摘 P0/P1/P2 全件是正 ＆ 形骸化した「音声入力」記述の完全根絶 — スマホUIにテキスト入力画面が存在しない実態に即し全廃、自作Mod/しいたけ切替の虚偽宣称撤去、公式2スキン切替統一、Showcase Cockpit完全撤去、メディアキー是正**)
+- **アプリバージョン**: 1.1.18 (🔒 SSOT: `version.py`・**版数規約 §6.0.1 参照**) ／ **文書進捗**: Rev 53 (仕様書更新回数連番・2026-10-04 ID 76 Fatモジュール Seam分割リファクタF0〜F10全13フェーズ完遂同期・次回着手 ID 90 Agent Evals配備)
+- **最終更新日時**: 2026-10-04 23:59 (🤖 Antigravity: **ID 76 Fatモジュール Seam分割リファクタ完遂同期 — local_sync_server.py 748行[-67.4%]・settings_window.py 792行[-58.9%]・合計2,686行削減・全回帰34 passed ALL GREEN・次回着手ターゲット ID 90 Agent Evals配備**)
 - **アーキテクチャ方針**: 完全ローカル完結型 非ブロッキング並行システム (Tkinter Desktop Overlay × Mobile PWA × LangGraph Agent × Zero-Trust Local Bridge ＆ Cross-Platform Headless CI/CD)
 
 ---
@@ -1339,9 +1339,50 @@ OpenCode Desktop (v2.0.11) へ **同一の開発体験・安全規約・品質�
   `created_at`, `updated_at`, `due_date` 等のタイムスタンプフィールドは、**常に Unix エポックミリ秒整数（64bit int）として記録**する。ISO 文字列での保存を禁止し、文字列表記へのフォーマットはフロントエンドUI表示層のみで行う。
 - **検証実績**: SQLite 内の既存不正データ 36件を一括修復し、Pydantic 全件バリデーション Green を確認。未完了開発タスク 24件を `list_id=6` へ隔離移設完了。
 
+## 29. Fatモジュール Seam分割アーキテクチャ (As-Built 2026-10-04 / 手帳 ID 76)
 
+### 29.1 背景と設計判断（Why）
+単一ファイル2,000行超に膨張していた `local_sync_server.py`（2,296行）および `ui/settings_window.py`（1,930行）は、AIエージェントのコンテキスト圧迫、認知負荷の増大、意図しないリグレッションの温床となっていた。
+Michael Feathersの「レガシーコード改善ガイド（Seam技法）」および John Ousterhoutの「A Philosophy of Software Design（Deep Module原則）」を適用し、**「外部インターフェースの振る舞い（Facade再エクスポート）を100%維持しながら、内部を凝集度の高い責任特化モジュールへ分割する」**方針で全13フェーズ（F0〜F10）のリファクタを実施した。
 
+### 29.2 分割アーキテクチャ（What & How）
 
+#### 1. サーバー層 (`server/` パッケージ)
+| モジュール (Seam) | 役割・責務 | 行数 |
+|:---|:---|:---|
+| `server/sync_token_manager.py` (S1a) | トークン生成・暗号化ファイル永続化・TTL・再生成 (`SyncTokenManager`) | 約120行 |
+| `server/auth_checks.py` (S1b) | Bearerトークン抽出・プライベートIP判定・端末名推論・認証ゲート (`check_auth`) | 約140行 |
+| `server/loopback_trust.py` (S1c) | Loopback IP判定・信頼性検証・LedgerクライアントIP解決 | 約110行 |
+| `server/agent_bridge_hub.py` (S2) | エージェント中継・キューイング・待機スレッド制御・PCローカル判定 (`AgentBridgeHub`) | 約260行 |
+| `server/device_link.py` (S3) | LAN IP検出・QRコード生成・端末リンクメタデータ管理 | 約150行 |
+| `server/status_cache.py` (S4) | 6大キャッシュ変数集約・スレッドセーフ排他制御・無効化API (`StatusCacheManager`) | 約150行 |
+| `server/api_status.py` (S4) | `/api/status` 巨大JSONペイロード生成・フェイルソフトDBハンドラ | 約290行 |
+| `server/httpd_core.py` (S5) | 静粛型マルチスレッドHTTPサーバー基盤・Watchdog再バインド契約 (`LocalSyncServer`) | 約120行 |
+| `server/gui_bridge.py` (S6) | GUIインスタンス保持・Human-in-the-Loop承認コールバック動的バインド | 約50行 |
+| `server/routes.py` (S6) | `RouteRecord` 単一ルートテーブル駆動ディスパッチ・多段階認証ゲート・403保護 | 約190行 |
 
+#### 2. 設定UI層 (`ui/settings_tabs/` パッケージ)
+| モジュール (Seam) | 役割・責務 | 行数 |
+|:---|:---|:---|
+| `ui/settings_tabs/guide_tab.py` (T1) | Nav 0: 初心者向けスタートガイド・QRコード・連携解説 | 約110行 |
+| `ui/settings_tabs/general_tab.py` (T2) | Nav 1: 一般設定（言語・テーマ・自動起動・最小化・アップデート） | 約240行 |
+| `ui/settings_tabs/agent_hooks_tab.py` (T3) | Nav 2: エージェント連携（スニペットコピー・🔔 接続テスト Ping） | 約270行 |
+| `ui/settings_tabs/llm_brain_tab.py` (T4) | Nav 3: LLM頭脳設定（プロバイダ切替・APIキー・モデル自動同期・ローカルDL） | 約280行 |
+| `ui/settings_tabs/tools_tab.py` (T5a) | Nav 4: 外部ツール連携タブ統合（MCP・iCal・Googleカレンダー） | 約150行 |
+| `ui/settings_tabs/ical_section.py` (T5b) | iCalカレンダー購読カード・URL管理 | 約100行 |
+| `ui/settings_tabs/google_section.py` (T5c) | GoogleカレンダーOAuth連携カード・同期設定 | 約180行 |
 
+### 29.3 設計原則と堅牢性保証
 
+1. **Facade 再エクスポート契約の死守 (Zero-Breaking)**:
+   既存のテストスイート（`tests/`）や外部モジュールは、従来通り `from local_sync_server import get_bridge_hub, get_sync_server, invalidate_habit_cache, POST_PATH_HANDLERS` の形式でインポート可能。また、`patch("local_sync_server.get_bridge_hub")` などのモック注入も従来通り透過的に動作する。
+2. **ルートテーブル駆動ディスパッチ (`RouteRecord`)**:
+   `local_sync_server.py` の `do_POST`（元500行超）を、わずか20行のテーブル駆動ディスパッチャへ圧縮。`RouteRecord` に定義された `auth_level`（`NONE` / `BEARER` / `LOOPBACK`）に基づいて認可を自動判定。外部IPからのループバック専用API呼出を403 Forbiddenで即時遮断するゼロトラスト保護チェーンを厳格維持。
+3. **フェイルソフトなDBハンドリング**:
+   `/api/status` 生成において、DB未初期化時や例外発生時でもサーバーをクラッシュさせず、空配列フォールバックでペット同期を継続するフェイルソフト防壁を敷設。
+
+### 29.4 実測成果（コード削減実績）
+- `local_sync_server.py`: 元 **2,296 行** ➔ **748 行**（**-1,548 行、67.4% 削減・約7割削減達成！**）
+- `ui/settings_window.py`: 元 **1,930 行** ➔ **792 行**（**-1,138 行、58.9% 削減・約6割削減達成！**）
+- **合計削減行数: 2,686 行**（2大 Fat モジュールが共に1,000行未満のクリーンな Deep Module へスリム化）
+- **検証実績**: キャラクトライゼーションテスト全 **34 passed in 0.80s (ALL GREEN)**、手帳タスク **ID 76** 完達。

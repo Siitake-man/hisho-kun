@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ELI5 図解: 画面のない機能を案内する罠と引き算のUX物理 (2026-10-04)</title>
+  <style>
+    :root {
+      --bg: #0f141c;
+      --card-bg: #182232;
+      --card-border: #253347;
+      --text: #e2e8f0;
+      --text-muted: #94a3b8;
+      --primary: #38bdf8;
+      --accent: #f59e0b;
+      --success: #10b981;
+      --danger: #ef4444;
+      --indigo: #6366f1;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      padding: 24px 16px;
+    }
+    .container { max-width: 960px; margin: 0 auto; }
+    header { text-align: center; margin-bottom: 32px; }
+    .badge {
+      display: inline-block;
+      padding: 4px 12px;
+      border-radius: 9999px;
+      font-size: 0.8rem;
+      font-weight: 700;
+      background: rgba(56, 189, 248, 0.15);
+      color: var(--primary);
+      margin-bottom: 12px;
+    }
+    h1 { font-size: 1.8rem; font-weight: 800; margin-bottom: 8px; color: #fff; }
+    p.lead { color: var(--text-muted); font-size: 1rem; max-width: 720px; margin: 0 auto; }
+
+    .section-card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 12px;
+      padding: 24px;
+      margin-bottom: 24px;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.25);
+    }
+    .section-title {
+      font-size: 1.25rem;
+      font-weight: 700;
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    /* Interactive Simulator */
+    .sim-controls {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 16px;
+      flex-wrap: wrap;
+    }
+    button.btn {
+      background: #1e293b;
+      border: 1px solid #334155;
+      color: #fff;
+      padding: 8px 16px;
+      border-radius: 6px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    button.btn:hover { background: #334155; }
+    button.btn.active {
+      background: var(--primary);
+      color: #0f172a;
+      border-color: var(--primary);
+    }
+
+    .svg-container {
+      width: 100%;
+      background: #090d14;
+      border: 1px solid var(--card-border);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    /* Explanation Text */
+    .analogy-box {
+      background: rgba(245, 158, 11, 0.08);
+      border-left: 4px solid var(--accent);
+      padding: 16px 20px;
+      border-radius: 0 8px 8px 0;
+      margin: 16px 0;
+    }
+    .analogy-title { font-weight: 700; color: var(--accent); margin-bottom: 6px; }
+
+    /* Accordion */
+    details {
+      background: #131c2a;
+      border: 1px solid var(--card-border);
+      border-radius: 8px;
+      margin-bottom: 12px;
+      overflow: hidden;
+    }
+    summary {
+      padding: 14px 18px;
+      font-weight: 600;
+      cursor: pointer;
+      user-select: none;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    summary:hover { background: #1a2638; }
+    .accordion-content {
+      padding: 16px 18px;
+      border-top: 1px solid var(--card-border);
+      color: var(--text-muted);
+      font-size: 0.92rem;
+    }
+
+    footer {
+      text-align: center;
+      margin-top: 40px;
+      color: var(--text-muted);
+      font-size: 0.85rem;
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <div class="badge">ELI5 VISUAL EXPLAINER · 2026-10-04</div>
+    <h1>画面のない機能を案内する罠 ＆ 引き算のUX物理</h1>
+    <p class="lead">「なぜスマホUIに文字入力欄がないのに、音声入力を案内してしまったのか？」——形骸化したドキュメントの真因と、ワンタップ承認特化の物理構造を解剖する。</p>
+  </header>
+
+  <!-- 1. 動くシミュレータ -->
+  <section class="section-card">
+    <div class="section-title">🕹️ 1. 動的シミュレータ：形骸化UI vs 純度100%の承認リモコン</div>
+    <div class="sim-controls">
+      <button class="btn active" id="btn-honest" onclick="setMode('honest')">✅ 最新・純度100%（ワンタップ承認特化）</button>
+      <button class="btn" id="btn-ghost" onclick="setMode('ghost')">⚠️ 是正前（存在しない音声入力の幻影）</button>
+    </div>
+
+    <div class="svg-container">
+      <svg id="sim-svg" viewBox="0 0 800 360" width="100%" height="360" xmlns="http://www.w3.org/2000/svg">
+        <!-- 背景グリッド -->
+        <defs>
+          <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+            <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#172233" stroke-width="1"/>
+          </pattern>
+        </defs>
+        <rect width="800" height="360" fill="url(#grid)" />
+
+        <!-- PC側エージェント -->
+        <rect x="50" y="80" width="220" height="200" rx="10" fill="#1e293b" stroke="#334155" stroke-width="2"/>
+        <text x="160" y="115" text-anchor="middle" fill="#38bdf8" font-size="14" font-weight="700">💻 PC (Coding Agent)</text>
+        <text x="160" y="145" text-anchor="middle" fill="#94a3b8" font-size="11">Claude Code / OpenCode</text>
+        
+        <rect x="70" y="170" width="180" height="40" rx="6" fill="#0f172a" stroke="#475569"/>
+        <text x="160" y="195" text-anchor="middle" fill="#f87171" font-size="11" font-weight="bold">🛑 run: git push --force</text>
+        <text x="160" y="240" text-anchor="middle" fill="#cbd5e1" font-size="11">承認待ちで停止中...</text>
+
+        <!-- パケット・ブリッジ -->
+        <path d="M 270 180 L 490 180" stroke="#38bdf8" stroke-width="3" stroke-dasharray="6,6"/>
+        <circle id="packet" cx="380" cy="180" r="7" fill="#38bdf8">
+          <animate attributeName="cx" values="270;490;270" dur="3s" repeatCount="indefinite"/>
+        </circle>
+        <text x="380" y="165" text-anchor="middle" fill="#38bdf8" font-size="11" font-weight="bold">FastMCP / Bearer HTTP</text>
+
+        <!-- スマホ側PWA (Desk Pet) -->
+        <rect x="510" y="40" width="240" height="280" rx="18" fill="#111827" stroke="#38bdf8" stroke-width="3"/>
+        <rect x="590" y="52" width="80" height="6" rx="3" fill="#374151"/>
+        <text x="630" y="85" text-anchor="middle" fill="#f59e0b" font-size="13" font-weight="800">📱 スマホ Desk Pet</text>
+
+        <!-- 承認カード -->
+        <g id="ui-honest">
+          <rect x="525" y="100" width="210" height="130" rx="8" fill="#1f2937" stroke="#ef4444" stroke-width="2"/>
+          <text x="630" y="125" text-anchor="middle" fill="#f87171" font-size="12" font-weight="bold">⚠️ コマンド承認要求</text>
+          <text x="630" y="150" text-anchor="middle" fill="#94a3b8" font-size="10">git push --force</text>
+          
+          <rect x="540" y="175" width="85" height="36" rx="6" fill="#10b981"/>
+          <text x="582" y="198" text-anchor="middle" fill="#fff" font-size="12" font-weight="bold">✅ 許可</text>
+
+          <rect x="640" y="175" width="85" height="36" rx="6" fill="#ef4444"/>
+          <text x="682" y="198" text-anchor="middle" fill="#fff" font-size="12" font-weight="bold">🛑 拒否</text>
+
+          <text x="630" y="270" text-anchor="middle" fill="#10b981" font-size="11" font-weight="bold">✨ ワンタップで完結（文字入力ゼロ）</text>
+        </g>
+
+        <!-- 幻影の音声入力 -->
+        <g id="ui-ghost" opacity="0">
+          <rect x="525" y="100" width="210" height="190" rx="8" fill="#2d1515" stroke="#ef4444" stroke-width="2" stroke-dasharray="4,4"/>
+          <text x="630" y="125" text-anchor="middle" fill="#fca5a5" font-size="12" font-weight="bold">❓ 文字入力画面？（不存在）</text>
+          
+          <rect x="540" y="145" width="180" height="30" rx="4" fill="#3f1d1d" stroke="#f87171"/>
+          <text x="630" y="165" text-anchor="middle" fill="#fca5a5" font-size="10">「キーボードマイクで話して…」</text>
+
+          <text x="630" y="210" text-anchor="middle" fill="#f87171" font-size="11">❌ 何を入力させるのか？</text>
+          <text x="630" y="230" text-anchor="middle" fill="#f87171" font-size="11">❌ そもそも送信ボタンすらない！</text>
+          <text x="630" y="265" text-anchor="middle" fill="#fbbf24" font-size="10">（形骸化した記述の矛盾）</text>
+        </g>
+      </svg>
+    </div>
+  </section>
+
+  <!-- 2. 初級エンジニア向けの物理構造解説 -->
+  <section class="section-card">
+    <div class="section-title">💡 2. なぜこの矛盾が生まれたのか？（第一原理の反省）</div>
+    
+    <div class="analogy-box">
+      <div class="analogy-title">🏢 身近な例え：エレベーターの押しボタン</div>
+      <p>エレベーターに乗ったとき、やることは「行きたい階のボタンを1回押す」だけです。ここに「キーボードを繋いで行先を手書き入力することもできます」というマニュアルがあったらどう思うでしょうか？<br>
+      <strong>「そもそもキーボードを挿す穴もないし、ボタン押すだけで済むのに何を入力させる気だ？」</strong> と全員が困惑します。今回の「スマホ音声入力」がまさにこれでした。</p>
+    </div>
+
+    <p style="margin-bottom:12px;">ネオ秘書くんのスマホPWAは、<strong>「PCから飛んできた承認要求をワンタップで片付けるリモコン」</strong> です。文字を打ち込む入力フォームは最初から存在しません。</p>
+    <p style="margin-bottom:12px;">しかし過去に重いWhisperを撤去した際、開発チーム（AI）は「撤去したけれどスマホの音声入力があるから代替できる」という <em>自己満足の言い換え</em> をドキュメントに残してしまいました。これがボスの「そもそも入力が必要な画面がないでしょ？」という一撃で見事に看破されたのです。</p>
+  </section>
+
+  <!-- 3. 用語解体辞典 -->
+  <section class="section-card">
+    <div class="section-title">📖 3. 登場した専門用語の完全解体辞典</div>
+
+    <details open>
+      <summary>引き算の美学 (Subtractive Design) <span>▼</span></summary>
+      <div class="accordion-content">
+        機能を増やすのではなく、不要なものを削ぎ落とすことでコアの価値（認知負荷1秒のワンタップ承認）を研ぎ澄ます設計思想。「スマホで長文を打たせる」のではなく、「スマホでは1秒見るだけで済む」ようにすることが真の生産性向上。
+      </div>
+    </details>
+
+    <details open>
+      <summary>MediaSession API (メディアキー連携) <span>▼</span></summary>
+      <div class="accordion-content">
+        スマホのブラウザで音楽再生をエミュレートし、イヤホンやスマートウォッチの「再生/一時停止ボタン」をリモコンとして傍受するWeb標準技術。「音量キー」はセキュリティ上ブラウザから取得できないため、正しくはメディアキー（再生/一時停止）を使うのが物理的真実。
+      </div>
+    </details>
+
+    <details open>
+      <summary>cancel_pending (保留自動消去) <span>▼</span></summary>
+      <div class="accordion-content">
+        スマホで承認する前にPC側で先にキーボード操作（y/n）された場合、スマホ側に残っている待機カードを即座に消去する同期プロトコル。スマホをいちいち手動で閉じる手間をゼロにする。
+      </div>
+    </details>
+
+    <details open>
+      <summary>Air-Gapped Local LLM (LFM2.5) <span>▼</span></summary>
+      <div class="accordion-content">
+        外部インターネット通信を完全に遮断（Air-Gapped）した状態で動く軽量ローカルAI。わずか230MBのメモリフットプリントで、APIキーも通信料も外部漏洩リスクもゼロで動作する。
+      </div>
+    </details>
+  </section>
+
+  <footer>
+    <p>ネオ秘書くん プロジェクト · 二重資産化アーティファクト · 2026-10-04</p>
+  </footer>
+</div>
+
+<script>
+  function setMode(mode) {
+    const honest = document.getElementById('ui-honest');
+    const ghost = document.getElementById('ui-ghost');
+    const btnHonest = document.getElementById('btn-honest');
+    const btnGhost = document.getElementById('btn-ghost');
+
+    if (mode === 'honest') {
+      honest.setAttribute('opacity', '1');
+      ghost.setAttribute('opacity', '0');
+      btnHonest.classList.add('active');
+      btnGhost.classList.remove('active');
+    } else {
+      honest.setAttribute('opacity', '0');
+      ghost.setAttribute('opacity', '1');
+      btnHonest.classList.remove('active');
+      btnGhost.classList.add('active');
+    }
+  }
+</script>
+</body>
+</html>

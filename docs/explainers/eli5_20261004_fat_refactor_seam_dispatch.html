@@ -1,0 +1,630 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ELI5: 2,686行削減の物理 — Fatモジュール Seam（縫い目）分割 ＆ テーブル駆動ディスパッチ解体新書 (2026-10-04)</title>
+<style>
+  :root {
+    --bg: #0b0f19;
+    --card: #151d30;
+    --card-hover: #1c2742;
+    --line: #243354;
+    --fg: #e2e8f0;
+    --dim: #94a3b8;
+    --gold: #f59e0b;
+    --cyan: #38bdf8;
+    --red: #f87171;
+    --green: #4ade80;
+    --purple: #c084fc;
+    --indigo: #818cf8;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 24px;
+    background: var(--bg);
+    color: var(--fg);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Yu Gothic UI", "Meiryo UI", sans-serif;
+    line-height: 1.7;
+  }
+  .header {
+    border-bottom: 1px solid var(--line);
+    padding-bottom: 16px;
+    margin-bottom: 24px;
+  }
+  h1 { font-size: 24px; margin: 0 0 6px; color: #fff; display: flex; align-items: center; gap: 10px; }
+  .meta { color: var(--dim); font-size: 13px; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 99px; font-size: 11px; font-weight: bold; background: #1e293b; border: 1px solid var(--line); color: var(--gold); }
+  
+  .card {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 22px;
+    margin-bottom: 24px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+  }
+  .card h2 {
+    font-size: 18px;
+    margin: 0 0 8px;
+    color: var(--cyan);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .card p.lead {
+    color: var(--dim);
+    font-size: 13px;
+    margin: 0 0 16px;
+    border-left: 3px solid var(--gold);
+    padding-left: 10px;
+  }
+
+  .controls {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    align-items: center;
+    margin-bottom: 16px;
+  }
+  button {
+    background: #1e293b;
+    color: var(--fg);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 8px 16px;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+  button:hover {
+    background: #27354f;
+    border-color: var(--cyan);
+    color: #fff;
+  }
+  button.active {
+    background: var(--indigo);
+    border-color: var(--cyan);
+    color: #fff;
+    box-shadow: 0 0 12px rgba(129, 140, 248, 0.4);
+  }
+  .btn-req {
+    background: #1e1e38;
+    border-color: #4338ca;
+    color: #a5b4fc;
+  }
+  .btn-req:hover {
+    background: #312e81;
+    color: #fff;
+  }
+  .btn-danger {
+    background: #381e24;
+    border-color: #991b1b;
+    color: #fca5a5;
+  }
+  .btn-danger:hover {
+    background: #7f1d1d;
+    color: #fff;
+  }
+
+  .canvas-container {
+    background: #080c16;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    overflow: hidden;
+    position: relative;
+    padding: 10px;
+  }
+  svg {
+    width: 100%;
+    height: 380px;
+    display: block;
+  }
+
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 14px;
+    margin-top: 16px;
+  }
+  .stat-box {
+    background: #0e1526;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 14px;
+    text-align: center;
+  }
+  .stat-val {
+    font-size: 26px;
+    font-weight: 800;
+    color: var(--cyan);
+    font-family: monospace;
+  }
+  .stat-lbl {
+    font-size: 12px;
+    color: var(--dim);
+    margin-top: 4px;
+  }
+
+  .explain-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+  }
+  @media (max-width: 768px) {
+    .explain-grid { grid-template-columns: 1fr; }
+  }
+  .explain-box {
+    background: #0e1526;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 16px;
+  }
+  .explain-box h3 {
+    margin: 0 0 10px;
+    font-size: 15px;
+    color: var(--gold);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .accordion {
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    margin-bottom: 8px;
+    overflow: hidden;
+    background: #0e1526;
+  }
+  .accordion-header {
+    padding: 12px 16px;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    color: var(--fg);
+    transition: background 0.2s;
+  }
+  .accordion-header:hover {
+    background: #17223b;
+    color: var(--cyan);
+  }
+  .accordion-content {
+    display: none;
+    padding: 14px 16px;
+    border-top: 1px solid var(--line);
+    color: var(--dim);
+    font-size: 13px;
+    line-height: 1.6;
+    background: #0a0f1c;
+  }
+  .accordion.open .accordion-content {
+    display: block;
+  }
+  .accordion.open .accordion-header {
+    color: var(--cyan);
+  }
+
+  .log-console {
+    margin-top: 14px;
+    background: #050811;
+    border: 1px solid #1e293b;
+    border-radius: 8px;
+    padding: 10px 14px;
+    font-family: monospace;
+    font-size: 12px;
+    color: #38bdf8;
+    height: 70px;
+    overflow-y: auto;
+  }
+  .log-line { margin: 2px 0; }
+  .log-success { color: #4ade80; }
+  .log-error { color: #f87171; }
+  .log-warn { color: #fbbf24; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>⚡ ELI5: 2,686行削減の物理 — Seam分割 ＆ テーブル駆動ディスパッチ</h1>
+  <div class="meta">
+    作成日: 2026-10-04 ｜ 対象: <code>local_sync_server.py</code> (2,296行 ➔ 748行) ＆ <code>ui/settings_window.py</code> (1,930行 ➔ 792行) ｜ 手帳タスク ID 76 完達
+    <span class="badge">全34テスト ALL GREEN</span>
+    <span class="badge">Seam 技法</span>
+    <span class="badge">Zero-Trust Guard</span>
+  </div>
+</div>
+
+<!-- 第1層: 動くSVGシミュレータ -->
+<div class="card">
+  <h2>🎮 第1層: 動的アーキテクチャ・シミュレータ</h2>
+  <p class="lead">リクエストボタンを押して、巨大なモノリス迷宮とクリーンなテーブル駆動ディスパッチの内部物理を比較体感してください。</p>
+
+  <div class="controls">
+    <button id="btnModeMonolith" onclick="switchMode('monolith')">🏚️ 分割前 (2,300行モノリス)</button>
+    <button id="btnModeSeam" class="active" onclick="switchMode('seam')">✨ 分割後 (テーブル駆動 ＆ Seam)</button>
+    <span style="color:var(--dim); font-size:12px; margin-left:8px;">｜ リクエスト発火:</span>
+    <button class="btn-req" onclick="fireRequest('approval')">🤖 POST /api/agent/approval (Loopback)</button>
+    <button class="btn-req" onclick="fireRequest('quick_add')">📝 POST /api/quick_add_task (Bearer)</button>
+    <button class="btn-req" onclick="fireRequest('status')">📊 GET /api/status (Bearer)</button>
+    <button class="btn-danger" onclick="fireRequest('attack')">🚨 外部IPからの攻撃 (RCE試行)</button>
+  </div>
+
+  <div class="canvas-container">
+    <svg id="archSvg" viewBox="0 0 900 360">
+      <defs>
+        <marker id="arrow" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-fit">
+          <path d="M 0 1 L 8 5 L 0 9 z" fill="#38bdf8" />
+        </marker>
+        <marker id="arrowRed" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-fit">
+          <path d="M 0 1 L 8 5 L 0 9 z" fill="#f87171" />
+        </marker>
+        <marker id="arrowGreen" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-fit">
+          <path d="M 0 1 L 8 5 L 0 9 z" fill="#4ade80" />
+        </marker>
+        <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+          <feGaussianBlur stdDeviation="3" result="blur" />
+          <feComposite in="SourceGraphic" in2="blur" operator="over" />
+        </filter>
+      </defs>
+
+      <!-- 動的描画領域 (JSで制御) -->
+      <g id="svgContent"></g>
+
+      <!-- パケットアニメーション用オブジェクト -->
+      <circle id="packet" cx="-50" cy="-50" r="7" fill="#f59e0b" filter="url(#glow)" opacity="0" />
+    </svg>
+  </div>
+
+  <div class="log-console" id="logConsole">
+    <div class="log-line">🚀 シミュレータ準備完了。リクエストボタンを押してパケットの流れを観察してください。</div>
+  </div>
+
+  <div class="stats-grid">
+    <div class="stat-box">
+      <div class="stat-val" id="statServerLines">748 行</div>
+      <div class="stat-lbl">local_sync_server.py (元2,296行 / -67.4%)</div>
+    </div>
+    <div class="stat-box">
+      <div class="stat-val" id="statSettingsLines">792 行</div>
+      <div class="stat-lbl">settings_window.py (元1,930行 / -58.9%)</div>
+    </div>
+    <div class="stat-box">
+      <div class="stat-val" style="color:var(--green);" id="statTotalCut">2,686 行</div>
+      <div class="stat-lbl">2大Fatモジュール 合計削減行数</div>
+    </div>
+    <div class="stat-box">
+      <div class="stat-val" style="color:var(--gold);">34 / 34</div>
+      <div class="stat-lbl">キャラクトライゼーションテスト ALL GREEN</div>
+    </div>
+  </div>
+</div>
+
+<!-- 第2層: 初級エンジニア向けの物理解説 -->
+<div class="card">
+  <h2>🏢 第2層: 初級エンジニア向けの物理解説（Why & What）</h2>
+  <p class="lead">なぜ2,000行を超えたコードは死ぬのか？そしてSeam技法はどうやって安全に手術したのか？</p>
+
+  <div class="explain-grid">
+    <div class="explain-box">
+      <h3>🏚️ ワンオペ百貨店の崩壊（分割前の物理）</h3>
+      <p>
+        分割前の <code>local_sync_server.py</code> は、例えるなら<strong>「1人の店員が正面玄関の警備、案内所、レジ、在庫管理、調理、配達まですべてこなす巨大百貨店」</strong>でした。
+      </p>
+      <ul>
+        <li><strong>if-elif のスパゲッティ地獄:</strong> <code>do_POST</code> だけで500行を超え、上から下まで20個以上の <code>elif path == '...'</code> を直列に評価。1行書き換えるだけで他のエンドポイントが壊れる恐怖。</li>
+        <li><strong>認可判定の漏れリスク:</strong> 「このAPIはループバック専用か？」「トークンが必要か？」が if 文の奥深くに散乱し、審査漏れ（RCEの隙）が生じやすい構造。</li>
+        <li><strong>AIのコンテキスト圧迫:</strong> 1つのバグを直すだけで 2,300行全文をAIが読み込むため、推論トークンを大量浪費しハングの原因に。</li>
+      </ul>
+    </div>
+
+    <div class="explain-box">
+      <h3>✨ 専門フロアと総合案内所（Seam分割の物理）</h3>
+      <p>
+        今回のリファクタでは、Michael Feathersの<strong>Seam（縫い目）技法</strong>を適用し、百貨店を完全に近代化しました。
+      </p>
+      <ul>
+        <li><strong>総合受付（RouteRecord）:</strong> 入口の <code>do_POST</code> はわずか20行！すべての道案内は1つの「ルートテーブル辞書」で管理され、<code>auth_level</code> に応じて自動でゲート番（認可）がチェックします。</li>
+        <li><strong>看板（Facade）はそのまま:</strong> 外部のテストやモジュールから見たインポート看板（<code>from local_sync_server import get_bridge_hub</code>）は1文字も変えずに再エクスポート。既存のテストスイートは1行も壊れません。</li>
+        <li><strong>専門フロア（Deep Modules）:</strong> 認証は <code>auth_checks.py</code>、エージェント中継は <code>agent_bridge_hub.py</code>、キャッシュは <code>status_cache.py</code> と、それぞれが独立してテスト可能な深いモジュールへ進化しました。</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- 第3層: 専門用語の完全解体辞典 -->
+<div class="card">
+  <h2>📚 第3層: 専門用語の完全解体辞典</h2>
+  <p class="lead">クリックすると詳細が開きます。アーキテクトとしての語彙力を鍛えましょう。</p>
+
+  <div class="accordion" onclick="toggleAcc(this)">
+    <div class="accordion-header">
+      <span>1. Seam（シーム / 縫い目）技法</span>
+      <span>▼</span>
+    </div>
+    <div class="accordion-content">
+      レガシーコード改善の古典『Working Effectively with Legacy Code』で提唱された最重要概念。<br>
+      <strong>「その場所のコードを直接書き換えることなく、プログラムの振る舞いを変更・テスト・分離できる場所」</strong>のこと。<br>
+      今回は、巨大クラスの内部ロジックを独立関数・別モジュールへ切り出し、元の場所からは「呼び出すだけ」の縫い目を作ることで、既存の振る舞いを一切壊さずに安全な外科手術を完遂しました。
+    </div>
+  </div>
+
+  <div class="accordion" onclick="toggleAcc(this)">
+    <div class="accordion-header">
+      <span>2. Facade（ファサード）パターン ＆ 再エクスポート</span>
+      <span>▼</span>
+    </div>
+    <div class="accordion-content">
+      フランス語で「建物の正面」を意味します。内部がどれだけ細かく分割されても、外部の利用者に対しては「おなじみの正面玄関」を提供し続ける設計。<br>
+      <code>local_sync_server.py</code> に <code>from server.agent_bridge_hub import AgentBridgeHub</code> を置くことで、何百もある既存の単体テストや外部スクリプトの <code>patch("local_sync_server.AgentBridgeHub")</code> を1行も書き換えることなく100%の互換性を担保しました。
+    </div>
+  </div>
+
+  <div class="accordion" onclick="toggleAcc(this)">
+    <div class="accordion-header">
+      <span>3. テーブル駆動ディスパッチ（Table-Driven Dispatch）</span>
+      <span>▼</span>
+    </div>
+    <div class="accordion-content">
+      何十個もの <code>if path == '/a': ... elif path == '/b': ...</code> を連ねる代わりに、<code>{"/a": HandlerA, "/b": HandlerB}</code> というデータテーブル（辞書）を定義し、キー検索で一発で処理を呼び出す設計手法。<br>
+      コードの行数が激減するだけでなく、新しいAPIを追加する際もテーブルに1行足すだけで完了し、分岐の漏れやタイポが構造的に排除されます。
+    </div>
+  </div>
+
+  <div class="accordion" onclick="toggleAcc(this)">
+    <div class="accordion-header">
+      <span>4. キャラクトライゼーションテスト（仕様確定テスト）</span>
+      <span>▼</span>
+    </div>
+    <div class="accordion-content">
+      「正しい仕様が何か」を問うのではなく、<strong>「今現在のシステムの実際の振る舞い（Character）をそのまま固定して保護する」</strong>ためのテスト。<br>
+      Phase F0で <code>tests/test_server_seam_characterization.py</code> を敷設し、分割前の各関数の戻り値・引数・例外の挙動を網羅的にピン留めした上でリファクタに着手したため、1つのデグレも生じずにALL GREENで完走できました。
+    </div>
+  </div>
+
+  <div class="accordion" onclick="toggleAcc(this)">
+    <div class="accordion-header">
+      <span>5. ゼロトラスト Loopback 境界防御</span>
+      <span>▼</span>
+    </div>
+    <div class="accordion-content">
+      「社内LANやローカルPCからの通信だから安全だろう」という甘えを排し、すべての通信の出自を厳格に検証する防犯設計。<br>
+      特にエージェント承認API（<code>/api/agent/approval</code>）はPC上でコマンドを実行させる強大な権限を持つため、送信元IPが厳密に <code>127.0.0.1</code> または <code>::1</code> であることを <code>RouteRecord</code> の認証ゲートで機械的に強制。LAN内の他端末からの悪意あるパケットは、ハンドラに届く前に即座に <code>403 Forbidden</code> で撃墜します。
+    </div>
+  </div>
+</div>
+
+<script>
+  let currentMode = 'seam';
+  let isAnimating = false;
+
+  function switchMode(mode) {
+    if (isAnimating) return;
+    currentMode = mode;
+    document.getElementById('btnModeMonolith').className = mode === 'monolith' ? 'active' : '';
+    document.getElementById('btnModeSeam').className = mode === 'seam' ? 'active' : '';
+    
+    if (mode === 'monolith') {
+      document.getElementById('statServerLines').innerText = '2,296 行';
+      document.getElementById('statSettingsLines').innerText = '1,930 行';
+      document.getElementById('statTotalCut').innerText = '0 行 (Fat)';
+      document.getElementById('statTotalCut').style.color = 'var(--red)';
+      log("🏚️ モード切替: 分割前の巨大モノリス状態。500行のif-elif直列評価、責務混在。", "warn");
+    } else {
+      document.getElementById('statServerLines').innerText = '748 行';
+      document.getElementById('statSettingsLines').innerText = '792 行';
+      document.getElementById('statTotalCut').innerText = '2,686 行';
+      document.getElementById('statTotalCut').style.color = 'var(--green)';
+      log("✨ モード切替: 分割後のテーブル駆動 ＆ Seamアーキテクチャ。高速・安全・明快。", "success");
+    }
+    renderSvg();
+  }
+
+  function log(msg, type = "normal") {
+    const con = document.getElementById('logConsole');
+    const div = document.createElement('div');
+    div.className = 'log-line ' + (type === 'success' ? 'log-success' : type === 'error' ? 'log-error' : type === 'warn' ? 'log-warn' : '');
+    div.innerText = `[${new Date().toLocaleTimeString()}] ${msg}`;
+    con.appendChild(div);
+    con.scrollTop = con.scrollHeight;
+  }
+
+  function renderSvg() {
+    const g = document.getElementById('svgContent');
+    if (currentMode === 'monolith') {
+      g.innerHTML = `
+        <!-- モノリス背景 -->
+        <rect x="240" y="30" width="440" height="300" rx="12" fill="#181324" stroke="#7f1d1d" stroke-width="2" />
+        <text x="260" y="60" fill="#f87171" font-weight="bold" font-size="16">🏚️ local_sync_server.py (2,296行の巨大モノリス)</text>
+        <text x="260" y="85" fill="#94a3b8" font-size="12">1ファイルに認証・ハブ・キャッシュ・QRコード・HTTP・GUIが同居</text>
+
+        <!-- if-elif 迷宮ブロック -->
+        <rect x="270" y="110" width="380" height="40" rx="6" fill="#2d1520" stroke="#991b1b" />
+        <text x="290" y="135" fill="#fca5a5" font-family="monospace" font-size="13">if path == '/api/status': (248行の辞書生成)</text>
+
+        <rect x="270" y="160" width="380" height="40" rx="6" fill="#2d1520" stroke="#991b1b" />
+        <text x="290" y="185" fill="#fca5a5" font-family="monospace" font-size="13">elif path == '/api/agent/approval': (直列判定)</text>
+
+        <rect x="270" y="210" width="380" height="40" rx="6" fill="#2d1520" stroke="#991b1b" />
+        <text x="290" y="235" fill="#fca5a5" font-family="monospace" font-size="13">elif path == '/api/quick_add_task': ...</text>
+
+        <rect x="270" y="260" width="380" height="40" rx="6" fill="#2d1520" stroke="#991b1b" />
+        <text x="290" y="285" fill="#94a3b8" font-family="monospace" font-size="12">... 他20個以上の elif 分岐が果てしなく直列に続く ...</text>
+
+        <!-- クライアント -->
+        <rect x="30" y="140" width="140" height="80" rx="8" fill="#151d30" stroke="#38bdf8" />
+        <text x="50" y="175" fill="#38bdf8" font-weight="bold" font-size="14">📱 スマホ / PC</text>
+        <text x="45" y="195" fill="#94a3b8" font-size="11">HTTP Request</text>
+
+        <line x1="170" y1="180" x2="240" y2="180" stroke="#38bdf8" stroke-width="2" marker-end="url(#arrow)" />
+      `;
+    } else {
+      g.innerHTML = `
+        <!-- クライアント -->
+        <rect x="20" y="140" width="130" height="80" rx="8" fill="#151d30" stroke="#38bdf8" />
+        <text x="35" y="175" fill="#38bdf8" font-weight="bold" font-size="13">📱 スマホ / PC</text>
+        <text x="30" y="195" fill="#94a3b8" font-size="11">HTTP Request</text>
+
+        <!-- ルートテーブル受付 -->
+        <rect x="200" y="80" width="180" height="200" rx="10" fill="#17223b" stroke="#38bdf8" stroke-width="2" />
+        <text x="215" y="110" fill="#38bdf8" font-weight="bold" font-size="14">🚦 server/routes.py</text>
+        <text x="215" y="130" fill="#94a3b8" font-size="11">RouteRecord ディスパッチャ</text>
+        
+        <rect x="215" y="145" width="150" height="30" rx="5" fill="#0f172a" stroke="#243354" />
+        <text x="225" y="165" fill="#f59e0b" font-family="monospace" font-size="11">AuthLevel 判定ゲート</text>
+
+        <rect x="215" y="185" width="150" height="30" rx="5" fill="#0f172a" stroke="#243354" />
+        <text x="225" y="205" fill="#4ade80" font-family="monospace" font-size="11">O(1) テーブルルックアップ</text>
+
+        <text x="215" y="245" fill="#94a3b8" font-size="11">local_sync_server.py: 20行</text>
+
+        <!-- 矢印: クライアント -> ルートテーブル -->
+        <line x1="150" y1="180" x2="200" y2="180" stroke="#38bdf8" stroke-width="2" marker-end="url(#arrow)" />
+
+        <!-- 専門モジュール群 (Seam) -->
+        <!-- S2: agent_bridge_hub -->
+        <rect x="460" y="30" width="230" height="60" rx="8" fill="#132338" stroke="#38bdf8" />
+        <text x="475" y="55" fill="#38bdf8" font-weight="bold" font-size="13">🤖 agent_bridge_hub.py</text>
+        <text x="475" y="75" fill="#94a3b8" font-size="11">エージェント承認・待機スレッド管理</text>
+
+        <!-- S4: status_cache / api_status -->
+        <rect x="460" y="105" width="230" height="60" rx="8" fill="#132338" stroke="#4ade80" />
+        <text x="475" y="130" fill="#4ade80" font-weight="bold" font-size="13">📊 api_status.py & cache</text>
+        <text x="475" y="150" fill="#94a3b8" font-size="11">/api/status 巨大生成・6大キャッシュ</text>
+
+        <!-- S3: device_link / tasks -->
+        <rect x="460" y="180" width="230" height="60" rx="8" fill="#132338" stroke="#c084fc" />
+        <text x="475" y="205" fill="#c084fc" font-weight="bold" font-size="13">📝 api_tasks / device_link</text>
+        <text x="475" y="225" fill="#94a3b8" font-size="11">タスク追加・QRペアリング・LAN IP</text>
+
+        <!-- 403 遮断器 -->
+        <rect x="460" y="255" width="230" height="60" rx="8" fill="#2d1520" stroke="#f87171" />
+        <text x="475" y="280" fill="#f87171" font-weight="bold" font-size="13">🛡️ 403 Forbidden 遮断</text>
+        <text x="475" y="300" fill="#fca5a5" font-size="11">外部IPからのループバック要求を即時破棄</text>
+
+        <!-- 配線 -->
+        <path d="M 380 160 C 420 160, 420 60, 460 60" fill="none" stroke="#243354" stroke-width="2" id="wireApproval" />
+        <path d="M 380 180 C 420 180, 420 135, 460 135" fill="none" stroke="#243354" stroke-width="2" id="wireStatus" />
+        <path d="M 380 195 C 420 195, 420 210, 460 210" fill="none" stroke="#243354" stroke-width="2" id="wireTasks" />
+        <path d="M 380 210 C 420 210, 420 285, 460 285" fill="none" stroke="#243354" stroke-width="2" id="wireAttack" />
+
+        <!-- Facade 看板 -->
+        <rect x="730" y="80" width="150" height="180" rx="8" fill="#0d1829" stroke="#f59e0b" stroke-dasharray="4" />
+        <text x="745" y="110" fill="#f59e0b" font-weight="bold" font-size="13">🏛️ Facade 看板</text>
+        <text x="745" y="130" fill="#94a3b8" font-size="11">local_sync_server</text>
+        <text x="745" y="155" fill="#e2e8f0" font-family="monospace" font-size="10">from server import</text>
+        <text x="745" y="175" fill="#38bdf8" font-family="monospace" font-size="10">get_bridge_hub</text>
+        <text x="745" y="195" fill="#4ade80" font-family="monospace" font-size="10">get_sync_server</text>
+        <text x="745" y="215" fill="#c084fc" font-family="monospace" font-size="10">POST_ROUTES...</text>
+        <text x="745" y="240" fill="#94a3b8" font-size="10">既存テスト100%保護</text>
+      `;
+    }
+  }
+
+  function fireRequest(type) {
+    if (isAnimating) return;
+    isAnimating = true;
+    const packet = document.getElementById('packet');
+    packet.setAttribute('opacity', '1');
+
+    if (currentMode === 'monolith') {
+      // モノリスでの迷宮トラバース
+      log(`📨 [Request] ${type.toUpperCase()} を巨大モノリスへ送信。if-elif を順番に評価開始...`);
+      animateMonolith(type);
+    } else {
+      // Seamでのテーブル駆動ディスパッチ
+      log(`⚡ [Request] ${type.toUpperCase()} を送信。RouteRecord が瞬時に判定開始...`);
+      animateSeam(type);
+    }
+  }
+
+  function animateMonolith(type) {
+    const packet = document.getElementById('packet');
+    let step = 0;
+    const points = [
+      { x: 30, y: 180 },
+      { x: 240, y: 180 },
+      { x: 290, y: 130 },
+      { x: 290, y: 180 },
+      { x: 290, y: 230 },
+      { x: 450, y: 230 }
+    ];
+
+    function next() {
+      if (step >= points.length) {
+        packet.setAttribute('opacity', '0');
+        isAnimating = false;
+        log(`🐌 完了: 巨大ファイル内の直列 if-elif を走破して処理完了。コンテキスト消費量・保守リスク大。`, "warn");
+        return;
+      }
+      packet.setAttribute('cx', points[step].x);
+      packet.setAttribute('cy', points[step].y);
+      step++;
+      setTimeout(next, 200);
+    }
+    next();
+  }
+
+  function animateSeam(type) {
+    const packet = document.getElementById('packet');
+    let targetY = 60;
+    let color = '#38bdf8';
+    let endMsg = '';
+    let isError = false;
+
+    if (type === 'approval') {
+      targetY = 60;
+      color = '#38bdf8';
+      endMsg = '✅ [Loopback 認証合格] ➔ server/agent_bridge_hub.py へルーティング成功！';
+    } else if (type === 'status') {
+      targetY = 135;
+      color = '#4ade80';
+      endMsg = '✅ [Bearer 認証合格] ➔ server/api_status.py でスレッドセーフキャッシュから高速返却！';
+    } else if (type === 'quick_add') {
+      targetY = 210;
+      color = '#c084fc';
+      endMsg = '✅ [Bearer 認証合格] ➔ api_tasks.py へ安全に委譲！';
+    } else if (type === 'attack') {
+      targetY = 285;
+      color = '#f87171';
+      endMsg = '🚨 [ZERO-TRUST 発動] 非ループバックIPからの攻撃要求を 403 Forbidden で即時遮断！';
+      isError = true;
+    }
+
+    packet.setAttribute('fill', color);
+
+    // アニメーションステップ
+    packet.setAttribute('cx', 20);
+    packet.setAttribute('cy', 180);
+
+    setTimeout(() => {
+      packet.setAttribute('cx', 290);
+      packet.setAttribute('cy', 180);
+      log(`🔍 RouteRecord: auth_level チェック中...`);
+
+      setTimeout(() => {
+        packet.setAttribute('cx', 570);
+        packet.setAttribute('cy', targetY);
+        log(endMsg, isError ? "error" : "success");
+
+        setTimeout(() => {
+          packet.setAttribute('opacity', '0');
+          isAnimating = false;
+        }, 500);
+      }, 400);
+    }, 300);
+  }
+
+  function toggleAcc(el) {
+    el.classList.toggle('open');
+  }
+
+  // 初期化描画
+  renderSvg();
+</script>
+
+</body>
+</html>

@@ -6,6 +6,14 @@ import shutil
 from datetime import datetime
 from pathlib import Path
 
+import sys
+
+try:
+    sys.stdout.reconfigure(encoding="utf-8")
+    sys.stderr.reconfigure(encoding="utf-8")
+except (AttributeError, OSError):
+    pass
+
 def create_savepoint():
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     # ※ 本スクリプトは tools/ 配下にあるため、プロジェクトルートは2階層上
@@ -36,9 +44,10 @@ def create_savepoint():
             shutil.copytree(src, dst, dirs_exist_ok=True)
             copied.append(f"{item}/")
             
-    print(f"✓ セーブポイントを完全作成しました: {backup_dir}")
+    print(f"[OK] セーブポイントを完全作成しました: {backup_dir}")
     print(f"  退避ファイル数: {len(copied)} 件")
     return backup_dir
 
 if __name__ == "__main__":
     create_savepoint()
+

@@ -5,6 +5,7 @@ from unittest import mock
 import tkinter as tk
 import customtkinter as ctk
 
+import database
 import i18n
 from ui.settings_window import SettingsWindow
 
@@ -18,6 +19,12 @@ class TestSettingsSidebarSeam(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
+        # テスト隔離環境でのDB初期化（テーブル不在エラー防止）
+        try:
+            database.init_db()
+        except Exception:
+            pass
+
         # ヘッドレスTk初期化
         cls.root = tk.Tk()
         cls.root.withdraw()
