@@ -373,6 +373,64 @@ class TestToolGuardHook(unittest.TestCase):
                 self.assertTrue(mock_wait.called)
                 self.assertEqual(state_store.get("last_pending_request_id"), "req_waiting_789")
 
+    def test_run_command_allowed_notifies_and_auto_cancels_on_next_tool(self):
+        """run_command が allow の場合にも Antigravity 画面承認待機通知が飛び、次回ツール実行時に自動キャンセルされること (2026-10-04 強化)."""
+        from unittest import mock
+        import io
+        import json
+
+        state_store = {}
+
+        def mock_load():
+            return dict(state_store)
+
+        def mock_save(s):
+            state_store.clear()
+            state_store.update(s)
+
+        with mock.patch("tool_guard_hook._load_state", side_effect=mock_load), \
+             mock.patch("tool_guard_hook._save_state", side_effect=mock_save), \
+             mock.patch("tool_guard_hook.notify_waiting", return_value="req_cmd_allowed_999") as mock_wait, \
+             mock.patch("tool_guard_hook.cancel_hisho_pending") as mock_cancel, \
+             mock.patch("sys.stdin") as mock_stdin:
+
+            # 1. run_command (allow対象コマンド) を呼び出し
+            payload_cmd = {
+                "toolCall": {
+                    "name": "run_command",
+                    "args": {
+                        "CommandLine": "gh pr diff 16 > pr16.diff",
+                        "Cwd": "C:/repo"
+                    }
+                }
+            }
+            mock_stdin.read.return_value = json.dumps(payload_cmd)
+
+            with mock.patch("sys.stdout", new_callable=io.StringIO) as mock_stdout:
+                tgh.main()
+                out = json.loads(mock_stdout.getvalue())
+                self.assertEqual(out["decision"], "allow")
+                self.assertTrue(mock_wait.called, "allow判定でもAntigravity承認ダイアログ待機通知が送信されること")
+                self.assertEqual(state_store.get("last_pending_request_id"), "req_cmd_allowed_999")
+                self.assertFalse(mock_cancel.called)
+
+            # 2. 次のツール呼び出し (ユーザーがPCで許可ボタンを押した後の実行)
+            payload_next = {
+                "toolCall": {
+                    "name": "view_file",
+                    "args": {"AbsolutePath": "sample.py"}
+                }
+            }
+            mock_stdin.read.return_value = json.dumps(payload_next)
+
+            with mock.patch("sys.stdout", new_callable=io.StringIO) as mock_stdout:
+                tgh.main()
+                out = json.loads(mock_stdout.getvalue())
+                self.assertEqual(out["decision"], "allow")
+                self.assertTrue(mock_cancel.called, "次回ツール実行時に保留中カードが自動消去されること")
+                mock_cancel.assert_called_with("req_cmd_allowed_999", reason="resolved_on_pc")
+                self.assertNotIn("last_pending_request_id", state_store)
+
 
 if __name__ == "__main__":
     unittest.main()
