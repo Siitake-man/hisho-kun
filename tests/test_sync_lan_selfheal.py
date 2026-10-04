@@ -232,8 +232,8 @@ class TestSyncLanSelfHeal(unittest.TestCase):
         self.addCleanup(self._reset_pairing)
         with patch.object(
             local_sync_server.DeskPetSyncHandler,
-            "_is_loopback",
-            staticmethod(lambda ip: False),  # 127.0.0.1 接続を LAN クライアント扱いに偽装
+            "_is_trusted_loopback",
+            lambda self, *args, **kwargs: False,  # 127.0.0.1 接続を LAN クライアント扱いに偽装
         ):
             st, data, _ = self._request("GET", "/api/auth/token")
         self.assertEqual(st, 403, f"LAN からの無条件トークン発行は禁止 (actual: {st} {data})")
@@ -248,8 +248,8 @@ class TestSyncLanSelfHeal(unittest.TestCase):
         """
         with patch.object(
             local_sync_server.DeskPetSyncHandler,
-            "_is_loopback",
-            staticmethod(lambda ip: False),
+            "_is_trusted_loopback",
+            lambda self, *args, **kwargs: False,
         ):
             st, data, _ = self._request("GET", "/api/status")
         self.assertEqual(st, 401, f"LAN からの未認証閲覧は拒否 (actual: {st})")
