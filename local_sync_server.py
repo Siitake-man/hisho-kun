@@ -1296,8 +1296,8 @@ class DeskPetSyncHandler(SimpleHTTPRequestHandler):
                         },
                         ensure_ascii=False
                     ).encode("utf-8"))
-                except Exception:
-                    pass
+                except (OSError, RuntimeError) as e:
+                    logger.debug(f"レートリミット応答送信失敗: {e}")
                 return False
 
         token_mgr = get_sync_token_manager()
@@ -1377,8 +1377,8 @@ class DeskPetSyncHandler(SimpleHTTPRequestHandler):
                             {"status": "forbidden", "message": "この端末の連携は失効しています。"},
                             ensure_ascii=False
                         ).encode("utf-8"))
-                    except Exception:
-                        pass
+                    except (OSError, RuntimeError) as e:
+                        logger.debug(f"失効通知応答送信失敗: {e}")
                     return False
                 # 認証主体: 台帳照合に成功した端末 (手帳 ID 52: identity ベース自己承認判定用)。
                 # device_uuid 未記名の旧行は走査 ID で代替する (ID 50: 行再利用の主キー方針に準拠)。
@@ -1413,8 +1413,8 @@ class DeskPetSyncHandler(SimpleHTTPRequestHandler):
                 {"status": "unauthorized", "message": "有効なトークンがありません。"},
                 ensure_ascii=False
             ).encode("utf-8"))
-        except Exception:
-            pass
+        except (OSError, RuntimeError) as e:
+            logger.debug(f"未認証応答送信失敗: {e}")
         return False
 
     def _check_webhook_auth(self) -> bool:
@@ -1450,8 +1450,8 @@ class DeskPetSyncHandler(SimpleHTTPRequestHandler):
                 {"status": "unauthorized", "message": "Webhook Secret または有効なトークンがありません。"},
                 ensure_ascii=False
             ).encode("utf-8"))
-        except Exception:
-            pass
+        except (OSError, RuntimeError) as e:
+            logger.debug(f"Webhook未認証応答送信失敗: {e}")
         return False
 
     @staticmethod
@@ -1707,8 +1707,8 @@ class DeskPetSyncHandler(SimpleHTTPRequestHandler):
                     try:
                         for s in database.get_all_calendar_sources():
                             _sources_by_id[s.id] = {"name": s.name, "color": s.color}
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        logger.warning(f"カレンダーソース取得失敗: {e}")
                     _cached_tasks_data = [
                         {"id": t.id, "title": t.title, "priority": t.priority, "due_date": t.due_date}
                         for t in tasks
