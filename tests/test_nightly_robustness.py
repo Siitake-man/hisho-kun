@@ -15,6 +15,8 @@ from datetime import datetime
 import sqlite3
 import database
 import i18n
+import ics_tools
+from suggest_engine import SuggestionEngine
 from storage.models import Task
 from task_parser import parse_input, tags_to_db_string, db_string_to_tags, ParsedTask
 
@@ -215,3 +217,87 @@ def test_database_lock_and_malformed_query_handling(temp_db):
 
     with pytest.raises(sqlite3.Error):
         database.get_tasks(db_path=corrupted_db)
+
+
+# ---------------------------------------------------------------------------
+# 5. ics_tools および suggest_engine の境界値・異常系テスト
+# ---------------------------------------------------------------------------
+
+def test_ics_tools_parse_and_sync_edge_cases():
+    """ics_tools における破損 ICS データ・不正 URL の堅牢性検証。"""
+    # 空文字・None入力
+    assert ics_tools._parse_ics_events("") == []
+
+    # 破損した VEVENT (不正な日付フォーマット)
+    corrupted_ics = """BEGIN:VCALENDAR
+VERSION:2.0
+BEGIN:VEVENT
+SUMMARY:破損イベント
+DTSTART:INVALID_DATE_FORMAT_12345
+END:VEVENT
+BEGIN:VEVENT
+SUMMARY:正常イベント
+DTSTART:20260825T100000Z
+DTEND:20260825T110000Z
+END:VEVENT
+END:VCALENDAR"""
+
+    events = ics_tools._parse_ics_events(corrupted_ics)
+    assert len(events) == 1
+    assert events[0]["title"] == "正常イベント"
+
+    # 極端に長い SUMMARY と DESCRIPTION
+    huge_ics = f"""BEGIN:VCALENDAR
+BEGIN:VEVENT
+SUMMARY:{"長" * 5000}
+DESCRIPTION:{"説" * 10000}
+DTSTART:20260825T100000Z
+END:VEVENT
+END:VCALENDAR"""
+    huge_events = ics_tools._parse_ics_events(huge_ics)
+    assert len(huge_events) == 1
+    assert len(huge_events[0]["title"]) == 5000
+
+    # sync_calendar_source の不正 URL ハンドリング
+    source_empty = database.CalendarSource(id=999, name="空ソース", url="", enabled=True)
+    imported, msg = ics_tools.sync_calendar_source(source_empty)
+    assert imported == 0
+    assert "未設定" in msg
+
+    source_cid = database.CalendarSource(id=998, name="cidソース", url="https://calendar.google.com/?cid=1234", enabled=True)
+    imported_cid, msg_cid = ics_tools.sync_calendar_source(source_cid)
+    assert imported_cid == 0
+    assert "カレンダーを追加するリンク" in msg_cid
+
+
+def test_suggest_engine_summary_and_extraction_edge_cases():
+    """suggest_engine における本文ポイント抽出・劣化判定・サマリ生成の境界値検証。"""
+    # _extract_content_points: None / 空文字 / 壊れた HTML
+    assert SuggestionEngine._extract_content_points("", "タイトル") == []
+    assert SuggestionEngine._extract_content_points(None, "タイトル") == []
+
+    broken_html = "<p><b>最新AI</b>の動向について。<a href='http://example.com'>詳細はこちら</a> &nbsp; &quot;重要&quot;</p>"
+    points = SuggestionEngine._extract_content_points(broken_html, "タイトル")
+    assert isinstance(points, list)
+    assert any("最新AI" in p for p in points)
+
+    # 10,000文字の巨大 description
+    huge_desc = "・巨大な内容です。" + ("内容 " * 2000)
+    huge_points = SuggestionEngine._extract_content_points(huge_desc, "タイトル")
+    assert isinstance(huge_points, list)
+
+    # _summary_lines_are_degenerate: 劣化・反復パターンの検出
+    assert SuggestionEngine._summary_lines_are_degenerate([], "タイトル") is True
+    assert SuggestionEngine._summary_lines_are_degenerate(["・1行目のみ"], "タイトル") is True
+    assert SuggestionEngine._summary_lines_are_degenerate(["・同じ内容", "・同じ内容", "・同じ内容"], "タイトル") is True
+
+    # _generate_3line_summary: フォールバックサマリ生成の安全な動作確認
+    engine = SuggestionEngine(start_worker=False)
+    summary = engine._generate_3line_summary(
+        title="<script>alert(1)</script>テストタイトル",
+        description="<div class='test'>本文記述です。AI技術が発展しています。</div>",
+        media="テストメディア",
+    )
+    assert isinstance(summary, str)
+    assert len(summary.splitlines()) <= 3
+    assert "テストタイトル" in summary
