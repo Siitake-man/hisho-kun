@@ -3,12 +3,12 @@
 [![CI](https://github.com/Siitake-man/hisho-kun/actions/workflows/ci.yml/badge.svg)](https://github.com/Siitake-man/hisho-kun/actions/workflows/ci.yml)
 ![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
 [![Python](https://img.shields.io/badge/Python-3.11%20%7C%203.12%20%7C%203.13-blue.svg)](https://www.python.org/)
-[![Latest Release](https://img.shields.io/badge/Release-v1.1.17-emerald.svg)](https://github.com/Siitake-man/hisho-kun/releases/tag/v1.1.17)
-[![Tests Passing](https://img.shields.io/badge/Tests-964%20Passed-brightgreen.svg)](tests/)
+[![Latest Release](https://img.shields.io/badge/Release-v1.1.18-emerald.svg)](https://github.com/Siitake-man/hisho-kun/releases/tag/v1.1.18)
+[![Tests Passing](https://img.shields.io/badge/Tests-980%2B%20Passed-brightgreen.svg)](tests/)
 [![English README](https://img.shields.io/badge/README-English-blue.svg)](README.md)
 
 > 🇬🇧 **English documentation is available!** ➔ Check out [README.md](README.md) for full English guide.  
-> **"Approve your AI coding agent from your phone while taking a coffee break."** ☕
+> ☕ **「電車の中でコードを書くためのモバイルIDEではありません。休日に自律AIを走らせ、リビングで家族と過ごしながら、必要な1秒だけを救い上げるための生活空間のアンビエントな気付き装置です。」**
 
 ### 📱 引き出しで眠る古いスマホが、AI開発の「卓上スマート相棒」に化ける。
 
@@ -19,6 +19,20 @@
 
 <p align="center">
   <img src="docs/guides/assets/banner_main.jpg" width="100%" alt="ネオ秘書くん - あなたの専属卓上AI秘書">
+</p>
+
+<p align="center" style="margin: 24px 0;">
+  <a href="https://siitake-man.github.io/hisho-kun/neo-secretary-showcase.html">
+    <img src="https://img.shields.io/badge/🌟_Interactive_Showcase-全体俯瞰図を見る-40458f?style=for-the-badge&logo=google-cloud&logoColor=white" alt="Interactive Architecture Showcase">
+  </a>
+  &nbsp;&nbsp;
+  <a href="https://siitake-man.github.io/hisho-kun/guides/NEO_HISHO_CHEAT_SHEETS.html">
+    <img src="https://img.shields.io/badge/📘_Cheat_Sheets-公式利用ガイド完全版-8b5e3c?style=for-the-badge&logo=readthedocs&logoColor=white" alt="Official Cheat Sheets">
+  </a>
+  &nbsp;&nbsp;
+  <a href="https://github.com/Siitake-man/hisho-kun/releases/tag/v1.1.18">
+    <img src="https://img.shields.io/badge/📦_Download_v1.1.18-最新ZIPを入手-10b981?style=for-the-badge&logo=windows&logoColor=white" alt="Download Release v1.1.18">
+  </a>
 </p>
 
 <p align="center">
@@ -37,26 +51,30 @@
   <img src="assets/screenshots/phone_approval.png" width="180" alt="エージェント承認要請をスマホでワンタップ承認">
 </p>
 
-<p align="center"><b>🔔 エージェント（OpenCode / Antigravity / Claude Code 等）の「コマンド実行していい？」をスマホでワンタップ承認</b></p>
+---
 
-### 💡 こんなあなたのためのツールです
-- ☕ **AIエージェント（OpenCode / Antigravity / Claude Code 等）を回しながら、気兼ねなく離席・休憩したい人**
-- 📱 **使わなくなった古いスマホ（iPhone / Android）のカッコいい再利用先を探している人**
-- 👾 **無機質なコマンドライン作業に、90年代のレトロゲームのような「愛着と生命感」が欲しい人**
+## ⚡ 開発哲学：生活空間のアンビエント気付き ⇆ モバイル重労働からの解放
 
-<p align="center" style="margin: 24px 0;">
-  <a href="https://siitake-man.github.io/hisho-kun/neo-secretary-showcase.html">
-    <img src="https://img.shields.io/badge/🌟_Interactive_Showcase-全体俯瞰図を見る-40458f?style=for-the-badge&logo=google-cloud&logoColor=white" alt="Interactive Architecture Showcase">
-  </a>
-  &nbsp;&nbsp;
-  <a href="https://siitake-man.github.io/hisho-kun/guides/NEO_HISHO_CHEAT_SHEETS.html">
-    <img src="https://img.shields.io/badge/📘_Cheat_Sheets-公式利用ガイド完全版-8b5e3c?style=for-the-badge&logo=readthedocs&logoColor=white" alt="Official Cheat Sheets">
-  </a>
-  &nbsp;&nbsp;
-  <a href="https://github.com/Siitake-man/hisho-kun/releases/tag/v1.1.17">
-    <img src="https://img.shields.io/badge/📦_Download_v1.1.17-最新ZIPを入手-10b981?style=for-the-badge&logo=windows&logoColor=white" alt="Download Release v1.1.17">
-  </a>
-</p>
+自律AIコーディングの進捗を離席中に監視しようとする際、既存のツール（Paseo、SSHターミナル共有、モバイルWeb IDE等）は「スマホを小さな開発マシンにしよう」としがちです。  
+しかし、**休日に家族と過ごしている時やコーヒーを淹れている最中に、6インチの画面で長大なdiffを読み込み、フリック入力でコマンドを打つのは激しい認知的疲労（消耗）**を生みます。
+
+ネオ秘書くんはその真逆を行きます。**「認知負荷の極小化（1秒のチラ見とワンタップ）」**です。
+
+| 比較軸 | モバイルWeb IDE / ターミナル共有 | 🐾 ネオ秘書くん（アンビエント相棒） |
+|---|---|---|
+| **主戦場** | 通勤電車 / 外出先のヘビー作業 | **リビング生活空間 / コーヒー休憩 / デスクサイド** |
+| **認知負荷** | 高（スマホでdiff精読・ピンチズーム・文字入力） | **極小（1秒で状況把握、ワンタップで即注入）** |
+| **主な操作** | スマホ上でのコード編集・コマンド手動入力 | **承認 / 却下 / 質問選択肢のワンタップ回答** |
+| **画面の佇まい** | 無機質で冷たい開発者コンソール | **呼吸しリアクションする16-bitドット絵ペット** |
+| **通信とプライバシー** | クラウド中継サーバー・外部ポート開放 | **完全ローカルWi-Fi / Tailscale、外部テレメトリ送信ゼロ** |
+| **端末の役割** | メインスマホのバッテリーを消耗 | **引き出しに眠る余剰スマホを卓上専用機にアップサイクル** |
+
+### 💡 コアとなる2層統合レイヤー
+
+1. **第1層：透過的ネイティブフック注入 (OpenCode / Antigravity)**  
+   ターミナルコマンド実行の直前イベントをインターセプトし、スマホが承認するまで実行を安全にブロック・保留します（LLMの指示忘れによるすり抜けゼロ）。
+2. **第2層：FastMCP 標準プロトコルブリッジ (Claude Code / Cline / Cursor / Codex)**  
+   内蔵 FastMCP サーバー (`neo_hisho_bridge`) を介して、エージェントが自律的に `ask_human_approval` や `notify_task_completed` を呼び出し、スマホへ即時通知します。
 
 ---
 
@@ -255,23 +273,80 @@ python tools/setup_local_model.py --model 1.2b # 高品質モードを直接指�
 
 ---
 
-## 🤖 AIエージェント連携（MCP）— 1コマンドでセットアップ
+## 🤖 AIエージェント連携：30秒配線ガイド
 
-ネオ秘書くんは **MCP (Model Context Protocol) サーバー** を内蔵しており、OpenCode / Antigravity / Cline / Claude Desktop / Claude Code / Cursor / VS Code などから「スマホへの承認依頼」「TODO登録」「長期記憶の保存」などのツールを呼び出せます。
+お使いのAIコーディングエージェントとネオ秘書くんを接続するには、**自動セットアップ（推奨）** または **手動設定スニペット** のいずれかを選択してください。
 
-### おすすめの方法：AIエージェント自身に設定させる
+### 方法1：自動ワンライナー（推奨）
 
-インストール後、お使いのAIエージェントに次の1文を伝えるだけでOKです：
-
-> ネオ秘書くんをインストールしたので、プロジェクトフォルダでMCP設定コマンドを実行して、対応すべてのクライアントに登録してください
+自動インストーラーを実行すると、PC内のエージェント設定ファイルを自動検出し、安全なバックアップを作成した上で登録を完了します：
 
 ```bash
-# プロジェクトルートで実行（対応全クライアントへ一括登録・既存設定はバックアップ付き）
 venv\Scripts\python.exe mcp_installer.py --all
 ```
 
-- **対応クライアント**: OpenCode / Antigravity / Claude Desktop / Cursor / Cline / Claude Code / VS Code
-- 既存の設定は上書きされず**マージ**されます。
+- **対応クライアント**: OpenCode / Antigravity / Claude Code / Claude Desktop / Cursor / Cline / VS Code
+- 既存の設定は上書きされず、`neo_hisho_bridge` のみが安全にマージされます。
+
+---
+
+### 方法2：設定ファイル直接記述（30秒）
+
+手動で設定する場合は、お使いのエージェントの設定ファイルに以下のスニペットを追記してください。
+
+> 💡 **パス指定の重要な注意点**:
+> - JSON内のパス区切り文字には、必ずスラッシュ（`/`）を使用してください（Windowsのバックスラッシュによるエスケープエラーを防止）。
+> - 実行コマンドには必ず仮想環境内のPython（`venv/Scripts/python.exe`）をフルパスで指定し、引数に `hisho_mcp_server.py` の絶対パスを渡してください。`cwd`（カレントディレクトリ）に依存した指定は避けてください（WindowsのClaude Code等において `cwd` がサイレントに無視される不具合を防止 — 参照: [anthropics/claude-code#54786](https://github.com/anthropics/claude-code/issues/54786)）。
+
+#### 1. Claude Code (`~/.claude.json` または `.mcp.json`)
+```json
+{
+  "mcpServers": {
+    "neo_hisho_bridge": {
+      "command": "C:/path/to/hisho-kun/venv/Scripts/python.exe",
+      "args": ["C:/path/to/hisho-kun/hisho_mcp_server.py"]
+    }
+  }
+}
+```
+
+#### 2. Cursor (`.cursor/mcp.json`)
+```json
+{
+  "mcpServers": {
+    "neo_hisho_bridge": {
+      "command": "C:/path/to/hisho-kun/venv/Scripts/python.exe",
+      "args": ["C:/path/to/hisho-kun/hisho_mcp_server.py"]
+    }
+  }
+}
+```
+
+#### 3. Cline (`cline_mcp_settings.json`)
+- **VS Code 拡張機能の設定パス**: `%APPDATA%/Code/User/globalStorage/saoudrizwan.claude-dev/settings/cline_mcp_settings.json`
+- **Cline CLI の設定パス**: `~/.cline/data/settings/cline_mcp_settings.json`
+
+```json
+{
+  "mcpServers": {
+    "neo_hisho_bridge": {
+      "command": "C:/path/to/hisho-kun/venv/Scripts/python.exe",
+      "args": ["C:/path/to/hisho-kun/hisho_mcp_server.py"]
+    }
+  }
+}
+```
+
+#### 4. OpenCode 原生インターセプター (`.opencode/plugins/` または グローバルフック)
+LLMの指示忘れによるすり抜けを防ぎ、ターミナル実行直前でコマンドを決定論的にブロック・保留する場合：
+```bash
+# 実行前フックをOpenCodeプロジェクトへ直接配備
+venv\Scripts\python.exe tools/install_opencode_hook.py
+```
+
+> 💡 **内部での動作の仕組み**:
+> - **OpenCode 原生フック**: シェル実行イベントを捉えてネオ秘書くん (`POST /api/agent/approval`) へ通知し、スマホで許可されるまでターミナルをブロック待機させます。
+> - **FastMCP ツール**: エージェントが自律的に `ask_human_approval`、`notify_task_completed`、`remember_boss_insight` を呼び出すと、ネオ秘書くんのキューへ入り各端末へ即座に同期されます。
 
 ---
 
@@ -286,7 +361,7 @@ venv\Scripts\python.exe mcp_installer.py --all
 ```
 ネオ秘書くん／
 ├── main.py                 # メイン起動ファイル
-├── version.py              # バージョン定義 (Single Source of Truth: v1.1.17)
+├── version.py              # バージョン定義 (Single Source of Truth・各所は本値を参照)
 ├── update_checker.py       # 更新チェック (GitHub Releases・通知のみ)
 ├── gui.py                   # PCペットUI
 ├── agent.py                  # LangGraph エージェント
@@ -298,7 +373,7 @@ venv\Scripts\python.exe mcp_installer.py --all
 ├── web_pet／                 # スマホPWA フロントエンド (自動消去 & カルーセル)
 ├── assets／dot／              # ドット絵アセット（2キャラ: 秘書くん／カイル）
 ├── tools／                    # 開発ツール類
-├── tests／                    # テストスイート (964+ passed)
+├── tests／                    # テストスイート (980+ passed)
 ├── docs／                     # ドキュメント
 └── .env.example               # 環境設定テンプレート
 ```
