@@ -21,7 +21,8 @@ class TestQuietServerErrorHandling(unittest.TestCase):
         self.server = local_sync_server.QuietThreadingHTTPServer(
             ("127.0.0.1", 0), local_sync_server.DeskPetSyncHandler
         )
-        self.logger = local_sync_server.logger
+        import server.httpd_core
+        self.logger = server.httpd_core.logger
         patcher = mock.patch.object(self.logger, "debug")
         patcher2 = mock.patch.object(self.logger, "warning")
         self.mock_debug = patcher.start()

@@ -34,15 +34,17 @@ class TestHabitCache(unittest.TestCase):
         cls.mock_get_tasks = MagicMock(return_value=[])
         cls.mock_get_upcoming_events = MagicMock(return_value=[])
         cls.mock_get_all_calendar_sources = MagicMock(return_value=[])
-        cls.mock_get_habits = MagicMock(return_value=[])
+        mock_habit = MagicMock()
+        mock_habit.model_dump.return_value = {"id": 1, "title": "読書"}
+        cls.mock_get_habits = MagicMock(return_value=[mock_habit])
         cls.mock_get_heatmap = MagicMock(return_value=[])
 
         cls._patchers = [
-            patch.object(local_sync_server.database, "get_tasks", cls.mock_get_tasks),
-            patch.object(local_sync_server.database, "get_upcoming_events", cls.mock_get_upcoming_events),
-            patch.object(local_sync_server.database, "get_all_calendar_sources", cls.mock_get_all_calendar_sources),
-            patch.object(local_sync_server.database, "get_habits_with_status", cls.mock_get_habits),
-            patch.object(local_sync_server.database, "get_habit_heatmap_data", cls.mock_get_heatmap),
+            patch.object(database, "get_tasks", cls.mock_get_tasks),
+            patch.object(database, "get_upcoming_events", cls.mock_get_upcoming_events),
+            patch.object(database, "get_all_calendar_sources", cls.mock_get_all_calendar_sources),
+            patch.object(database, "get_habits_with_status", cls.mock_get_habits),
+            patch.object(database, "get_habit_heatmap_data", cls.mock_get_heatmap),
         ]
 
         suggest_engine_mock = MagicMock()

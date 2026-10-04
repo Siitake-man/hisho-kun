@@ -115,7 +115,11 @@ class TestAuthRateLimiterIntegration(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
+        import database
+        database.init_db()
+
         import local_sync_server
+        import server.auth_checks
         import threading
         from http.server import ThreadingHTTPServer
 
@@ -135,15 +139,15 @@ class TestAuthRateLimiterIntegration(unittest.TestCase):
         # テスト期間中のみハンドラクラスの信頼判定を False (外部IP扱い) に差し替え、
         # tearDownClass で厳密に復元する。プロダクションコード (local_sync_server.py) は
         # 一切変更しない。
-        cls._orig_is_private_ip = local_sync_server.DeskPetSyncHandler._is_private_ip
-        local_sync_server.DeskPetSyncHandler._is_private_ip = lambda self, ip: False
+        cls._orig_is_private_ip = server.auth_checks.is_private_ip
+        server.auth_checks.is_private_ip = lambda ip: False
 
     @classmethod
     def tearDownClass(cls):
-        # 信頼判定を staticmethod として厳密に元へ戻す (他テストへの状態漏出防止)
+        # 信頼判定を元へ戻す (他テストへの状態漏出防止)
         if getattr(cls, "_orig_is_private_ip", None) is not None:
-            import local_sync_server
-            local_sync_server.DeskPetSyncHandler._is_private_ip = staticmethod(cls._orig_is_private_ip)
+            import server.auth_checks
+            server.auth_checks.is_private_ip = cls._orig_is_private_ip
             cls._orig_is_private_ip = None
         cls.httpd.shutdown()
         cls.httpd.server_close()
