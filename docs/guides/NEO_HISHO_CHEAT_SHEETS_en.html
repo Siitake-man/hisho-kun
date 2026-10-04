@@ -536,6 +536,145 @@
       background: #FAF8F5;
     }
 
+    /* ========================================================
+       Option B: Responsive Info Board Component
+       Replaces raster AI infographic images with bulletproof responsive HTML
+       ======================================================== */
+    .info-board {
+      background: #FDFBF7;
+      border: 2px solid #E6DCCE;
+      border-radius: var(--radius-lg);
+      padding: 24px 20px 28px;
+      margin-bottom: 28px;
+      box-shadow: 0 4px 20px rgba(139, 94, 60, 0.06);
+      position: relative;
+    }
+
+    .info-board-ribbon {
+      text-align: center;
+      margin-bottom: 24px;
+      position: relative;
+    }
+
+    .info-board-tag {
+      display: inline-block;
+      background: #8B5E3C;
+      color: #FFF;
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      padding: 4px 16px;
+      border-radius: 20px;
+      text-transform: uppercase;
+      box-shadow: 0 2px 6px rgba(139, 94, 60, 0.25);
+    }
+
+    .info-board-title {
+      font-size: clamp(1.2rem, 2.5vw, 1.65rem);
+      font-weight: 900;
+      color: #2D241E;
+      margin: 8px 0 4px;
+      letter-spacing: -0.02em;
+    }
+
+    .info-board-subtitle {
+      font-size: 13.5px;
+      color: #736458;
+      font-weight: 600;
+    }
+
+    .info-board-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+      gap: 16px;
+    }
+
+    .info-step-card {
+      background: #FFFFFF;
+      border: 1.5px solid #E8DFD3;
+      border-radius: var(--radius-md);
+      padding: 20px 16px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+      position: relative;
+    }
+
+    .info-step-card:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 8px 24px rgba(139, 94, 60, 0.12);
+      border-color: #8B5E3C;
+    }
+
+    .info-step-num {
+      width: 32px;
+      height: 32px;
+      background: #8B5E3C;
+      color: #FFF;
+      border-radius: 50%;
+      font-weight: 900;
+      font-size: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 10px;
+      box-shadow: 0 2px 6px rgba(139, 94, 60, 0.3);
+    }
+
+    .info-step-card:nth-child(1) .info-step-num { background: #0F7C78; }
+    .info-step-card:nth-child(2) .info-step-num { background: #40458F; }
+    .info-step-card:nth-child(3) .info-step-num { background: #D48A19; }
+    .info-step-card:nth-child(4) .info-step-num { background: #B44B43; }
+
+    .info-step-heading {
+      font-size: 15px;
+      font-weight: 800;
+      color: #2D241E;
+      line-height: 1.35;
+      min-height: 40px;
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .info-step-visual {
+      width: 100%;
+      height: 100px;
+      background: #F8F5EE;
+      border-radius: 12px;
+      border: 1px solid #ECE4D8;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 14px;
+      font-size: 38px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .info-step-desc {
+      font-size: 12.5px;
+      color: #596071;
+      line-height: 1.55;
+      flex-grow: 1;
+      margin-bottom: 12px;
+    }
+
+    .info-step-badge {
+      display: inline-block;
+      font-size: 11px;
+      font-weight: 800;
+      padding: 3px 10px;
+      border-radius: 12px;
+      background: #F3ECE2;
+      color: #8B5E3C;
+      border: 1px solid #E2D7C7;
+    }
+
     /* Lightbox Modal */
     .lightbox-modal {
       display: none;
@@ -574,7 +713,7 @@
         <div class="logo-icon">🤖</div>
         <div class="logo-text">
           <h1>Neo-Secretary Official Guide</h1>
-          <p>Desk Pet & AI Coding Remote Approval Cockpit</p>
+          <p>Ambient Desk Pet & Living-Space AI Companion</p>
         </div>
       </a>
       <nav class="nav-tabs">
@@ -607,36 +746,43 @@
           <div class="zoom-badge">🔍 Click to Zoom</div>
         </div>
         <div class="card-body">
-          <span class="section-tag">✨ Executive Overview</span>
-          <h2 class="section-title">Neo-Secretary: Your Autonomous AI Companion</h2>
-          <p class="lead-text"><strong>"Never let autonomous AI coding halt when you step away."</strong> Turn your spare smartphone into an adorable retro-style Desk Pet and remote approval cockpit for Claude Code, Cline, Cursor, and Codex.</p>
+          <span class="section-tag">✨ Executive Overview (v1.1.18)</span>
+          <h2 class="section-title">Neo-Secretary: Your Ambient Living-Space Companion</h2>
+          <p class="lead-text"><strong>"Delegate autonomous AI coding to your PC, spend weekends with your family in the living room."</strong> Turn your spare smartphone into an ambient living-space companion for 1-tap remote approval across Claude Code, Cline, Cursor, and Antigravity.</p>
+
+          <div class="scene-card" style="margin-top: 18px; background: #fff5d9; border-left: 4px solid var(--amber); padding: 16px 20px;">
+            <div style="font-weight: 800; color: #8b5600; font-size: 0.95rem; margin-bottom: 6px;">💡 Note on Infographics & Mascot Characters</div>
+            <p style="font-size: 0.88rem; color: #596071; line-height: 1.55; margin: 0;">
+              The banner above reflects an early visual prototype. In the current release (v1.1.18), Neo-Secretary features the official built-in skins <strong>"Hisho"</strong> and <strong>"Kyle"</strong>, while <strong>"Shiitake-kun (🍄)"</strong> serves as the project mascot and brand icon. Furthermore, it has evolved into an <strong>ambient living-space companion</strong> designed for your living room sofa and kitchen rather than keeping you chained to a computer desk. (A refreshed visual photoshoot will be released in sprint ID 85).
+            </p>
+          </div>
 
           <div class="scene-card" style="margin-top: 24px; border-left: 4px solid var(--primary);">
             <h3 class="scene-title">🔥 6 Core Highlights of Neo-Secretary</h3>
             <div class="scene-flow">
               <div class="scene-flow-step">
+                <span>🤖</span>
+                <span><strong>1. One-Tap Remote Approval (FastMCP & Transparent Hooks)</strong>: Review and approve AI coding commands from your couch or kitchen. PC actions automatically dismiss pending cards.</span>
+              </div>
+              <div class="scene-flow-step">
                 <span>📱</span>
-                <span><strong>1. Upcycle Spare Smartphones into a Smart Cockpit</strong>: Place your unused phone next to your keyboard. A living pixel mascot breathes and monitors your builds.</span>
+                <span><strong>2. Upcycle Spare Smartphones into an Ambient Companion</strong>: Place your unused phone in the living room. A living pixel mascot breathes and monitors autonomous builds.</span>
               </div>
               <div class="scene-flow-step">
                 <span>🚀</span>
-                <span><strong>2. Zero App Installs Required (Pure PWA)</strong>: Instant zero-config connection via QR code on mobile Safari/Chrome. Zero battery hog, zero app store hassles.</span>
-              </div>
-              <div class="scene-flow-step">
-                <span>🤖</span>
-                <span><strong>3. One-Tap Remote Approval for AI Coding Agents</strong>: Seamless MCP bridge for Claude Code, Cline, and Cursor. Review and approve commands from your couch or kitchen.</span>
+                <span><strong>3. Zero App Installs Required (Pure PWA)</strong>: Instant zero-config connection via QR code on mobile Safari/Chrome. 0fps adaptive sleep preserves battery life.</span>
               </div>
               <div class="scene-flow-step">
                 <span>📅</span>
-                <span><strong>4. Integrated Tasks & Read-Only iCal Sync</strong>: Timeline scheduler, Quick-Add natural language tasks, habit trackers, and proactive calendar reminders.</span>
+                <span><strong>4. Integrated Tasks & Read-Only iCal Sync</strong>: Daily timeline scheduler, Quick-Add natural language tasks, habit trackers, and proactive calendar reminders.</span>
               </div>
               <div class="scene-flow-step">
                 <span>🔒</span>
-                <span><strong>5. Local-Only 3-Layer Zero-Trust Defense</strong>: Bearer auth tokens, constant-time SHA-256 verification, and strict anti-self-approval protection against RCE.</span>
+                <span><strong>5. Local-Only Boundary Defense (Air-Gapped Privacy)</strong>: Per-device 256-bit cryptographic tokens, fail-closed isolation, and constant-time token verification.</span>
               </div>
               <div class="scene-flow-step">
                 <span>💬</span>
-                <span><strong>6. Offline LLM Built-in (LFM2.5)</strong>: Runs entirely offline on local CPU with zero cloud API keys needed. Ask your pet anything right from the chat bubble!</span>
+                <span><strong>6. Bundled Offline Local AI (LFM2.5)</strong>: Runs entirely offline on local CPU with zero cloud API keys needed. Ask your pet anything right from the chat bubble!</span>
               </div>
             </div>
           </div>
@@ -712,9 +858,51 @@
     <!-- Tab 1: Cheatsheet 1 - Setup -->
     <section id="tab-cs01" class="tab-content">
       <div class="hero-card">
-        <div class="infographic-wrapper" onclick="openLightbox('assets/cs01_setup_en.jpg')">
-          <img src="assets/cs01_setup_en.jpg" alt="Setup Guide Infographic" class="infographic-img">
-          <div class="zoom-badge">🔍 Click to Zoom</div>
+        <!-- Option B: Responsive Info Board Component (Initial Setup) -->
+        <div class="info-board">
+          <div class="info-board-ribbon">
+            <span class="info-board-tag">Cheatsheet ①</span>
+            <div class="info-board-title">Initial Setup & Quickstart Guide</div>
+            <div class="info-board-subtitle">From binary extraction to offline local LLM in under 60 seconds</div>
+          </div>
+          <div class="info-board-grid">
+            <div class="info-step-card">
+              <div class="info-step-num">1</div>
+              <div class="info-step-heading">Extract & Launch<br>(Zero Installation)</div>
+              <div class="info-step-visual">
+                <span>📦</span>
+              </div>
+              <div class="info-step-desc">Download NeoHisho.zip from GitHub Releases. Unzip and run NeoHisho.exe.</div>
+              <span class="info-step-badge">10-Sec Launch</span>
+            </div>
+            <div class="info-step-card">
+              <div class="info-step-num">2</div>
+              <div class="info-step-heading">1-Click Local AI<br>(LFM2.5 · 230MB)</div>
+              <div class="info-step-visual">
+                <span>🧠</span>
+              </div>
+              <div class="info-step-desc">Fetch ultra-lightweight LFM2.5 model in Settings. Operates air-gapped without API keys.</div>
+              <span class="info-step-badge">Zero API Keys</span>
+            </div>
+            <div class="info-step-card">
+              <div class="info-step-num">3</div>
+              <div class="info-step-heading">Interactive Tour<br>(Guided Onboarding)</div>
+              <div class="info-step-visual">
+                <span>💬</span>
+              </div>
+              <div class="info-step-desc">Your pet walks you through menus, mobile pairing, and digital notebook features.</div>
+              <span class="info-step-badge">Guided Tour</span>
+            </div>
+            <div class="info-step-card">
+              <div class="info-step-num">4</div>
+              <div class="info-step-heading">Wire AI Agents<br>(FastMCP Bridge)</div>
+              <div class="info-step-visual">
+                <span>🔌</span>
+              </div>
+              <div class="info-step-desc">Deterministic absolute-path wiring for Claude Code, Cline, Cursor, and Antigravity.</div>
+              <span class="info-step-badge">Ready in 30s</span>
+            </div>
+          </div>
         </div>
         <div class="card-body">
           <span class="section-tag">📘 Cheatsheet ①</span>
@@ -793,14 +981,56 @@
     <!-- Tab 2: Cheatsheet 2 - Mobile & QR -->
     <section id="tab-cs02" class="tab-content">
       <div class="hero-card">
-        <div class="infographic-wrapper" onclick="openLightbox('assets/cs02_mobile_en.jpg')">
-          <img src="assets/cs02_mobile_en.jpg" alt="Mobile Pairing Infographic" class="infographic-img">
-          <div class="zoom-badge">🔍 Click to Zoom</div>
+        <!-- Option B: Responsive Info Board Component (Mobile Pairing & Encrypted Mesh) -->
+        <div class="info-board">
+          <div class="info-board-ribbon">
+            <span class="info-board-tag">Cheatsheet ②</span>
+            <div class="info-board-title">Mobile Pairing & Encrypted Mesh Guide</div>
+            <div class="info-board-subtitle">QR pairing, full-screen PWA, and living-space Tailscale mesh connectivity</div>
+          </div>
+          <div class="info-board-grid">
+            <div class="info-step-card">
+              <div class="info-step-num">1</div>
+              <div class="info-step-heading">Display QR Code<br>(Single Right-Click)</div>
+              <div class="info-step-visual">
+                <span>🖥️</span>
+              </div>
+              <div class="info-step-desc">Right-click your companion ➔ "📱 Mobile Desk Pet" to generate a secure pairing QR code.</div>
+              <span class="info-step-badge">1-Click QR</span>
+            </div>
+            <div class="info-step-card">
+              <div class="info-step-num">2</div>
+              <div class="info-step-heading">Scan with Camera<br>(Pure Web PWA)</div>
+              <div class="info-step-visual">
+                <span>📱</span>
+              </div>
+              <div class="info-step-desc">Scan with default phone camera. Opens instantly in browser with zero app store downloads.</div>
+              <span class="info-step-badge">No App Store</span>
+            </div>
+            <div class="info-step-card">
+              <div class="info-step-num">3</div>
+              <div class="info-step-heading">Add to Home Screen<br>(Full-Screen Mascot)</div>
+              <div class="info-step-visual">
+                <span>📲</span>
+              </div>
+              <div class="info-step-desc">Tap "Add to Home Screen". Hides browser chrome and launches as a retro desktop pet.</div>
+              <span class="info-step-badge">Full-Screen PWA</span>
+            </div>
+            <div class="info-step-card">
+              <div class="info-step-num">4</div>
+              <div class="info-step-heading">Living-Space Mesh<br>(Tailscale Security)</div>
+              <div class="info-step-visual">
+                <span>🛋️ ☕</span>
+              </div>
+              <div class="info-step-desc">Run autonomous AI on PC while relaxing in the living room. Encrypted mesh spans your entire home.</div>
+              <span class="info-step-badge">Living-Space Ambient</span>
+            </div>
+          </div>
         </div>
         <div class="card-body">
           <span class="section-tag">📱 Cheatsheet ②</span>
-          <h2 class="section-title">Mobile Desk Pet PWA & Tailscale VPN Guide</h2>
-          <p class="lead-text">Turn your unused smartphone into a live desktop cockpit. Works on local Wi-Fi or securely over cellular/remote networks.</p>
+          <h2 class="section-title">Mobile Desk Pet PWA & Tailscale Encrypted Mesh Guide</h2>
+          <p class="lead-text">Turn your unused smartphone into an ambient living-space companion. Works seamlessly on local Wi-Fi or across your home via encrypted Tailscale mesh.</p>
 
           <div class="grid-2">
             <div class="feature-card">
@@ -846,9 +1076,51 @@
     <!-- Tab 3: Cheatsheet 3 - Calendar & Notebook -->
     <section id="tab-cs03" class="tab-content">
       <div class="hero-card">
-        <div class="infographic-wrapper" onclick="openLightbox('assets/cs03_calendar_en.jpg')">
-          <img src="assets/cs03_calendar_en.jpg" alt="Integrated Notebook Infographic" class="infographic-img">
-          <div class="zoom-badge">🔍 Click to Zoom</div>
+        <!-- Option B: Responsive Info Board Component (Digital Notebook & Calendar) -->
+        <div class="info-board">
+          <div class="info-board-ribbon">
+            <span class="info-board-tag">Cheatsheet ③</span>
+            <div class="info-board-title">Digital Notebook & Google Calendar Sync</div>
+            <div class="info-board-subtitle">Proactive briefings, natural language tasks, habit tracking, and Pomodoro</div>
+          </div>
+          <div class="info-board-grid">
+            <div class="info-step-card">
+              <div class="info-step-num">1</div>
+              <div class="info-step-heading">iCal Secure Sync<br>(Zero Credentials)</div>
+              <div class="info-step-visual">
+                <span>📅</span>
+              </div>
+              <div class="info-step-desc">Paste your secret Google Calendar iCal URL. Fetches events read-only without storing OAuth tokens.</div>
+              <span class="info-step-badge">Read-Only Safety</span>
+            </div>
+            <div class="info-step-card">
+              <div class="info-step-num">2</div>
+              <div class="info-step-heading">Natural Language<br>(Quick Task Add)</div>
+              <div class="info-step-visual">
+                <span>📝</span>
+              </div>
+              <div class="info-step-desc">Type "Submit report tomorrow 18:00 #finance !high" to parse dates, tags, and priorities instantly.</div>
+              <span class="info-step-badge">Smart Parser</span>
+            </div>
+            <div class="info-step-card">
+              <div class="info-step-num">3</div>
+              <div class="info-step-heading">Habit Tracker<br>(Streak Heatmap)</div>
+              <div class="info-step-visual">
+                <span>🌱</span>
+              </div>
+              <div class="info-step-desc">Track hydration, reading, and fitness routines. Your companion cheers for your streak milestones.</div>
+              <span class="info-step-badge">Visual Heatmap</span>
+            </div>
+            <div class="info-step-card">
+              <div class="info-step-num">4</div>
+              <div class="info-step-heading">Pomodoro Focus<br>(Burnout Shield)</div>
+              <div class="info-step-visual">
+                <span>🍅 🍵</span>
+              </div>
+              <div class="info-step-desc">25m work + 5m rest cycles. Pet adopts focus pose during work and suggests tea on breaks.</div>
+              <span class="info-step-badge">Flow State</span>
+            </div>
+          </div>
         </div>
         <div class="card-body">
           <span class="section-tag">📅 Cheatsheet ③</span>
@@ -904,14 +1176,56 @@
     <!-- Tab 4: Cheatsheet 4 - Agent Approval Platform -->
     <section id="tab-cs04" class="tab-content">
       <div class="hero-card">
-        <div class="infographic-wrapper" onclick="openLightbox('assets/cs04_agent_en.jpg')">
-          <img src="assets/cs04_agent_en.jpg" alt="Agent Approval Platform Infographic" class="infographic-img">
-          <div class="zoom-badge">🔍 Click to Zoom</div>
+        <!-- Option B: Responsive Info Board Component (Agent Approval & 2-Layer Architecture) -->
+        <div class="info-board">
+          <div class="info-board-ribbon">
+            <span class="info-board-tag">Cheatsheet ④ · Core Feature</span>
+            <div class="info-board-title">AI Agent Remote Approval & 2-Layer Integration</div>
+            <div class="info-board-subtitle">Claude Code, Cline, Cursor, Antigravity, and cancel_pending synchronization</div>
+          </div>
+          <div class="info-board-grid">
+            <div class="info-step-card">
+              <div class="info-step-num">1</div>
+              <div class="info-step-heading">30-Second Setup<br>(Absolute Paths)</div>
+              <div class="info-step-visual">
+                <span>⚡</span>
+              </div>
+              <div class="info-step-desc">Deterministic absolute-path configuration for Claude Code, Cline, and Cursor (fixes Windows #54786).</div>
+              <span class="info-step-badge">Deterministic Paths</span>
+            </div>
+            <div class="info-step-card">
+              <div class="info-step-num">2</div>
+              <div class="info-step-heading">Transparent Hooks<br>(Auto Intercept)</div>
+              <div class="info-step-visual">
+                <span>🛡️</span>
+              </div>
+              <div class="info-step-desc">OpenCode & shell hooks intercept command execution. Pushes alerts with Jev safety audit scores.</div>
+              <span class="info-step-badge">Layer 1 Hooks</span>
+            </div>
+            <div class="info-step-card">
+              <div class="info-step-num">3</div>
+              <div class="info-step-heading">PC Auto-Dismissal<br>(cancel_pending)</div>
+              <div class="info-step-visual">
+                <span>✨ 📲</span>
+              </div>
+              <div class="info-step-desc">When approved on PC, mobile pending cards dismiss immediately! Zero lingering notification clutter.</div>
+              <span class="info-step-badge">Ambient UX</span>
+            </div>
+            <div class="info-step-card">
+              <div class="info-step-num">4</div>
+              <div class="info-step-heading">1-Tap & Earbuds<br>(No-Look Decisions)</div>
+              <div class="info-step-visual">
+                <span>🎧 👆</span>
+              </div>
+              <div class="info-step-desc">Approve via single mobile tap or Bluetooth earphone play/pause media button with coffee in hand.</div>
+              <span class="info-step-badge">Save Life Time</span>
+            </div>
+          </div>
         </div>
         <div class="card-body">
           <span class="section-tag">🤖 Cheatsheet ④ [Core Hero Feature]</span>
-          <h2 class="section-title">Autonomous AI Coding Remote Approval Cockpit</h2>
-          <p class="lead-text">Bridge Claude Code, Cline, Cursor, and Codex with your mobile phone. Features a 3-Tier Policy Engine and SQLite Audit Logging.</p>
+          <h2 class="section-title">Autonomous AI Coding Remote Approval & 2-Layer Integration</h2>
+          <p class="lead-text">Bridge Claude Code, Cline, Cursor, and Codex with your mobile phone. Features a 3-Tier Policy Engine, cancel_pending auto-dismissal, and SQLite Audit Logging.</p>
 
           <div class="scene-card" style="border-left: 4px solid #B44B43;">
             <h3 class="scene-title">🛡️ 3-Tier Smart Approval Policy Engine</h3>
@@ -938,17 +1252,18 @@
           <div class="grid-2" style="margin-top: 24px;">
             <div class="feature-card">
               <div class="feature-icon">🔌</div>
-              <div class="feature-title">Claude Code MCP Integration</div>
+              <div class="feature-title">Claude Code & Cline Deterministic MCP</div>
               <div class="feature-desc">
-                Register Neo-Secretary into Claude Code with one terminal command:
-                <div class="code-box">claude mcp add hisho-bridge -- python "C:/path/to/hisho-kun/hisho_mcp_server.py"</div>
+                • <strong>Claude Code</strong>: Register via terminal using absolute paths (bypasses Windows cwd bug):
+                <div class="code-box">claude mcp add hisho-bridge -- "C:/path/to/venv/Scripts/python.exe" "C:/path/to/hisho-kun/hisho_mcp_server.py"</div>
+                • <strong>Cline</strong>: Add the identical absolute paths into <code>cline_mcp_settings.json</code>.
               </div>
             </div>
             <div class="feature-card">
               <div class="feature-icon">⚙️</div>
-              <div class="feature-title">1-Click Auto Registration</div>
+              <div class="feature-title">Antigravity 1-Click Auto Registration</div>
               <div class="feature-desc">
-                Open Neo-Secretary Settings ➔ "External AI / MCP" tab. Click <strong>"Auto-Register to All IDEs"</strong> to inject MCP configurations into Antigravity, Cline, and Cursor automatically!
+                Open Neo-Secretary Settings ➔ "External AI / MCP" tab. Click <strong>"🚀 Auto-Register to Antigravity"</strong> to inject MCP configurations automatically!
               </div>
             </div>
           </div>
@@ -985,14 +1300,47 @@
     <!-- Tab 5: Cheatsheet 5 - Local LLM & Skins -->
     <section id="tab-cs05" class="tab-content">
       <div class="hero-card">
-        <div class="infographic-wrapper" onclick="openLightbox('assets/cs05_localllm_en.jpg')">
-          <img src="assets/cs05_localllm_en.jpg" alt="Local LLM Infographic" class="infographic-img">
-          <div class="zoom-badge">🔍 Click to Zoom</div>
+        <!-- Option B: Responsive Info Board Component (Local LLM & Built-in Skins) -->
+        <div class="info-board">
+          <div class="info-board-ribbon">
+            <span class="info-board-tag">Cheatsheet ⑤</span>
+            <div class="info-board-title">Local Offline LLMs & Character Skins</div>
+            <div class="info-board-subtitle">Air-gapped LFM2.5 model and official built-in skins</div>
+          </div>
+          <div class="info-board-grid">
+            <div class="info-step-card">
+              <div class="info-step-num">1</div>
+              <div class="info-step-heading">Ultra-Light Model<br>(350M · 230MB)</div>
+              <div class="info-step-visual">
+                <span>💻</span>
+              </div>
+              <div class="info-step-desc">1-click download of Liquid AI LFM2.5 in Settings. High-speed local CPU inference.</div>
+              <span class="info-step-badge">Zero GPU Needed</span>
+            </div>
+            <div class="info-step-card">
+              <div class="info-step-num">2</div>
+              <div class="info-step-heading">100% Air-Gapped<br>(Zero Leakage)</div>
+              <div class="info-step-visual">
+                <span>🔒</span>
+              </div>
+              <div class="info-step-desc">Zero telemetry, zero cloud data transfer. Process sensitive code and ideas in privacy.</div>
+              <span class="info-step-badge">Air-Gapped Safety</span>
+            </div>
+            <div class="info-step-card">
+              <div class="info-step-num">3</div>
+              <div class="info-step-heading">Hisho & Kyle<br>(Official Skins)</div>
+              <div class="info-step-visual">
+                <span>👔 🐚</span>
+              </div>
+              <div class="info-step-desc">Switch between Hisho (Assistant) and Kyle (Shell Spirit) with a single click in Settings.</div>
+              <span class="info-step-badge">2 Built-in Skins</span>
+            </div>
+          </div>
         </div>
         <div class="card-body">
           <span class="section-tag">🧠 Cheatsheet ⑤</span>
           <h2 class="section-title">Local Offline LLMs & Character Skins</h2>
-          <p class="lead-text">Liquid AI LFM2.5 lightweight models, retro 16-bit sound effects, and custom pixel mascot mods.</p>
+          <p class="lead-text">Liquid AI LFM2.5 lightweight models, retro 16-bit sound effects, and official pixel mascot skins.</p>
 
           <div class="grid-3">
             <div class="feature-card">
@@ -1003,7 +1351,7 @@
             <div class="feature-card">
               <div class="feature-icon">🎭</div>
               <div class="feature-title">Character Mascot Skins</div>
-              <div class="feature-desc">Switch between Hisho (Professional Assistant) and Kyle (Nostalgic Shell Spirit). Drop custom PNG sprites into <code>assets/characters/</code> to build your own companion!</div>
+              <div class="feature-desc">Switch between Hisho (Professional Assistant) and Kyle (Nostalgic Shell Spirit) with a single click in Settings.</div>
             </div>
             <div class="feature-card">
               <div class="feature-icon">🔊</div>
@@ -1015,22 +1363,21 @@
           <!-- Markdown Viewer Accordion -->
           <div class="md-accordion">
             <button class="md-toggle-btn" onclick="toggleMd('md-cs05')">
-              <span>📄 View Full cheatsheet_05_local_llm_voice_en.md Documentation</span>
+              <span>📄 View Full cheatsheet_05_local_llm_en.md Documentation</span>
               <span>▼</span>
             </button>
             <div id="md-cs05" class="md-content-box">
               <div class="rendered-markdown">
-                <h1 class="md-h1">🧠 Neo-Secretary Cheatsheet ⑤ [Local LLM & Custom Skins]</h1>
-                <p class="md-p"><em>Last Updated: 2026-09-24 23:50</em></p>
+                <h1 class="md-h1">🧠 Neo-Secretary Cheatsheet ⑤ [Local LLM & Built-in Skins]</h1>
+                <p class="md-p"><em>Last Updated: 2026-10-04 (v1.1.18)</em></p>
                 <hr class="md-hr">
-                <h2 class="md-h2">👾 Adding Custom Character Mods</h2>
-                <p class="md-p">Create a new folder inside <code>assets/characters/&lt;your_character_name&gt;/</code> containing:</p>
+                <h2 class="md-h2">🎭 Built-in Mascot Skins & Roadmap</h2>
+                <p class="md-p">Neo-Secretary currently ships with 2 official built-in skins available via the Settings menu:</p>
                 <ul class="md-list">
-                  <li><code>idle.png</code> (Default neutral standing frame, 128x128 pixel art)</li>
-                  <li><code>talk.png</code> (Mascot talking frame)</li>
-                  <li><code>happy.png</code> & <code>celebrate.png</code> (Joyful reaction frames)</li>
+                  <li><strong>Hisho</strong>: Professional 16-bit pixel secretary assistant.</li>
+                  <li><strong>Kyle</strong>: Nostalgic retro shell spirit assistant.</li>
                 </ul>
-                <p class="md-p">Restart Neo-Secretary and select your new mascot right from the Settings menu!</p>
+                <p class="md-p"><em>Note: Dynamic folder-based custom character mods are planned for Phase I in the project roadmap.</em></p>
               </div>
             </div>
           </div>

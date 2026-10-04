@@ -27,12 +27,12 @@ When your PC and smartphone are connected to the exact same home or office Wi-Fi
 
 ---
 
-## 🌐 2. Advanced: Remote Access via Tailscale VPN (Coffee Shops / Cellular)
+## 🌐 2. Advanced: Remote Access via Tailscale VPN (Away From Home / Cellular)
 
-To connect from coffee shops, cellular LTE/5G, or guest networks with AP client isolation:
+To monitor builds away from home, on cellular LTE/5G, or across guest networks with client isolation:
 
 ```
-[Prerequisite: Install Tailscale on PC & Phone] ➔ [Run `tailscale serve 8765` on PC (default port — use NEO_HISHO_PORT if customized)] ➔ [Access remotely anywhere!]
+[Prerequisite: Install Tailscale on PC & Phone] ➔ [Run `tailscale serve 8765` on PC (default port — use NEO_HISHO_PORT if customized)] ➔ [Access safely over encrypted mesh!]
 ```
 
 ### 3-Step Tailscale Setup

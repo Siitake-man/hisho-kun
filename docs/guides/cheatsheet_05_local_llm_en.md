@@ -44,4 +44,3 @@ Tailor your desktop companion's appearance and persona to your mood via the Sett
 | **🐚 Kyle (Shell Spirit)** | Retro nostalgic sea shell spirit typing away on a miniature clam-shell terminal. | Casual coding sessions and exploratory hacking |
 
 > 💡 **Future Roadmap (Phase I)**: Dynamic folder-based custom mascot mods (`assets/custom_pets/`) are planned for Phase I in the roadmap.
-

@@ -403,6 +403,151 @@
       line-height: 1.7;
     }
 
+    /* ========================================================
+       案B: レスポンシブ・インフォグラフィック・ボード (Info Board)
+       画像生成AIの文字焼き込みを完全廃止し、崩れない高保守性HTMLで再現
+       ======================================================== */
+    .info-board {
+      background: #FDFBF7;
+      border: 2px solid #E6DCCE;
+      border-radius: var(--radius-lg);
+      padding: 24px 20px 28px;
+      margin-bottom: 28px;
+      box-shadow: 0 4px 20px rgba(139, 94, 60, 0.06);
+      position: relative;
+    }
+
+    .info-board-ribbon {
+      text-align: center;
+      margin-bottom: 24px;
+      position: relative;
+    }
+
+    .info-board-tag {
+      display: inline-block;
+      background: #8B5E3C;
+      color: #FFF;
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      padding: 4px 16px;
+      border-radius: 20px;
+      text-transform: uppercase;
+      box-shadow: 0 2px 6px rgba(139, 94, 60, 0.25);
+    }
+
+    .info-board-title {
+      font-size: clamp(1.2rem, 2.5vw, 1.65rem);
+      font-weight: 900;
+      color: #2D241E;
+      margin: 8px 0 4px;
+      letter-spacing: -0.02em;
+    }
+
+    .info-board-subtitle {
+      font-size: 13.5px;
+      color: #736458;
+      font-weight: 600;
+    }
+
+    .info-board-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+      gap: 16px;
+    }
+
+    .info-step-card {
+      background: #FFFFFF;
+      border: 1.5px solid #E8DFD3;
+      border-radius: var(--radius-md);
+      padding: 20px 16px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+      position: relative;
+    }
+
+    .info-step-card:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 8px 24px rgba(139, 94, 60, 0.12);
+      border-color: #8B5E3C;
+    }
+
+    .info-step-num {
+      width: 32px;
+      height: 32px;
+      background: #8B5E3C;
+      color: #FFF;
+      border-radius: 50%;
+      font-weight: 900;
+      font-size: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 10px;
+      box-shadow: 0 2px 6px rgba(139, 94, 60, 0.3);
+    }
+
+    .info-step-card:nth-child(1) .info-step-num { background: #0F7C78; }
+    .info-step-card:nth-child(2) .info-step-num { background: #40458F; }
+    .info-step-card:nth-child(3) .info-step-num { background: #D48A19; }
+    .info-step-card:nth-child(4) .info-step-num { background: #B44B43; }
+
+    .info-step-heading {
+      font-size: 15px;
+      font-weight: 800;
+      color: #2D241E;
+      line-height: 1.35;
+      min-height: 40px;
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .info-step-visual {
+      width: 100%;
+      height: 100px;
+      background: #F8F5EE;
+      border-radius: 12px;
+      border: 1px solid #ECE4D8;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 14px;
+      font-size: 38px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .info-step-visual img {
+      max-width: 64px;
+      max-height: 64px;
+      image-rendering: pixelated;
+    }
+
+    .info-step-desc {
+      font-size: 12.5px;
+      color: #596071;
+      line-height: 1.55;
+      flex-grow: 1;
+      margin-bottom: 12px;
+    }
+
+    .info-step-badge {
+      display: inline-block;
+      font-size: 11px;
+      font-weight: 800;
+      padding: 3px 10px;
+      border-radius: 12px;
+      background: #F3ECE2;
+      color: #8B5E3C;
+      border: 1px solid #E2D7C7;
+    }
+
     /* Markdown Viewer & Rich Rendered Styles */
     .md-accordion {
       margin-top: 32px;
@@ -763,9 +908,16 @@
           <div class="zoom-badge">🔍 クリックして拡大表示</div>
         </div>
         <div class="card-body">
-          <span class="section-tag">✨ プロダクト概要</span>
-          <h2 class="section-title">ネオ秘書くん - あなたの専属卓上AI秘書</h2>
-          <p class="lead-text">「席を外してもAI開発が止まらない」。眠っていたスマホを卓上遠隔承認リモコン＆相棒ペットに転生させ、開発者の生命時間を最大化します。</p>
+          <span class="section-tag">✨ プロダクト概要 (v1.1.18)</span>
+          <h2 class="section-title">ネオ秘書くん - 生活空間のアンビエントなAI相棒</h2>
+          <p class="lead-text"><strong>「自律AIに仕事を任せ、休日はリビングで家族と過ごす」。</strong> 眠っていたスマホを生活空間のアンビエントな気付き装置に転生させ、Claude Code、Cline、Cursor、Antigravity のコマンド承認をワンタップ（またはイヤホン操作）で救い上げることで、開発者の生命時間を最大化します。</p>
+
+          <div class="scene-card" style="margin-top: 18px; background: #fff5d9; border-left: 4px solid var(--amber); padding: 16px 20px;">
+            <div style="font-weight: 800; color: #8b5600; font-size: 0.95rem; margin-bottom: 6px;">💡 インフォグラフィックの画面・キャラクターについて</div>
+            <p style="font-size: 0.88rem; color: #596071; line-height: 1.55; margin: 0;">
+              上記バナーの画面は初期プロトタイプ（女性秘書）のイメージです。現在の最新版（v1.1.18）では、公式スキン<strong>「秘書くん」「カイル風精霊」の2体をワンクリックで切り替え可能</strong>です（ブランド看板マスコットのしいたけくん🍄は今後のスキン化を検討中）。また、PC作業机の上だけでなく<strong>「リビングのソファやキッチン」で家族とくつろぎながら使えるアンビエント設計</strong>に進化しています。（※次期スプリント ID 85 にて生活空間実機写真バナーへ順次刷新予定）
+            </p>
+          </div>
 
           <div class="scene-card" style="margin-top: 24px; border-left: 4px solid var(--primary);">
             <h3 class="scene-title">🔥 ここがすごい！『ネオ秘書くん』の6大推しポイント</h3>
@@ -868,9 +1020,51 @@
     <!-- Tab 1: チートシート① -->
     <section id="tab-cs01" class="tab-content">
       <div class="hero-card">
-        <div class="infographic-wrapper" onclick="openLightbox('assets/cs01_setup.jpg')">
-          <img src="assets/cs01_setup.jpg" alt="初期セットアップ編 インフォグラフィック" class="infographic-img">
-          <div class="zoom-badge">🔍 クリックして拡大表示</div>
+        <!-- 案B: レスポンシブ・インフォグラフィック・ボード (初期セットアップ編) -->
+        <div class="info-board">
+          <div class="info-board-ribbon">
+            <span class="info-board-tag">チートシート ①</span>
+            <div class="info-board-title">初期セットアップ ＆ 起動ガイド</div>
+            <div class="info-board-subtitle">ZIP展開からローカルAI導入、即時起動までの最短3ステップ</div>
+          </div>
+          <div class="info-board-grid">
+            <div class="info-step-card">
+              <div class="info-step-num">1</div>
+              <div class="info-step-heading">ZIP展開 ＆ 起動<br>(インストール不要)</div>
+              <div class="info-step-visual">
+                <span>📦</span>
+              </div>
+              <div class="info-step-desc">GitHub ReleasesからZIPをダウンロードして展開。NeoHisho.exeを起動。</div>
+              <span class="info-step-badge">10秒で起動</span>
+            </div>
+            <div class="info-step-card">
+              <div class="info-step-num">2</div>
+              <div class="info-step-heading">超軽量AIを導入<br>(LFM2.5・230MB)</div>
+              <div class="info-step-visual">
+                <span>🧠</span>
+              </div>
+              <div class="info-step-desc">設定画面からワンクリックで超軽量モデルを取得。APIキー不要で即座に動作。</div>
+              <span class="info-step-badge">APIキー不要</span>
+            </div>
+            <div class="info-step-card">
+              <div class="info-step-num">3</div>
+              <div class="info-step-heading">基本操作ツアー<br>(オンボーディング)</div>
+              <div class="info-step-visual">
+                <span>💬</span>
+              </div>
+              <div class="info-step-desc">秘書くんが吹き出しで右クリックメニューや手帳・設定の使い方を丁寧に案内。</div>
+              <span class="info-step-badge">ガイド付き</span>
+            </div>
+            <div class="info-step-card">
+              <div class="info-step-num">4</div>
+              <div class="info-step-heading">エージェント連携<br>(30秒配線)</div>
+              <div class="info-step-visual">
+                <span>🔌</span>
+              </div>
+              <div class="info-step-desc">Claude Code、Cline、Cursor、AntigravityへMCP連携して遠隔承認を解放。</div>
+              <span class="info-step-badge">即座に連携</span>
+            </div>
+          </div>
         </div>
         <div class="card-body">
           <span class="section-tag">📘 チートシート ①</span>
@@ -961,14 +1155,56 @@
     <!-- Tab 2: チートシート② -->
     <section id="tab-cs02" class="tab-content">
       <div class="hero-card">
-        <div class="infographic-wrapper" onclick="openLightbox('assets/cs02_mobile.jpg')">
-          <img src="assets/cs02_mobile.jpg" alt="スマホ連携＆VPN編 インフォグラフィック" class="infographic-img">
-          <div class="zoom-badge">🔍 クリックして拡大表示</div>
+        <!-- 案B: レスポンシブ・インフォグラフィック・ボード (スマホ連携＆暗号化メッシュ生活空間編) -->
+        <div class="info-board">
+          <div class="info-board-ribbon">
+            <span class="info-board-tag">チートシート ②</span>
+            <div class="info-board-title">スマホ連携 ＆ 暗号化メッシュ接続ガイド</div>
+            <div class="info-board-subtitle">QRコード読み取り ＆ PWAホーム画面追加 ＆ リビング生活空間接続</div>
+          </div>
+          <div class="info-board-grid">
+            <div class="info-step-card">
+              <div class="info-step-num">1</div>
+              <div class="info-step-heading">PC画面でQR表示<br>(ワンクリック)</div>
+              <div class="info-step-visual">
+                <span>🖥️</span>
+              </div>
+              <div class="info-step-desc">秘書くんを右クリック ➔「📱 スマホDesk Pet」を選択して専用QRコードを表示。</div>
+              <span class="info-step-badge">右クリックから</span>
+            </div>
+            <div class="info-step-card">
+              <div class="info-step-num">2</div>
+              <div class="info-step-heading">標準カメラで読取<br>(インストール不要)</div>
+              <div class="info-step-visual">
+                <span>📱</span>
+              </div>
+              <div class="info-step-desc">スマホの標準カメラでQRをスキャン。ブラウザで開き、アプリ追加なしで即接続。</div>
+              <span class="info-step-badge">PWA完結</span>
+            </div>
+            <div class="info-step-card">
+              <div class="info-step-num">3</div>
+              <div class="info-step-heading">ホーム画面に追加<br>(全画面アプリ化)</div>
+              <div class="info-step-visual">
+                <span>📲</span>
+              </div>
+              <div class="info-step-desc">「ホーム画面に追加」をタップ。アドレスバーが消え、全画面の愛着あるDesk Petに。</div>
+              <span class="info-step-badge">全画面Desk Pet</span>
+            </div>
+            <div class="info-step-card">
+              <div class="info-step-num">4</div>
+              <div class="info-step-heading">リビング生活空間接続<br>(Tailscaleメッシュ)</div>
+              <div class="info-step-visual">
+                <span>🛋️ ☕</span>
+              </div>
+              <div class="info-step-desc">自律AIを走らせ、家族とリビングで過ごしながら暗号化メッシュで家中安全に遠隔操作。</div>
+              <span class="info-step-badge">生活空間アンビエント</span>
+            </div>
+          </div>
         </div>
         <div class="card-body">
           <span class="section-tag">📱 チートシート ②</span>
-          <h2 class="section-title">スマホ連携 ＆ Tailscale VPN接続ガイド</h2>
-          <p class="lead-text">使っていないスマホを卓上スマートデバイス化。社内Wi-Fiでも、カフェ等の出先からでも安全に接続できます。</p>
+          <h2 class="section-title">スマホ連携 ＆ Tailscale 暗号化メッシュ接続ガイド</h2>
+          <p class="lead-text">使っていないスマホを生活空間のアンビエントな気付き装置化。自宅Wi-Fiでも、休日のリビング・ベランダからでも安全に接続できます。</p>
 
           <div class="grid-2">
             <div class="feature-card">
@@ -983,14 +1219,14 @@
 
             <div class="feature-card">
               <div class="feature-icon">🌐</div>
-              <div class="feature-title">外出先・カフェ（Tailscale VPN）の場合</div>
+              <div class="feature-title">休日のリビング・別室・外出先（Tailscale暗号化メッシュ）の場合</div>
               <div class="feature-desc">
                 1. PCとスマホに <strong>Tailscale</strong> を入れてVPN接続<br>
                 2. PCターミナルで転送コマンドを実行：
                 <div class="code-box">
                   <code>tailscale serve 8765</code>
                 </div>
-                3. 設定画面の「📅 外部ツール」でPCのTailscaleホスト名を保存すれば、どこからでもQRコードで繋がります！
+                3. 設定画面の「📅 外部ツール」でPCのTailscaleホスト名を保存すれば、Wi-Fi境界を越えて家中どこからでもQRコードで繋がります！
                 <p style="font-size:0.85em;opacity:0.8;">※ `8765` は既定ポートです。`NEO_HISHO_PORT`（OS環境変数または .env）で変更した場合はコマンドとURLのポートを読み替えてください。</p>
               </div>
             </div>
@@ -1031,9 +1267,9 @@
 <li>PC上の秘書くんとリアルタイムで同期し、スマホ上でもトコトコ動き始めます。</li>
 </ul>
 <hr class="md-hr">
-<h2 class="md-h2">🌐 2. 応用：外出先・カフェ・別ネットワークからの接続（Tailscale VPN）</h2>
-<p class="md-p">カフェの公衆Wi-Fi（端末間通信が禁止されたネットワーク）や、出張先・テレワーク環境から接続する場合の手順です：</p>
-<div class="md-code-block"><pre><code>[事前準備: PCとスマホにTailscaleを導入] ➔ [PCで serve 実行] ➔ [外出先から安全接続！]</code></pre></div>
+<h2 class="md-h2">🌐 2. 応用：外出先・帰省先・別ネットワークからの接続（Tailscale VPN）</h2>
+<p class="md-p">自宅リビングの続きを、休日の外出先や帰省先・別ネットワークから暗号化メッシュ経由でそのまま見守る場合の手順です：</p>
+<div class="md-code-block"><pre><code>[事前準備: PCとスマホにTailscaleを導入] ➔ [PCで serve 実行] ➔ [暗号化メッシュで安全接続！]</code></pre></div>
 <h3 class="md-h3">3ステップ設定手順</h3>
 <ol class="md-list md-ordered-list">
 <li><strong>PCとスマホの両方に Tailscale（無料メッシュVPN）をインストール</strong></li>
@@ -1078,9 +1314,51 @@
     <!-- Tab 3: チートシート③ -->
     <section id="tab-cs03" class="tab-content">
       <div class="hero-card">
-        <div class="infographic-wrapper" onclick="openLightbox('assets/cs03_calendar.jpg')">
-          <img src="assets/cs03_calendar.jpg" alt="統合手帳＆カレンダー編 インフォグラフィック" class="infographic-img">
-          <div class="zoom-badge">🔍 クリックして拡大表示</div>
+        <!-- 案B: レスポンシブ・インフォグラフィック・ボード (統合手帳＆カレンダー編) -->
+        <div class="info-board">
+          <div class="info-board-ribbon">
+            <span class="info-board-tag">チートシート ③</span>
+            <div class="info-board-title">統合手帳 ＆ Googleカレンダー連携ガイド</div>
+            <div class="info-board-subtitle">予定の先回り通知 ＆ 自然言語TODO ＆ 習慣トラッカー ＆ ポモドーロ</div>
+          </div>
+          <div class="info-board-grid">
+            <div class="info-step-card">
+              <div class="info-step-num">1</div>
+              <div class="info-step-heading">iCalで安全同期<br>(OAuth不要)</div>
+              <div class="info-step-visual">
+                <span>📅</span>
+              </div>
+              <div class="info-step-desc">Googleカレンダーの秘密のiCal URLを貼るだけ。パスワード不要・読取専用で安全。</div>
+              <span class="info-step-badge">漏洩リスク0</span>
+            </div>
+            <div class="info-step-card">
+              <div class="info-step-num">2</div>
+              <div class="info-step-heading">自然言語TODO<br>(クイック追加)</div>
+              <div class="info-step-visual">
+                <span>📝</span>
+              </div>
+              <div class="info-step-desc">「明日18時に報告書作成 #仕事 !3」とチャットするだけで日時・優先度を自動抽出。</div>
+              <span class="info-step-badge">AI自動解析</span>
+            </div>
+            <div class="info-step-card">
+              <div class="info-step-num">3</div>
+              <div class="info-step-heading">習慣トラッカー<br>(ヒートマップ)</div>
+              <div class="info-step-visual">
+                <span>🌱</span>
+              </div>
+              <div class="info-step-desc">水分補給やストレッチなど日々の習慣を記録。秘書くんも一緒に喜んで応援。</div>
+              <span class="info-step-badge">継続を可視化</span>
+            </div>
+            <div class="info-step-card">
+              <div class="info-step-num">4</div>
+              <div class="info-step-heading">ポモドーロ集中<br>(過保護ケア)</div>
+              <div class="info-step-visual">
+                <span>🍅 🍵</span>
+              </div>
+              <div class="info-step-desc">25分集中＋5分休憩。集中時はペットも集中顔、休憩時はお茶メッセージで気遣い。</div>
+              <span class="info-step-badge">燃え尽き防止</span>
+            </div>
+          </div>
         </div>
         <div class="card-body">
           <span class="section-tag">📔 チートシート ③</span>
@@ -1186,14 +1464,56 @@
     <!-- Tab 4: チートシート④ -->
     <section id="tab-cs04" class="tab-content">
       <div class="hero-card">
-        <div class="infographic-wrapper" onclick="openLightbox('assets/cs04_agent.jpg')">
-          <img src="assets/cs04_agent.jpg" alt="エージェント遠隔承認編 インフォグラフィック" class="infographic-img">
-          <div class="zoom-badge">🔍 クリックして拡大表示</div>
+        <!-- 案B: レスポンシブ・インフォグラフィック・ボード (遠隔承認＆2層統合レイヤー編) -->
+        <div class="info-board">
+          <div class="info-board-ribbon">
+            <span class="info-board-tag">チートシート ④</span>
+            <div class="info-board-title">コーディングエージェント遠隔承認 ＆ 2層統合レイヤー</div>
+            <div class="info-board-subtitle">Claude Code ＆ Cline ＆ Cursor ＆ Antigravity 連携 ＆ 自動消去</div>
+          </div>
+          <div class="info-board-grid">
+            <div class="info-step-card">
+              <div class="info-step-num">1</div>
+              <div class="info-step-heading">30秒クイック配線<br>(Claude/Cline/Cursor)</div>
+              <div class="info-step-visual">
+                <span>⚡</span>
+              </div>
+              <div class="info-step-desc">Windows cwdバグを完全封鎖した絶対パス形式で各AIツールの設定へコピペ。</div>
+              <span class="info-step-badge">絶対パス決定論</span>
+            </div>
+            <div class="info-step-card">
+              <div class="info-step-num">2</div>
+              <div class="info-step-heading">透過的フック注入<br>(自動インターセプト)</div>
+              <div class="info-step-visual">
+                <span>🛡️</span>
+              </div>
+              <div class="info-step-desc">OpenCodeやシェルフックがコマンド実行を検知。Jev安全審査スコアと共に通知。</div>
+              <span class="info-step-badge">第1統合層</span>
+            </div>
+            <div class="info-step-card">
+              <div class="info-step-num">3</div>
+              <div class="info-step-heading">PC連動自動消去<br>(cancel_pending)</div>
+              <div class="info-step-visual">
+                <span>✨ 📲</span>
+              </div>
+              <div class="info-step-desc">PC側で先に承認・回答した瞬間、スマホ側待機カードが即時自動消去！二重操作ゼロ。</div>
+              <span class="info-step-badge">アンビエント設計</span>
+            </div>
+            <div class="info-step-card">
+              <div class="info-step-num">4</div>
+              <div class="info-step-heading">1タップ＆イヤホン<br>(ノールック遠隔承認)</div>
+              <div class="info-step-visual">
+                <span>🎧 👆</span>
+              </div>
+              <div class="info-step-desc">画面ワンタップ、またはBluetoothイヤホンの再生/一時停止ボタン（メディアキー）でコーヒー片手にノールック承認。</div>
+              <span class="info-step-badge">生命時間最大化</span>
+            </div>
+          </div>
         </div>
         <div class="card-body">
           <span class="section-tag">🤖 チートシート ④</span>
           <h2 class="section-title">コーディングエージェント遠隔承認 ＆ 独自MCP追加</h2>
-          <p class="lead-text">PCの前に張り付く必要はもうありません。AIの作業完了やコマンド承認がスマホに届き、ワンタップ（またはイヤホンの音量操作）で遠隔承認できます。</p>
+          <p class="lead-text">PCの前に張り付く必要はもうありません。AIの作業完了やコマンド承認がスマホに届き、ワンタップ（またはイヤホンの再生/一時停止操作）で遠隔承認できます。</p>
 
           <div class="grid-2">
             <div class="feature-card">
@@ -1202,6 +1522,7 @@
               <div class="feature-desc">
                 設定画面（⚙️）の <strong>「🤖 外部AI・MCP連携」</strong> タブを開く：<br>
                 • <strong>Antigravity</strong>: 「🚀 Antigravityに自動登録」を1クリック<br>
+                • <strong>Cline</strong>: 設定ファイル（<code>cline_mcp_settings.json</code>）へ絶対パススニペットを追記<br>
                 • <strong>Claude / Cursor</strong>: 「📋 MCP設定JSONをコピー」して設定に貼るだけ<br>
                 • <strong>Claude Code</strong>: 「📋 登録コマンドをコピー」してターミナルで実行
               </div>
@@ -1209,11 +1530,11 @@
 
             <div class="feature-card">
               <div class="feature-icon">🛡️</div>
-              <div class="feature-title">ゼロトラスト認証 ＆ Jev安全バッジ</div>
+              <div class="feature-title">2層統合 ＆ ゼロトラスト境界防御</div>
               <div class="feature-desc">
+                • <strong>透過的フック ＆ cancel_pending</strong>: PC側操作で保留要求が消滅した瞬間、スマホ側カードを即時自動消去！<br>
                 • <strong>端末個別256bit暗号トークン</strong>: 同一LAN内でも不正端末をFail-Closed遮断<br>
-                • <strong>リアルタイム安全審査バッジ</strong>: 外部AI審査スコアを受け取り、スマホ上で <code>🟢 Jev安全審査: ALLOW</code> をエメラルドグリーン点灯！<br>
-                • <strong>Canvas 0fps省電力</strong>: ペット静止時は描画完全スリープでバッテリー長持ち
+                • <strong>リアルタイム安全審査バッジ</strong>: 外部AI審査スコアを受け取り、スマホ上で <code>🟢 Jev安全審査: ALLOW</code> を点灯！
               </div>
             </div>
           </div>
@@ -1234,53 +1555,52 @@
             </button>
             <div id="md-cs04" class="md-content-box">
               <div class="rendered-markdown">
-                <h1 class="md-h1">🤖 ネオ秘書くん チートシート ④【コーディングエージェント遠隔承認 ＆ 独自MCP編】</h1>
-<p class="md-p"><em>最終更新日: 2026-09-20 (v1.1.0)</em></p>
+                <h1 class="md-h1">🤖 ネオ秘書くん チートシート ④【コーディングエージェント遠隔承認 ＆ 2層統合レイヤー編】</h1>
+<p class="md-p"><em>最終更新日: 2026-10-04 (v1.1.18)</em></p>
 <p class="md-p"><strong>エンジニア・AI開発者必見のキラー機能！</strong></p>
-<p class="md-p">Antigravity、Claude Code、Cline、Codex 等の自律型コーディングAIと連携し、スマホから開発を遠隔操作・承認できます。</p>
-<p class="md-p">さらに、NotionやSlackなどの任意の外部MCPサーバーも自由に追加可能です。</p>
+<p class="md-p">Claude Code、Cline、Cursor、Antigravity、Codex 等の自律型コーディングAIと連携し、休日にリビングで家族と過ごしながら、スマホからワンタップ（またはイヤホン操作）で開発を遠隔承認できます。</p>
 <hr class="md-hr">
-<h2 class="md-h2">🎯 1. なぜこれが必要か？（開発体験の革命）</h2>
-<p class="md-p">自律型AIにコーディングを任せている間、以下のような悩みはありませんか？</p>
+<h2 class="md-h2">🎯 1. なぜこれが必要か？（生活空間アンビエント体験）</h2>
+<p class="md-p">自律型AIに大規模リファクタやテストを任せている間、以下のような悩みはありませんか？</p>
 <ul class="md-list">
-<li>「いつコマンド承認（<code class="inline-code">git push</code>, <code class="inline-code">npm test</code>等）を求められるかわからず席を立てない」</li>
+<li>「いつコマンド承認（<code class="inline-code">git push</code>, <code class="inline-code">npm test</code>等）を求められるかわからずPCの前から離れられない」</li>
 <li>「作業が完了したのに気付かず、数十分放置してしまっていた」</li>
 </ul>
-<p class="md-p">👉 <strong>ネオ秘書くんがエージェントの動きを監視し、スマホに即座に通知！スマホからワンタップで承認できます！</strong></p>
-<div class="md-code-block"><pre><code>[PC上のAI (Antigravity / Claude Code / Cline / Codex)]
+<p class="md-p">👉 <strong>ネオ秘書くんがエージェントの動きを監視し、リビングにいるあなたのスマホへ即座に通知！ソファで読書しながらワンタップ（またはBluetoothイヤホンの再生/一時停止ボタン）で即座に承認できます！</strong></p>
+<div class="md-code-block"><pre><code>[PC上のAI (Claude Code / Cline / Cursor / Antigravity)]
        │
-       ▼ (MCPブリッジ連携: neo_hisho_bridge)
-[ネオ秘書くん (PC Hub: ゼロトラスト認証 & ポリシー審査)]
+       ▼ (第1層: 透過的フック注入 ＆ 第2層: FastMCP標準ブリッジ)
+[ネオ秘書くん (PC Hub: ゼロトラスト認証 & cancel_pending 自動消去)]
        │
        ▼ (ローカル暗号化WebSocket / HTTP)
 [スマホ Desk Pet (PWA)] 📱「🟢 Jev安全審査: ALLOW (スコア 0.99)」
        │               『git push origin main の実行許可』 [承認] [却下]
-       └─► スマホでワンタップ承認 ➔ PC上のAIエージェントが作業再開！</code></pre></div>
+       └─► スマホでワンタップ承認（またはPC側で操作するとスマホ側カードが即時自動消去！）</code></pre></div>
 <hr class="md-hr">
-<h2 class="md-h2">🛡️ 2. v1.1.0 新機能: ゼロトラスト認証 ＆ インテリジェント承認カード</h2>
-<h3 class="md-h3">① ゼロトラスト端末認証（成りすまし遮断）</h3>
+<h2 class="md-h2">🛡️ 2. v1.1.18 コアアーキテクチャ: 2層統合 ＆ 自動消去</h2>
+<h3 class="md-h3">① 2層統合レイヤー（Transparent Hooks ＆ FastMCP Bridge）</h3>
 <ul class="md-list">
-<li>社内LANや同一Wi-Fi環境であっても、各スマホごとに<strong>暗号論的256bit個別トークン</strong>を発行・照合します。</li>
-<li>未承認の新しい端末が接続を試みた場合、PC画面に10秒カウントダウン付きの承認ダイアログがポップアップし、ボスの許可がない限り通信を Fail-Closed で完全遮断します。</li>
+<li><strong>第1層（透過的フック注入）</strong>: OpenCodeプラグインやシェルフックにより、AIのツール実行要求を透過的にインターセプト。PC側で先に承認・回答した場合は <code>POST /api/agent/cancel_pending</code> が即時発火し、スマホ側の待機カードが自動消去されます（通知の放置・二重操作ストレスをゼロ化）。</li>
+<li><strong>第2層（FastMCP標準ブリッジ）</strong>: 標準の stdio FastMCP プロトコル（<code>neo_hisho_bridge</code>）により、Claude Code や Cline、Cursor など任意のMCP対応エージェントへ絶対パス経由で決定論的に配線。</li>
 </ul>
-<h3 class="md-h3">② Jev安全審査バッジのリアルタイム点灯</h3>
+<h3 class="md-h3">② ゼロトラスト端末認証（成りすまし遮断）</h3>
 <ul class="md-list">
-<li>外部エージェント（Antigravity等）が実行した安全審査（TypeSafe Jev Tool Guard等）のスコアを受信し、スマホ画面上でエメラルドグリーンのネオンバッジ（<code class="inline-code">🟢 Jev安全審査: ALLOW</code>）を点灯させます。</li>
-<li><code class="inline-code">rm -rf</code> や <code class="inline-code">git reset --hard</code> などの破壊的変更が含まれる場合は赤色（<code class="inline-code">🛑 DENY</code> または <code class="inline-code">🚨 高リスク承認</code>）で警告し、誤タップによる事故を防止します。</li>
+<li>同一Wi-Fi環境であっても、各スマホごとに<strong>暗号論的256bit個別トークン</strong>を発行・照合。未承認端末は Fail-Closed で完全遮断します。</li>
 </ul>
 <h3 class="md-h3">③ 適応型 Canvas 0fps 省電力（バッテリー長持ち）</h3>
 <ul class="md-list">
-<li>スマホを机上に置きっぱなしにしても発熱・バッテリー消費を防ぐため、ペット静止時は描画ループを 0fps に完全停止（スリープ）。通知受信時や画面タップ時のみ瞬時に復帰（Wake-on-Demand）します。</li>
+<li>ペット静止時は描画ループを 0fps に完全停止（スリープ）。通知受信時や画面タップ時のみ瞬時に復帰（Wake-on-Demand）するため、リビングでスマホを置きっぱなしにしてもバッテリーが持ちます。</li>
 </ul>
 <hr class="md-hr">
 <h2 class="md-h2">🛠️ 3. コーディングエージェントへの登録手順（30秒）</h2>
-<p class="md-p">設定画面（⚙️）の <strong>「🤖 外部AI・MCP連携」</strong> タブを開くだけで、ワンクリックで設定できます：</p>
+<p class="md-p">設定画面（⚙️）の <strong>「🤖 外部AI・MCP連携」</strong> タブから設定できます：</p>
 <div class="md-table-wrapper"><table class="md-table">
 <tr><th>対象AIツール</th><th>登録方法</th></tr>
-<tr><td><strong>Antigravity</strong></td><td><strong>「🚀 Antigravityに自動登録」</strong> ボタンを押すだけ！（ワンクリックで設定JSONに注入）</td></tr>
-<tr><td><strong>Claude Desktop / Cursor</strong></td><td><strong>「📋 MCP設定JSONをコピー」</strong> ➔ 設定ファイル（<code class="inline-code">claude_desktop_config.json</code>等）に貼り付け</td></tr>
-<tr><td><strong>Codex</strong></td><td><strong>「📋 Codex用 MCP設定TOMLをコピー」</strong> ➔ <code class="inline-code">config.toml</code> に貼り付け</td></tr>
-<tr><td><strong>Claude Code</strong></td><td><strong>「📋 Claude Code登録コマンドをコピー」</strong> ➔ ターミナルで貼り付けて実行</td></tr>
+<tr><td><strong>Claude Code</strong></td><td>ターミナルで実行（Windows cwd黙殺対策済みの絶対パス形式）:<br><code>claude mcp add hisho-bridge -- &lt;venvのpython.exe絶対パス&gt; &lt;hisho_mcp_server.py絶対パス&gt;</code></td></tr>
+<tr><td><strong>Cline</strong></td><td><code>cline_mcp_settings.json</code> に <code>venv/Scripts/python.exe</code> と <code>hisho_mcp_server.py</code> の絶対パスを指定</td></tr>
+<tr><td><strong>Antigravity</strong></td><td>設定画面の <strong>「🚀 Antigravityに自動登録」</strong> ボタンを1クリック（自動注入）</td></tr>
+<tr><td><strong>Claude Desktop / Cursor</strong></td><td><strong>「📋 MCP設定JSONをコピー」</strong> ➔ 設定ファイルに貼り付け</td></tr>
+<tr><td><strong>Codex</strong></td><td><strong>「📋 Codex用 MCP設定TOMLをコピー」</strong> ➔ <code>config.toml</code> に貼り付け</td></tr>
 </table></div>
 <hr class="md-hr">
 <h2 class="md-h2">🔔 3. スマホに届く3大通知 ＆ 遠隔承認</h2>
@@ -1326,16 +1646,49 @@
     <!-- Tab 5: チートシート⑤ -->
     <section id="tab-cs05" class="tab-content">
       <div class="hero-card">
-        <div class="infographic-wrapper" onclick="openLightbox('assets/cs05_localllm.jpg')">
-          <img src="assets/cs05_localllm.jpg" alt="ローカルLLM＆スキン編 インフォグラフィック" class="infographic-img">
-          <div class="zoom-badge">🔍 クリックして拡大表示</div>
+        <!-- 案B: レスポンシブ・インフォグラフィック・ボード (LFM2.5・公式2大スキン完全同期) -->
+        <div class="info-board">
+          <div class="info-board-ribbon">
+            <span class="info-board-tag">チートシート ⑤</span>
+            <div class="info-board-title">ローカルLLM ＆ スキン編</div>
+            <div class="info-board-subtitle">完全オフラインAir-Gapped AI ＆ 公式2大スキン切替</div>
+          </div>
+          <div class="info-board-grid">
+            <div class="info-step-card">
+              <div class="info-step-num">1</div>
+              <div class="info-step-heading">超軽量モデルDL<br>(350M・230MB)</div>
+              <div class="info-step-visual">
+                <span>💻</span>
+              </div>
+              <div class="info-step-desc">設定画面からワンクリックでLFM2.5を取得。低スペックPCでもCPUで高速動作。</div>
+              <span class="info-step-badge">1クリックDL</span>
+            </div>
+            <div class="info-step-card">
+              <div class="info-step-num">2</div>
+              <div class="info-step-heading">完全オフライン<br>(Air-Gapped)</div>
+              <div class="info-step-visual">
+                <span>🔒</span>
+              </div>
+              <div class="info-step-desc">外部送信データ完全0。機密コードやプライベートな予定もローカルで完結。</div>
+              <span class="info-step-badge">漏洩リスク0</span>
+            </div>
+            <div class="info-step-card">
+              <div class="info-step-num">3</div>
+              <div class="info-step-heading">秘書くん ＆ カイル<br>公式スキン切替</div>
+              <div class="info-step-visual">
+                <span>👔 🐚</span>
+              </div>
+              <div class="info-step-desc">「秘書くん」と「カイル風精霊」の公式2大スキンをワンクリック切替。</div>
+              <span class="info-step-badge">2大スキン切替</span>
+            </div>
+          </div>
         </div>
         <div class="card-body">
           <span class="section-tag">🔒 チートシート ⑤</span>
           <h2 class="section-title">ローカルLLM ＆ キャラスキン切り替え</h2>
           <p class="lead-text">社外データ送信ゼロの完全オフラインAI。気分に合わせたキャラスキン変更もサポート。</p>
 
-          <div class="grid-3">
+          <div class="grid-2">
             <div class="feature-card">
               <div class="feature-icon">🔒</div>
               <div class="feature-title">超軽量モデル (230MB)</div>
@@ -1351,26 +1704,18 @@
                 真面目エリートな <strong>「秘書くん」</strong> と、懐かしの貝型PCを叩く <strong>「カイル風精霊」</strong> をワンクリックでいつでも切り替えられます。
               </div>
             </div>
-
-            <div class="feature-card">
-              <div class="feature-icon">🎤</div>
-              <div class="feature-title">音声入力のご案内</div>
-              <div class="feature-desc">
-                文字入力の際は、スマホOS標準のキーボードマイクによる音声入力をご利用ください（内蔵の音声文字起こし機能は撤去済みです）。
-              </div>
-            </div>
           </div>
 
           <!-- Markdown Viewer Accordion -->
           <div class="md-accordion">
             <button class="md-toggle-btn" onclick="toggleMd('md-cs05')">
-              <span>📄 cheatsheet_05_local_llm_voice.md の詳細ドキュメントを展開</span>
+              <span>📄 cheatsheet_05_local_llm.md の詳細ドキュメントを展開</span>
               <span>▼</span>
             </button>
             <div id="md-cs05" class="md-content-box">
               <div class="rendered-markdown">
                 <h1 class="md-h1">🔒 ネオ秘書くん チートシート ⑤【ローカルLLM・スキン編】</h1>
-<p class="md-p"><em>最終更新日: 2026-09-24 23:50</em></p>
+<p class="md-p"><em>最終更新日: 2026-10-04 23:59</em></p>
 <p class="md-p">完全オフライン・高セキュリティで動かせるローカルLLMの活用法や、キャラクタースキンの切り替えガイドです。</p>
 <hr class="md-hr">
 <h2 class="md-h2">🔒 1. 内包超軽量モデル (LFM2.5) をワンクリック導入</h2>
@@ -1389,10 +1734,7 @@
 <tr><td><strong>Ollama</strong></td><td><code class="inline-code">ollama run qwen2.5-coder:7b</code> 等を起動 ➔ 設定画面で指定</td></tr>
 </table></div>
 <hr class="md-hr">
-<h2 class="md-h2">🎤 3. 音声入力について</h2>
-<p class="md-p">文字入力の際は、スマホOS標準のキーボードマイクによる音声入力をご利用ください（内蔵の音声文字起こし機能は撤去済みです）。</p>
-<hr class="md-hr">
-<h2 class="md-h2">👔 4. キャラクタースキンの切り替え</h2>
+<h2 class="md-h2">👔 3. キャラクタースキンの切り替え</h2>
 <p class="md-p">気分や好みに合わせて秘書くんの姿と性格を変更できます！</p>
 <div class="md-table-wrapper"><table class="md-table">
 <tr><th>キャラクター</th><th>特徴・性格</th><th>おすすめシーン</th></tr>
@@ -1427,8 +1769,8 @@
           </div>
 
           <div class="faq-item">
-            <div class="faq-q">💬 「出先やカフェからスマホと繋ぐには？」</div>
-            <div class="faq-a">👉 Tailscale VPN を使って安全に外出先からスマホDesk Petを開く手順を答えてくれます。</div>
+            <div class="faq-q">💬 「休日のリビングやベランダからスマホと繋ぐには？」</div>
+            <div class="faq-a">👉 Tailscale暗号化メッシュを使ってWi-Fi境界を越え、休日に家中どこからでも安全にスマホDesk Petを開く手順を案内してくれます。</div>
           </div>
 
           <div class="faq-item">

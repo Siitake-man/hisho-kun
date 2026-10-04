@@ -1,7 +1,7 @@
 # ネオ秘書くん システム設計書 (DESIGN_SPEC.md)
 
-- **アプリバージョン**: 1.1.18 (🔒 SSOT: `version.py`・**版数規約 §6.0.1 参照**) ／ **文書進捗**: Rev 48 (仕様書更新回数連番・2026-10-04 pywebview PoC ＆ ポジショニング刷新同期)
-- **最終更新日時**: 2026-10-04 14:48 (🤖 Antigravity: **生活空間アンビエント気付き装置ポジショニング刷新 ＆ pywebview PoC (ID 86) 完遂 ＆ Jules PR #16 マージ同期**)
+- **アプリバージョン**: 1.1.18 (🔒 SSOT: `version.py`・**版数規約 §6.0.1 参照**) ／ **文書進捗**: Rev 51 (仕様書更新回数連番・2026-10-04 ClineレビューP0/P1/P2是正・音声入力記述完全根絶・公式2スキン誠実化・Cockpit完全撤去同期)
+- **最終更新日時**: 2026-10-04 23:59 (🤖 Antigravity: **Clineレビュー指摘 P0/P1/P2 全件是正 ＆ 形骸化した「音声入力」記述の完全根絶 — スマホUIにテキスト入力画面が存在しない実態に即し全廃、自作Mod/しいたけ切替の虚偽宣称撤去、公式2スキン切替統一、Showcase Cockpit完全撤去、メディアキー是正**)
 - **アーキテクチャ方針**: 完全ローカル完結型 非ブロッキング並行システム (Tkinter Desktop Overlay × Mobile PWA × LangGraph Agent × Zero-Trust Local Bridge ＆ Cross-Platform Headless CI/CD)
 
 ---
