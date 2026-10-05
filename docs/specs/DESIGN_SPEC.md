@@ -1,7 +1,7 @@
 # ネオ秘書くん システム設計書 (DESIGN_SPEC.md)
 
-- **アプリバージョン**: 1.1.18 (🔒 SSOT: `version.py`・**版数規約 §6.0.1 参照**) ／ **文書進捗**: Rev 53 (仕様書更新回数連番・2026-10-04 ID 76 Fatモジュール Seam分割リファクタF0〜F10全13フェーズ完遂同期・次回着手 ID 90 Agent Evals配備)
-- **最終更新日時**: 2026-10-04 23:59 (🤖 Antigravity: **ID 76 Fatモジュール Seam分割リファクタ完遂同期 — local_sync_server.py 748行[-67.4%]・settings_window.py 792行[-58.9%]・合計2,686行削減・全回帰34 passed ALL GREEN・次回着手ターゲット ID 90 Agent Evals配備**)
+- **アプリバージョン**: 1.1.18 (🔒 SSOT: `version.py`・**版数規約 §6.0.1 参照**) ／ **文書進捗**: Rev 54 (仕様書更新回数連番・2026-10-05 ChatGPT指摘のHTTP Content-Length負数P0脆弱性封鎖 ＆ 悪魔の代弁者5重防壁全11テスト全緑 ＆ Jules PR #17/#19本線マージ同期)
+- **最終更新日時**: 2026-10-05 21:40 (🤖 Antigravity: **【リリース直前完全武装スプリント Phase 1完遂】ChatGPT指摘のHTTP Content-Length負数P0脆弱性封鎖 ＆ 悪魔の代弁者5重防壁（CL重複/TE混在/不完全本文）全11テスト全緑 ＆ Jules PR #17/#19本線マージ ＆ 30秒撮影スクリプト配備完了**)
 - **アーキテクチャ方針**: 完全ローカル完結型 非ブロッキング並行システム (Tkinter Desktop Overlay × Mobile PWA × LangGraph Agent × Zero-Trust Local Bridge ＆ Cross-Platform Headless CI/CD)
 
 ---
@@ -1386,3 +1386,31 @@ Michael Feathersの「レガシーコード改善ガイド（Seam技法）」お
 - `ui/settings_window.py`: 元 **1,930 行** ➔ **792 行**（**-1,138 行、58.9% 削減・約6割削減達成！**）
 - **合計削減行数: 2,686 行**（2大 Fat モジュールが共に1,000行未満のクリーンな Deep Module へスリム化）
 - **検証実績**: キャラクトライゼーションテスト全 **34 passed in 0.80s (ALL GREEN)**、手帳タスク **ID 76** 完達。
+
+## 30. HTTP Framing ＆ Content-Length 負数P0脆弱性封鎖（RFC 9112準拠 5重防壁）(As-Built 2026-10-05 / ChatGPT & Grok レビュー反映)
+
+### 30.1 背景と脆弱性の本質（Why）
+2026-10-04のChatGPT外部監査において、「`local_sync_server.py` の `do_POST` で `Content-Length: -1` を送信されると、Pythonの `self.rfile.read(-1)` が実行され、ソケット切断（EOF）まで無限に読み込み待ちとなり、HTTPワーカースレッドが永久ハングする致命的脆弱性（P0 DoS）」が指摘された。
+さらに、悪魔の代弁者（`devils-advocate`）によるレッドチーム監査により、負数だけでなく以下のプロトコルレベルの攻撃シナリオが炙り出された：
+1. **HTTP Request Smuggling**: `Transfer-Encoding: chunked` と `Content-Length` の混在（CL.TE / TE.CL）や、`Content-Length` のカンマ区切り・重複複数値送信によるリクエスト偽装。
+2. **Python `int()` の仕様バイパス**: 全角数字（`１００`）やアンダースコア（`1_000`）、プラス記号（`+10`）を許容する脆弱性。
+3. **Slowloris / Truncated Body**: ヘッダーで宣言されたバイト数に満たない本文を送信して接続を維持し続けるリソース枯渇。
+
+### 30.2 5重防壁アーキテクチャ（What & How）
+`local_sync_server.py`（645〜695行目）に、RFC 9112 §6.3（HTTP/1.1 Message Framing）に完全準拠した以下の **プロトコルレベル5重防壁** を配備した：
+
+| 防壁 | 検査内容 | 攻撃遮断対象 | レスポンス |
+|:---|:---|:---|:---|
+| **防壁 1** | `Transfer-Encoding` ヘッダー検知 | chunked 混在時の Smuggling 攻撃 (CL.TE / TE.CL) | 即時 `400 Bad Request` |
+| **防壁 2** | `Content-Length` カンマ区切り・複数値検知 | カンマ区切り重複ヘッダーによる Smuggling 攻撃 (CL.CL) | 即時 `400 Bad Request` |
+| **防壁 3** | ASCII数字厳格検査 ＆ 最大10桁パース | 負数 (`-1`)、全角数字、記号、巨大桁 Overflow | 即時 `400 Bad Request` |
+| **防壁 4** | 本文読み込み時 `socket.timeout` ハンドリング | 接続維持・低速送信によるリソース枯渇 (Slowloris) | 即時 `408 Request Timeout` |
+| **防壁 5** | 本文完全性検証 (`len(body) != content_length`) | 途中切断・不完全本文 (Truncated Body) | 即時 `400 Bad Request` |
+
+※ サイズ上限（10MB超過）に対しては、RFC準拠の `413 Payload Too Large` を返却。
+
+### 30.3 検証実績
+- 生TCPソケット（`socket.socket`）を用いたカオス通信テストスイート `tests/test_server_http_framing.py`（全11ケース）を新設。
+- 負数、文字列混在、巨大桁数、Smugglingヘッダー、Slowlorisタイムアウト、不完全本文の全パターンにおいて、サーバーがハングせず決定論的にエラーコードを返すことを実証。
+- 実測: **11 passed in 0.86s (ALL GREEN)**。
+

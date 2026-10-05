@@ -642,21 +642,88 @@ class DeskPetSyncHandler(SimpleHTTPRequestHandler):
         P2③ 分割リファクタ: 本メソッドは認証・ループバック制限・ディスパッチのみを
         担当し、個別処理は api_tasks / api_agent_bridge モジュールのハンドラ関数へ委譲する。
         """
-        # 🛡️ ボディサイズ上限 (OOM DoS 防止・2026-09-12 レビュー対応)。
-        #    Content-Length を無制限に読むと巨大サイズ指定でメモリを食い潰されるため、
-        #    上限超過は本文を読まずに即 413 を返す。数値以外は 0 として扱う。
+        # 🛡️ P0 (2026-10-05 ChatGPTレビュー & 悪魔の代弁者監査対応): HTTP Framing 完全防壁。
+        #    1. Transfer-Encoding 検査 (CL.TE / TE.CL Request Smuggling 遮断)
+        #    2. Content-Length 重複検査 (CL.CL Smuggling 遮断 / RFC 9112 Section 6.3)
+        #    3. ASCII数字 ＆ 桁数厳格パース (Python int() の全角・アンダースコア・負数バイパス遮断)
+        #    4. ボディ読み取り ＆ タイムアウト・切断ハンドリング (Slowloris 対策)
+        #    5. 不完全本文 (Truncated Body) の検証
         MAX_BODY_SIZE = 5 * 1024 * 1024  # 5MB
-        try:
-            content_length = int(self.headers.get('Content-Length', 0))
-        except (TypeError, ValueError):
-            content_length = 0
-        if content_length > MAX_BODY_SIZE:
-            logger.warning(
-                f"🚫 [Security] 過大な Content-Length ({content_length}) を拒否 (上限 {MAX_BODY_SIZE})"
-            )
-            self.send_error(413, "Payload Too Large")
+
+        # ガード 1: Transfer-Encoding の存在検査
+        if "Transfer-Encoding" in self.headers:
+            logger.warning("🚫 [HTTP Framing] 未対応の Transfer-Encoding を検知 (Request Smuggling 防止)")
+            self.send_error(400, "Bad Request: Transfer-Encoding is not supported")
+            self.close_connection = True
             return
-        body = self.rfile.read(content_length)
+
+        # ガード 2: Content-Length 重複・複数値検査
+        get_all_fn = getattr(self.headers, "get_all", None)
+        if callable(get_all_fn):
+            cl_headers = get_all_fn("Content-Length")
+        else:
+            raw_val = self.headers.get("Content-Length") if hasattr(self.headers, "get") else None
+            cl_headers = [raw_val] if raw_val is not None else []
+        if cl_headers and len(cl_headers) > 1:
+            logger.warning(f"🚫 [HTTP Framing] 重複した Content-Length ヘッダーを検知: {cl_headers}")
+            self.send_error(400, "Bad Request: Multiple Content-Length headers")
+            self.close_connection = True
+            return
+
+        # ガード 3: Content-Length 厳格パース (ASCII数字・最大7桁)
+        raw_cl = self.headers.get("Content-Length")
+        if raw_cl is not None:
+            clean_cl = raw_cl.strip()
+            # ASCII の '0'-'9' のみで構成され、かつ最大10桁 (2GB相当) であることを厳格保証
+            # 全角数字、アンダースコア、負数 (-)、プラス符号 (+)、カンマ区切りを全て400で弾く
+            if not clean_cl.isascii() or not clean_cl.isdigit() or len(clean_cl) > 10:
+                logger.warning(f"🚫 [HTTP Framing] 不正な Content-Length 形式: {raw_cl!r}")
+                self.send_error(400, "Bad Request: Invalid Content-Length format")
+                self.close_connection = True
+                return
+
+            try:
+                content_length = int(clean_cl)
+            except (TypeError, ValueError):
+                self.send_error(400, "Bad Request: Invalid Content-Length")
+                self.close_connection = True
+                return
+
+            if content_length > MAX_BODY_SIZE:
+                logger.warning(
+                    f"🚫 [Security] 過大な Content-Length ({content_length}) を拒否 (上限 {MAX_BODY_SIZE})"
+                )
+                self.send_error(413, "Payload Too Large")
+                self.close_connection = True
+                return
+        else:
+            content_length = 0
+
+        # ガード 4: 本文読み込み ＆ タイムアウト・切断ハンドリング
+        import socket
+        try:
+            body = self.rfile.read(content_length)
+        except (socket.timeout, TimeoutError):
+            logger.warning("🚫 [HTTP Framing] ボディ読み取りがタイムアウト (Slowloris 対策)")
+            self.send_error(408, "Request Timeout")
+            self.close_connection = True
+            return
+        except (ConnectionError, OSError) as e:
+            logger.debug(f"クライアントソケット切断: {e}")
+            self.close_connection = True
+            return
+
+        # ガード 5: 不完全本文 (Truncated Body) の検証
+        if len(body) != content_length:
+            logger.warning(
+                f"🚫 [HTTP Framing] 受信ボディ長不一致: expected={content_length}, actual={len(body)}"
+            )
+            try:
+                self.send_error(400, "Bad Request: Incomplete request body")
+            except (ConnectionError, OSError):
+                pass
+            self.close_connection = True
+            return
         client_ip = self.client_address[0] if self.client_address else "unknown"
         user_agent = self.headers.get("User-Agent", "")
 

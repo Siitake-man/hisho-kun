@@ -508,10 +508,16 @@ class TestRouteRecordCharacterization(unittest.TestCase):
         from io import BytesIO
         from unittest.mock import MagicMock, patch
 
+        from email.message import Message
+
         handler = mock.MagicMock(spec=DeskPetSyncHandler)
         handler.path = "/api/agent/ask"
         handler.client_address = ("192.168.1.50", 54321)
-        handler.headers = {"Host": "192.168.1.10:8765", "User-Agent": "RemoteAgent"}
+        headers_msg = Message()
+        headers_msg["Host"] = "192.168.1.10:8765"
+        headers_msg["User-Agent"] = "RemoteAgent"
+        headers_msg["Content-Length"] = "2"
+        handler.headers = headers_msg
         handler.rfile = BytesIO(b"{}")
         handler._check_auth = MagicMock(return_value=True)
         # 非ループバックなので False
@@ -522,8 +528,7 @@ class TestRouteRecordCharacterization(unittest.TestCase):
         handler.wfile = out_wfile
 
         # DeskPetSyncHandler.do_POST をモック handler インスタンスで実行
-        with patch.object(handler, "headers", {"Content-Length": "2", "Host": "192.168.1.10:8765"}):
-            DeskPetSyncHandler.do_POST(handler)
+        DeskPetSyncHandler.do_POST(handler)
 
         handler.send_response.assert_called_with(403)
         written_body = out_wfile.getvalue().decode("utf-8")
