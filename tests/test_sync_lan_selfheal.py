@@ -68,6 +68,7 @@ class TestSyncLanSelfHeal(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
         """エフェメラルポートでHTTPサーバーを起動し、DB依存をMockで隔離する。"""
+        database.init_db()
         # --- DB隔離: ハンドラが参照する永続化関数を全てMockに差し替える ---
         cls.mock_get_tasks = MagicMock(return_value=[])
         cls.mock_get_upcoming_events = MagicMock(return_value=[])
@@ -230,11 +231,7 @@ class TestSyncLanSelfHeal(unittest.TestCase):
         """ペアリング未開放時、LAN (非ループバック) からの /api/auth/token は 403 で拒否されること"""
         self._reset_pairing()
         self.addCleanup(self._reset_pairing)
-        with patch.object(
-            local_sync_server.DeskPetSyncHandler,
-            "_is_loopback",
-            staticmethod(lambda ip: False),  # 127.0.0.1 接続を LAN クライアント扱いに偽装
-        ):
+        with patch.object(local_sync_server.DeskPetSyncHandler, "_is_trusted_loopback", staticmethod(lambda *a, **kw: False)),              patch("server.auth_checks.is_private_ip", return_value=False):
             st, data, _ = self._request("GET", "/api/auth/token")
         self.assertEqual(st, 403, f"LAN からの無条件トークン発行は禁止 (actual: {st} {data})")
 
@@ -246,11 +243,7 @@ class TestSyncLanSelfHeal(unittest.TestCase):
         未認証リクエストへの応答は 401 Unauthorized (トークン無し/不正の正セマンティクス)。
         403 は失効端末・エージェント専用API用であり、ここでは 401 が正。
         """
-        with patch.object(
-            local_sync_server.DeskPetSyncHandler,
-            "_is_loopback",
-            staticmethod(lambda ip: False),
-        ):
+        with patch.object(local_sync_server.DeskPetSyncHandler, "_is_trusted_loopback", staticmethod(lambda *a, **kw: False)),              patch("server.auth_checks.is_private_ip", return_value=False):
             st, data, _ = self._request("GET", "/api/status")
         self.assertEqual(st, 401, f"LAN からの未認証閲覧は拒否 (actual: {st})")
 
@@ -286,11 +279,7 @@ class TestSyncLanSelfHeal(unittest.TestCase):
         tm.unlock_pairing(duration_sec=60)
         tm.set_device_approval_callback(lambda dev_name, ip: True)
         self.addCleanup(self._reset_pairing)
-        with patch.object(
-            local_sync_server.DeskPetSyncHandler,
-            "_is_loopback",
-            staticmethod(lambda ip: False),
-        ):
+        with patch.object(local_sync_server.DeskPetSyncHandler, "_is_trusted_loopback", staticmethod(lambda *a, **kw: False)),              patch("server.auth_checks.is_private_ip", return_value=False):
             st, data, _ = self._request("GET", "/api/auth/token")
         self.assertEqual(st, 200)
         self.assertTrue(len(str(data.get("token", ""))) >= 32, "トークンが取得できること")

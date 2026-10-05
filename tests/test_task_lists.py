@@ -6,8 +6,11 @@ TickTick風リスト分類のDB層の挙動を検証する:
 - update_task によるタスクのリスト間移動 (list_id 変更)
 - parent_id による階層ツリー (作成・移動・循環防止・削除時の子昇格)
 """
+import gc
 import os
 import sys
+import tempfile
+import time
 import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -18,17 +21,30 @@ import database  # noqa: E402
 class TestTaskLists(unittest.TestCase):
     """タスクリストCRUDの振る舞いテスト (テンポラリDBを使用)。"""
 
+    @staticmethod
+    def _remove_db(db_path: str) -> None:
+        """SQLite DBファイルおよびWAL/SHM一時ファイルを明示的にクローズ・後片付けする (Windows flake 恒久対策・手帳 ID 83)。"""
+        gc.collect()  # ガベージコレクションを発生させ未参照コネクションのファイルハンドルを開放
+        targets = [db_path, f"{db_path}-wal", f"{db_path}-shm"]
+        for target in targets:
+            if not os.path.exists(target):
+                continue
+            for _ in range(5):
+                try:
+                    os.remove(target)
+                    break
+                except (PermissionError, OSError):
+                    time.sleep(0.05)
+
     def setUp(self):
-        """テストごとに独立したテンポラリDBを用意する。"""
-        self.db_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "_test_task_lists.db")
-        if os.path.exists(self.db_path):
-            os.remove(self.db_path)
+        """テストごとに独立したテンポラリDBを %TEMP% 配下に用意する。"""
+        self.db_path = os.path.join(tempfile.gettempdir(), f"_test_task_lists_{os.getpid()}.db")
+        self._remove_db(self.db_path)
         database.init_db(self.db_path)
 
     def tearDown(self):
         """テンポラリDBを後片付けする。"""
-        if os.path.exists(self.db_path):
-            os.remove(self.db_path)
+        self._remove_db(self.db_path)
 
     def test_create_and_get_task_list(self):
         """リスト作成 → 一覧取得で絵文字・名前が反映される"""
