@@ -393,6 +393,132 @@ def warn_if_legacy_data_pending(
     return False
 
 
+def _migrate_legacy_db(
+    root: Path,
+    target_db: Path,
+    archive_dir: Path,
+    data_dir: Path,
+    report: MigrationReport,
+) -> None:
+    """旧DB本体 (-wal / -shm 含む) を非同期領域へ安全に移行する。"""
+    legacy_db = root / DB_FILENAME
+    if not legacy_db.exists():
+        report.skipped.append(f"旧DBなし: {legacy_db}")
+        return
+
+    if target_db.exists():
+        # 移行済みでも、旧DB（VAPID 秘密鍵を内包）が同期領域に残っていれば
+        # 退避を再試行する。失敗した場合は「機密残存」を警告で明示する。
+        report.skipped.append(f"移行先DBが存在するため上書きしない: {legacy_db}")
+        _archive_db_with_sidecars(
+            legacy_db,
+            archive_dir,
+            report,
+            "⚠️ 旧DB (VAPID 秘密鍵を内包) が同期領域に残存しています。"
+            "アプリ/ MCP を停止して再実行してください",
+        )
+        return
+
+    migrating: Optional[Path] = None
+    try:
+        handle, migrating_name = tempfile.mkstemp(
+            dir=str(data_dir), prefix=f"{target_db.name}.", suffix=".migrating"
+        )
+        os.close(handle)
+        migrating = Path(migrating_name)
+        _copy_sqlite_safely(legacy_db, migrating)
+        if not _verify_sqlite(migrating):
+            raise sqlite3.DatabaseError("quick_check に失敗しました")
+        migrating.replace(target_db)
+        report.migrated_db = True
+        logger.info(f"🔐 DB を非同期領域へ移行しました: {legacy_db} → {target_db}")
+        # 旧DB本体の退避。失敗（使用中）時はコピー退避＋警告とし、
+        # -wal/-shm は本体と運命を共にする（単独で退避しない = データ整合）
+        _archive_db_with_sidecars(
+            legacy_db,
+            archive_dir,
+            report,
+            "⚠️ 旧DBが同期領域に残存しています (コピーは移行済み)。"
+            "アプリ/ MCP を停止して再実行してください",
+        )
+    except (sqlite3.Error, OSError, shutil.Error) as e:
+        report.errors.append(f"DBの移行に失敗しました (旧DBは温存): {legacy_db} ({e})")
+        logger.error(f"DBの移行に失敗しました: {legacy_db} ({e})")
+        if migrating is not None:
+            try:
+                migrating.unlink(missing_ok=True)
+            except OSError as cleanup_error:
+                logger.warning(
+                    f"移行用一時ファイルを削除できませんでした: {migrating} ({cleanup_error})"
+                )
+
+
+def _migrate_legacy_token(
+    root: Path,
+    target_token: Path,
+    report: MigrationReport,
+) -> None:
+    """マスタートークン (.sync_token) を非同期領域へ移行する。"""
+    legacy_token = root / SYNC_TOKEN_FILENAME
+    if not legacy_token.exists():
+        report.skipped.append(f"旧トークンなし: {legacy_token}")
+        return
+
+    if target_token.exists():
+        report.skipped.append(f"移行先トークンが存在するため温存: {legacy_token}")
+        return
+
+    try:
+        shutil.move(str(legacy_token), str(target_token))
+        report.migrated_token = True
+        logger.info(f"🔐 マスタートークンを非同期領域へ移行しました: {target_token}")
+    except (OSError, shutil.Error) as e:
+        report.errors.append(
+            f"トークンの移行に失敗しました (旧トークンは温存): {legacy_token} ({e})"
+        )
+
+
+def _migrate_legacy_backups(
+    root: Path,
+    target_backups: Path,
+    archive_dir: Path,
+    report: MigrationReport,
+) -> None:
+    """旧バックアップ (VAPID PEM を内包する DB コピー) を非同期領域へ退避する。"""
+    legacy_backups = root / BACKUPS_DIR_NAME
+    if not legacy_backups.is_dir():
+        report.skipped.append(f"旧バックアップなし: {legacy_backups}")
+        return
+
+    candidates = sorted(legacy_backups.glob("neo_secretary_backup_*.db*"))
+    if not candidates:
+        report.skipped.append(f"旧バックアップなし: {legacy_backups}")
+        return
+
+    try:
+        target_backups.mkdir(parents=True, exist_ok=True)
+    except OSError as e:
+        report.errors.append(f"バックアップ移行先を作成できませんでした: {target_backups} ({e})")
+        return
+
+    for source in candidates:
+        destination = target_backups / source.name
+        if destination.exists():
+            # 同名が移行済みでも旧コピー（機密同梱）はアーカイブへ退避する
+            report.skipped.append(f"同名バックアップが移行済みのため複製せず退避: {source}")
+            note = _archive_legacy_file(source, archive_dir)
+            if note:
+                report.warnings.append(
+                    f"⚠️ 旧バックアップ (機密同梱) が同期領域に残存: {source} ({note})"
+                )
+            continue
+        try:
+            shutil.move(str(source), str(destination))
+            report.migrated_backups += 1
+        except (OSError, shutil.Error) as e:
+            report.errors.append(f"バックアップの退避に失敗しました: {source} ({e})")
+
+
 def migrate_legacy_data(
     legacy_root: Optional[Path] = None,
     data_root: Optional[Path] = None,
@@ -450,102 +576,9 @@ def migrate_legacy_data(
     try:
         for root in _legacy_roots(legacy_root):
             root = Path(root)
-
-            # --- 1) DB 本体 (-wal / -shm 含む) ---
-            legacy_db = root / DB_FILENAME
-            if not legacy_db.exists():
-                report.skipped.append(f"旧DBなし: {legacy_db}")
-            elif target_db.exists():
-                # 移行済みでも、旧DB（VAPID 秘密鍵を内包）が同期領域に残っていれば
-                # 退避を再試行する。失敗した場合は「機密残存」を警告で明示する。
-                report.skipped.append(f"移行先DBが存在するため上書きしない: {legacy_db}")
-                _archive_db_with_sidecars(
-                    legacy_db,
-                    archive_dir,
-                    report,
-                    "⚠️ 旧DB (VAPID 秘密鍵を内包) が同期領域に残存しています。"
-                    "アプリ/ MCP を停止して再実行してください",
-                )
-            else:
-                migrating: Optional[Path] = None
-                try:
-                    handle, migrating_name = tempfile.mkstemp(
-                        dir=str(data_dir), prefix=f"{target_db.name}.", suffix=".migrating"
-                    )
-                    os.close(handle)
-                    migrating = Path(migrating_name)
-                    _copy_sqlite_safely(legacy_db, migrating)
-                    if not _verify_sqlite(migrating):
-                        raise sqlite3.DatabaseError("quick_check に失敗しました")
-                    migrating.replace(target_db)
-                    report.migrated_db = True
-                    logger.info(f"🔐 DB を非同期領域へ移行しました: {legacy_db} → {target_db}")
-                    # 旧DB本体の退避。失敗（使用中）時はコピー退避＋警告とし、
-                    # -wal/-shm は本体と運命を共にする（単独で退避しない = データ整合）
-                    _archive_db_with_sidecars(
-                        legacy_db,
-                        archive_dir,
-                        report,
-                        "⚠️ 旧DBが同期領域に残存しています (コピーは移行済み)。"
-                        "アプリ/ MCP を停止して再実行してください",
-                    )
-                except (sqlite3.Error, OSError, shutil.Error) as e:
-                    report.errors.append(f"DBの移行に失敗しました (旧DBは温存): {legacy_db} ({e})")
-                    logger.error(f"DBの移行に失敗しました: {legacy_db} ({e})")
-                    if migrating is not None:
-                        try:
-                            migrating.unlink(missing_ok=True)
-                        except OSError as cleanup_error:
-                            logger.warning(
-                                f"移行用一時ファイルを削除できませんでした: {migrating} ({cleanup_error})"
-                            )
-
-            # --- 2) マスタートークン (.sync_token) ---
-            legacy_token = root / SYNC_TOKEN_FILENAME
-            if not legacy_token.exists():
-                report.skipped.append(f"旧トークンなし: {legacy_token}")
-            elif target_token.exists():
-                report.skipped.append(f"移行先トークンが存在するため温存: {legacy_token}")
-            else:
-                try:
-                    shutil.move(str(legacy_token), str(target_token))
-                    report.migrated_token = True
-                    logger.info(f"🔐 マスタートークンを非同期領域へ移行しました: {target_token}")
-                except (OSError, shutil.Error) as e:
-                    report.errors.append(
-                        f"トークンの移行に失敗しました (旧トークンは温存): {legacy_token} ({e})"
-                    )
-
-            # --- 3) 旧バックアップ (VAPID PEM を内包する DB コピー) ---
-            legacy_backups = root / BACKUPS_DIR_NAME
-            if not legacy_backups.is_dir():
-                report.skipped.append(f"旧バックアップなし: {legacy_backups}")
-                continue
-            candidates = sorted(legacy_backups.glob("neo_secretary_backup_*.db*"))
-            if not candidates:
-                report.skipped.append(f"旧バックアップなし: {legacy_backups}")
-                continue
-            try:
-                target_backups.mkdir(parents=True, exist_ok=True)
-            except OSError as e:
-                report.errors.append(f"バックアップ移行先を作成できませんでした: {target_backups} ({e})")
-                continue
-            for source in candidates:
-                destination = target_backups / source.name
-                if destination.exists():
-                    # 同名が移行済みでも旧コピー（機密同梱）はアーカイブへ退避する
-                    report.skipped.append(f"同名バックアップが移行済みのため複製せず退避: {source}")
-                    note = _archive_legacy_file(source, archive_dir)
-                    if note:
-                        report.warnings.append(
-                            f"⚠️ 旧バックアップ (機密同梱) が同期領域に残存: {source} ({note})"
-                        )
-                    continue
-                try:
-                    shutil.move(str(source), str(destination))
-                    report.migrated_backups += 1
-                except (OSError, shutil.Error) as e:
-                    report.errors.append(f"バックアップの退避に失敗しました: {source} ({e})")
+            _migrate_legacy_db(root, target_db, archive_dir, data_dir, report)
+            _migrate_legacy_token(root, target_token, report)
+            _migrate_legacy_backups(root, target_backups, archive_dir, report)
     except Exception as e:
         # 最終防衛線: 移行の失敗でアプリ起動を妨げない (契約: 例外を送出しない)
         report.errors.append(f"移行処理で予期しないエラーが発生しました: {e}")
