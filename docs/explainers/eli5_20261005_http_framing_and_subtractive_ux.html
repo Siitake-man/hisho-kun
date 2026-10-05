@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ELI5: HTTP Framing 5重防壁 ＆ 引き算のUX物理 — 負数ハング封鎖から生きたDesk Petへ (2026-10-05)</title>
+<style>
+  :root {
+    --bg: #0b0f19;
+    --card: #151d30;
+    --card-hover: #1c2742;
+    --line: #243354;
+    --fg: #e2e8f0;
+    --dim: #94a3b8;
+    --gold: #f59e0b;
+    --cyan: #38bdf8;
+    --red: #f87171;
+    --green: #4ade80;
+    --purple: #c084fc;
+    --indigo: #818cf8;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 24px;
+    background: var(--bg);
+    color: var(--fg);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Yu Gothic UI", "Meiryo UI", sans-serif;
+    line-height: 1.7;
+  }
+  .header {
+    border-bottom: 1px solid var(--line);
+    padding-bottom: 16px;
+    margin-bottom: 24px;
+  }
+  h1 { font-size: 24px; margin: 0 0 6px; color: #fff; display: flex; align-items: center; gap: 10px; }
+  .meta { color: var(--dim); font-size: 13px; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 99px; font-size: 11px; font-weight: bold; background: #1e293b; border: 1px solid var(--line); color: var(--gold); }
+  
+  .card {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 22px;
+    margin-bottom: 24px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+  }
+  .card h2 {
+    font-size: 18px;
+    margin: 0 0 8px;
+    color: var(--cyan);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .card p.lead {
+    color: var(--dim);
+    font-size: 13px;
+    margin: 0 0 16px;
+    border-left: 3px solid var(--gold);
+    padding-left: 10px;
+  }
+
+  /* シミュレータ用コンテナ */
+  .sim-container {
+    background: #080c14;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 16px;
+    margin-top: 12px;
+  }
+  .btn-group {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-bottom: 12px;
+  }
+  .btn {
+    background: #1e293b;
+    border: 1px solid var(--line);
+    color: var(--fg);
+    padding: 8px 14px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 12px;
+    transition: all 0.2s;
+  }
+  .btn:hover { background: var(--line); border-color: var(--cyan); }
+  .btn.active { background: var(--cyan); color: #0b0f19; font-weight: bold; }
+
+  /* SVG アニメーション */
+  .sim-svg {
+    width: 100%;
+    height: 220px;
+    background: #0d1322;
+    border-radius: 8px;
+    border: 1px solid var(--line);
+  }
+
+  /* 対比レイアウト */
+  .compare-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-top: 12px;
+  }
+  .compare-box {
+    background: #0d1322;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 16px;
+  }
+  .compare-box.bad { border-top: 3px solid var(--red); }
+  .compare-box.good { border-top: 3px solid var(--green); }
+  .compare-box h3 { margin: 0 0 8px; font-size: 15px; }
+
+  /* アコーディオン辞典 */
+  details {
+    background: #0d1322;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    margin-bottom: 8px;
+    padding: 10px 14px;
+    transition: background 0.2s;
+  }
+  details[open] { background: #131c33; border-color: var(--cyan); }
+  summary {
+    cursor: pointer;
+    font-weight: bold;
+    color: #fff;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    user-select: none;
+  }
+  summary::-webkit-details-marker { display: none; }
+  summary::after { content: "＋"; color: var(--gold); font-size: 14px; }
+  details[open] summary::after { content: "−"; color: var(--cyan); }
+  .dict-body {
+    margin-top: 10px;
+    font-size: 13px;
+    color: var(--dim);
+    line-height: 1.6;
+    border-top: 1px dashed var(--line);
+    padding-top: 8px;
+  }
+  .code-inline {
+    background: #1e293b;
+    padding: 2px 6px;
+    border-radius: 4px;
+    color: var(--cyan);
+    font-family: Consolas, monospace;
+    font-size: 12px;
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div style="display:flex; justify-content:space-between; align-items:center;">
+    <h1>🛡️ HTTP Framing 5重防壁 ＆ 引き算のUX物理</h1>
+    <span class="badge">二重資産化 ELI5</span>
+  </div>
+  <div class="meta">
+    📅 2026-10-05 実施 | 🎯 負数 read(-1) 永久ハング封鎖 ＆ Desk Pet生命感（イースターエッグ全廃・親愛度廃止）
+  </div>
+</div>
+
+<!-- セクション1: 動くSVGシミュレータ (HTTP Framing) -->
+<div class="card">
+  <h2>⚡ Layer 1: 動くパケット検査ライン (HTTP Framing 5重防壁シミュレータ)</h2>
+  <p class="lead">クライアントから送られてくるHTTPリクエストが、サーバー内部のどの防壁で検査・遮断されるかをリアルタイムにシミュレーションします。</p>
+
+  <div class="sim-container">
+    <div class="btn-group">
+      <button class="btn active" onclick="testPacket('normal')">🟢 正常リクエスト (CL: 128)</button>
+      <button class="btn" onclick="testPacket('negative')">🔴 負数攻撃 (CL: -1)</button>
+      <button class="btn" onclick="testPacket('smuggling')">🔴 TE/CL混在 (Smuggling)</button>
+      <button class="btn" onclick="testPacket('duplicate')">🔴 CL重複 (CL: 10, 20)</button>
+      <button class="btn" onclick="testPacket('slowloris')">🔴 Slowloris (タイムアウト)</button>
+      <button class="btn" onclick="testPacket('truncated')">🔴 不完全本文 (受信不足)</button>
+    </div>
+
+    <svg class="sim-svg" id="framingSvg" viewBox="0 0 800 200">
+      <!-- 背景グリッドとライン -->
+      <line x1="50" y1="100" x2="750" y2="100" stroke="#243354" stroke-width="4" stroke-dasharray="8 4" />
+
+      <!-- 5重防壁 -->
+      <!-- ガード1 -->
+      <rect id="g1" x="140" y="40" width="70" height="120" rx="6" fill="#151d30" stroke="#38bdf8" stroke-width="2" />
+      <text x="175" y="70" text-anchor="middle" fill="#38bdf8" font-size="11" font-weight="bold">ガード1</text>
+      <text x="175" y="90" text-anchor="middle" fill="#94a3b8" font-size="10">TE混在</text>
+      <text x="175" y="105" text-anchor="middle" fill="#94a3b8" font-size="9">Smuggling</text>
+
+      <!-- ガード2 -->
+      <rect id="g2" x="250" y="40" width="70" height="120" rx="6" fill="#151d30" stroke="#38bdf8" stroke-width="2" />
+      <text x="285" y="70" text-anchor="middle" fill="#38bdf8" font-size="11" font-weight="bold">ガード2</text>
+      <text x="285" y="90" text-anchor="middle" fill="#94a3b8" font-size="10">CL重複</text>
+      <text x="285" y="105" text-anchor="middle" fill="#94a3b8" font-size="9">複数値</text>
+
+      <!-- ガード3 -->
+      <rect id="g3" x="360" y="40" width="70" height="120" rx="6" fill="#151d30" stroke="#38bdf8" stroke-width="2" />
+      <text x="395" y="70" text-anchor="middle" fill="#38bdf8" font-size="11" font-weight="bold">ガード3</text>
+      <text x="395" y="90" text-anchor="middle" fill="#f59e0b" font-size="10">負数/数字</text>
+      <text x="395" y="105" text-anchor="middle" fill="#94a3b8" font-size="9">厳格パース</text>
+
+      <!-- ガード4 -->
+      <rect id="g4" x="470" y="40" width="70" height="120" rx="6" fill="#151d30" stroke="#38bdf8" stroke-width="2" />
+      <text x="505" y="70" text-anchor="middle" fill="#38bdf8" font-size="11" font-weight="bold">ガード4</text>
+      <text x="505" y="90" text-anchor="middle" fill="#94a3b8" font-size="10">タイムアウト</text>
+      <text x="505" y="105" text-anchor="middle" fill="#94a3b8" font-size="9">Slowloris</text>
+
+      <!-- ガード5 -->
+      <rect id="g5" x="580" y="40" width="70" height="120" rx="6" fill="#151d30" stroke="#38bdf8" stroke-width="2" />
+      <text x="615" y="70" text-anchor="middle" fill="#38bdf8" font-size="11" font-weight="bold">ガード5</text>
+      <text x="615" y="90" text-anchor="middle" fill="#94a3b8" font-size="10">不完全本文</text>
+      <text x="615" y="105" text-anchor="middle" fill="#94a3b8" font-size="9">Truncated</text>
+
+      <!-- ゴール: APIハンドラ -->
+      <rect id="goal" x="690" y="55" width="60" height="90" rx="6" fill="#0f291e" stroke="#4ade80" stroke-width="2" />
+      <text x="720" y="95" text-anchor="middle" fill="#4ade80" font-size="11" font-weight="bold">API到達</text>
+      <text x="720" y="115" text-anchor="middle" fill="#94a3b8" font-size="9">200 OK</text>
+
+      <!-- パケット丸 -->
+      <circle id="pkt" cx="60" cy="100" r="14" fill="#38bdf8" stroke="#fff" stroke-width="2" />
+      <text id="pktLabel" x="60" y="104" text-anchor="middle" fill="#0b0f19" font-size="9" font-weight="bold">REQ</text>
+
+      <!-- 結果バナー -->
+      <rect id="resBanner" x="250" y="165" width="300" height="26" rx="4" fill="#1e293b" stroke="#243354" />
+      <text id="resText" x="400" y="182" text-anchor="middle" fill="#e2e8f0" font-size="11">リクエストを選択してシミュレート</text>
+    </svg>
+  </div>
+</div>
+
+<!-- セクション2: 初級エンジニア向けの物理構造解説 -->
+<div class="card">
+  <h2>💡 Layer 2: 初級エンジニア向け物理構造解説</h2>
+  <p class="lead">なぜたった1文字のマイナス記号「-1」がサーバーを永久停止させ、なぜ「親愛度」を消すことが相棒の生命感になるのか？</p>
+
+  <div class="compare-grid">
+    <div class="compare-box bad">
+      <h3 style="color:var(--red);">⚠️ 脆弱性の物理: なぜ read(-1) は死を招くのか？</h3>
+      <p style="font-size:13px; color:var(--dim);">
+        Pythonの標準ライブラリ（`io.BufferedReader`）において、`.read(size)` に負数（`-1`）を渡すと、仕様上<b>「EOF（相手が切断する）まで全てのデータを読み込む」</b>という挙動になります。<br><br>
+        <b>身近な例え（工場のベルトコンベア）:</b><br>
+        荷物伝票に「長さ: 100cm」と書いてあれば、作業員は100cm分を受け取って次の工程へ流せます。しかし伝票に「長さ: -1」と書かれていた場合、作業員は<b>「この箱は無限の長さがある。コンベアの終点から荷物が完全に途切れるまで、両手で荷物を待ち続けろ」</b>と解釈します。<br><br>
+        クライアント側は切断せず接続を保持しているため、作業員（HTTPスレッド）は永久に両手を差し出したままフリーズし、新しいリクエストを処理できなくなります（DoS成立）。
+      </p>
+    </div>
+
+    <div class="compare-box good">
+      <h3 style="color:var(--green);">✨ 引き算の美学: なぜ数値を消すと「相棒」になるのか？</h3>
+      <p style="font-size:13px; color:var(--dim);">
+        「親愛度 Lv.3 (34/100)」というゲージが表示された瞬間、人間の脳はそれを<b>「ゲームのタスク・数字稼ぎの道具」</b>として認識し、冷めてしまいます。<br><br>
+        <b>身近な例え（本物のペットとたまごっち）:</b><br>
+        本物の犬や猫の頭の上に「親愛度 45%」なんて数字は浮かびません。その代わり、ふとした瞬間に<b>「あくびをする」「足元で伸びをする」「夜中にスヤスヤ寝息を立てる」</b>という仕草を見るからこそ、「あぁ、生きているんだな」と愛着が湧きます。<br><br>
+        使われない800行のイースターエッグや冷たい数字をゴッソリ削ぎ落とし、時間帯に応じた表情や仕草のバリエーションへリソースを注ぐことこそが、プロダクトの本質（引き算の美学）です。
+      </p>
+    </div>
+  </div>
+</div>
+
+<!-- セクション3: 登場した専門用語の完全解体辞典 -->
+<div class="card">
+  <h2>📚 Layer 3: 本日の専門用語 完全解体辞典</h2>
+  <p class="lead">コードレビューやセッション中に登場した重要用語を、初級エンジニア向けに1行で完全解体します。</p>
+
+  <details>
+    <summary>RFC 9112 §6.3 (HTTP/1.1 Message Framing)</summary>
+    <div class="dict-body">
+      インターネットの標準規格書。HTTPリクエストの「本文の長さ（Framing）」をどう決定すべきかを厳格に規定している。「Transfer-Encoding と Content-Length が両方ある場合は Smuggling 攻撃とみなして 400 で即座に拒否しなければならない」「Content-Length にカンマや複数値が含まれる場合も拒否せよ」と定められている。
+    </div>
+  </details>
+
+  <details>
+    <summary>HTTP Request Smuggling (リクエスト密輸)</summary>
+    <div class="dict-body">
+      リバースプロキシとバックエンドサーバーの間で、「どこまでが1つのリクエストか」の解釈が食い違う隙を突き、他人のリクエストの裏に不正なコマンドを「密輸」して実行させる攻撃。CL.TE（手前がContent-Length、奥がTransfer-Encodingで解釈）や TE.CL などのパターンがある。
+    </div>
+  </details>
+
+  <details>
+    <summary>Slowloris 攻撃 (スローロリス)</summary>
+    <div class="dict-body">
+      極めて遅い速度（1バイトずつ等）でリクエストを送り続け、サーバー側のワーカースレッドを長時間占有させて枯渇させるDoS攻撃。今回のガード4では、本文読み込み時にソケットのタイムアウトを厳格に監視し、<span class="code-inline">408 Request Timeout</span> で即座に切断する。
+    </div>
+  </details>
+
+  <details>
+    <summary>Truncated Body (不完全本文)</summary>
+    <div class="dict-body">
+      「Content-Length: 100」と宣言しておきながら、途中で接続を切断して50バイトしか送らないようなリクエスト。以前は例外でクラッシュしたり未定義の挙動になっていたが、ガード5により「受信バイト数が足りない場合は 400 Bad Request または 安全な切断」として厳格に封鎖された。
+    </div>
+  </details>
+
+  <details>
+    <summary>引き算の美学 (Subtractive Design / 百貨店化の排除)</summary>
+    <div class="dict-body">
+      「あったら便利かも」で付け足された使われない機能（今回のイースターエッグ約800行）や、無機質な数値ゲージ（親愛度Lv）を勇気を持って削ぎ落とし、プロダクトが本来提供すべきコア体験（生活空間のアンビエントな相棒 ＆ ワンタップ承認）を研ぎ澄ます設計思想。
+    </div>
+  </details>
+</div>
+
+<script>
+function testPacket(type) {
+  const btns = document.querySelectorAll('.btn');
+  btns.forEach(b => b.classList.remove('active'));
+  event.target.classList.add('active');
+
+  const pkt = document.getElementById('pkt');
+  const pktLabel = document.getElementById('pktLabel');
+  const resText = document.getElementById('resText');
+  const resBanner = document.getElementById('resBanner');
+
+  // リセット
+  pkt.setAttribute('cx', '60');
+  pkt.setAttribute('fill', '#38bdf8');
+  pktLabel.setAttribute('x', '60');
+  pktLabel.textContent = 'REQ';
+
+  let targetX = 720;
+  let blockedText = '200 OK (API到達・処理成功)';
+  let bannerColor = '#0f291e';
+  let bannerStroke = '#4ade80';
+
+  if (type === 'smuggling') {
+    targetX = 175;
+    blockedText = '400 Bad Request (ガード1: TE混在Smuggling遮断)';
+    bannerColor = '#2b1111';
+    bannerStroke = '#f87171';
+  } else if (type === 'duplicate') {
+    targetX = 285;
+    blockedText = '400 Bad Request (ガード2: CL重複・カンマ複数値遮断)';
+    bannerColor = '#2b1111';
+    bannerStroke = '#f87171';
+  } else if (type === 'negative') {
+    targetX = 395;
+    blockedText = '400 Bad Request (ガード3: 負数・非ASCII数字遮断)';
+    bannerColor = '#2b1111';
+    bannerStroke = '#f87171';
+  } else if (type === 'slowloris') {
+    targetX = 505;
+    blockedText = '408 Request Timeout (ガード4: 読み込みタイムアウト遮断)';
+    bannerColor = '#2b1111';
+    bannerStroke = '#f87171';
+  } else if (type === 'truncated') {
+    targetX = 615;
+    blockedText = '400 Bad Request (ガード5: 受信バイト不足遮断)';
+    bannerColor = '#2b1111';
+    bannerStroke = '#f87171';
+  }
+
+  // アニメーション
+  let curX = 60;
+  const timer = setInterval(() => {
+    curX += 15;
+    if (curX >= targetX) {
+      curX = targetX;
+      clearInterval(timer);
+      if (type !== 'normal') {
+        pkt.setAttribute('fill', '#f87171');
+        pktLabel.textContent = 'ERR';
+      } else {
+        pkt.setAttribute('fill', '#4ade80');
+        pktLabel.textContent = 'OK';
+      }
+      resText.textContent = blockedText;
+      resBanner.setAttribute('fill', bannerColor);
+      resBanner.setAttribute('stroke', bannerStroke);
+    }
+    pkt.setAttribute('cx', curX);
+    pktLabel.setAttribute('x', curX);
+  }, 16);
+}
+</script>
+
+</body>
+</html>
