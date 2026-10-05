@@ -17,11 +17,11 @@ class TestQuietServerErrorHandling(unittest.TestCase):
         fd, self.db_path = tempfile.mkstemp(suffix=".db")
         io.open(fd).close()
         import database
-        import server.httpd_core
         database.init_db(self.db_path)
         self.server = local_sync_server.QuietThreadingHTTPServer(
             ("127.0.0.1", 0), local_sync_server.DeskPetSyncHandler
         )
+        import server.httpd_core
         self.logger = server.httpd_core.logger
         patcher = mock.patch.object(self.logger, "debug")
         patcher2 = mock.patch.object(self.logger, "warning")

@@ -17,6 +17,8 @@ class TestSettingsSidebarSeam(unittest.TestCase):
     Agent Bridge 通知と i18n ラベル追従が壊れないこと（UI Seam）を守る。
     """
 
+    root = None
+
     @classmethod
     def setUpClass(cls):
         # テスト隔離環境でのDB初期化（テーブル不在エラー防止）
@@ -26,17 +28,24 @@ class TestSettingsSidebarSeam(unittest.TestCase):
             pass
 
         # ヘッドレスTk初期化
-        cls.root = tk.Tk()
-        cls.root.withdraw()
+        try:
+            cls.root = tk.Tk()
+            cls.root.withdraw()
+        except Exception:
+            cls.root = None
 
     @classmethod
     def tearDownClass(cls):
-        try:
-            cls.root.destroy()
-        except Exception:
-            pass
+        if cls.root is not None:
+            try:
+                cls.root.destroy()
+            except Exception:
+                pass
+            cls.root = None
 
     def setUp(self):
+        if self.root is None:
+            self.skipTest("Tk/Tcl を初期化できない環境のためスキップします")
         self.mock_parent = mock.MagicMock()
         self.mock_parent.root = self.root
 
