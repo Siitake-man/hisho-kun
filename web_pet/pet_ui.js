@@ -590,9 +590,19 @@
   function openQuestionSheet() {
     var req = window.currentApprovalRequest;
     if (!req) return;
-    var choices = req.choices || [];
+    var rawChoices = req.choices || [];
+    var choices = Array.isArray(rawChoices) ? rawChoices.slice() : [];
     var choicesHtml = '';
     if (choices.length > 0) {
+      // 🛡️ ボスの鉄則: 選択肢が存在する場合、必ず「その他 (別途指示)」を含める (フロント側フェイルセーフ)
+      var hasOther = choices.some(function (c) {
+        var str = String(c);
+        return str.indexOf('その他') !== -1 || str.indexOf('別途指示') !== -1 || str.toLowerCase().indexOf('other') !== -1;
+      });
+      if (!hasOther) {
+        choices.push('その他 (別途指示)');
+        req.choices = choices;
+      }
       choicesHtml = choices.map(function (c, i) {
         return '<button class="btn-approve" onclick="closeBottomSheet(); respondChoice(' + i + ')">' + (i+1) + '. ' + escapeHtml(c) + '</button>';
       }).join('');

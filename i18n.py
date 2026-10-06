@@ -14,7 +14,7 @@ from __future__ import annotations
 import logging
 import os
 import threading
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -93,6 +93,7 @@ _TRANSLATIONS: Dict[str, Dict[str, str]] = {
         "ui.menu.sticky": "📌 新しい付箋を貼る",
         "ui.menu.qr": "📱 スマホDesk Pet接続 (QRコード)",
         "ui.menu.auto_min": "スマホ接続時にPCペットを自動最小化",
+        "ui.menu.stealth": "🥷 ペットを隠す (ステルスモード)",
         "ui.menu.pomo_start": "🍅 ポモドーロ集中開始 (25分)",
         "ui.menu.pomo_stop": "⏹ ポモドーロタイマー停止",
         "ui.menu.llm_switch": "🧠 LLMモデル切り替え",
@@ -366,6 +367,7 @@ _TRANSLATIONS: Dict[str, Dict[str, str]] = {
         "ui.menu.sticky": "📌 Add Sticky Note",
         "ui.menu.qr": "📱 Mobile Desk Pet (QR Code)",
         "ui.menu.auto_min": "Auto-minimize PC pet on mobile connect",
+        "ui.menu.stealth": "🥷 Hide Pet (Stealth Mode)",
         "ui.menu.pomo_start": "🍅 Start Pomodoro Focus (25m)",
         "ui.menu.pomo_stop": "⏹ Stop Pomodoro Timer",
         "ui.menu.llm_switch": "🧠 Switch LLM Model",
@@ -588,6 +590,9 @@ _TRANSLATIONS: Dict[str, Dict[str, str]] = {
     },
 }
 
+# 外部公開用辞書エイリアス (テスト・外部モジュール参照用)
+TRANSLATIONS: Dict[str, Dict[str, str]] = _TRANSLATIONS
+
 _lang_lock = threading.Lock()
 
 
@@ -700,19 +705,23 @@ def get_prompt_language_instruction() -> str:
     return f"Response Language: {lang_name}\n{guard}"
 
 
-def t(key: str, **params: Any) -> str:
+def t(key: str, lang: Optional[str] = None, **params: Any) -> str:
     """翻訳キーに対応する文字列を取得する。
 
     Args:
         key: 翻訳キー (例: "ui.settings.title")
+        lang: 明示的な言語コード指定 (省略時は現在言語)
         **params: 文字列整形用パラメータ ({name} プレースホルダ)
 
     Returns:
         翻訳済み文字列。辞書に無いキーは既定言語 → キー自身の順にフォールバック。
     """
-    with _lang_lock:
-        lang = _current_language
-    entry = _TRANSLATIONS.get(lang, {}).get(key)
+    if lang is not None:
+        target_lang = str(lang).strip().lower()
+    else:
+        with _lang_lock:
+            target_lang = _current_language
+    entry = _TRANSLATIONS.get(target_lang, {}).get(key)
     if entry is None:
         entry = _TRANSLATIONS[DEFAULT_LANGUAGE].get(key, key)
     if params:

@@ -16,8 +16,9 @@
   // 1. キャラクター定義 ＆ スプライト設定
   // =============================================================================
   var CHARACTERS = [
-    { id: 'hisho', name: '秘書くん', emoji: '👔' },
-    { id: 'kyle', name: 'カイル風精霊', emoji: '🐚' }
+    { id: 'hisho', name: '秘書くん', emoji: '👔', mode: 'classic' },
+    { id: 'kyle', name: 'カイル風精霊', emoji: '🐚', mode: 'classic' },
+    { id: 'hisho_hd2d', name: '秘書くん (HD-2D)', emoji: '✨👔', mode: 'hd2d' }
   ];
 
   // 歩行フレーム(walk_1/2)を持つキャラ（未保有キャラは歩行中も idle フレームで代用）
@@ -27,15 +28,48 @@
   var currentCharacterId = 'hisho';
 
   /**
+   * キャラクターIDからベースキャラクター (hisho または kyle) を解決
+   * @param {string} charId
+   * @returns {string} 'hisho' | 'kyle'
+   */
+  function getBaseCharacter(charId) {
+    if (!charId) return 'hisho';
+    if (charId === 'hisho_hd2d') return 'hisho';
+    return charId.replace('_hd2d', '');
+  }
+
+  /**
+   * HD-2D スキンに応じた .pet-stage のクラス同期
+   * @param {string} charId
+   */
+  function _syncStageHd2dClasses(charId) {
+    try {
+      var stage = document.querySelector('.pet-stage');
+      if (!stage) return;
+      var isHd2d = charId && charId.indexOf('_hd2d') !== -1;
+      if (isHd2d) {
+        stage.classList.add('is-hd2d');
+        stage.classList.add('char-hisho_hd2d');
+      } else {
+        stage.classList.remove('is-hd2d', 'char-hisho_hd2d');
+      }
+    } catch (e) {
+      console.warn('[pet_motion] _syncStageHd2dClasses failed:', e);
+    }
+  }
+
+  /**
    * スプライト画像プリローダー
    * @param {string} charId - キャラクターID
    */
   function preloadSprites(charId) {
     try {
       var spriteEl = document.getElementById('pet-sprite');
+      var baseChar = getBaseCharacter(charId);
+      _syncStageHd2dClasses(charId);
       if (spriteEl) {
         spriteEl.onerror = null;
-        spriteEl.src = '/assets/dot/' + charId + '/idle_1.png';
+        spriteEl.src = '/assets/dot/' + baseChar + '/idle_1.png';
       }
     } catch (e) {
       console.warn('[pet_motion] preloadSprites failed:', e);
@@ -51,11 +85,13 @@
       var el = document.getElementById('pet-sprite');
       if (!el) return;
       var activeChar = window.currentCharacterId || currentCharacterId;
-      var url = '/assets/dot/' + activeChar + '/' + name + '.png';
+      var baseChar = getBaseCharacter(activeChar);
+      _syncStageHd2dClasses(activeChar);
+      var url = '/assets/dot/' + baseChar + '/' + name + '.png';
       if (el.src && el.src.indexOf(url) !== -1) return;
       el.onerror = function () {
         el.onerror = null;
-        el.src = '/assets/dot/' + activeChar + '/idle_1.png';
+        el.src = '/assets/dot/' + baseChar + '/idle_1.png';
       };
       el.src = url;
     } catch (e) {
@@ -123,9 +159,11 @@
       if (!spriteEl) return;
       var candidates = ACTIVITY_SPRITES[activity] || ['idle_1'];
       var activeChar = window.currentCharacterId || currentCharacterId;
+      var baseChar = getBaseCharacter(activeChar);
+      _syncStageHd2dClasses(activeChar);
       
-      var urls = candidates.map(function (name) { return '/assets/dot/' + activeChar + '/' + name + '.png'; });
-      urls.push('/assets/dot/' + activeChar + '/idle_1.png');
+      var urls = candidates.map(function (name) { return '/assets/dot/' + baseChar + '/' + name + '.png'; });
+      urls.push('/assets/dot/' + baseChar + '/idle_1.png');
 
       var idx = 0;
       spriteEl.onerror = function () {
@@ -134,7 +172,7 @@
           spriteEl.src = urls[idx];
         } else {
           spriteEl.onerror = null; // 最終フォールバック
-          spriteEl.src = '/assets/dot/' + activeChar + '/idle_1.png';
+          spriteEl.src = '/assets/dot/' + baseChar + '/idle_1.png';
         }
       };
       spriteEl.src = urls[0];
@@ -153,41 +191,56 @@
       var now = new Date();
       var hour = now.getHours();
       var min = now.getMinutes();
+      var activeChar = window.currentCharacterId || currentCharacterId;
+      var baseChar = getBaseCharacter(activeChar);
+      var isKyle = (baseChar === 'kyle');
 
       var act = 'working';
-      var dialog = 'カタカタ…集中してお手伝い中！';
+      var dialog = isKyle ? 'カタカタ…貝型PCで集中業務支援中でございます🐚' : 'カタカタ…集中してお手伝い中！';
 
       if (hour >= 23 || hour < 6) {
         act = 'sleeping';
-        dialog = 'すやすや…ボス、良い夢を…💤';
+        dialog = isKyle ? 'カタカタ…深夜帯でございますね。貝型PCをナイトモードに移行いたします💤' : 'すやすや…ボス、良い夢を…💤 温かいお茶をどうぞ🍵';
       } else if (hour >= 6 && hour < 8) {
         act = 'breakfast';
-        dialog = 'おはようございます！朝ごはん美味しいです🍞';
-      } else if (hour >= 11 && hour < 13 && min >= 30 || hour === 12) {
+        dialog = isKyle ? 'カタカタ…おはようございます、ボス！貝型PCが本日の予定を最適ソートいたしました🐚' : 'おはようございます！朝ごはん美味しいです🍞 お茶も淹れました🍵';
+      } else if ((hour >= 11 && hour < 13 && min >= 30) || hour === 12) {
         act = 'lunch';
-        dialog = 'もぐもぐ…お昼ごはんの時間ですね🍱';
+        dialog = isKyle ? 'カタカタ…お昼の業務インターバル。貝型PCの冷却ファンを回しております！' : 'もぐもぐ…お昼ごはんの時間ですね🍱 お茶のおかわりはいかがですか？';
       } else if (hour === 15) {
         act = 'resting';
-        dialog = 'ほっと一息、お茶とお菓子タイムです🍵';
+        dialog = isKyle ? 'カタカタ…15時の一息でございます。貝型PCもリフレッシュ！🐚' : 'ほっと一息、お茶とお菓子タイムです🍵 ボス、深呼吸をどうぞ✨';
       } else if (hour >= 16 && hour < 18) {
         act = 'reading';
-        dialog = 'ふむふむ…新しい技術や本を読んで勉強中📖';
+        dialog = isKyle ? 'カタカタ…貝型PCで最新技術ナレッジを高速クロール中でございます📖' : 'ふむふむ…新しい技術や手帳を読んで勉強中📖';
       } else if (hour >= 18 && hour < 20) {
         act = 'dinner';
-        dialog = '今日もお疲れ様でした！美味しい晩ごはんです🍚';
+        dialog = isKyle ? 'カタカタ…本日もお見事な采配でございました。業務ログの保存は貝型PCにお任せを✨' : '今日もお疲れ様でした！美味しい晩ごはんです🍚 残りのタスクはお任せください！';
       } else if (hour >= 20 && hour < 22) {
         act = 'bathing';
-        dialog = 'いい湯だな〜♪さっぱりリフレッシュ🛁';
+        dialog = isKyle ? 'カタカタ…夜のメンテナンスタイム。貝型PCもクリーンアップ中です🛁' : 'いい湯だな〜♪さっぱりリフレッシュ🛁 温かいほうじ茶をどうぞ🍵';
       } else {
-        var randomActs = [
-          { act: 'working', msg: 'カタカタ…集中してお手伝い中！' },
-          { act: 'reading', msg: '仕様書やニュースをチェック中📖' },
-          { act: 'resting', msg: '深呼吸してストレッチ〜✨' },
-          { act: 'playing', msg: 'ボスと一緒にいられて嬉しいです♪' }
-        ];
-        var pick = randomActs[Math.floor(Math.random() * randomActs.length)];
-        act = pick.act;
-        dialog = pick.msg;
+        if (isKyle) {
+          var kyleRandom = [
+            { act: 'working', msg: 'カタカタ…貝型PC、フルスペック稼働中でございます🐚' },
+            { act: 'reading', msg: 'カタカタ…手帳と知見ノートを索引中📖' },
+            { act: 'resting', msg: 'ふっ、案内業務は継続しております！' },
+            { act: 'playing', msg: '貝型PCのクロックが加速中…カタカタカタッ！⚡' }
+          ];
+          var pickK = kyleRandom[Math.floor(Math.random() * kyleRandom.length)];
+          act = pickK.act;
+          dialog = pickK.msg;
+        } else {
+          var hishoRandom = [
+            { act: 'working', msg: 'カタカタ…集中してお手伝い中！' },
+            { act: 'reading', msg: '仕様書や手帳の予定をチェック中📖' },
+            { act: 'resting', msg: '深呼吸してストレッチ〜✨ お茶をどうぞ🍵' },
+            { act: 'playing', msg: 'ボスと一緒にいられて嬉しいです♪🌸' }
+          ];
+          var pickH = hishoRandom[Math.floor(Math.random() * hishoRandom.length)];
+          act = pickH.act;
+          dialog = pickH.msg;
+        }
       }
 
       if (forcedActivity) act = forcedActivity;
@@ -341,7 +394,8 @@
         if (now - WANDER.lastFrameAt > 160) {
           WANDER.lastFrameAt = now;
           WANDER.frame = 1 - WANDER.frame;
-          var hasWalk = WALK_CAPABLE_CHARS.indexOf(activeChar) !== -1;
+          var baseChar = getBaseCharacter(activeChar);
+          var hasWalk = WALK_CAPABLE_CHARS.indexOf(baseChar) !== -1;
           _setPetSprite(WANDER.frame ? (hasWalk ? 'walk_1' : 'idle_2') : (hasWalk ? 'walk_2' : 'idle_1'));
         }
         if (now > WANDER.until) {
@@ -375,10 +429,77 @@
   setInterval(petWanderTick, 120);
 
   // =============================================================================
-  // 5. なでなでインタラクション (Spring & Haptics & Particles & SE)
+  // 5. なでなでインタラクション ＆ HD-2Dリッチモーション
   // =============================================================================
+
   /**
-   * ペットタップ／クリック時のなでなでリアクション
+   * タップ時のピクセル波紋リングを生成
+   * @param {number} x - 画面X座標
+   * @param {number} y - 画面Y座標
+   */
+  function spawnPixelRing(x, y) {
+    try {
+      var stage = document.querySelector('.pet-stage');
+      if (!stage) return;
+      var ring = document.createElement('div');
+      ring.className = 'pixel-ring';
+      var rect = stage.getBoundingClientRect();
+      var relX = x - rect.left;
+      var relY = y - rect.top;
+      ring.style.left = relX + 'px';
+      ring.style.top = relY + 'px';
+      stage.appendChild(ring);
+      setTimeout(function () {
+        if (ring.parentNode) ring.parentNode.removeChild(ring);
+      }, 650);
+    } catch (e) {
+      console.warn('[pet_motion] spawnPixelRing failed:', e);
+    }
+  }
+
+  /**
+   * キャラクター固有モーションを発火
+   * @param {string} motionName - 'hop' | 'jiggle' | 'bow' | 'tea' | 'typing'
+   */
+  function triggerPetMotion(motionName) {
+    try {
+      var sprite = document.getElementById('pet-sprite');
+      if (!sprite) return;
+      var activeChar = window.currentCharacterId || currentCharacterId;
+      var baseChar = getBaseCharacter(activeChar);
+
+      var motionClass = 'motion-' + motionName;
+      sprite.classList.remove('squashing', 'motion-hop', 'motion-jiggle', 'motion-bow', 'motion-tea', 'motion-typing');
+      void sprite.offsetWidth; // リフロー強制
+      sprite.classList.add(motionClass);
+
+      // モーション中の特定フレーム差し替え
+      if (motionName === 'tea') {
+        _setPetSprite('tea_1');
+        setTimeout(function () { _setPetSprite('tea_2'); }, 300);
+      } else if (motionName === 'typing') {
+        _setPetSprite('focus_1');
+        setTimeout(function () { _setPetSprite('focus_2'); }, 250);
+      } else if (motionName === 'hop') {
+        _setPetSprite('happy');
+      } else if (motionName === 'bow') {
+        _setPetSprite('stretch_1');
+      } else if (motionName === 'jiggle') {
+        _setPetSprite('care_1');
+      }
+
+      setTimeout(function () {
+        sprite.classList.remove(motionClass);
+        var act = window.currentActivity || currentActivity || 'resting';
+        updateLifeSprite(act);
+      }, 750);
+    } catch (e) {
+      console.warn('[pet_motion] triggerPetMotion failed:', e);
+    }
+  }
+
+  /**
+   * ペットタップ／クリック時のなでなでリアクション（HD-2Dピクセル波紋 ＆ モーション ＆ 個性セリフ）
    * @param {Event} event - タッチまたはクリックイベント
    */
   function onPetTap(event) {
@@ -386,35 +507,46 @@
       if (navigator.vibrate) navigator.vibrate(30);
 
       var activeChar = window.currentCharacterId || currentCharacterId;
+      var baseChar = getBaseCharacter(activeChar);
       if (typeof playCharacterSE === 'function') {
-        playCharacterSE(activeChar);
-      }
-
-      var sprite = document.getElementById('pet-sprite');
-      if (sprite) {
-        sprite.classList.remove('squashing');
-        void sprite.offsetWidth; // リフロー強制
-        sprite.classList.add('squashing');
-        setTimeout(function () { sprite.classList.remove('squashing'); }, 500);
+        playCharacterSE(baseChar);
       }
 
       var rect = event.currentTarget ? event.currentTarget.getBoundingClientRect() : { left: 0, top: 0, width: 100, height: 100 };
       var clickX = (event.clientX || (event.touches && event.touches[0].clientX)) || (rect.left + rect.width / 2);
       var clickY = (event.clientY || (event.touches && event.touches[0].clientY)) || (rect.top + rect.height / 2);
 
+      // 🌟 ピクセル波紋 (Pixel Ring Ripple)
+      spawnPixelRing(clickX, clickY);
+
+      // 🎭 キャラ別モーション発火 (hisho: tea/bow/hop/jiggle, kyle: typing/hop/jiggle/bow)
+      var motions = (baseChar === 'kyle') ? ['typing', 'hop', 'jiggle', 'bow'] : ['tea', 'bow', 'hop', 'jiggle'];
+      var chosenMotion = motions[Math.floor(Math.random() * motions.length)];
+      triggerPetMotion(chosenMotion);
+
       if (typeof spawnTouchParticles === 'function') {
-        spawnTouchParticles(clickX, clickY, 5);
+        spawnTouchParticles(clickX, clickY, 6);
       }
 
       var bubble = document.getElementById('speech-bubble');
       if (bubble) {
-        var happyReplies = [
-          "えへへ〜、くすぐったいです！🥰",
-          "ボスになでなでしてもらえて幸せです〜！✨",
-          "もちもちパワー全開ですっ！パチパチ👏",
-          "今日もボスのお仕事、全力で応援しますね！🔥"
-        ];
-        bubble.innerText = happyReplies[Math.floor(Math.random() * happyReplies.length)];
+        var replies = [];
+        if (baseChar === 'kyle') {
+          replies = [
+            "カタカタ…！貝型PCのキーボードが絶好調でございます🐚",
+            "ふっ、ボスの指先タッチ…！貝型PCのクロックが加速いたしました！⚡",
+            "カタカタッ…！ご案内業務の準備はいつでも万端でございます！",
+            "お呼びでしょうか！この貝型PC、ボスの相棒としてフル稼働いたします🐚"
+          ];
+        } else {
+          replies = [
+            "淹れたての温かいお茶をどうぞ🍵 ボス、深呼吸してくださいね！",
+            "ボスにお仕えできて光栄です！本日も全力でサポートいたします✨",
+            "えへへ、くすぐったいです！🥰 ボス、何でもお申し付けくださいね。",
+            "ボスのご活躍を一番近くで応援しております！🌸"
+          ];
+        }
+        bubble.innerText = replies[Math.floor(Math.random() * replies.length)];
       }
     } catch (e) {
       console.warn('[pet_motion] onPetTap failed:', e);
@@ -427,6 +559,7 @@
   window.CHARACTERS = CHARACTERS;
   window.WALK_CAPABLE_CHARS = WALK_CAPABLE_CHARS;
   window.currentCharacterId = currentCharacterId;
+  window.getBaseCharacter = getBaseCharacter;
   window.cycleCharacter = cycleCharacter;
   window.preloadSprites = preloadSprites;
   window._setPetSprite = _setPetSprite;
@@ -436,6 +569,8 @@
   window.updateLifeSprite = updateLifeSprite;
   window.updatePetLifeActivity = updatePetLifeActivity;
   window.triggerCelebrateReaction = triggerCelebrateReaction;
+  window.triggerPetMotion = triggerPetMotion;
+  window.spawnPixelRing = spawnPixelRing;
   window.WANDER = WANDER;
   window.petWanderTick = petWanderTick;
   window.onPetTap = onPetTap;
@@ -446,6 +581,7 @@
 var CHARACTERS = window.CHARACTERS;
 var WALK_CAPABLE_CHARS = window.WALK_CAPABLE_CHARS;
 var currentCharacterId = window.currentCharacterId;
+var getBaseCharacter = window.getBaseCharacter;
 var cycleCharacter = window.cycleCharacter;
 var preloadSprites = window.preloadSprites;
 var _setPetSprite = window._setPetSprite;
@@ -455,6 +591,8 @@ var currentActivity = window.currentActivity;
 var updateLifeSprite = window.updateLifeSprite;
 var updatePetLifeActivity = window.updatePetLifeActivity;
 var triggerCelebrateReaction = window.triggerCelebrateReaction;
+var triggerPetMotion = window.triggerPetMotion;
+var spawnPixelRing = window.spawnPixelRing;
 var WANDER = window.WANDER;
 var petWanderTick = window.petWanderTick;
 var onPetTap = window.onPetTap;

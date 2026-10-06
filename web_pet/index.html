@@ -15,7 +15,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DotGothic16&family=Space+Grotesk:wght@500;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=1.1.18">
+  <link rel="stylesheet" href="style.css?v=1.1.19">
   <style>
     :root {
       --bg-casing: #2E1C14;
@@ -70,7 +70,7 @@
       overflow: hidden;
     }
 
-    /* 背景環境レイヤー (Room / Cafe / Forest / Ocean / Cyber) */
+    /* 背景環境レイヤー (HD-2Dピクセルルーム: 上質アンバー間接照明 ＆ 床パース ＆ 柔らかい影) */
     .env-backdrop {
       position: absolute;
       top: 0;
@@ -85,22 +85,49 @@
       -webkit-transform: translateZ(0);
       backface-visibility: hidden;
       -webkit-backface-visibility: hidden;
+      overflow: hidden;
     }
 
+    /* HD-2D ルーム: 上質アンバー間接照明・壁面グラデーション・床パース */
     .theme-room {
-      background: radial-gradient(circle at 50% 30%, #8A5A32 0%, #4A2C18 50%, #1A0F08 100%);
+      background:
+        radial-gradient(ellipse 95% 60% at 50% 16%, rgba(255, 184, 0, 0.32) 0%, rgba(184, 115, 51, 0.16) 42%, rgba(20, 12, 8, 0.96) 95%),
+        linear-gradient(180deg, #18100B 0%, #120A06 62%, #3E2415 62.5%, #4E2E1B 63.5%, #24140C 64%, #140A05 100%);
     }
     .theme-cafe {
-      background: radial-gradient(circle at 30% 25%, #A9714B 0%, #6B4226 50%, #241209 100%);
+      background:
+        radial-gradient(ellipse 90% 55% at 42% 18%, rgba(255, 196, 92, 0.28) 0%, rgba(140, 85, 45, 0.14) 45%, rgba(18, 10, 6, 0.96) 95%),
+        linear-gradient(180deg, #170E08 0%, #110804 62%, #3A2012 62.5%, #462817 63.5%, #201109 64%, #120804 100%);
     }
     .theme-forest {
-      background: radial-gradient(circle at 50% 25%, #3E9E68 0%, #1B5E38 50%, #072815 100%);
+      background:
+        radial-gradient(ellipse 95% 60% at 50% 16%, rgba(255, 204, 102, 0.25) 0%, rgba(46, 78, 50, 0.18) 45%, rgba(10, 20, 12, 0.96) 95%),
+        linear-gradient(180deg, #0F1710 0%, #0A120B 62%, #1C2D1F 62.5%, #2A3F2E 63.5%, #152217 64%, #0B130D 100%);
     }
     .theme-ocean {
-      background: radial-gradient(circle at 50% 30%, #2196F3 0%, #0D47A1 50%, #04102E 100%);
+      background:
+        radial-gradient(ellipse 95% 60% at 50% 16%, rgba(255, 215, 130, 0.24) 0%, rgba(30, 60, 95, 0.18) 45%, rgba(8, 14, 24, 0.96) 95%),
+        linear-gradient(180deg, #0C121D 0%, #070D16 62%, #1A2738 62.5%, #24354C 63.5%, #121C2A 64%, #080D15 100%);
     }
     .theme-cyber {
-      background: radial-gradient(circle at 50% 35%, #AB47BC 0%, #6A1B9A 50%, #1A0033 100%);
+      background:
+        radial-gradient(ellipse 95% 60% at 50% 16%, rgba(255, 184, 0, 0.28) 0%, rgba(0, 229, 255, 0.12) 45%, rgba(12, 10, 22, 0.96) 95%),
+        linear-gradient(180deg, #120E1C 0%, #0B0813 62%, #261B3A 62.5%, #382755 63.5%, #1B132B 64%, #0D0916 100%);
+    }
+
+    /* 床パース・グリッドラインの立体表現 */
+    .env-backdrop::after {
+      content: '';
+      position: absolute;
+      left: 0;
+      right: 0;
+      top: 63.5%;
+      bottom: 0;
+      background:
+        linear-gradient(180deg, rgba(255, 184, 0, 0.08) 0%, rgba(0, 0, 0, 0.45) 100%),
+        repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.02) 0px, rgba(255, 255, 255, 0.02) 1px, transparent 1px, transparent 32px);
+      box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.6);
+      pointer-events: none;
     }
 
     /* 環境パーティクル Canvas */
@@ -540,6 +567,45 @@
       will-change: transform, opacity;
     }
 
+    /* HD-2D光彩・ブルーム ＆ キャラ別ネオンシェーダー */
+    .pet-stage.is-hd2d .pet-img {
+      filter: drop-shadow(0 0 12px rgba(255, 184, 0, 0.45)) drop-shadow(0 6px 10px rgba(0,0,0,0.6));
+    }
+    .pet-stage.char-hisho_hd2d .pet-img {
+      filter: drop-shadow(0 0 14px rgba(255, 184, 0, 0.6)) drop-shadow(0 6px 12px rgba(0,0,0,0.7));
+    }
+    .pet-stage.char-kyle_hd2d .pet-img {
+      filter: drop-shadow(0 0 14px rgba(0, 229, 255, 0.55)) drop-shadow(0 6px 12px rgba(0,0,0,0.7));
+    }
+    .pet-stage.is-hd2d .pet-shadow {
+      background: radial-gradient(ellipse at center, rgba(255, 184, 0, 0.3) 0%, rgba(0,0,0,0.7) 35%, rgba(0,0,0,0) 75%);
+    }
+
+    /* タップ時のピクセル波紋 (Pixel Ring Ripple) */
+    .pixel-ring {
+      position: absolute;
+      border-radius: 50%;
+      border: 2px solid var(--accent-amber, #FFB800);
+      box-shadow: 0 0 12px rgba(255, 184, 0, 0.8), inset 0 0 8px rgba(255, 184, 0, 0.5);
+      pointer-events: none;
+      z-index: 15;
+      width: 48px;
+      height: 48px;
+      margin-left: -24px;
+      margin-top: -24px;
+      animation: pixel-ring-expand 0.65s cubic-bezier(0.2, 0.8, 0.3, 1) forwards;
+    }
+    @keyframes pixel-ring-expand {
+      0% {
+        transform: scale(0.2);
+        opacity: 1;
+      }
+      100% {
+        transform: scale(2.6);
+        opacity: 0;
+      }
+    }
+
     /* 漫画・RPG風 吹き出し (Comic Speech Balloon) - A案 */
     .speech-bubble {
       position: absolute;
@@ -929,6 +995,67 @@
       animation: squash-bounce 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) !important;
     }
 
+    /* 🐇 モーション1: ぴょん跳ね (pet-hop) */
+    @keyframes pet-hop {
+      0%, 100% { transform: translateY(0) scale(1, 1); }
+      30% { transform: translateY(-18px) scale(0.94, 1.1); }
+      60% { transform: translateY(0) scale(1.1, 0.9); }
+      80% { transform: translateY(-5px) scale(0.98, 1.02); }
+    }
+    .pet-img.motion-hop {
+      animation: pet-hop 0.6s ease-in-out !important;
+    }
+
+    /* 💖 モーション2: ぷるぷる照れる (pet-jiggle) */
+    @keyframes pet-jiggle {
+      0%, 100% { transform: translateX(0) scale(1, 1); }
+      15% { transform: translateX(-5px) rotate(-4deg) scale(1.05, 0.95); }
+      30% { transform: translateX(5px) rotate(4deg) scale(0.95, 1.05); }
+      45% { transform: translateX(-3px) rotate(-2deg) scale(1.03, 0.97); }
+      60% { transform: translateX(3px) rotate(2deg) scale(0.97, 1.03); }
+      75% { transform: translateX(-1px) rotate(-1deg); }
+      90% { transform: translateX(1px) rotate(1deg); }
+    }
+    .pet-img.motion-jiggle {
+      animation: pet-jiggle 0.65s ease-in-out !important;
+    }
+
+    /* 🙇 モーション3: お辞儀 (pet-bow) */
+    @keyframes pet-bow {
+      0%, 100% { transform: translateY(0) rotate(0deg) scale(1, 1); }
+      20% { transform: translateY(4px) rotate(6deg) scale(1.02, 0.94); }
+      50% { transform: translateY(8px) rotate(12deg) scale(1.05, 0.88); }
+      75% { transform: translateY(4px) rotate(6deg) scale(1.02, 0.95); }
+    }
+    .pet-img.motion-bow {
+      animation: pet-bow 0.7s ease-in-out !important;
+    }
+
+    /* 🍵 モーション4: 秘書のお茶出し (pet-tea-serve) */
+    @keyframes pet-tea-serve {
+      0%, 100% { transform: translateY(0) scale(1, 1); }
+      25% { transform: translateY(-8px) scale(1.04, 0.96); }
+      50% { transform: translateY(3px) scale(0.96, 1.04); }
+      75% { transform: translateY(-2px) scale(1.02, 0.98); }
+    }
+    .pet-img.motion-tea {
+      animation: pet-tea-serve 0.8s ease-in-out !important;
+    }
+
+    /* ⚡ モーション5: カイルのシェルPC爆速タイピング (pet-typing-frenzy) */
+    @keyframes pet-typing-frenzy {
+      0%, 100% { transform: translateY(0) scale(1); }
+      12% { transform: translateY(-2px) translateX(3px) scale(1.03, 0.97); }
+      25% { transform: translateY(2px) translateX(-3px) scale(0.97, 1.03); }
+      38% { transform: translateY(-3px) translateX(2px) scale(1.04, 0.96); }
+      50% { transform: translateY(1px) translateX(-2px) scale(0.96, 1.04); }
+      65% { transform: translateY(-2px) translateX(3px) scale(1.03, 0.97); }
+      80% { transform: translateY(2px) translateX(-1px) scale(0.98, 1.02); }
+    }
+    .pet-img.motion-typing {
+      animation: pet-typing-frenzy 0.75s ease-in-out !important;
+    }
+
     /* 🎉 歓喜ジャンプアニメーション（物理バウンス・多重ジャンプ） */
     @keyframes celebrate-jump {
       0% { transform: translateY(0) scale(1, 1) translateZ(0); }
@@ -1224,99 +1351,6 @@
       gap: 4px;
     }
 
-    /* =========================================================================
-       イースターエッグ演出 (Easter Egg FX)
-       ========================================================================= */
-    .fx-shake-light {
-      animation: ee-shake 0.4s cubic-bezier(.36,.07,.19,.97) both;
-    }
-    @keyframes ee-shake {
-      10%, 90% { transform: translate3d(-2px, 0, 0); }
-      20%, 80% { transform: translate3d(3px, 0, 0); }
-      30%, 50%, 70% { transform: translate3d(-3px, 0, 0); }
-      40%, 60% { transform: translate3d(3px, 0, 0); }
-    }
-
-    .fx-reject-pulse {
-      animation: ee-reject 1.2s ease forwards;
-    }
-    @keyframes ee-reject {
-      0% { filter: hue-rotate(0deg) contrast(100%); }
-      30% { filter: hue-rotate(300deg) contrast(150%) drop-shadow(0 0 15px rgba(255,23,68,0.8)); }
-      100% { filter: hue-rotate(0deg) contrast(100%); }
-    }
-
-    .fx-glitch-active {
-      animation: ee-glitch 0.6s infinite;
-      position: relative;
-    }
-    .fx-glitch-active::before {
-      content: " ";
-      position: absolute;
-      top: 0; left: 0; bottom: 0; right: 0;
-      background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.4) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
-      background-size: 100% 3px, 6px 100%;
-      pointer-events: none;
-      z-index: 9999;
-    }
-    @keyframes ee-glitch {
-      0% { transform: translate(0); filter: drop-shadow(-2px 0 red) drop-shadow(2px 0 cyan); }
-      20% { transform: translate(-3px, 2px); filter: drop-shadow(2px 0 red) drop-shadow(-2px 0 cyan); }
-      40% { transform: translate(-2px, -2px); filter: drop-shadow(-2px 0 green); }
-      60% { transform: translate(3px, 1px); filter: drop-shadow(3px 0 red) drop-shadow(-3px 0 blue); }
-      80% { transform: translate(1px, -1px); filter: none; }
-      100% { transform: translate(0); filter: drop-shadow(-2px 0 red) drop-shadow(2px 0 cyan); }
-    }
-
-    .fx-blackout {
-      filter: brightness(0) !important;
-      transition: filter 0.5s ease;
-    }
-
-    .fx-revive-burst {
-      animation: ee-revive 2.5s ease-out forwards;
-    }
-    @keyframes ee-revive {
-      0% { filter: brightness(3) drop-shadow(0 0 30px #FFF); }
-      40% { filter: brightness(1.5) drop-shadow(0 0 20px #00E676); }
-      100% { filter: brightness(1) drop-shadow(0 0 0 transparent); }
-    }
-
-    .fx-pet-revive {
-      animation: ee-pet-pop 0.8s cubic-bezier(0.18, 0.89, 0.32, 1.28) forwards;
-    }
-    @keyframes ee-pet-pop {
-      0% { transform: scale(0) rotate(-180deg); }
-      100% { transform: scale(1) rotate(0deg); }
-    }
-
-    .secret-game-badge {
-      position: absolute;
-      top: 6px;
-      right: 8px;
-      z-index: 10;
-      font-size: 10px;
-      font-weight: bold;
-      background: linear-gradient(135deg, rgba(255, 184, 0, 0.95), rgba(255, 143, 0, 0.95));
-      color: #0E0A08;
-      border: 1px solid #FFE082;
-      padding: 3px 8px;
-      border-radius: 6px;
-      cursor: pointer;
-      display: inline-flex;
-      align-items: center;
-      gap: 3px;
-      white-space: nowrap;
-      line-height: 1.2;
-      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4), 0 0 10px rgba(255, 184, 0, 0.5);
-      transition: transform 0.2s, box-shadow 0.2s;
-    }
-    .secret-game-badge:active {
-      transform: scale(0.92);
-    }
-    .badge-unlocked-pulse {
-      animation: ee-badge-pulse 1s infinite alternate;
-    }
 
     /* 👾 Pixel Defense ミニゲームモーダル (Phase L5: 疎結合Canvasモーダル) */
     .minigame-overlay {
@@ -1576,10 +1610,7 @@
 
       <!-- ペット生息地ステージ -->
       <section class="pet-stage" onclick="onPetTap(event)">
-        <!-- 👾 秘密の部屋（隠しポータル） -->
-        <span id="secret-game-badge" class="secret-game-badge" style="display:none;" onclick="event.stopPropagation(); triggerSecretRoomIris(event);" title="👾 秘密の部屋">
-          👾 秘密の部屋
-        </span>
+
         <div class="pet-img-wrap">
           <img id="pet-sprite" class="pet-img" src="/assets/dot/hisho/idle_1.png" alt="Pet">
           <div class="pet-shadow"></div>
@@ -1677,22 +1708,21 @@
   <!-- 常時画面ON (NoSleep): Canvas無限生配信を流す不可視video（HTTP環境で唯一確実に動作する方式） -->
   <video id="nosleep-video" muted playsinline autoplay style="position:fixed; left:0; bottom:0; width:2px; height:2px; opacity:0.01; pointer-events:none; z-index:-1;"></video>
 
-  <script src="version.js?v=1.1.18"></script>
-  <script src="lang.js?v=1.1.18"></script>
-  <script src="pet_auth.js?v=1.1.18"></script>
-  <script src="pet_audio_se.js?v=1.1.18"></script>
-  <script src="pet_particles.js?v=1.1.18"></script>
-  <script src="pet_motion.js?v=1.1.18"></script>
-  <script src="pet_ui.js?v=1.1.18"></script>
-  <script src="easter_eggs.js?v=1.1.18"></script>
-  <script src="pixel_defense.js?v=1.1.18"></script>
-  <script src="minigame_arcade.js?v=1.1.18"></script>
-  <script src="minigame_itotooshi.js?v=1.1.18"></script>
-  <script src="minigame_cyber_wire.js?v=1.1.18"></script>
-  <script src="minigame_setsuna.js?v=1.1.18"></script>
-  <script src="minigame_retro_breakout.js?v=1.1.18"></script>
-  <script src="push_common.js?v=1.1.18"></script>
-  <script src="pet_push.js?v=1.1.18"></script>
-  <script src="pet.js?v=1.1.18"></script>
+  <script src="version.js?v=1.1.19"></script>
+  <script src="lang.js?v=1.1.19"></script>
+  <script src="pet_auth.js?v=1.1.19"></script>
+  <script src="pet_audio_se.js?v=1.1.19"></script>
+  <script src="pet_particles.js?v=1.1.19"></script>
+  <script src="pet_motion.js?v=1.1.19"></script>
+  <script src="pet_ui.js?v=1.1.19"></script>
+  <script src="pixel_defense.js?v=1.1.19"></script>
+  <script src="minigame_arcade.js?v=1.1.19"></script>
+  <script src="minigame_itotooshi.js?v=1.1.19"></script>
+  <script src="minigame_cyber_wire.js?v=1.1.19"></script>
+  <script src="minigame_setsuna.js?v=1.1.19"></script>
+  <script src="minigame_retro_breakout.js?v=1.1.19"></script>
+  <script src="push_common.js?v=1.1.19"></script>
+  <script src="pet_push.js?v=1.1.19"></script>
+  <script src="pet.js?v=1.1.19"></script>
 </body>
 </html>

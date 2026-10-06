@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ネオ秘書くん ELI5解剖図解: 引き算の美学 ＆ ステルス相棒ペットの物理 (2026-10-06)</title>
+  <style>
+    :root {
+      --bg-dark: #0F0A06;
+      --card-bg: #1C120B;
+      --border-amber: rgba(255, 184, 0, 0.35);
+      --accent-amber: #FFB800;
+      --accent-green: #00E676;
+      --accent-red: #FF5252;
+      --accent-blue: #00E5FF;
+      --text-main: #FDF6E2;
+      --text-muted: #D5C4AB;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg-dark);
+      color: var(--text-main);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+      padding: 20px;
+      line-height: 1.6;
+    }
+    .container { max-width: 900px; margin: 0 auto; }
+    header { text-align: center; margin-bottom: 24px; }
+    h1 { color: var(--accent-amber); font-size: 24px; margin-bottom: 6px; }
+    .subtitle { color: var(--text-muted); font-size: 14px; }
+    
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--border-amber);
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 24px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.6);
+    }
+    h2 {
+      font-size: 18px;
+      color: var(--accent-amber);
+      margin-bottom: 14px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      border-bottom: 1px solid rgba(255,184,0,0.2);
+      padding-bottom: 8px;
+    }
+
+    /* SVGシミュレータ */
+    .sim-controls {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 16px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+    button.sim-btn {
+      background: rgba(255, 184, 0, 0.15);
+      border: 1px solid var(--accent-amber);
+      color: var(--accent-amber);
+      padding: 8px 16px;
+      border-radius: 6px;
+      font-weight: bold;
+      cursor: pointer;
+      font-size: 13px;
+      transition: all 0.2s;
+    }
+    button.sim-btn:hover { background: var(--accent-amber); color: #000; }
+    button.sim-btn.active { background: var(--accent-amber); color: #000; }
+    
+    svg {
+      width: 100%;
+      height: 280px;
+      background: #0A0604;
+      border-radius: 8px;
+      border: 1px solid rgba(255,255,255,0.1);
+    }
+
+    /* アコーディオン用語集 */
+    details {
+      background: rgba(255,255,255,0.03);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 8px;
+      padding: 12px 14px;
+      margin-bottom: 10px;
+      cursor: pointer;
+    }
+    details summary {
+      font-weight: bold;
+      color: var(--accent-blue);
+      outline: none;
+    }
+    details p {
+      margin-top: 8px;
+      font-size: 13.5px;
+      color: var(--text-muted);
+      line-height: 1.5;
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: bold;
+      margin-right: 6px;
+    }
+    .badge-green { background: rgba(0,230,118,0.2); color: var(--accent-green); border: 1px solid var(--accent-green); }
+    .badge-red { background: rgba(255,82,82,0.2); color: var(--accent-red); border: 1px solid var(--accent-red); }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <header>
+    <h1>⚡ ネオ秘書くん ELI5 動くビジュアル解剖新書</h1>
+    <p class="subtitle">手帳ID 93完達: 引き算の美学 ＆ ステルス相棒ペットの物理構造シミュレータ (2026-10-06)</p>
+  </header>
+
+  <!-- 第1層: 動くSVGシミュレータ -->
+  <div class="card">
+    <h2>🎮 1. ステルスモード ＆ ゼロトラスト承認着信シミュレータ</h2>
+    <div class="sim-controls">
+      <button class="sim-btn active" id="btn-normal" onclick="setMode('normal')">通常常駐モード</button>
+      <button class="sim-btn" id="btn-stealth" onclick="setMode('stealth')">🥷 ステルス潜伏モード</button>
+      <button class="sim-btn" onclick="triggerAskEvent()">⚡ エージェント承認着信！</button>
+    </div>
+
+    <svg id="sim-svg" viewBox="0 0 800 280">
+      <!-- PC画面領域 -->
+      <rect x="40" y="30" width="340" height="220" rx="8" fill="#140D09" stroke="#5A3C2D" stroke-width="2"/>
+      <text x="55" y="55" fill="#FFB800" font-size="13" font-weight="bold">🖥️ デスクトップ画面 (作業空間)</text>
+
+      <!-- PCペット -->
+      <g id="pc-pet-group" transform="translate(180, 140)">
+        <ellipse cx="25" cy="40" rx="35" ry="8" fill="rgba(0,0,0,0.6)"/>
+        <rect x="0" y="0" width="50" height="40" rx="6" fill="#A67B5B" stroke="#4A3B32" stroke-width="2"/>
+        <text x="18" y="25" font-size="16">👔</text>
+        <text x="-15" y="-10" id="pc-pet-status" fill="#00E676" font-size="11" font-weight="bold">常駐待機中</text>
+      </g>
+
+      <!-- エージェント通知ライン -->
+      <path id="signal-path" d="M 400 140 L 400 140" stroke="#FF1744" stroke-width="3" stroke-dasharray="6,4"/>
+
+      <!-- スマホDesk Pet領域 -->
+      <rect x="440" y="30" width="320" height="220" rx="16" fill="#1A120B" stroke="#FFB800" stroke-width="2"/>
+      <text x="460" y="55" fill="#00E5FF" font-size="13" font-weight="bold">📱 スマホ Desk Pet (承認リモコン)</text>
+
+      <!-- スマホ内ペット -->
+      <g transform="translate(570, 130)">
+        <ellipse cx="25" cy="40" rx="30" ry="8" fill="rgba(0,0,0,0.6)"/>
+        <rect x="0" y="0" width="50" height="40" rx="6" fill="#A67B5B" stroke="#FFB800" stroke-width="1.5"/>
+        <text x="18" y="25" font-size="16">✨👔</text>
+      </g>
+
+      <!-- スマホ上部承認バナー -->
+      <g id="phone-banner" transform="translate(460, 70)" opacity="0">
+        <rect width="280" height="45" rx="6" fill="#D32F2F" stroke="#FF8A80" stroke-width="1.5"/>
+        <text x="12" y="22" fill="#FFFFFF" font-size="12" font-weight="bold">🚨 コマンド承認要請着信！</text>
+        <text x="12" y="38" fill="#FFEBEE" font-size="10">スマホ側でワンタップ承認可能</text>
+      </g>
+
+      <!-- 判定吹き出し -->
+      <text x="400" y="268" id="verdict-text" text-anchor="middle" fill="#FDF6E2" font-size="12" font-weight="bold">モードを選択して「エージェント承認着信」を押してください</text>
+    </svg>
+  </div>
+
+  <!-- 第2層: 初級エンジニア向け物理解説 -->
+  <div class="card">
+    <h2>📖 2. なぜ「引き算」と「ステルス」が最高峰のUXなのか？ (物理解説)</h2>
+    <div style="font-size:14px; line-height:1.7; color:var(--text-muted);">
+      <p style="margin-bottom:12px;">
+        <span class="badge badge-green">第一原理</span>
+        <strong>1. 親愛度数値の全廃（ゲームから本物の相棒へ）:</strong><br>
+        キャラクターの頭上に「Lv.12」「XP 450/1000」と出た瞬間、人間の脳はそれを「作業・スコア稼ぎのツール」として冷徹に処理し始めます。本物の猫や犬に経験値バーが付いていないように、無機質な数字を消し去り、時間帯の挨拶やふとした仕草（お茶差し出し、伸び、居眠り）で愛着を育むことこそが、生活空間に溶け込むアンビエントDesk Petの真髄です。
+      </p>
+      <p style="margin-bottom:12px;">
+        <span class="badge badge-red">物理防護</span>
+        <strong>2. ステルスモードのお節介復帰防止（画面占有のゼロトラスト）:</strong><br>
+        エージェントがコマンド承認待ちになったとき、PC画面上のペットが勝手に「承認してください！」と最前面に飛び出してくると、集中してブラウジングや別作業をしているユーザーの邪魔になります。
+        ネオ秘書くんは「承認は卓上のスマホが受ける」という三層構造を死守しているため、ステルス中（潜伏中）はPCペットを一切画面に出さず、タスクトレイから明示的に起こされるまで沈黙を守ります。
+      </p>
+      <p>
+        <span class="badge badge-green">PMの英断</span>
+        <strong>3. 寄り道の勇気ある打ち切り（引き算の美学）:</strong><br>
+        デザインの完璧主義に溺れて「カイルのドットも、背景の書斎も全部作り直そう」と深入りすると、リリースの時期を永遠に逃します（スコープクリープの罠）。「カイルは愛着ある現行のまま」「背景も現行のまま」「秘書くんのみアップデート」とスパッと境界を引いたボスの判断こそが、本物のプロダクトマネジメントです。
+      </p>
+    </div>
+  </div>
+
+  <!-- 第3層: 登場専門用語の完全解体辞典 -->
+  <div class="card">
+    <h2>📚 3. 登場した専門用語の完全解体辞典 (アコーディオン)</h2>
+    <details>
+      <summary>🥷 ステルスモード (Stealth Mode)</summary>
+      <p>デスクトップ画面を広く使いたい時や集中作業時に、PCペットを一時的に非表示（タスクトレイ格納）にする機能。スマホ連携中だけでなく、スマホ未接続時でもワンクリックで隠すことができ、エージェントからの問い合わせが来ても勝手に画面に復帰しないよう防護されています。</p>
+    </details>
+    <details>
+      <summary>✂️ 引き算の美学 (Subtractive Design)</summary>
+      <p>「機能を足すこと」ではなく「不要なもの、使われていないものを削ぎ落とすこと」で製品の価値を研ぎ澄ます設計思想。今回、誰も使っていなかった約800行のイースターエッグや、無機質な親愛度数値を完全に削除し、動作の軽快さと保守性を劇的に高めました。</p>
+    </details>
+    <details>
+      <summary>🎭 3スキン体制 (Three-Skin Coexistence)</summary>
+      <p>「秘書くん（クラシック）」「カイル風精霊（クラシック）」「秘書くん (HD-2D・アップデート版)」の3体から好きな相棒を選べる体制。既存の愛着あるアセットを壊さず、新機能も楽しめる後方互換アーキテクチャです。</p>
+    </details>
+    <details>
+      <summary>🎨 プロシージャル・ドット絵 (Procedural Pixel Art)</summary>
+      <p>外部の画像ファイル（PNG）に頼らず、プログラムコード上でピクセルマトリクスとパレットを定義し、HTML5 Canvas等へ動的に描画する技術。ファイル読み込みエラーや404リスクをゼロにし、ネクタイや小物の形状をコードで精密制御できます。</p>
+    </details>
+  </div>
+</div>
+
+<script>
+  let currentMode = 'normal';
+  const pcPet = document.getElementById('pc-pet-group');
+  const pcPetStatus = document.getElementById('pc-pet-status');
+  const phoneBanner = document.getElementById('phone-banner');
+  const verdictText = document.getElementById('verdict-text');
+
+  function setMode(mode) {
+    currentMode = mode;
+    document.getElementById('btn-normal').classList.toggle('active', mode === 'normal');
+    document.getElementById('btn-stealth').classList.toggle('active', mode === 'stealth');
+    phoneBanner.style.opacity = '0';
+
+    if (mode === 'stealth') {
+      pcPet.style.opacity = '0.15';
+      pcPetStatus.innerText = '🥷 潜伏中 (トレイ格納)';
+      pcPetStatus.setAttribute('fill', '#888');
+      verdictText.innerText = 'ステルスモード中: PCペットは画面から完全に消え、作業を邪魔しません';
+    } else {
+      pcPet.style.opacity = '1';
+      pcPetStatus.innerText = '常駐待機中';
+      pcPetStatus.setAttribute('fill', '#00E676');
+      verdictText.innerText = '通常モード: PCペットが画面右下で呼吸し見守ります';
+    }
+  }
+
+  function triggerAskEvent() {
+    phoneBanner.style.opacity = '1';
+
+    if (currentMode === 'stealth') {
+      // ステルス中はPCペットは起き上がらない！
+      pcPet.style.opacity = '0.15';
+      verdictText.innerText = '✅ 防護成功！PCペットはお節介に画面へ復帰せず、スマホ上部バナーのみで静かに着信！';
+      verdictText.setAttribute('fill', '#00E676');
+    } else {
+      pcPet.style.opacity = '1';
+      verdictText.innerText = '通常着信: PCペットとスマホが連動して承認待ち状態に移行します';
+      verdictText.setAttribute('fill', '#FFB800');
+    }
+
+    setTimeout(() => {
+      phoneBanner.style.opacity = '0';
+    }, 3500);
+  }
+</script>
+
+</body>
+</html>

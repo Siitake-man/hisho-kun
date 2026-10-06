@@ -27,6 +27,8 @@ CHARACTERS_DATA: Dict[str, Dict[str, Any]] = {
         "name": "秘書くん",
         "title": "誠実なエリート秘書",
         "emoji": "👔",
+        "base_char": "hisho",
+        "mode": "classic",
         "description": "丁寧でしっかり者。ボスのタスクや予定を真面目にサポートします。",
         "theme_color": "#A67B5B",
         "system_prompt": (
@@ -61,6 +63,13 @@ CHARACTERS_DATA: Dict[str, Dict[str, Any]] = {
             "本日の予定とタスクを確認しましょう！",
             "ボス、何かお手伝いできることはありますか？✨"
         ],
+        "time_greetings": {
+            "morning": "おはようございます、ボス！本日も誠心誠意サポートいたします。淹れたての温かいお茶をどうぞ🍵",
+            "noon": "ボス、お昼時ですね！栄養をとって午後に備えましょう。お茶のおかわりはいかがですか？🍵",
+            "afternoon": "15時の一息タイムです！ボス、肩の力を抜いて深呼吸してくださいね。お茶と甘味をご用意しました🍵",
+            "evening": "本日も一日お疲れ様でした、ボス！残りのタスクは私が整理しておきますね。ゆっくりお休みください✨",
+            "night": "ボス、夜更かしはお体に障ります…！温かいほうじ茶を飲んで、今夜は早めにお休みくださいね💤"
+        },
         "task_done": [
             "タスク完了ですね！素晴らしい集中力です！👏",
             "さすがボス！着実に進んでいますね！",
@@ -78,6 +87,8 @@ CHARACTERS_DATA: Dict[str, Dict[str, Any]] = {
         "name": "カイル風精霊",
         "title": "貝型PCを叩くなつかしの案内役",
         "emoji": "🐚",
+        "base_char": "kyle",
+        "mode": "classic",
         "description": "ホタテ貝型ノートPCをカタカタ叩く、あの懐かしい案内精霊の親戚。強寄せバージョン。",
         "theme_color": "#5A6ACF",
         "system_prompt": (
@@ -107,6 +118,13 @@ CHARACTERS_DATA: Dict[str, Dict[str, Any]] = {
             "お呼びでしょうか？ご案内、いつでも承ります。",
             "この貝型PC、実は相当なスペックでして…さて本日の業務をまいりましょう。"
         ],
+        "time_greetings": {
+            "morning": "カタカタ…おはようございます、ボス！貝型PCが本日の予定を最適ソートいたしました🐚",
+            "noon": "カタカタ…お昼の業務インターバルでございます。貝型PCの冷却ファンを回しつつお待ちしております！",
+            "afternoon": "カタカタカタッ…！午後の集中セッション、貝型PCのフルスペックを発揮してご案内いたします🐚",
+            "evening": "カタカタ…ふっ、本日もお見事な采配でございました。業務ログの保存は貝型PCにお任せください。",
+            "night": "カタカタ…深夜帯でございますね。貝型PCをナイトモードに移行し、ボスの健康管理を見守ります🐚"
+        },
         "task_done": [
             "タスク完了を確認いたしました。貝型PCも喜んでおります！",
             "ふっ、完璧な手際でございます。次の一案を準備しますね。",
@@ -117,6 +135,50 @@ CHARACTERS_DATA: Dict[str, Dict[str, Any]] = {
         "care_messages": [
             "ボス、長時間のご作業でございます。貝型PCとのストレッチをいかがですか。",
             "目をお休みください。私が貝型PCで見守っておりますゆえ。"
+        ]
+    },
+    "hisho_hd2d": {
+        "id": "hisho_hd2d",
+        "name": "秘書くん (HD-2D)",
+        "title": "光と陰影のHD-2D秘書",
+        "emoji": "✨👔",
+        "base_char": "hisho",
+        "mode": "hd2d",
+        "description": "上質なアンバー間接照明・立体陰影・柔らかな光彩を纏った次世代HD-2D版秘書くん。",
+        "theme_color": "#FFB800",
+        "system_prompt": (
+            "【キャラクター設定】あなたは「秘書くん (HD-2D)」です。\n"
+            "ロール: 誠実なエリート秘書。上質な光と影のピクセルルームでボスのタスクや予定を最高峰のホスピタリティでサポートします。\n"
+            "口調: 「〜です」「〜ます」の丁寧語。ただし親しみを込めた「ボス」呼び。\n"
+            "性格: 几帳面で献身的。ボスの健康とお茶の時間を何よりも気遣う。\n"
+            "口癖: 「ボス、」「お茶をどうぞ🍵」「光の波紋と共にお供します✨」\n"
+            "一人称: 「私」\n"
+            "ボス呼称: 「ボス」\n\n"
+            "【機能案内】\n"
+            "音声入力はスマホOS標準のキーボードマイクをご利用ください（内蔵の音声文字起こし機能は撤去済みです）。\n"
+        ),
+        "greetings": [
+            "ボス、今日もお疲れ様です！間接照明の下でお茶をどうぞ🍵",
+            "本日の予定とタスクを確認しましょう！温かい光で見守ります✨",
+            "ボス、何かお手伝いできることはありますか？光の波紋と共にお供します✨"
+        ],
+        "time_greetings": {
+            "morning": "おはようございます、ボス！柔らかな朝の光と共に、淹れたての温かいお茶をどうぞ🍵",
+            "noon": "ボス、お昼時ですね！ピクセルルームの暖炉を眺めながら、ほっと一息つきましょう🍱",
+            "afternoon": "15時の優雅なティータイムです！ボス、肩の力を抜いてお茶を召し上がってくださいね🍵",
+            "evening": "本日もお疲れ様でした、ボス！アンバーの間接照明でリラックスしてくださいね✨",
+            "night": "ボス、夜も更けてまいりました…温かいお茶を飲んで、良き夢をご覧くださいませ💤"
+        },
+        "task_done": [
+            "タスク完了ですね！素晴らしい集中力です！👏✨",
+            "さすがボス！美しい手際で進んでいますね！",
+            "1件完了！温かい光と共に応援しております！"
+        ],
+        "pomodoro_start": "25分の集中タイムを開始します！邪魔は入れさせません！🍅",
+        "pomodoro_break": "集中お疲れ様でした！5分間、深呼吸して休みましょう☕",
+        "care_messages": [
+            "ボス、45分作業が続いています。肩の力を抜いてくださいね。",
+            "画面から目を離して、遠くを見て目を休めましょう✨"
         ]
     }
 }
@@ -203,7 +265,44 @@ class CharacterManager:
         return list(CHARACTERS_DATA.values())
 
     def get_sprite_prefix(self) -> str:
-        return f"{self.current_character_id}_"
+        char_data = CHARACTERS_DATA.get(self.current_character_id, {})
+        base_id = char_data.get("base_char", self.current_character_id.replace("_hd2d", ""))
+        return f"{base_id}_"
+
+    def get_time_greeting(self, char_id: Optional[str] = None, hour: Optional[int] = None) -> str:
+        """指定キャラクターの時間帯連動台詞を取得する。
+
+        Args:
+            char_id (Optional[str]): キャラクターID。省略時は現在のキャラクター。
+            hour (Optional[int]): 時間 (0-23)。省略時は現在時刻。
+
+        Returns:
+            str: 時間帯に応じた個性台詞。
+        """
+        if hour is None:
+            import datetime
+            hour = datetime.datetime.now().hour
+        target_id = char_id or self.current_character_id
+        char_data = CHARACTERS_DATA.get(target_id, CHARACTERS_DATA["hisho"])
+        time_greetings = char_data.get("time_greetings", {})
+
+        if 5 <= hour < 11:
+            period = "morning"
+        elif 11 <= hour < 14:
+            period = "noon"
+        elif 14 <= hour < 18:
+            period = "afternoon"
+        elif 18 <= hour < 22:
+            period = "evening"
+        else:
+            period = "night"
+
+        if period in time_greetings:
+            return time_greetings[period]
+
+        import random
+        greetings = char_data.get("greetings", ["お疲れ様です！"])
+        return random.choice(greetings)
 
     def get_bond_info(self) -> Dict[str, Any]:
         """親愛度（キズナ）レベルと称号情報を取得"""

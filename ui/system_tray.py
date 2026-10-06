@@ -61,12 +61,19 @@ def iter_tray_icon_candidates(character_id: Any = None) -> List[Path]:
     """
     candidates: List[Path] = []
     safe_id = sanitize_character_id(character_id)
+    base_id = safe_id.replace("_hd2d", "") if safe_id else None
 
-    for char_id in ([safe_id] if safe_id else []):
+    check_ids: List[str] = []
+    if safe_id:
+        check_ids.append(safe_id)
+        if base_id and base_id != safe_id:
+            check_ids.append(base_id)
+
+    for char_id in check_ids:
         candidates.append(ASSETS_DIR / "dot" / char_id / TRAY_FRAME_NAME)
         candidates.append(ASSETS_DIR / "dot" / char_id / "happy.png")
 
-    if safe_id != DEFAULT_CHARACTER_ID:
+    if safe_id != DEFAULT_CHARACTER_ID and base_id != DEFAULT_CHARACTER_ID:
         candidates.append(ASSETS_DIR / "dot" / DEFAULT_CHARACTER_ID / TRAY_FRAME_NAME)
         candidates.append(ASSETS_DIR / "dot" / DEFAULT_CHARACTER_ID / "happy.png")
 
@@ -241,7 +248,7 @@ class SystemTrayManager:
         from i18n import t
 
         def on_show_pet(icon, item):
-            self.gui.post_action(self.gui.show_pc_pet)
+            self.gui.post_action(self.gui.show_pc_pet, from_tray=True)
 
         def on_hide_pet(icon, item):
             self.gui.post_action(self.gui.hide_pc_pet)

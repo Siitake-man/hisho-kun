@@ -24,6 +24,7 @@ else:
     sys.stdin = io.TextIOWrapper(sys.stdin.buffer, encoding='utf-8')
     sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
 
+import re
 import json
 import logging
 from datetime import datetime
@@ -144,7 +145,20 @@ def execute_notify_user_input_needed(
     呼び出し元エージェントを自動識別する。
     """
     effective_agent_name = resolve_agent_name(agent_name)
-    parsed_choices = [c.strip() for c in choices.split(",") if c.strip()] if isinstance(choices, str) and choices else (choices if isinstance(choices, list) else [])
+    if isinstance(choices, str) and choices.strip():
+        # カンマ、スラッシュ、読点、セミコロン、改行で柔軟に分割
+        parsed_choices = [c.strip() for c in re.split(r'[,/、;\n]+', choices) if c.strip()]
+    elif isinstance(choices, list):
+        parsed_choices = [str(c).strip() for c in choices if str(c).strip()]
+    else:
+        parsed_choices = []
+
+    # 🛡️ ボスの鉄則: 選択肢が存在する場合、必ず「その他 (別途指示)」を含める
+    if parsed_choices:
+        has_other = any("その他" in c or "別途指示" in c or "other" in c.lower() for c in parsed_choices)
+        if not has_other:
+            parsed_choices.append("その他 (別途指示)")
+
     payload = {
         "agent_name": effective_agent_name,
         "question": question,

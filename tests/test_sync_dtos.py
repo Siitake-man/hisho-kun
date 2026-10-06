@@ -40,12 +40,6 @@ def _sample_status_payload() -> Dict[str, Any]:
         "pending_approval": None,
         "active_event": None,
         "latest_notification": None,
-        "easter_egg": {
-            "attempt_count": 0,
-            "daily_count": 0,
-            "secret_game_unlocked": False,
-            "active_event": None,
-        },
         "tasks": [
             {"id": 1, "title": "経費精算", "priority": 0, "due_date": 1790000000000},
             {"id": 2, "title": "資料レビュー", "priority": 2, "due_date": None},

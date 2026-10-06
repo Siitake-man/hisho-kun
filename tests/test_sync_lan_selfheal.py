@@ -168,7 +168,7 @@ class TestSyncLanSelfHeal(unittest.TestCase):
                       f"Cache-Control に no-store が含まれること (actual: {cache_control})")
 
         # --- キャッシュバス 3 点同期検証 (pet.js:10 / sw.js:5 / index.html ?v=) ---
-        # index.html の 8 本の script タグ (easter_eggs/pixel_defense/arcade/新4ゲーム/pet)
+        # index.html の 7 本の script タグ (pixel_defense/arcade/新4ゲーム/pet)
         # が同一 ?v= を参照し、そのバージョンが sw.js の CACHE_NAME と
         # pet.js のキャッシュパージ許可キーと一致すること。
         # バージョン番号はハードコードせず、今後の更新にも追従できる構造にする。
@@ -176,14 +176,14 @@ class TestSyncLanSelfHeal(unittest.TestCase):
         html = str(body.get("raw", body))
 
         versions = re.findall(
-            r'src="(?:easter_eggs|pixel_defense|minigame_arcade|minigame_itotooshi'
+            r'src="(?:pixel_defense|minigame_arcade|minigame_itotooshi'
             r'|minigame_cyber_wire|minigame_setsuna|minigame_retro_breakout|pet)'
             r'\.js\?v=([\d.]+)"', html
         )
-        self.assertEqual(len(versions), 8,
-                         f"index.html は 8 本の JS に ?v= を付与すること (found: {versions})")
+        self.assertEqual(len(versions), 7,
+                         f"index.html は 7 本の JS に ?v= を付与すること (found: {versions})")
         self.assertEqual(len(set(versions)), 1,
-                         f"8 本の script タグの ?v= が不一致 (actual: {versions})")
+                         f"7 本の script タグの ?v= が不一致 (actual: {versions})")
         cache_version = versions[0]
 
         sw_src = (PROJECT_ROOT / "web_pet" / "sw.js").read_text(encoding="utf-8")

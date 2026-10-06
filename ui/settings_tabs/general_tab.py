@@ -160,11 +160,11 @@ class GeneralTab:
             selected_code = self._LANG_NAME_TO_CODE.get(selected_name, "ja")
         return {"APP_LANGUAGE": selected_code}
 
-    def refresh_texts(self) -> None:
+    def refresh_texts(self, lang: Optional[str] = None) -> None:
         """多言語変更時の再描画."""
         if self.lbl_card_title and getattr(self.lbl_card_title, "winfo_exists", lambda: False)():
-            self.lbl_card_title.configure(text=f"🌐 {t('ui.settings.language_card_title')}")
+            self.lbl_card_title.configure(text=f"🌐 {t('ui.settings.language_card_title', lang=lang)}")
         if self.lbl_lang_desc and getattr(self.lbl_lang_desc, "winfo_exists", lambda: False)():
-            self.lbl_lang_desc.configure(text=t("ui.settings.language_desc"))
+            self.lbl_lang_desc.configure(text=t("ui.settings.language_desc", lang=lang))
         if self.lbl_select_lang and getattr(self.lbl_select_lang, "winfo_exists", lambda: False)():
-            self.lbl_select_lang.configure(text=f"{t('ui.settings.language')}:")
+            self.lbl_select_lang.configure(text=f"{t('ui.settings.language', lang=lang)}:")

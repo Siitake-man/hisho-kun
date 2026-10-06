@@ -1,0 +1,1161 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>ネオ秘書くん - 真・HD-2Dプロシージャルドット体感ラボ (完全版)</title>
+  <style>
+    :root {
+      --bg-dark: #0A0705;
+      --panel-bg: rgba(28, 18, 12, 0.94);
+      --border-amber: rgba(255, 184, 0, 0.4);
+      --accent-amber: #FFB800;
+      --accent-green: #00E676;
+      --accent-blue: #00E5FF;
+      --text-main: #FDF6E2;
+      --text-muted: #D0BEA7;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    body {
+      background: var(--bg-dark);
+      color: var(--text-main);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 12px;
+      overflow-x: hidden;
+    }
+
+    header {
+      width: 100%;
+      max-width: 480px;
+      text-align: center;
+      margin-bottom: 10px;
+    }
+
+    h1 {
+      font-size: 17px;
+      color: var(--accent-amber);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+    }
+
+    p.subtitle {
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-top: 3px;
+    }
+
+    /* 📱 メインHD-2Dステージ */
+    .viewport-container {
+      position: relative;
+      width: 100%;
+      max-width: 380px;
+      height: 350px;
+      border-radius: 16px;
+      overflow: hidden;
+      border: 2px solid var(--border-amber);
+      box-shadow: 0 12px 36px rgba(0,0,0,0.85), inset 0 0 25px rgba(0,0,0,0.6);
+      background: #000;
+      margin-bottom: 12px;
+      cursor: pointer;
+    }
+
+    #stage-canvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+      image-rendering: pixelated;
+      image-rendering: crisp-edges;
+    }
+
+    /* 吹き出し */
+    .speech-bubble {
+      position: absolute;
+      top: 14px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(255, 255, 255, 0.96);
+      color: #1A120B;
+      padding: 6px 12px;
+      border-radius: 10px;
+      font-size: 11.5px;
+      font-weight: bold;
+      box-shadow: 0 4px 14px rgba(0,0,0,0.6);
+      z-index: 20;
+      max-width: 88%;
+      text-align: center;
+      pointer-events: none;
+      transition: all 0.2s ease;
+    }
+    .speech-bubble::after {
+      content: '';
+      position: absolute;
+      bottom: -5px;
+      left: 50%;
+      transform: translateX(-50%);
+      border-width: 5px 5px 0 5px;
+      border-style: solid;
+      border-color: rgba(255, 255, 255, 0.96) transparent transparent transparent;
+    }
+
+    /* 🎛️ コントロールパネル */
+    .controls-container {
+      width: 100%;
+      max-width: 480px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .control-card {
+      background: var(--panel-bg);
+      border: 1px solid var(--border-amber);
+      border-radius: 12px;
+      padding: 10px 12px;
+    }
+
+    .card-title {
+      font-size: 12px;
+      font-weight: bold;
+      color: var(--accent-amber);
+      margin-bottom: 8px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .badge-current {
+      font-size: 10px;
+      color: #1A120B;
+      background: var(--accent-amber);
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-weight: bold;
+    }
+
+    .btn-group-2 {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 6px;
+    }
+    .btn-group-3 {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 6px;
+    }
+    .btn-group-poses {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 6px;
+    }
+
+    button.opt-btn {
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      color: var(--text-main);
+      padding: 8px 4px;
+      border-radius: 8px;
+      font-size: 11px;
+      font-weight: bold;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 2px;
+    }
+    button.opt-btn:active {
+      transform: scale(0.95);
+    }
+    button.opt-btn.active {
+      background: var(--accent-amber);
+      color: #1A120B;
+      border-color: #FFD54F;
+      box-shadow: 0 0 10px rgba(255, 184, 0, 0.5);
+    }
+
+    .auto-pilot-toggle {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 6px 10px;
+      background: rgba(0, 230, 118, 0.12);
+      border: 1px solid var(--accent-green);
+      border-radius: 8px;
+      margin-top: 6px;
+      cursor: pointer;
+    }
+    .auto-pilot-label {
+      font-size: 11.5px;
+      font-weight: bold;
+      color: var(--accent-green);
+    }
+    .switch-pill {
+      font-size: 10px;
+      background: var(--accent-green);
+      color: #003300;
+      padding: 2px 8px;
+      border-radius: 10px;
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <h1>✨ 真・HD-2Dプロシージャルドット体感ラボ</h1>
+    <p class="subtitle">公式実ドット解析から完全構築！ネクタイ明瞭化・後ろ姿・寝転び・書斎3変化</p>
+  </header>
+
+  <!-- 📱 メインHD-2Dキャンバス -->
+  <div class="viewport-container" id="stage-box" onclick="handleStageClick(event)">
+    <canvas id="stage-canvas" width="380" height="350"></canvas>
+    <div class="speech-bubble" id="speech-bubble">
+      ボス！白シャツに黄色のネクタイ、そして大好きな後ろ姿も完全再現しました👔✨
+    </div>
+  </div>
+
+  <!-- 🎛️ 見比べパネル -->
+  <div class="controls-container">
+
+    <!-- 1. キャラクター選択 -->
+    <div class="control-card">
+      <div class="card-title">
+        <span>👤 キャラクター選択（公式32×32実データ解析）</span>
+        <span class="badge-current" id="badge-char">秘書くん</span>
+      </div>
+      <div class="btn-group-2">
+        <button class="opt-btn active" id="btn-char-hisho" onclick="selectChar('hisho')">
+          <span>👔 秘書くん</span>
+          <span style="font-size:9px;opacity:0.8;">実ドット準拠＆ネクタイ改良</span>
+        </button>
+        <button class="opt-btn" id="btn-char-kyle" onclick="selectChar('kyle')">
+          <span>🐚 カイル風精霊</span>
+          <span style="font-size:9px;opacity:0.8;">実ドット準拠＆ホタテ貝殻</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- 2. 書斎テーマの書き分け (3大スタイル) -->
+    <div class="control-card">
+      <div class="card-title">
+        <span>📖 書斎テーマの書き分け (HD-2D空間)</span>
+        <span class="badge-current" id="badge-room">英国風クラシック書斎</span>
+      </div>
+      <div class="btn-group-3">
+        <button class="opt-btn active" id="btn-room-classic" onclick="selectRoom('classic')">
+          <span>🪵 英国クラシック</span>
+          <span style="font-size:9px;opacity:0.8;">重厚本棚・暖炉・月窓</span>
+        </button>
+        <button class="opt-btn" id="btn-room-modern" onclick="selectRoom('modern')">
+          <span>🌿 北欧モダン</span>
+          <span style="font-size:9px;opacity:0.8;">白木棚・観葉植物</span>
+        </button>
+        <button class="opt-btn" id="btn-room-retro" onclick="selectRoom('retro')">
+          <span>🕹️ レトロPC書斎</span>
+          <span style="font-size:9px;opacity:0.8;">CRT画面・メカニカル</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- 3. 多面的ポーズ・姿の切り替え (後ろ姿・寝転び等) -->
+    <div class="control-card">
+      <div class="card-title">
+        <span>🎭 多面的ポーズ切り替え（同一比率・コード描画）</span>
+        <span class="badge-current" id="badge-pose">正面 (Front)</span>
+      </div>
+      <div class="btn-group-poses">
+        <button class="opt-btn active" id="btn-pose-front" onclick="selectPose('front')">
+          <span>👀 正面 (Front)</span>
+          <span style="font-size:9px;opacity:0.8;">ネクタイ立体化/イルカ</span>
+        </button>
+        <button class="opt-btn" id="btn-pose-back" onclick="selectPose('back')">
+          <span>🔙 後ろ姿 (Back)</span>
+          <span style="font-size:9px;opacity:0.8;">後頭部/イルカ背中</span>
+        </button>
+        <button class="opt-btn" id="btn-pose-lay" onclick="selectPose('lay')">
+          <span>💤 お布団＆パジャマ帽</span>
+          <span style="font-size:9px;opacity:0.8;">縦等身スヤスヤ寝姿</span>
+        </button>
+        <button class="opt-btn" id="btn-pose-reading" onclick="selectPose('reading')">
+          <span>📖 デスクで読書</span>
+          <span style="font-size:9px;opacity:0.8;">木製机に見開き本</span>
+        </button>
+        <button class="opt-btn" id="btn-pose-tea" onclick="selectPose('tea')">
+          <span>☕ デスクでお茶・珈琲</span>
+          <span style="font-size:9px;opacity:0.8;">木製机に大マグ湯気</span>
+        </button>
+        <button class="opt-btn" id="btn-pose-pc" onclick="selectPose('pc')">
+          <span>💻 デスクでPC作業</span>
+          <span style="font-size:9px;opacity:0.8;">シアン発光/ホタテ貝PC</span>
+        </button>
+      </div>
+
+      <!-- 自律行動デモ -->
+      <div class="auto-pilot-toggle" onclick="toggleAutoPilot()">
+        <span class="auto-pilot-label">🤖 自律生活サイクル（デスクPCカタカタ ➔ 本棚読書 ➔ お茶 ➔ お布団就寝）</span>
+        <span class="switch-pill" id="autopilot-pill">ON</span>
+      </div>
+    </div>
+
+  </div>
+
+  <script id="data-script">
+    // =========================================================================
+    // 🎨 公式実データ抽出済み 32×32 ドットマトリクス ＆ パレット
+    // =========================================================================
+    const PIXEL_DATA = {
+  "hisho_palette": {
+    "1": "#4A3B32",
+    "2": "#A67B5B",
+    "3": "#C49A76",
+    "4": "#FFD700",
+    "5": "#EF9A9A",
+    "6": "#F5F5DC",
+    "7": "#FFFFFF",
+    "8": "#B8860B",
+    "9": "#4E342E",
+    "A": "#B71C1C",
+    "B": "#90A4AE",
+    "C": "#00E5FF",
+    "E": "#81D4FA",
+    "F": "#1E88E5"
+  },
+  "hisho_front": [
+    "................................",
+    "................................",
+    "................................",
+    "................................",
+    ".........1............1.........",
+    "........151..........151........",
+    "..........51........15..........",
+    "...........1111111111...........",
+    "........2112222222222112........",
+    "........2112222222222112........",
+    "........2222222222222222........",
+    ".......122266666666662221.......",
+    ".......122666666666666221.......",
+    ".......122666666666666221.......",
+    ".......122661666666166221.......",
+    ".......122556666666655221.......",
+    ".......122666661166666221.......",
+    ".......322666666666666223.......",
+    ".......122666674476666221.......",
+    ".......122666674486666221.......",
+    "........2226666448666222........",
+    "........1122222482222211........",
+    "........1122222222222211........",
+    "..........111111111111..........",
+    "...........13......31...........",
+    "................................",
+    "................................",
+    "................................",
+    "................................",
+    "................................",
+    "................................",
+    "................................"
+  ],
+  "hisho_back": [
+    "................................",
+    "................................",
+    "................................",
+    "................................",
+    ".........1............1.........",
+    "........151..........151........",
+    "..........51........15..........",
+    "...........1111111111...........",
+    "........2112222222222112........",
+    "........2112222222222112........",
+    "........2222222222222222........",
+    ".......122222222222222221.......",
+    ".......122222222222222221.......",
+    ".......122222221222222221.......",
+    ".......122222221222222221.......",
+    ".......122222221222222221.......",
+    ".......122222221222222221.......",
+    ".......322222221222222223.......",
+    ".......122222221222222221.......",
+    ".......122222221222222221.......",
+    "........2222222122222222........",
+    "........1122222122222211........",
+    "........1122222222222211........",
+    "..........111111111111..........",
+    "...........13......31...........",
+    "................................",
+    "................................",
+    "................................",
+    "................................",
+    "................................",
+    "................................",
+    "................................"
+  ],
+  "hisho_tea": [
+    "................................",
+    "................................",
+    "................................",
+    "................................",
+    ".........1............1.........",
+    "........151..........151........",
+    "..........51........15..........",
+    "...........1111111111...........",
+    "........2112222222222112........",
+    "........2112222222222112........",
+    "........2222222222222222........",
+    ".......122266666666672721.......",
+    ".......122666666666767221.......",
+    ".......122666666666676721.......",
+    ".......122661666666176221.......",
+    ".......122556666667999721.......",
+    ".......122666661167999771.......",
+    ".......322666666667777773.......",
+    ".......122666674477777721.......",
+    ".......122666674486777221.......",
+    ".....3333333333333333333333.....",
+    ".....2222222222222222222222.....",
+    ".....1111111111111111111111.....",
+    "......1...111111111111...1......",
+    "......1....13......31....1......",
+    "......1..................1......",
+    "................................",
+    "................................",
+    "................................",
+    "................................",
+    "................................",
+    "................................"
+  ],
+  "hisho_reading": [
+    "................................",
+    "................................",
+    "................................",
+    "................................",
+    ".........1............1.........",
+    "........151..........151........",
+    "..........51........15..........",
+    "...........1111111111...........",
+    "........2112222222222112........",
+    "........2112222222222112........",
+    "........2222222222222222........",
+    ".......122266666666662221.......",
+    ".......122666666666666221.......",
+    ".......122666666666666221.......",
+    ".......122661666666166221.......",
+    ".......122516666661655221.......",
+    ".......12A777771177777A21.......",
+    ".......32A111111111111A23.......",
+    ".......12A777771177777A21.......",
+    ".......12A111111111111A21.......",
+    ".....3333AAAAAAAAAAAAAA3333.....",
+    ".....2222222222222222222222.....",
+    ".....1111111111111111111111.....",
+    "......1...111111111111...1......",
+    "......1....13......31....1......",
+    "......1..................1......",
+    "................................",
+    "................................",
+    "................................",
+    "................................",
+    "................................",
+    "................................"
+  ],
+  "hisho_pc": [
+    "................................",
+    "................................",
+    "................................",
+    "................................",
+    ".........1............1.........",
+    "........151..........151........",
+    "..........51........15..........",
+    "...........1111111111...........",
+    "........2112222222222112........",
+    "........2112222222222112........",
+    "........2222222222222222........",
+    ".......122266666666662221.......",
+    ".......122666666666666221.......",
+    ".......122BBBBBBBBBBBB221.......",
+    ".......122BCCCCCCCCCCB221.......",
+    ".......122BCCCCCCCCCCB221.......",
+    ".......122BCCCCCCCCCCB221.......",
+    ".......322BCCCCCCCCCCB223.......",
+    ".......122BCCCCCCCCCCB221.......",
+    ".......12BBBBBBBBBBBBBB21.......",
+    ".....3333B1B1B1B1B1B1B13333.....",
+    ".....2222222222222222222222.....",
+    ".....1111111111111111111111.....",
+    "......1...111111111111...1......",
+    "......1....13......31....1......",
+    "......1..................1......",
+    "................................",
+    "................................",
+    "................................",
+    "................................",
+    "................................",
+    "................................"
+  ],
+  "hisho_lay": [
+    "................................",
+    "................................",
+    "................................",
+    "..........77....................",
+    ".........177..........1.........",
+    "........151EE........151........",
+    "..........51EEE.....15..........",
+    "...........EEEEEE1111...........",
+    "........211222222222211277......",
+    "........211222222222211277......",
+    "........2222222222222772........",
+    ".......122266666666667721.......",
+    ".......122666666666666221.......",
+    ".......122666666666666221.......",
+    ".......122666666666166221.......",
+    ".......122511666611655221.......",
+    ".......122666661166666221.......",
+    ".......322666666666666223.......",
+    ".......122666674476666221.......",
+    ".......777777777777777777.......",
+    "......FEEEEEEEEEEEEEEEEEEF......",
+    "......FEEEEEEEEEEEEEEEEEEF......",
+    "......FEEEEEEEEEEEEEEEEEEF......",
+    "......FEEEEEEEEEEEEEEEEEEF......",
+    "......FEEEEEEEEEEEEEEEEEEF......",
+    "......FFFFFFFFFFFFFFFFFFFF......",
+    "................................",
+    "................................",
+    "................................",
+    "................................",
+    "................................",
+    "................................"
+  ],
+  "kyle_palette": {
+    "1": "#282C5A",
+    "2": "#343A6E",
+    "3": "#92A8EB",
+    "4": "#C6D4F8",
+    "5": "#DCE4FF",
+    "6": "#F2F6FF",
+    "7": "#FF96A0",
+    "8": "#D4AF37",
+    "9": "#00E5FF",
+    "A": "#FFFFFF",
+    "B": "#80DEEA",
+    "C": "#1A237E"
+  },
+  "kyle_front": [
+    "................................",
+    "................................",
+    "................................",
+    "................................",
+    "................................",
+    "................................",
+    "................................",
+    ".....55.........................",
+    "....555........22...............",
+    ".....5........233...............",
+    ".............22332..............",
+    ".............233322.............",
+    "..........2.4433344.............",
+    ".......2333333333333322......32.",
+    ".5....23333333333333333.....32..",
+    ".5...231111333333333333322232...",
+    "...2223311333333333333333332....",
+    "...233333333333333333333333.....",
+    "...233333333333333333333333.....",
+    "...22266667766666666663322232...",
+    ".....2266666666666666632...33...",
+    ".......2666666666666622......32.",
+    "........2263326666622........32.",
+    "...........332..2...............",
+    "...........332..................",
+    "................................",
+    "................................",
+    "................................",
+    "................................",
+    "................................",
+    "................................",
+    "................................"
+  ],
+  "kyle_back": [
+    "................................",
+    "................................",
+    "................................",
+    "................................",
+    "................................",
+    "................................",
+    "................................",
+    ".....55.........................",
+    "....555........22...............",
+    ".....5........233...............",
+    ".............22332..............",
+    ".............233322.............",
+    "..........2.4433344.............",
+    ".......2333333423333322......32.",
+    ".5....23333333423333333.....32..",
+    ".5...231133333423333333322232...",
+    "...2223313333342333333333332....",
+    "...233333333334233333333333.....",
+    "...233333333334233333333333.....",
+    "...22233333333333333333322232...",
+    ".....2233333333333333332...33...",
+    ".......2333333333333322......32.",
+    "........2233323333322........32.",
+    "...........332..2...............",
+    "...........332..................",
+    "................................",
+    "................................",
+    "................................",
+    "................................",
+    "................................",
+    "................................",
+    "................................"
+  ],
+  "kyle_tea": [
+    "................................",
+    "................................",
+    "................................",
+    "................................",
+    "................................",
+    "................................",
+    "................................",
+    ".....55.........................",
+    "....555........22...............",
+    ".....5........233...............",
+    ".............22332..............",
+    ".............233322.A.A.........",
+    "..........2.4433344A.A..........",
+    ".......2333333333333A2A......32.",
+    ".5....23333333333333A33.....32..",
+    ".5...231111333333383338322232...",
+    "...222331133333333A333A83332....",
+    "...233333333333333AAAAA8333.....",
+    "...233333333333333A888A3333.....",
+    "...2226666776666666AAA3322232...",
+    ".....444444444444444444444433...",
+    ".....2222222222222222222222..32.",
+    ".....1111111111111111111111..32.",
+    "......1....332..2........1......",
+    "......1....332...........1......",
+    "......1..................1......",
+    "................................",
+    "................................",
+    "................................",
+    "................................",
+    "................................",
+    "................................"
+  ],
+  "kyle_reading": [
+    "................................",
+    "................................",
+    "................................",
+    "................................",
+    "................................",
+    "................................",
+    "................................",
+    ".....55.........................",
+    "....555........22...............",
+    ".....5........233...............",
+    ".............22332..............",
+    ".............233322.............",
+    "..........2.4433344.............",
+    ".......2333333333333322......32.",
+    ".5....23333333333333333.....32..",
+    ".5...231122223333333333322232...",
+    "...222331CAAAAA88AAAAAC33332....",
+    "...233333C111118811111C3333.....",
+    "...233333CAAAAA88AAAAAC3333.....",
+    "...222666C111118811111C322232...",
+    ".....4444CCCCCCCCCCCCCC444433...",
+    ".....2222222222222222222222..32.",
+    ".....1111111111111111111111..32.",
+    "......1....332..2........1......",
+    "......1....332...........1......",
+    "......1..................1......",
+    "................................",
+    "................................",
+    "................................",
+    "................................",
+    "................................",
+    "................................"
+  ],
+  "kyle_pc": [
+    "................................",
+    "................................",
+    "................................",
+    "................................",
+    "................................",
+    "................................",
+    "................................",
+    ".....55.........................",
+    "....555........22...............",
+    ".....5........233...............",
+    ".............22332..............",
+    ".............233322.............",
+    "..........2.4438844.............",
+    ".......2333388888888322......32.",
+    ".5....23338999999999983.....32..",
+    ".5...231118999999999983322232...",
+    "...2223311899999999998333332....",
+    "...233333389999999999833333.....",
+    "...233333389999999999833333.....",
+    "...22266688888888888888322232...",
+    ".....444481818181818181444433...",
+    ".....2222222222222222222222..32.",
+    ".....1111111111111111111111..32.",
+    "......1....332..2........1......",
+    "......1....332...........1......",
+    "......1..................1......",
+    "................................",
+    "................................",
+    "................................",
+    "................................",
+    "................................",
+    "................................"
+  ],
+  "kyle_lay": [
+    "................................",
+    "................................",
+    "................................",
+    "................................",
+    "................................",
+    "................................",
+    "................................",
+    ".....55.........AA.......AA.....",
+    "....555........2AA.......AA.....",
+    ".....5........233BB...AA........",
+    ".............22332BBB.AA........",
+    ".............233322BBB..........",
+    "..........2.4433344.............",
+    ".......2333333333333322......32.",
+    ".5....23333333333333333.....32..",
+    ".5...231122223333333333322232...",
+    "...2223313333333333333333332....",
+    "...233333333333333333333333.....",
+    "...233333333333333333333333.....",
+    "...22AAAAAAAAAAAAAAAAAA322232...",
+    "....1CCCCCCCCCCCCCCCCCC1...33...",
+    "....1CCCCCCCCCCCCCCCCCC1.....32.",
+    "....1CBCCBCCBCCBCCBCCBC1.....32.",
+    "....1CCCCCCCCCCCCCCCCCC1........",
+    "....1CCCCCCCCCCCCCCCCCC1........",
+    "....11111111111111111111........",
+    "................................",
+    "................................",
+    "................................",
+    "................................",
+    "................................",
+    "................................"
+  ]
+};
+
+    let currentChar = 'hisho';
+    let currentRoom = 'classic';
+    let currentPose = 'front';
+    let autoPilotActive = true;
+    let autoPilotTimer = null;
+    let animTick = 0;
+    let frameToggle = false;
+
+    // 位置管理
+    let petX = 190;
+    let targetPetX = 190;
+
+    // Canvas初期化
+    const canvas = document.getElementById('stage-canvas');
+    const ctx = canvas.getContext('2d');
+    let fireParticles = [];
+    let ambientDust = [];
+
+    // パーティクル初期化
+    for (let i = 0; i < 28; i++) {
+      ambientDust.push({
+        x: Math.random() * 380,
+        y: Math.random() * 350,
+        r: Math.random() * 1.5 + 0.5,
+        speedY: -(Math.random() * 0.3 + 0.1),
+        speedX: (Math.random() - 0.5) * 0.2,
+        alpha: Math.random() * 0.7 + 0.2,
+        pulse: Math.random() * Math.PI
+      });
+    }
+    for (let i = 0; i < 15; i++) {
+      fireParticles.push({
+        x: 44 + Math.random() * 16,
+        y: 200 + Math.random() * 10,
+        r: Math.random() * 2 + 1,
+        life: Math.random() * 20
+      });
+    }
+
+    // 2コマパラパラタイマー
+    setInterval(() => {
+      frameToggle = !frameToggle;
+    }, 750);
+
+    // =========================================================================
+    // 🎨 レンダリングループ (60fps)
+    // =========================================================================
+    function render() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      animTick++;
+
+      // 1. 書斎背景の描画
+      drawRoomBackground(ctx, currentRoom);
+
+      // 2. 自律歩行補間
+      if (Math.abs(petX - targetPetX) > 1) {
+        petX += (targetPetX - petX) * 0.08;
+      }
+
+      // 3. プロシージャル・ドット絵キャラクターの描画 (正確な実データ準拠)
+      drawExactProceduralPet(ctx, petX, 230, currentChar, currentPose);
+
+      // 4. アンビエント光芒 & パーティクル
+      drawAmbientLighting(ctx);
+
+      requestAnimationFrame(render);
+    }
+    requestAnimationFrame(render);
+
+    // =========================================================================
+    // 📖 書斎3大スタイルの描画 (本格HD-2D背景)
+    // =========================================================================
+    function drawRoomBackground(c, roomType) {
+      const w = 380, h = 350;
+      const floorY = 220;
+
+      if (roomType === 'classic') {
+        // 🪵 英国クラシック書斎
+        const wallGrad = c.createLinearGradient(0, 0, 0, floorY);
+        wallGrad.addColorStop(0, '#150A05');
+        wallGrad.addColorStop(1, '#2E170C');
+        c.fillStyle = wallGrad;
+        c.fillRect(0, 0, w, floorY);
+
+        const floorGrad = c.createLinearGradient(0, floorY, 0, h);
+        floorGrad.addColorStop(0, '#3E2012');
+        floorGrad.addColorStop(1, '#1A0C06');
+        c.fillStyle = floorGrad;
+        c.fillRect(0, floorY, w, h - floorY);
+
+        c.strokeStyle = 'rgba(255, 184, 0, 0.12)';
+        c.lineWidth = 1;
+        for (let i = 0; i <= w; i += 28) {
+          c.beginPath();
+          c.moveTo(i, floorY);
+          c.lineTo(i * 1.25 - 40, h);
+          c.stroke();
+        }
+
+        // 暖炉 (左)
+        c.fillStyle = '#1C130D';
+        c.fillRect(30, 160, 48, 60);
+        c.strokeStyle = '#4A2B18';
+        c.lineWidth = 3;
+        c.strokeRect(30, 160, 48, 60);
+
+        fireParticles.forEach(p => {
+          p.y -= 0.6;
+          p.life++;
+          if (p.life > 20) { p.y = 208; p.life = 0; p.x = 44 + Math.random() * 20; }
+          c.fillStyle = p.life < 10 ? '#FF9100' : '#FF3D00';
+          c.beginPath();
+          c.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+          c.fill();
+        });
+
+        // 本棚 (中央〜右)
+        c.fillStyle = '#2A160C';
+        c.fillRect(100, 40, 150, 165);
+        c.strokeStyle = '#4E2A16';
+        c.lineWidth = 3;
+        c.strokeRect(100, 40, 150, 165);
+
+        for (let r = 1; r <= 3; r++) {
+          c.fillStyle = '#3E2012';
+          c.fillRect(102, 40 + r * 40, 146, 4);
+          const bColors = ['#B71C1C', '#0D47A1', '#1B5E20', '#E65100', '#4A148C', '#37474F'];
+          for (let b = 106; b < 240; b += 7) {
+            c.fillStyle = bColors[(b * 3) % bColors.length];
+            c.fillRect(b, 40 + r * 40 - 24, 5, 24);
+          }
+        }
+
+        // 月窓 (右)
+        c.fillStyle = '#080E1C';
+        c.fillRect(275, 45, 80, 110);
+        c.strokeStyle = '#5A3820';
+        c.lineWidth = 3;
+        c.strokeRect(275, 45, 80, 110);
+
+        c.fillStyle = '#FFE082';
+        c.beginPath();
+        c.arc(325, 80, 10, 0, Math.PI * 2);
+        c.fill();
+        c.fillStyle = '#080E1C';
+        c.beginPath();
+        c.arc(321, 77, 9, 0, Math.PI * 2);
+        c.fill();
+
+      } else if (roomType === 'modern') {
+        // 🌿 北欧モダン書斎
+        c.fillStyle = '#262422';
+        c.fillRect(0, 0, w, floorY);
+
+        const floorGrad = c.createLinearGradient(0, floorY, 0, h);
+        floorGrad.addColorStop(0, '#6D5B4B');
+        floorGrad.addColorStop(1, '#3B2E24');
+        c.fillStyle = floorGrad;
+        c.fillRect(0, floorY, w, h - floorY);
+
+        c.strokeStyle = '#BCAAA4';
+        c.lineWidth = 2;
+        c.strokeRect(200, 50, 150, 155);
+        c.strokeRect(200, 100, 150, 2);
+        c.strokeRect(200, 150, 150, 2);
+
+        c.fillStyle = '#4E342E';
+        c.fillRect(45, 175, 24, 30);
+        c.fillStyle = '#2E7D32';
+        c.beginPath(); c.arc(57, 160, 16, 0, Math.PI * 2); c.fill();
+        c.fillStyle = '#43A047';
+        c.beginPath(); c.arc(48, 148, 14, 0, Math.PI * 2); c.fill();
+        c.beginPath(); c.arc(68, 150, 14, 0, Math.PI * 2); c.fill();
+
+      } else {
+        // 🕹️ レトロPCサイバー書斎
+        c.fillStyle = '#0B0914';
+        c.fillRect(0, 0, w, floorY);
+
+        c.fillStyle = '#100D1F';
+        c.fillRect(0, floorY, w, h - floorY);
+        c.strokeStyle = 'rgba(0, 229, 255, 0.25)';
+        c.lineWidth = 1;
+        for (let i = 0; i <= w; i += 24) {
+          c.beginPath();
+          c.moveTo(i, floorY);
+          c.lineTo(i * 1.3 - 50, h);
+          c.stroke();
+        }
+
+        c.fillStyle = '#37474F';
+        c.fillRect(50, 140, 55, 45);
+        c.fillStyle = '#00E5FF';
+        c.fillRect(55, 145, 45, 35);
+        c.fillStyle = 'rgba(0,0,0,0.3)';
+        for (let y = 147; y < 180; y += 4) {
+          c.fillRect(55, y, 45, 2);
+        }
+      }
+    }
+
+    // アンビエント光芒
+    function drawAmbientLighting(c) {
+      const w = 380, h = 350;
+      const spot = c.createRadialGradient(w / 2, 40, 10, w / 2, 140, 240);
+      spot.addColorStop(0, 'rgba(255, 215, 100, 0.2)');
+      spot.addColorStop(0.6, 'rgba(255, 160, 50, 0.08)');
+      spot.addColorStop(1, 'rgba(0, 0, 0, 0.45)');
+      c.fillStyle = spot;
+      c.fillRect(0, 0, w, h);
+
+      ambientDust.forEach(p => {
+        p.y += p.speedY;
+        p.x += p.speedX;
+        p.pulse += 0.04;
+        if (p.y < 0) { p.y = h; p.x = Math.random() * w; }
+        const a = p.alpha * (0.6 + 0.4 * Math.sin(p.pulse));
+        c.fillStyle = `rgba(255, 210, 110, ${a})`;
+        c.beginPath();
+        c.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+        c.fill();
+      });
+    }
+
+    // =========================================================================
+    // 👤 真・プロシージャル・ドット絵キャラクター描画 (32×32実データ解析準拠)
+    // =========================================================================
+    // 画像ロードキャッシュ (reading, tea, pc 等の公式アニメーション用)
+    const imgCache = {};
+    function getCachedImage(src) {
+      if (!imgCache[src]) {
+        const img = new Image();
+        img.src = src;
+        imgCache[src] = img;
+      }
+      return imgCache[src];
+    }
+
+    function drawExactProceduralPet(c, x, y, charId, pose) {
+      c.save();
+
+      // 1. 足元接地シャドウ
+      const isLay = (pose === 'lay');
+      c.fillStyle = 'rgba(0, 0, 0, 0.65)';
+      c.beginPath();
+      c.ellipse(x, y + 26, isLay ? 52 : 36, isLay ? 10 : 8, 0, 0, Math.PI * 2);
+      c.fill();
+
+      // 呼吸による自然な微動
+      const breatheY = isLay ? 0 : Math.sin(animTick * 0.05) * 2;
+
+      // すべて 100% プロシージャル・ドット絵マトリクスから描画！
+      let palette = (charId === 'hisho') ? PIXEL_DATA.hisho_palette : PIXEL_DATA.kyle_palette;
+      let key = `${charId}_${pose}`;
+      let matrix = PIXEL_DATA[key] || PIXEL_DATA[`${charId}_front`];
+
+      // スケーリング: 32×32 のマトリクスを 1ドット = 3.2px でシャープに描画
+      const scale = 3.2;
+      const startX = Math.round(x - (32 * scale) / 2);
+      const startY = Math.round(y - (32 * scale) / 2 + breatheY);
+
+      for (let row = 0; row < 32; row++) {
+        const line = matrix[row] || "................................";
+        for (let col = 0; col < 32; col++) {
+          const ch = line[col] || '.';
+          if (ch === '.') continue;
+
+          const color = palette[ch];
+          if (!color) continue;
+
+          c.fillStyle = color;
+          c.fillRect(
+            Math.round(startX + col * scale),
+            Math.round(startY + row * scale),
+            Math.ceil(scale),
+            Math.ceil(scale)
+          );
+        }
+      }
+
+      c.restore();
+    }
+
+    // =========================================================================
+    // 🎛️ ユーザー操作ハンドラ
+    // =========================================================================
+    function selectChar(cId) {
+      currentChar = cId;
+      document.getElementById('btn-char-hisho').classList.toggle('active', cId === 'hisho');
+      document.getElementById('btn-char-kyle').classList.toggle('active', cId === 'kyle');
+      document.getElementById('badge-char').innerText = (cId === 'hisho') ? '秘書くん' : 'カイル風精霊';
+      updateSpeechBubble();
+    }
+
+    function selectRoom(rId) {
+      currentRoom = rId;
+      document.getElementById('btn-room-classic').classList.toggle('active', rId === 'classic');
+      document.getElementById('btn-room-modern').classList.toggle('active', rId === 'modern');
+      document.getElementById('btn-room-retro').classList.toggle('active', rId === 'retro');
+
+      const names = {
+        classic: '英国クラシック書斎 (本棚・暖炉・月窓)',
+        modern:  '北欧モダン書斎 (白木棚・植物)',
+        retro:   'レトロPCサイバー書斎 (CRT・メカニカル)'
+      };
+      document.getElementById('badge-room').innerText = names[rId];
+      updateSpeechBubble();
+    }
+
+    function selectPose(pId) {
+      currentPose = pId;
+      ['front', 'back', 'lay', 'reading', 'tea', 'pc'].forEach(p => {
+        const b = document.getElementById('btn-pose-' + p);
+        if (b) b.classList.toggle('active', p === pId);
+      });
+
+      const names = {
+        front:   '正面 (ネクタイ立体化/イルカ)',
+        back:    '後ろ姿 (Back)',
+        lay:     'お布団＆パジャマ帽 (Sleep)',
+        reading: 'デスクで読書 (Reading)',
+        tea:     'デスクでお茶・珈琲 (Tea)',
+        pc:      'デスクでPC作業 (Focus)'
+      };
+      document.getElementById('badge-pose').innerText = names[pId];
+      updateSpeechBubble();
+    }
+
+    function updateSpeechBubble() {
+      const bubble = document.getElementById('speech-bubble');
+      if (currentChar === 'hisho') {
+        if (currentPose === 'front') {
+          bubble.innerText = 'ボス！白シャツに黄色のネクタイを締めました！立体的な結び目です👔✨';
+        } else if (currentPose === 'back') {
+          bubble.innerText = '本棚の前で資料を確認中…（ボスの大好きな後ろ姿です✨）';
+        } else if (currentPose === 'lay') {
+          bubble.innerText = 'ナイトキャップとお布団ですっぽりスヤスヤ…💤 ボスも温かくしてくださいね。';
+        } else if (currentPose === 'reading') {
+          bubble.innerText = '木製デスクで見開きの分厚い本を精読中です！📖✨';
+        } else if (currentPose === 'tea') {
+          bubble.innerText = '木製デスクに淹れたて珈琲をご用意しました！湯気も立っていますよ☕';
+        } else {
+          bubble.innerText = '木製デスクのノートPCでカタカタ集中作業中です！シアン画面で作業効率UP💻✨';
+        }
+      } else {
+        if (currentPose === 'front') {
+          bubble.innerText = 'カタカタ…！案内精霊カイル、本来の端正なイルカ姿で待機中でございます🐚✨';
+        } else if (currentPose === 'back') {
+          bubble.innerText = '滑らかなイルカの背中でございます…謎の斜線は綺麗に消えました🐚✨';
+        } else if (currentPose === 'lay') {
+          bubble.innerText = 'ナイトキャップを被り、深海ブルーのお布団で休止モード…スヤスヤ…💤';
+        } else if (currentPose === 'reading') {
+          bubble.innerText = 'デスクの上で分厚いマニュアル本を精読中でございます…📖';
+        } else if (currentPose === 'tea') {
+          bubble.innerText = 'デスクの貝殻マグカップから淹れたてのお茶をいただきます☕';
+        } else {
+          bubble.innerText = 'カタカタカタッ…！名物・ホタテ貝型ゴールドPC、爆速で叩いております！⚡🐚';
+        }
+      }
+    }
+
+    function handleStageClick(e) {
+      const poses = ['front', 'back', 'lay', 'reading', 'tea', 'pc'];
+      const nextIdx = (poses.indexOf(currentPose) + 1) % poses.length;
+      selectPose(poses[nextIdx]);
+    }
+
+    // 自律サイクル（デスクPCカタカタ ➔ 本棚読書 ➔ お茶 ➔ お布団就寝）
+    function runAutoPilotCycle() {
+      if (!autoPilotActive) return;
+      const cycle = [
+        { pose: 'front',   x: 190 },
+        { pose: 'pc',      x: 190 }, // デスクでPC作業！
+        { pose: 'back',    x: 235 }, // 本棚の前へ歩いて後ろ姿！
+        { pose: 'reading', x: 235 }, // 本を読む
+        { pose: 'tea',     x: 160 }, // お茶を飲む
+        { pose: 'lay',     x: 120 }  // 暖炉の横でお布団に入って寝る
+      ];
+      const r = cycle[Math.floor(Math.random() * cycle.length)];
+      selectPose(r.pose);
+      targetPetX = r.x;
+    }
+
+    function toggleAutoPilot() {
+      autoPilotActive = !autoPilotActive;
+      const pill = document.getElementById('autopilot-pill');
+      if (autoPilotActive) {
+        pill.innerText = 'ON';
+        pill.style.background = 'var(--accent-green)';
+        autoPilotTimer = setInterval(runAutoPilotCycle, 4500);
+      } else {
+        pill.innerText = 'OFF';
+        pill.style.background = '#888';
+        clearInterval(autoPilotTimer);
+      }
+    }
+
+    autoPilotTimer = setInterval(runAutoPilotCycle, 4500);
+  </script>
+</body>
+</html>

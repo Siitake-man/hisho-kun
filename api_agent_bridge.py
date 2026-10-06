@@ -710,44 +710,6 @@ def action_voice_command(ctx: ApiContext) -> bool:
     return True
 
 
-def action_easter_egg_trigger(ctx: ApiContext) -> bool:
-    """スマホ側からのイースターエッグ発火フレーズを処理する。
-
-    Args:
-        ctx: リクエストコンテキスト。
-
-    Returns:
-        bool: 常にレスポンスを書き込むため True。
-    """
-    from local_sync_server import get_gui_instance, get_link_monitor
-    import easter_egg_engine
-    data = json.loads(ctx.body.decode("utf-8"))
-    phrase = data.get("phrase", "お前を消す方法")
-    ee_event = easter_egg_engine.observe_message(phrase)
-    if ee_event:
-        get_link_monitor().set_easter_egg_event(
-            stage=ee_event["stage"],
-            daily_count=ee_event["daily_count"],
-            attempt_count=ee_event["attempt_count"],
-            message=ee_event["fallback_reply"]
-        )
-        gui = get_gui_instance()
-        if gui:
-            gui.post_action(gui.update_message, ee_event["fallback_reply"])
-            if ee_event["stage"] >= 3:
-                gui.post_action(gui.set_pet_state, "thinking", 3000)
-        logger.info(f"📱 スマホ側からイースターエッグ発火: stage={ee_event['stage']}")
-        ctx.write_json({
-            "status": "success",
-            "stage": ee_event["stage"],
-            "reply": ee_event["fallback_reply"],
-            "daily_count": ee_event["daily_count"],
-            "attempt_count": ee_event["attempt_count"]
-        }, ensure_ascii=False)
-    else:
-        ctx.write_json({"status": "no_trigger"})
-    return True
-
 
 def action_trigger_briefing(ctx: ApiContext) -> bool:
     """スマホ側からの朝会/終礼ブリーフィング要求を処理する。

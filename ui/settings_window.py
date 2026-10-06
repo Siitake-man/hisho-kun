@@ -757,15 +757,15 @@ class SettingsWindow(ctk.CTkToplevel):
         try:
             if not self.winfo_exists():
                 return
-            self.title(t("ui.settings.title"))
+            self.title(t("ui.settings.title", lang=lang))
             if hasattr(self, "header_title") and self.header_title.winfo_exists():
-                self.header_title.configure(text=t("ui.settings.title"))
+                self.header_title.configure(text=t("ui.settings.title", lang=lang))
             # サイドバーナビゲーションボタンの多言語更新
             for key, text_key in getattr(self, "nav_items_def", []):
                 if key in self.nav_buttons and self.nav_buttons[key].winfo_exists():
-                    self.nav_buttons[key].configure(text=t(text_key))
+                    self.nav_buttons[key].configure(text=t(text_key, lang=lang))
             if hasattr(self, "general_tab"):
-                self.general_tab.refresh_texts()
+                self.general_tab.refresh_texts(lang=lang)
             if hasattr(self, "agent_hooks_tab"):
                 self.agent_hooks_tab.refresh_texts()
             if hasattr(self, "llm_brain_tab"):
@@ -773,11 +773,11 @@ class SettingsWindow(ctk.CTkToplevel):
             if hasattr(self, "tools_tab"):
                 self.tools_tab.refresh_texts()
             if hasattr(self, "btn_save") and self.btn_save.winfo_exists():
-                self.btn_save.configure(text=f"💾 {t('ui.settings.save')}")
+                self.btn_save.configure(text=f"💾 {t('ui.settings.save', lang=lang)}")
             if hasattr(self, "btn_sync_all") and self.btn_sync_all.winfo_exists():
-                self.btn_sync_all.configure(text=t("ui.settings.llm_sync_btn"))
+                self.btn_sync_all.configure(text=t("ui.settings.llm_sync_btn", lang=lang))
             if hasattr(self, "lbl_sync_status") and self.lbl_sync_status.winfo_exists():
-                self.lbl_sync_status.configure(text=t("ui.settings.llm_sync_note"))
+                self.lbl_sync_status.configure(text=t("ui.settings.llm_sync_note", lang=lang))
         except Exception as e:
             logger.warning("設定画面言語更新エラー: %s", e)
 

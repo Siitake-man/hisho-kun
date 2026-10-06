@@ -38,7 +38,6 @@ class DeviceLinkMonitor:
         self.buzz_requested: bool = False
         self.first_link_notified: bool = False
         self.latest_notification: Optional[Dict[str, Any]] = None
-        self.latest_easter_egg_event: Optional[Dict[str, Any]] = None
 
     def record_heartbeat(self, client_ip: str, user_agent: str) -> bool:
         """スマホからの通信を検知して更新。初回接続時はTrueを返す.
@@ -156,40 +155,6 @@ class DeviceLinkMonitor:
                     return self.latest_notification
                 else:
                     self.latest_notification = None
-            return None
-
-    def set_easter_egg_event(self, stage: int, daily_count: int, attempt_count: int, message: str = "") -> None:
-        """最新のイースターエッグ発火イベントを保持し、スマホへ演出要求を発行.
-
-        Args:
-            stage: イースターエッグ進行ステージ。
-            daily_count: 本日の発火回数。
-            attempt_count: 試行回数。
-            message: 表示メッセージ。
-        """
-        with self._lock:
-            self.latest_easter_egg_event = {
-                "id": f"ee_{uuid.uuid4().hex[:6]}",
-                "stage": stage,
-                "daily_count": daily_count,
-                "attempt_count": attempt_count,
-                "message": message,
-                "timestamp": time.time(),
-            }
-            self.buzz_requested = True
-
-    def get_active_easter_egg_event(self) -> Optional[Dict[str, Any]]:
-        """直近25秒以内のイースターエッグイベントを返す.
-
-        Returns:
-            Optional[Dict[str, Any]]: 有効なイースターエッグイベント、または None。
-        """
-        with self._lock:
-            if self.latest_easter_egg_event:
-                if time.time() - self.latest_easter_egg_event["timestamp"] <= 25.0:
-                    return self.latest_easter_egg_event
-                else:
-                    self.latest_easter_egg_event = None
             return None
 
 

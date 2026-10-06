@@ -138,6 +138,9 @@ class NeoSecretaryGUI(PomodoroMixin, RadialMenuMixin, TourOverlayMixin):
             logger.debug(f"タスクトレイ初期化スキップ: {e}")
             self.tray_manager = None
 
+        # 🥷 ステルスモード状態フラグ
+        self.stealth_mode: bool = False
+
     def quit_app(self):
         """アプリケーションを完全に終了する（タスクトレイ破棄＆監視ループ停止＆ウィンドウ破棄）"""
         logger.info("🛑 quit_app 開始 (トレイ停止 → quiet_destroy)")
@@ -384,7 +387,11 @@ class NeoSecretaryGUI(PomodoroMixin, RadialMenuMixin, TourOverlayMixin):
         self.mascot_flip_images.clear()
         
         # 自キャラのフォールバック用基本画像 (idle_1) を先に取得
-        char_dot_dir = assets_dir / "dot" / current_char
+        char_info = char_mgr.get_current_character()
+        base_char = char_info.get("base_char", current_char.replace("_hd2d", ""))
+        char_dot_dir = assets_dir / "dot" / base_char
+        if not char_dot_dir.exists():
+            char_dot_dir = assets_dir / "dot" / current_char
         default_idle_path = char_dot_dir / "idle_1.png"
         if not default_idle_path.exists():
             default_idle_path = char_dot_dir / "idle.png"
@@ -563,8 +570,9 @@ class NeoSecretaryGUI(PomodoroMixin, RadialMenuMixin, TourOverlayMixin):
                     self.root.withdraw()
                 elif not is_linked and getattr(self, '_was_linked_minimized', False):
                     self._was_linked_minimized = False
-                    logger.info("📱 スマホ切断を検知: PCペットを再表示(deiconify)します")
-                    self.root.deiconify()
+                    if not getattr(self, 'stealth_mode', False):
+                        logger.info("📱 スマホ切断を検知: PCペットを再表示(deiconify)します")
+                        self.root.deiconify()
             except Exception as e:
                 logger.debug(f"自動最小化リンク状態判定エラー: {e}")
 
@@ -588,7 +596,8 @@ class NeoSecretaryGUI(PomodoroMixin, RadialMenuMixin, TourOverlayMixin):
                 logger.debug(f"自動最小化トグル判定エラー: {e}")
         else:
             self._was_linked_minimized = False
-            self.root.deiconify()
+            if not getattr(self, 'stealth_mode', False):
+                self.root.deiconify()
             
         self.update_message(t("ui.pet.auto_minimize_toggle", status=status_str))
 
@@ -693,13 +702,13 @@ class NeoSecretaryGUI(PomodoroMixin, RadialMenuMixin, TourOverlayMixin):
                 if did_lvl_up:
                     self.animator.trigger_reaction("task_complete")
                     self.update_message(
-                        f"🎊 【キズナレベルアップ！ Lv.{bond['level']}】\n"
+                        f"🎊 【絆が深まりました！】\n"
                         f"称号: 『{bond['title']}』\n"
                         f"{bond['desc']}✨"
                     )
                 else:
                     self.update_message(
-                        f"えへへ、くすぐったいです！🥰 (親愛度: {bond['xp']} XP)\n"
+                        f"えへへ、くすぐったいです！🥰 称号: 『{bond['title']}』\n"
                         f"ボス、呼び出したい機能を選んでくださいね！"
                     )
             else:
@@ -743,6 +752,7 @@ class NeoSecretaryGUI(PomodoroMixin, RadialMenuMixin, TourOverlayMixin):
         auto_min = getattr(self, 'auto_minimize_on_link', False)
         min_prefix = "☑ " if auto_min else "☐ "
         menu.add_command(label=f"{min_prefix}{t('ui.menu.auto_min')}", command=self.toggle_auto_minimize)
+        menu.add_command(label=t("ui.menu.stealth"), command=self.enter_stealth_mode)
         
         # ポモドーロ開始/停止
         if not self.pomodoro_active:
@@ -1028,9 +1038,19 @@ class NeoSecretaryGUI(PomodoroMixin, RadialMenuMixin, TourOverlayMixin):
         except Exception as e:
             logger.warning(f"手帳の自動リフレッシュに失敗: {e}")
 
-    def show_pc_pet(self):
+    def enter_stealth_mode(self):
+        """ステルスモードへ移行（PCペットを非表示にしてタスクトレイへ退避）"""
+        self.stealth_mode = True
+        self.hide_pc_pet()
+        logger.info("🥷 ステルスモードに移行しました（タスクトレイに退避）")
+
+    def show_pc_pet(self, from_tray: bool = False):
         """PC側のペットウィンドウを表示・最前面化する"""
         try:
+            if getattr(self, "stealth_mode", False) and not from_tray:
+                logger.info("🥷 ステルスモード中のためPCペット再表示をスキップしました")
+                return
+            self.stealth_mode = False
             self.auto_minimize_on_link = False
             self._was_linked_minimized = False
             self.root.deiconify()

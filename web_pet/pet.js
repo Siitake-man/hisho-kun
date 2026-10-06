@@ -467,7 +467,6 @@ function _updateEventBanners(data) {
           // 🛡️ 重複排除: バナーが表示されるため上部HUDトーストは出さない
           if (navigator.vibrate) navigator.vibrate([120, 80, 120, 80, 240]);
           triggerCelebrateReaction(4000);
-          if (window.EasterEggEngine) EasterEggEngine.playSound('revive');
         }
       }
     } else if (data.due_reminders && data.due_reminders.length > 0) {
@@ -495,7 +494,6 @@ function _updateEventBanners(data) {
         // 🛡️ 重複排除: リマインダーバナーが表示されるため上部HUDトーストは出さない
         if (navigator.vibrate) navigator.vibrate([150, 100, 150, 100, 300]);
         petStateNow = 'alarm_ask';
-        if (window.EasterEggEngine) EasterEggEngine.playSound('alarm');
       }
     } else {
       currentActiveEvent = null;
@@ -527,11 +525,7 @@ ${notif.message}`;
       }
       // 🛡️ 重複排除: ペットの頭上コミック吹き出しで愛らしく伝えるため上部トーストは出さない
       if (navigator.vibrate) navigator.vibrate([120, 80, 120, 80, 240]);
-      if (window.EasterEggEngine) {
-        EasterEggEngine.playSound('revive');
-      } else {
-        playAlertChime(2);
-      }
+      playAlertChime(2);
     }
   }
 
@@ -562,12 +556,7 @@ ${notif.message}`;
     }
   }
 
-  // 5.7. ⚡ イースターエッグ演出同期
-  if (window.EasterEggEngine && data.easter_egg) {
-    EasterEggEngine.syncFromStatus(data);
-  }
-
-  // 5.8. 📍 地域設定の同期
+  // 5.7. 📍 地域設定の同期
   if (typeof data.weather_location === 'string') {
     currentSavedLocation = data.weather_location;
   }
@@ -1279,8 +1268,6 @@ function openSettingsModal() {
   const sectionLang = isEn ? '🌐 Display Language:' : '🌐 表示言語 / Language:';
   const locTitle = isEn ? '📍 Weather Location' : '📍 お住まいの地域（天気）';
   const locDesc = isEn ? `Current: <b>${escapeHtml(locLabel)}</b> → Tap to change` : `現在: <b>${escapeHtml(locLabel)}</b> → タップで変更`;
-  const easterTitle = isEn ? '✨ Special Effects Mode' : '✨ イースターエッグ演出モード';
-  const easterDesc = isEn ? `Current: <b>${effectModeLabel()}</b> → Tap to toggle` : `現在: <b>${effectModeLabel()}</b> → タップで切替（低スペ端末は自動で軽量）`;
   const nosleepTitle = isEn ? '💡 Keep Screen Always ON' : '💡 常時画面ON（自動消灯防止）';
   const nosleepDesc = isEn ? 'Stays lit as a smart desk display' : '卓上スマートディスプレイとして常時点灯します';
   const fullTitle = isEn ? '⛶ Fullscreen' : '⛶ 全画面表示';
@@ -1312,26 +1299,12 @@ function openSettingsModal() {
     </div>
 
     <div class="note-item" onclick="openLocationSettingsModal();"><div class="note-title">${locTitle}</div><div class="note-desc">${locDesc}</div></div>
-    <div class="note-item" onclick="cycleEffectMode(); openSettingsModal();"><div class="note-title">${easterTitle}</div><div class="note-desc">${easterDesc}</div></div>
     <div class="note-item" onclick="toggleNoSleep(); closeBottomSheet();"><div class="note-title">${nosleepTitle}</div><div class="note-desc">${nosleepDesc}</div></div>
     <div class="note-item" onclick="toggleFullscreen(); closeBottomSheet();"><div class="note-title">${fullTitle}</div><div class="note-desc">${fullDesc}</div></div>
     <div class="note-item" onclick="showPcPet()"><div class="note-title">${pcPetTitle}</div><div class="note-desc">${pcPetDesc}</div></div>
     <div class="note-item" onclick="closeBottomSheet()"><div class="note-title">${closeTitle}</div></div>`;
   const sheetTitle = isEn ? 'Settings' : '設定';
   openBottomSheet({ icon: '⚙️', tag: t('dock.settings', '設定'), title: sheetTitle }, html);
-}
-
-/** ✨ 演出モードの現在値ラベル（easter_eggs.js 連携・low-end端末は自動で軽量化） */
-function effectModeLabel() {
-  const mode = window.EasterEggEngine ? window.EasterEggEngine.getEffectMode() : 'full';
-  return { full: '標準', light: '軽量', off: 'OFF' }[mode] || '標準';
-}
-
-/** ✨ 演出モード循環切替（標準→軽量→OFF） */
-function cycleEffectMode() {
-  if (window.EasterEggEngine) {
-    window.EasterEggEngine.cycleEffectMode();
-  }
 }
 
 /** 📍 地域設定モーダル */

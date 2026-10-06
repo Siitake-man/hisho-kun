@@ -1489,7 +1489,7 @@ class CalendarWindow(ctk.CTkToplevel):
             if did_lvl:
                 bond = char_mgr.get_bond_info()
                 self.parent_gui.update_message(
-                    f"🎊 【キズナレベルアップ！ Lv.{bond['level']}】\n"
+                    f"🎊 【絆が深まりました！】\n"
                     f"習慣達成お見事です！称号: 『{bond['title']}』✨"
                 )
             else:

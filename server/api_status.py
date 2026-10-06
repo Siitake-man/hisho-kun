@@ -245,35 +245,20 @@ def build_status_payload(
             else:
                 greetings = ["Yawn... Still awake? Don't overdo it, Boss. 🌙"]
         else:
-            if 5 <= hour < 11:
-                greetings.append("おはようございます、ボス！今日も一日よろしくです！")
-            elif 11 <= hour < 18:
-                greetings.append("ボス、午後の業務もここから見守っていますよ！")
-            elif 18 <= hour < 23:
-                greetings.append("ボス、今日も一日お疲れ様です！もう少しだけ付き合ってください✨")
+            time_greeting = char_mgr.get_time_greeting(hour=hour)
+            if time_greeting:
+                greetings.append(time_greeting)
             else:
-                greetings.append("ふぁ…まだ起きています？無理は禁物ですよ、ボス。")
+                if 5 <= hour < 11:
+                    greetings.append("おはようございます、ボス！今日も一日よろしくです！")
+                elif 11 <= hour < 18:
+                    greetings.append("ボス、午後の業務もここから見守っていますよ！")
+                elif 18 <= hour < 23:
+                    greetings.append("ボス、今日も一日お疲れ様です！もう少しだけ付き合ってください✨")
+                else:
+                    greetings.append("ふぁ…まだ起きています？無理は禁物ですよ、ボス。")
         if greetings:
             default_msg = greetings[int(now // 90) % len(greetings)]
-
-    # イースターエッグ状態
-    try:
-        import easter_egg_engine
-        ee_state = easter_egg_engine.load_state()
-        ee_payload = {
-            "attempt_count": ee_state.attempt_count,
-            "daily_count": ee_state.daily_count,
-            "secret_game_unlocked": ee_state.secret_game_unlocked,
-            "active_event": monitor.get_active_easter_egg_event(),
-        }
-    except Exception as ee_err:
-        logger.debug("イースターエッグ状態取得スキップ: %s", ee_err)
-        ee_payload = {
-            "attempt_count": 0,
-            "daily_count": 0,
-            "secret_game_unlocked": False,
-            "active_event": None,
-        }
 
     payload: Dict[str, Any] = {
         "status": "ok",
@@ -293,7 +278,6 @@ def build_status_payload(
         "active_event": active_event,
         "latest_notification": active_notification,
         "agent_activity": agent_activity,
-        "easter_egg": ee_payload,
         "tasks": cached_tasks,
         "events": cached_events,
         "suggestions": suggestions_data,

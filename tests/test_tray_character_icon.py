@@ -85,11 +85,11 @@ class TestCharacterIconPathResolution(unittest.TestCase):
         self.assertEqual(len(candidates), len(set(candidates)))
 
     def test_resolves_each_registered_character_asset(self) -> None:
-        """hisho / kyle それぞれの idle_1.png を解決できること"""
-        for char_id in ("hisho", "kyle"):
+        """hisho / kyle および HD-2D 版それぞれの idle_1.png を解決できること"""
+        for char_id, base_id in (("hisho", "hisho"), ("kyle", "kyle"), ("hisho_hd2d", "hisho"), ("kyle_hd2d", "kyle")):
             resolved = resolve_character_icon_path(char_id)
             self.assertEqual(
-                resolved, PROJECT_ROOT / "assets" / "dot" / char_id / "idle_1.png"
+                resolved, PROJECT_ROOT / "assets" / "dot" / base_id / "idle_1.png"
             )
 
     def test_unknown_character_falls_back_to_hisho(self) -> None:

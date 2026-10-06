@@ -70,7 +70,6 @@ ACTION_HANDLERS_DEVICE: Dict[str, Callable] = {
     "pet_reaction": api_agent_bridge.action_pet_reaction,
     "ping_test": api_agent_bridge.action_ping_test,
     "voice_command": api_agent_bridge.action_voice_command,
-    "easter_egg_trigger": api_agent_bridge.action_easter_egg_trigger,
     "trigger_briefing": api_agent_bridge.action_trigger_briefing,
     "set_weather_location": api_agent_bridge.action_set_weather_location,
     "record_minigame_score": api_agent_bridge.action_record_minigame_score,
