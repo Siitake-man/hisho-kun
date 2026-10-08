@@ -301,3 +301,61 @@ def test_suggest_engine_summary_and_extraction_edge_cases():
     assert isinstance(summary, str)
     assert len(summary.splitlines()) <= 3
     assert "テストタイトル" in summary
+
+
+# ---------------------------------------------------------------------------
+# 6. auth_rate_limiter の境界値・異常系テスト
+# ---------------------------------------------------------------------------
+
+def test_auth_rate_limiter_edge_case_ips_and_timestamps():
+    """AuthRateLimiter における特殊IP（None, 空文字, 空白, IPv6, 超長文IP）および時間境界値の堅牢性検証。"""
+    from auth_rate_limiter import AuthRateLimiter
+
+    limiter = AuthRateLimiter(max_failures=3, window_seconds=60.0, lockout_seconds=300.0)
+
+    # 特殊な IP 表現の受け入れテスト
+    special_ips = ["", None, "   ", "::1", "2001:db8::ff00:42:8329", "A" * 1000]
+
+    for ip in special_ips:
+        blocked, remaining = limiter.is_blocked(ip, now=1000.0)
+        assert blocked is False
+        assert remaining == 0
+
+        # 3回失敗させてロックアウトを確認
+        limiter.record_failure(ip, now=1000.0)
+        limiter.record_failure(ip, now=1010.0)
+        is_locked, lockout_secs = limiter.record_failure(ip, now=1020.0)
+
+        assert is_locked is True
+        assert lockout_secs == 300
+
+        # ロックアウト状態の確認 (AuthRateLimiter は remaining = int(blocked_time - now) + 1 を返すため 291)
+        blocked_check, rem_check = limiter.is_blocked(ip, now=1030.0)
+        assert blocked_check is True
+        assert rem_check == 291
+
+        # 締め出し期間経過（300秒経過後）の解除確認
+        blocked_expired, _ = limiter.is_blocked(ip, now=1321.0)
+        assert blocked_expired is False
+
+
+def test_auth_rate_limiter_time_window_and_clock_jump_resilience():
+    """AuthRateLimiter におけるスライディングウィンドウ境界（ちょうど60秒前）および時刻逆転時のフォールバック検証。"""
+    from auth_rate_limiter import AuthRateLimiter
+
+    limiter = AuthRateLimiter(max_failures=3, window_seconds=60.0, lockout_seconds=300.0)
+    test_ip = "192.168.1.100"
+
+    # 1回目: t = 1000.0
+    limiter.record_failure(test_ip, now=1000.0)
+    # 2回目: t = 1010.0
+    limiter.record_failure(test_ip, now=1010.0)
+
+    # 60.1秒経過後 (t = 1060.1) -> 1回目の記録 (1000.0) はウィンドウ外に消去される
+    # この時点で追加失敗してもカウントは 2 になるためロックアウトされない
+    is_locked_1, _ = limiter.record_failure(test_ip, now=1060.1)
+    assert is_locked_1 is False
+
+    # 過去の時刻（現在時刻より小さい過去タイムスタンプ）が渡された場合もクラッシュせず処理されるか検証
+    is_locked_past, _ = limiter.record_failure(test_ip, now=500.0)
+    assert isinstance(is_locked_past, bool)
