@@ -359,3 +359,33 @@ def test_auth_rate_limiter_time_window_and_clock_jump_resilience():
     # 過去の時刻（現在時刻より小さい過去タイムスタンプ）が渡された場合もクラッシュせず処理されるか検証
     is_locked_past, _ = limiter.record_failure(test_ip, now=500.0)
     assert isinstance(is_locked_past, bool)
+
+
+# ---------------------------------------------------------------------------
+# 7. command_router の境界値・異常系テスト
+# ---------------------------------------------------------------------------
+
+def test_command_router_robustness_edge_cases():
+    """command_router における None、空文字、不正日時、過去日時の決定論的フォールバック検証。"""
+    import command_router
+    from command_router import try_route_command, _resolve_event_datetimes
+
+    # None, 空文字, 空白文字列のルーティング試行
+    assert try_route_command(None) is None
+    assert try_route_command("") is None
+    assert try_route_command("   \t\n  ") is None
+
+    # イベント指示のない長文テキスト
+    huge_unrelated = "今日の天気は晴れです。" * 1000
+    assert try_route_command(huge_unrelated) is None
+
+    # 不正な日時表現（例: 13月45日、99:99）からの日時解釈フォールバック
+    base_now = datetime(2026, 10, 8, 10, 0, 0)
+    assert _resolve_event_datetimes("13月45日に会議を登録して", now=base_now) is None
+    assert _resolve_event_datetimes("明日99:99に会議を入れて", now=base_now) is None
+
+    # 過去の日時（例: 今日の朝8時、現在時刻は10時）を指定した場合のフォールバック (end <= base)
+    assert _resolve_event_datetimes("今日8時に打ち合わせを入れて", now=base_now) is None
+
+    # 登録インテントだがタイトルも日時も抽出できない曖昧なテキスト
+    assert try_route_command("予定を登録して") is None
