@@ -329,7 +329,7 @@ def test_auth_rate_limiter_edge_case_ips_and_timestamps():
         assert is_locked is True
         assert lockout_secs == 300
 
-        # ロックアウト状態の確認 (AuthRateLimiter は remaining = int(blocked_time - now) + 1 を返すため 291)
+        # ロックアウト状態の確認
         blocked_check, rem_check = limiter.is_blocked(ip, now=1030.0)
         assert blocked_check is True
         assert rem_check == 291
@@ -352,7 +352,6 @@ def test_auth_rate_limiter_time_window_and_clock_jump_resilience():
     limiter.record_failure(test_ip, now=1010.0)
 
     # 60.1秒経過後 (t = 1060.1) -> 1回目の記録 (1000.0) はウィンドウ外に消去される
-    # この時点で追加失敗してもカウントは 2 になるためロックアウトされない
     is_locked_1, _ = limiter.record_failure(test_ip, now=1060.1)
     assert is_locked_1 is False
 
