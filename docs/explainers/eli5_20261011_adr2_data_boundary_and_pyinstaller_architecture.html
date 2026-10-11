@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ELI5 図解: ADR-2 データ境界ポリシー ＆ PyInstaller パッケージングの解剖</title>
+  <style>
+    :root {
+      --bg: #0F1117;
+      --card-bg: #1A1D27;
+      --card-border: #2A2F42;
+      --text: #E2E8F0;
+      --text-muted: #94A3B8;
+      --accent: #FFB800;
+      --accent-green: #10B981;
+      --accent-blue: #3B82F6;
+      --accent-purple: #8B5CF6;
+      --accent-red: #EF4444;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      line-height: 1.6;
+      padding: 24px;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+    header {
+      text-align: center;
+      margin-bottom: 32px;
+      padding-bottom: 24px;
+      border-bottom: 1px solid var(--card-border);
+    }
+    h1 { font-size: 1.8rem; color: var(--accent); margin-bottom: 8px; }
+    .subtitle { color: var(--text-muted); font-size: 0.95rem; }
+    .badge {
+      display: inline-block;
+      background: rgba(255, 184, 0, 0.15);
+      color: var(--accent);
+      padding: 4px 12px;
+      border-radius: 999px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      margin-top: 8px;
+    }
+    .section-card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 12px;
+      padding: 24px;
+      margin-bottom: 24px;
+    }
+    h2 { font-size: 1.3rem; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+    .controls {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 16px;
+      flex-wrap: wrap;
+    }
+    button {
+      background: #2563EB;
+      color: white;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 6px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    button:hover { background: #1D4ED8; }
+    button.alt {
+      background: #334155;
+    }
+    button.alt:hover { background: #475569; }
+    .simulator-container {
+      background: #0B0D13;
+      border: 1px solid var(--card-border);
+      border-radius: 8px;
+      padding: 16px;
+      position: relative;
+      overflow: hidden;
+    }
+    svg {
+      width: 100%;
+      height: 380px;
+      display: block;
+    }
+    .status-panel {
+      margin-top: 12px;
+      padding: 12px;
+      background: rgba(30, 41, 59, 0.5);
+      border-radius: 6px;
+      font-family: monospace;
+      font-size: 0.85rem;
+      color: var(--accent-green);
+    }
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+    }
+    @media (max-width: 768px) {
+      .grid-2 { grid-template-columns: 1fr; }
+    }
+    .concept-box {
+      background: #0B0D13;
+      border-left: 4px solid var(--accent-blue);
+      padding: 16px;
+      border-radius: 0 8px 8px 0;
+    }
+    .concept-box h3 { font-size: 1.05rem; margin-bottom: 8px; color: var(--accent-blue); }
+    .concept-box p { font-size: 0.9rem; color: var(--text-muted); }
+    .accordion-item {
+      border: 1px solid var(--card-border);
+      border-radius: 8px;
+      margin-bottom: 8px;
+      overflow: hidden;
+    }
+    .accordion-header {
+      background: #202433;
+      padding: 12px 16px;
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 0.95rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      user-select: none;
+    }
+    .accordion-content {
+      padding: 16px;
+      background: #141722;
+      font-size: 0.9rem;
+      color: var(--text-muted);
+      display: none;
+    }
+    .accordion-item.open .accordion-content { display: block; }
+    .accordion-item.open .accordion-header { color: var(--accent); }
+    .highlight { color: var(--accent); font-weight: bold; }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="badge">二重資産化 ELI5 アーティファクト</div>
+    <h1>なぜ「パッケージ版」なのにボスのカレンダーが見えたのか？</h1>
+    <p class="subtitle">ADR-2 データ境界ポリシー ＆ PyInstaller onedir 構造の動的シミュレーション</p>
+  </header>
+
+  <!-- 第1層: 動くSVGシミュレータ -->
+  <section class="section-card">
+    <h2>🎮 1. 動くSVGデータフロー・シミュレーター</h2>
+    <p style="font-size:0.9rem; color:var(--text-muted); margin-bottom:14px;">
+      配布パッケージ（ZIP）とユーザーのPCデータ（%LOCALAPPDATA%）の境界線を可視化します。ボタンを押してシミュレーションを切り替えてみてください。
+    </p>
+
+    <div class="controls">
+      <button onclick="simulateBossPC()">① ボスのPCで実行した時（今回起きたこと）</button>
+      <button class="alt" onclick="simulateOtherPC()">② 社内の他人のPCで実行した時（配布時）</button>
+      <button class="alt" onclick="resetSim()">リセット</button>
+    </div>
+
+    <div class="simulator-container">
+      <svg id="simSvg" viewBox="0 0 900 360">
+        <!-- 背景グリッド -->
+        <defs>
+          <linearGradient id="boxGrad1" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="#1E293B"/>
+            <stop offset="100%" stop-color="#0F172A"/>
+          </linearGradient>
+          <linearGradient id="boxGrad2" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="#1E3A8A"/>
+            <stop offset="100%" stop-color="#172554"/>
+          </linearGradient>
+          <linearGradient id="dataGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="#065F46"/>
+            <stop offset="100%" stop-color="#022C22"/>
+          </linearGradient>
+          <marker id="arrow" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M 0 1 L 10 5 L 0 9 z" fill="#FFB800" />
+          </marker>
+          <marker id="arrowBlue" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M 0 1 L 10 5 L 0 9 z" fill="#38BDF8" />
+          </marker>
+        </defs>
+
+        <!-- 左側：配布パッケージ (dist/NeoHisho) -->
+        <rect x="40" y="40" width="250" height="280" rx="10" fill="url(#boxGrad1)" stroke="#334155" stroke-width="2"/>
+        <text x="55" y="70" fill="#94A3B8" font-size="14" font-weight="bold">📦 配布物 (dist/NeoHisho)</text>
+        <rect x="60" y="90" width="210" height="45" rx="6" fill="#1E293B" stroke="#475569"/>
+        <text x="75" y="118" fill="#E2E8F0" font-size="13">⚡ NeoHisho.exe (実行本体)</text>
+        <rect x="60" y="150" width="210" height="45" rx="6" fill="#1E293B" stroke="#475569"/>
+        <text x="75" y="178" fill="#94A3B8" font-size="12">📁 _internal/ (Python/WebPet)</text>
+        <rect x="60" y="210" width="210" height="45" rx="6" fill="rgba(239, 68, 68, 0.1)" stroke="#EF4444" stroke-dasharray="4"/>
+        <text x="75" y="238" fill="#F87171" font-size="12">🚫 neo_secretary.db (なし!)</text>
+        <text x="75" y="295" fill="#64748B" font-size="11">機密スキャンでDBは完全除外</text>
+
+        <!-- 中央：データ境界の壁 (ADR-2) -->
+        <line x1="330" y1="30" x2="330" y2="330" stroke="#FFB800" stroke-width="2" stroke-dasharray="6"/>
+        <text x="340" y="50" fill="#FFB800" font-size="12" font-weight="bold">ADR-2 境界線</text>
+
+        <!-- 右上：OSのデータ領域 (%LOCALAPPDATA%) -->
+        <rect x="380" y="40" width="260" height="130" rx="10" fill="url(#dataGrad)" stroke="#10B981" stroke-width="2"/>
+        <text x="395" y="70" fill="#34D399" font-size="13" font-weight="bold">💾 %LOCALAPPDATA%\NeoHisho</text>
+        <rect x="400" y="85" width="220" height="40" rx="6" fill="#064E3B" stroke="#059669"/>
+        <text id="dbLabel" x="415" y="110" fill="#A7F3D0" font-size="12">📄 neo_secretary.db (ボスのDB)</text>
+        <text id="dbSubLabel" x="400" y="150" fill="#6EE7B7" font-size="11">カレンダー購読情報・TODO</text>
+
+        <!-- 右下：ユーザー体験 (ブラウザ / スマホ Desk Pet) -->
+        <rect x="380" y="190" width="260" height="130" rx="10" fill="url(#boxGrad2)" stroke="#38BDF8" stroke-width="2"/>
+        <text x="395" y="220" fill="#38BDF8" font-size="13" font-weight="bold">🌐 http://localhost:8765 (Port 8765)</text>
+        <text id="browserLabel" x="400" y="255" fill="#E2E8F0" font-size="12">📱 スマホ Desk Pet 画面</text>
+        <text id="browserResult" x="400" y="285" fill="#FFB800" font-size="12">⏳ 実行待機中...</text>
+
+        <!-- 動くパケット・シグナル線 -->
+        <path id="flowPath1" d="M 270 112 L 380 112" fill="none" stroke="#FFB800" stroke-width="3" marker-end="url(#arrow)" opacity="0"/>
+        <path id="flowPath2" d="M 510 170 L 510 190" fill="none" stroke="#38BDF8" stroke-width="3" marker-end="url(#arrowBlue)" opacity="0"/>
+        <circle id="signalBall" cx="270" cy="112" r="6" fill="#FFB800" opacity="0"/>
+      </svg>
+      <div id="simLog" class="status-panel">
+        💡 ボタンを押して、データがどのように読み込まれるかをシミュレートしてください。
+      </div>
+    </div>
+  </section>
+
+  <!-- 第2層: 初級エンジニア向けの物理構造解説 -->
+  <section class="section-card">
+    <h2>🏢 2. なぜこの設計なのか？（身近な例えと第一原理）</h2>
+    <div class="grid-2">
+      <div class="concept-box">
+        <h3>身近な例え：「引越し先の新築オフィス」と「金庫」</h3>
+        <p>
+          会社で「新しいオフィスビル（NeoHisho.exe）」を建てて引っ越したとします。<br><br>
+          ビル自体はまっさらな新築ですが、社員の個人データや顧客カルテ（カレンダーやTODO）は、ビルの壁の中ではなく、<strong>「中央金庫室（%LOCALAPPDATA%）」</strong>に保管されています。<br><br>
+          だから、ビルが新しくなっても、社員が席に着けば元のカルテがそのまま開けます。
+        </p>
+      </div>
+      <div class="concept-box">
+        <h3>エンジニア視点：なぜEXEの中にDBを入れないのか？</h3>
+        <p>
+          もしEXEと同じフォルダにDBを同封してしまうと：<br>
+          1. <strong>アップデート時にデータが消える</strong>：新バージョンを上書き解凍した瞬間に、ユーザーの予定やタスクが初期化されて大事故になります。<br>
+          2. <strong>Program Filesの権限問題</strong>：管理者権限フォルダに解凍された場合、書き込み権限エラーで起動直後にクラッシュします。<br>
+          そのためChromeやVS Codeと同様に、データは必ず <code>%LOCALAPPDATA%</code> に逃がすのがプロの鉄則（ADR-2）です。
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 第3層: 登場した専門用語の完全解体辞典 -->
+  <section class="section-card">
+    <h2>📚 3. 本日の専門用語 完全解体辞典</h2>
+    
+    <div class="accordion-item open">
+      <div class="accordion-header" onclick="toggleAcc(this)">
+        <span>1. ADR-2 (データ境界ポリシー)</span>
+        <span>▼</span>
+      </div>
+      <div class="accordion-content">
+        <strong>何をするものか：</strong> 暗号鍵、トークン、SQLiteデータベースを「OneDriveやDropbox等のクラウド同期フォルダ」から構造的に締め出し、Windowsの非同期領域（<code>%LOCALAPPDATA%\NeoHisho</code>）に固定するアーキテクチャ規約。<br>
+        <strong>なぜ必要か：</strong> クラウド同期フォルダにDBを置くと、Git漏洩リスクに加え、同期遅延によるSQLiteファイル破損（ロック競合）が多発するためです。
+      </div>
+    </div>
+
+    <div class="accordion-item">
+      <div class="accordion-header" onclick="toggleAcc(this)">
+        <span>2. Single Instance Lock (ポート 54321 による多重起動防止)</span>
+        <span>▼</span>
+      </div>
+      <div class="accordion-content">
+        <strong>何をするものか：</strong> 2つ目の秘書くんが起動しないように、起動時にローカルのポート <code>54321</code> を占有（bind ＋ listen）する仕組み。<br>
+        <strong>なぜ必要か：</strong> 2つのプロセスが同時に同じSQLiteデータベースや同期サーバー（ポート 8765）を開こうとするとデータ破壊が起きるため、2重目のプロセスは画面を出さずに即座に終了（return）します。
+      </div>
+    </div>
+
+    <div class="accordion-item">
+      <div class="accordion-header" onclick="toggleAcc(this)">
+        <span>3. Windowed Subsystem (console=False) の罠</span>
+        <span>▼</span>
+      </div>
+      <div class="accordion-content">
+        <strong>何をするものか：</strong> PyInstallerでビルドする際、黒いコマンドプロンプト画面を表示させない一般的なGUIアプリ設定。<br>
+        <strong>遭遇した事象：</strong> 黒い画面が出ない反面、起動時にライブラリ不足やエラーが発生しても、標準出力・標準エラーが <code>os.devnull</code>（ゴミ箱）に消えてしまい、「何も起きずに無言で終了した」ように見えてしまう特徴があります。
+      </div>
+    </div>
+
+    <div class="accordion-item">
+      <div class="accordion-header" onclick="toggleAcc(this)">
+        <span>4. overrideredirect(True) と透過ウィンドウ</span>
+        <span>▼</span>
+      </div>
+      <div class="accordion-content">
+        <strong>何をするものか：</strong> TkinterでWindows標準のタイトルバーや閉じるボタンを撤去し、デスクトップ上にキャラクターを直接浮かび上がらせる手法。<br>
+        <strong>特徴：</strong> Windowsの仕様上、標準のウィンドウ枠を持たないため、タスクバーのアイコン一覧には現れず、PowerShellの <code>MainWindowHandle</code> も <code>0</code> になります。
+      </div>
+    </div>
+  </section>
+
+  <script>
+    function toggleAcc(header) {
+      const item = header.parentElement;
+      item.classList.toggle('open');
+    }
+
+    function simulateBossPC() {
+      const log = document.getElementById('simLog');
+      const flow1 = document.getElementById('flowPath1');
+      const flow2 = document.getElementById('flowPath2');
+      const dbLabel = document.getElementById('dbLabel');
+      const browserResult = document.getElementById('browserResult');
+
+      flow1.setAttribute('opacity', '1');
+      flow2.setAttribute('opacity', '1');
+      dbLabel.textContent = "📄 neo_secretary.db (ボスの既存データ)";
+      browserResult.textContent = "📅 ボスのカレンダーが表示される！";
+      browserResult.setAttribute('fill', '#10B981');
+
+      log.innerHTML = "✅ <strong>【ボスのPC】</strong> 1. NeoHisho.exe が起動 ➔ 2. app_paths.py が %LOCALAPPDATA% を探索 ➔ 3. <strong>既存のボスのDBを発見して接続！</strong> ➔ 4. スマホDesk Petにボスの予定が正常表示されました！";
+    }
+
+    function simulateOtherPC() {
+      const log = document.getElementById('simLog');
+      const flow1 = document.getElementById('flowPath1');
+      const flow2 = document.getElementById('flowPath2');
+      const dbLabel = document.getElementById('dbLabel');
+      const browserResult = document.getElementById('browserResult');
+
+      flow1.setAttribute('opacity', '1');
+      flow2.setAttribute('opacity', '1');
+      dbLabel.textContent = "📄 neo_secretary.db (新しく自動生成)";
+      browserResult.textContent = "✨ 真っ新な初期状態で表示される！";
+      browserResult.setAttribute('fill', '#38BDF8');
+
+      log.innerHTML = "🏢 <strong>【他人のPC（配布時）】</strong> 1. NeoHisho.exe が起動 ➔ 2. %LOCALAPPDATA% にDBが無い ➔ 3. <strong>空の初期DBを自動作成！</strong> ➔ 4. ボスのデータは一切漏れず、完全初期状態で安全に使えます！";
+    }
+
+    function resetSim() {
+      document.getElementById('flowPath1').setAttribute('opacity', '0');
+      document.getElementById('flowPath2').setAttribute('opacity', '0');
+      document.getElementById('dbLabel').textContent = "📄 neo_secretary.db";
+      document.getElementById('browserResult').textContent = "⏳ 実行待機中...";
+      document.getElementById('browserResult').setAttribute('fill', '#FFB800');
+      document.getElementById('simLog').innerHTML = "💡 ボタンを押して、データがどのように読み込まれるかをシミュレートしてください。";
+    }
+  </script>
+</body>
+</html>

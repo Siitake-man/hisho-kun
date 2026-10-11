@@ -105,11 +105,11 @@ def main():
     log_step(5, "AI-Agent", "⚠️ High-risk command detected: 'npm run deploy --prod'", "\033[33m")
     log_step(5, "DeskPet", "🔔 Sending approval request to smartphone Desk Pet...", "\033[35m")
 
-    # 承認要請を非同期に送信 (wait_decision=False で投げ、スマホにバナーを着信させる)
+    # Send approval request asynchronously (triggers incoming banner on phone)
     ask_payload = {
         "command": "npm run deploy --prod",
-        "summary": "本番クラウド環境へのデプロイ実行",
-        "agent_name": "OpenCode",
+        "summary": "Deploy demo_project to production cloud",
+        "agent_name": "Antigravity",
         "risk_level": "prompt",
         "wait_decision": False,
         "timeout": 30
@@ -117,16 +117,15 @@ def main():
     res = agent_bridge_client._post_to_hub("/api/agent/ask", ask_payload, port=port)
     req_id = res.get("request_id")
 
-    log_step(6, "Smartphone", "📱 上部に【🛡️ 承認要請】バナー着信！(スマホの [✅ 承認] を押してください)", "\033[1;33m")
+    log_step(6, "Smartphone", "📱 Incoming banner on mobile Desk Pet! Tap [Approve] to proceed", "\033[1;33m")
 
     # -------------------------------------------------------------------------
-    # Cut 3: 救出・ワンタップ承認 (00:07 - 00:20)
+    # Cut 3: Rescue & One-Tap Approval (00:07 - 00:20)
     # -------------------------------------------------------------------------
     approved = False
     start_wait = time.time()
     while time.time() - start_wait < 14:
         pending = get_latest_pending(port)
-        # 保留要求が消滅した、または完了したか
         if not pending or pending.get("request_id") != req_id:
             approved = True
             break
@@ -134,50 +133,50 @@ def main():
 
     elapsed_s = int(time.time() - start_wait) + 6
     if approved:
-        log_step(elapsed_s, "DeskPet", "✨ スマホ側でワンタップ承認されました！ (Decision: APPROVED)", "\033[1;32m")
+        log_step(elapsed_s, "DeskPet", "✨ Approved on smartphone! (Decision: APPROVED)", "\033[1;32m")
         log_step(elapsed_s + 1, "AI-Agent", "⚡ Resuming autonomous execution! Deploying to cloud...", "\033[36m")
         time.sleep(1.5)
         log_step(elapsed_s + 2, "AI-Agent", "🚀 Deployment successful: https://demo-app.internal/", "\033[32m")
     else:
-        log_step(18, "DeskPet", "⏩ (タイムアウト進行: 自動承認フォールバック)", "\033[33m")
+        log_step(18, "DeskPet", "⏩ (Timeout: Auto-approved fallback)", "\033[33m")
 
     time.sleep(max(0, 20 - (time.time() - start_wait + 6)))
 
     # -------------------------------------------------------------------------
-    # Cut 4: 双方向の真価・PC操作連動の自動消去 (00:20 - 00:26)
+    # Cut 4: Bidirectional Power - PC Operation Auto-Dismiss (00:20 - 00:26)
     # -------------------------------------------------------------------------
     log_step(20, "AI-Agent", "Triggering second prompt: 'git push origin main'", "\033[33m")
     ask_payload_2 = {
         "command": "git push origin main",
-        "summary": "GitHubリポジトリへのプッシュ",
-        "agent_name": "OpenCode",
+        "summary": "Push release to GitHub repository",
+        "agent_name": "Antigravity",
         "risk_level": "prompt",
         "wait_decision": False,
         "timeout": 30
     }
     res_2 = agent_bridge_client._post_to_hub("/api/agent/ask", ask_payload_2, port=port)
     req_id_2 = res_2.get("request_id")
-    log_step(21, "Smartphone", "📱 2枚目のバナー着信...", "\033[35m")
+    log_step(21, "Smartphone", "📱 2nd prompt received on smartphone...", "\033[35m")
     time.sleep(2.0)
 
-    # PC側でボスがEnterを押したことを模倣し、cancel_pending を発火！
-    log_step(23, "PC-Console", "⌨️ ボスがPCキーボードで直接 [Enter] を押下！", "\033[1;37m")
+    # Simulate user pressing Enter on PC console -> cancel_pending triggered!
+    log_step(23, "PC-Console", "⌨️ Developer approved directly on PC terminal ([Enter] pressed)", "\033[1;37m")
     cancel_payload = {
         "request_id": req_id_2,
         "reason": "resolved_on_pc"
     }
     agent_bridge_client._post_to_hub("/api/agent/cancel_pending", cancel_payload, port=port)
-    log_step(24, "Smartphone", "💨 cancel_pending 発火 ➔ スマホのバナーが0.2秒で自動消滅！(ゴミ通知ゼロ)", "\033[1;36m")
+    log_step(24, "Smartphone", "💨 cancel_pending triggered -> Phone banner dismissed in 0.2s! (Zero stale cards)", "\033[1;36m")
     time.sleep(2.0)
 
     # -------------------------------------------------------------------------
-    # Cut 5: 結び (00:26 - 00:30)
+    # Cut 5: Closing (00:26 - 00:30)
     # -------------------------------------------------------------------------
-    log_step(26, "DeskPet", "🎉 全開発タスク完了！ペットが安眠スリープへ移行🐾", "\033[32m")
+    log_step(26, "DeskPet", "🎉 Autonomous workflow completed! Companion enters sleep mode 🐾", "\033[32m")
     time.sleep(2.0)
-    log_step(28, "Ending", "☕ 「休日はリビングで家族と過ごす。必要な1秒だけを救う、生活の相棒。」", "\033[1;35m")
+    log_step(28, "Ending", "☕ Ambient AI companion for living space. Rescue the critical 1-second.", "\033[1;35m")
     time.sleep(2.0)
-    log_step(30, "Ending", "🏁 --- 30秒デモ動画撮影完了！お疲れ様でした！ ---", "\033[1;32m")
+    log_step(30, "Ending", "🏁 --- 30s Official Demo Completed! ---", "\033[1;32m")
     print("=" * 60 + "\n")
     return 0
 

@@ -16,13 +16,25 @@ import io
 
 # Windows環境でのMCP stdio通信用 UTF-8 エンコーディング強制設定
 if hasattr(sys.stdout, 'reconfigure'):
-    sys.stdout.reconfigure(encoding='utf-8')
-    sys.stdin.reconfigure(encoding='utf-8')
-    sys.stderr.reconfigure(encoding='utf-8')
+    try:
+        sys.stdout.reconfigure(encoding='utf-8')
+    except Exception:
+        pass
+    try:
+        sys.stdin.reconfigure(encoding='utf-8')
+    except Exception:
+        pass
+    try:
+        sys.stderr.reconfigure(encoding='utf-8')
+    except Exception:
+        pass
 else:
-    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
-    sys.stdin = io.TextIOWrapper(sys.stdin.buffer, encoding='utf-8')
-    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
+    try:
+        sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
+        sys.stdin = io.TextIOWrapper(sys.stdin.buffer, encoding='utf-8')
+        sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
+    except Exception:
+        pass
 
 import re
 import json
@@ -137,12 +149,14 @@ def execute_notify_user_input_needed(
     question: str,
     choices: str = "",
     agent_name: str = "",
-    timeout_sec: int = 180
+    timeout_sec: int = 180,
+    wait_decision: bool = True
 ) -> Dict[str, Any]:
     """ユーザーへの確認・入力待ちをペットとスマホDesk Petへ送信し、選択肢または自由回答を受け取ります。
 
     agent_name を省略した場合は実行環境（環境変数・親プロセス）から
     呼び出し元エージェントを自動識別する。
+    wait_decision=False の場合はスマホ判定を待たずに即時リターンし、非同期でバナーを着信させます。
     """
     effective_agent_name = resolve_agent_name(agent_name)
     if isinstance(choices, str) and choices.strip():
@@ -164,11 +178,21 @@ def execute_notify_user_input_needed(
         "question": question,
         "choices": parsed_choices,
         "timeout": timeout_sec,
-        "wait_decision": True
+        "wait_decision": wait_decision
     }
-    res_data = _post_to_hub("/api/agent/ask_input", payload, timeout=timeout_sec + 5)
+    post_timeout = timeout_sec + 5 if wait_decision else 5
+    res_data = _post_to_hub("/api/agent/ask_input", payload, timeout=post_timeout)
     if res_data.get("status") == "error":
         return {"status": "error", "message": f"質問送信失敗: {res_data.get('message', '')}"}
+
+    if not wait_decision:
+        req_id = res_data.get("request_id", "")
+        return {
+            "status": "success",
+            "request_id": req_id,
+            "message": f"ペットとスマホへ非同期通知を送信しました（request_id: {req_id}）"
+        }
+
     decision = res_data.get("decision", "unknown")
     answer = res_data.get("answer", "")
     return {
@@ -176,6 +200,33 @@ def execute_notify_user_input_needed(
         "decision": decision,
         "answer": answer,
         "message": f"スマホまたはPCから回答を受信しました: 『{answer}』" if answer else f"ステータス: {decision}"
+    }
+
+
+def execute_cancel_pending(
+    request_id: str = "",
+    reason: str = "resolved_on_pc"
+) -> Dict[str, Any]:
+    """PC側で解決・確認された保留中の要求（スマホ側のバナー・カード）を取り下げ・自動消去します。
+
+    Args:
+        request_id (str, optional): 取り消すリクエストID。空文字の場合は直近の要求を取り消します。
+        reason (str, optional): 取り消し理由。既定値は 'resolved_on_pc'。
+
+    Returns:
+        Dict[str, Any]: 実行結果 (status, result, message)
+    """
+    payload = {
+        "request_id": request_id,
+        "reason": reason
+    }
+    res_data = _post_to_hub("/api/agent/cancel_pending", payload, timeout=5)
+    if res_data.get("status") == "error":
+        return {"status": "error", "message": f"キャンセル送信失敗: {res_data.get('message', '')}"}
+    return {
+        "status": "success",
+        "result": res_data.get("result", "cancelled"),
+        "message": f"保留要求を取り下げました（理由: {reason}）"
     }
 
 
@@ -457,10 +508,15 @@ def run_fastmcp_server() -> None:
         """作業完了をペットとスマホへ通知します。"""
         return execute_notify_task_completed(title, message, agent_name)
 
-    @mcp.tool(description="ユーザーへの質問・選択肢の確認・入力待ちが発生した際に、ペットとスマホDesk Petへ通知してアラート呼び出し（alarm_ask）を行います。")
-    def notify_user_input_needed(question: str, choices: str = "", agent_name: str = "") -> Dict[str, Any]:
+    @mcp.tool(description="ユーザーへの質問・選択肢の確認・入力待ちが発生した際に、ペットとスマホDesk Petへ通知してアラート呼び出し（alarm_ask）を行います。wait_decision=False で非同期送信可能。")
+    def notify_user_input_needed(question: str, choices: str = "", agent_name: str = "", wait_decision: bool = True) -> Dict[str, Any]:
         """ユーザー入力待機をペットとスマホへ通知します。"""
-        return execute_notify_user_input_needed(question, choices, agent_name)
+        return execute_notify_user_input_needed(question, choices, agent_name, wait_decision=wait_decision)
+
+    @mcp.tool(description="PC側で解決・確認された保留中の要求（スマホ側のバナー・カード）を取り下げ・自動消去します。")
+    def cancel_pending(request_id: str = "", reason: str = "resolved_on_pc") -> Dict[str, Any]:
+        """保留中の要求を取り消し、スマホ側カードを消去します。"""
+        return execute_cancel_pending(request_id, reason)
 
     @mcp.tool(description="秘書くんのTODO手帳に新しいタスクを登録します。作業中に見つけた課題の記録に使用してください。")
     def create_task(title: str, priority: str = "medium", memo: str = "") -> Dict[str, Any]:
@@ -552,15 +608,27 @@ def run_fallback_jsonrpc_server() -> None:
         },
         {
             "name": "notify_user_input_needed",
-            "description": "ユーザーへの質問や確認待ちが発生した際に、ペットとスマホへ通知して呼び出します。",
+            "description": "ユーザーへの質問や確認待ちが発生した際に、ペットとスマホへ通知して呼び出します。wait_decision=False で非同期送信可能。",
             "inputSchema": {
                 "type": "object",
                 "properties": {
                     "question": {"type": "string", "description": "確認したい質問内容"},
                     "choices": {"type": "string", "default": "", "description": "選択肢一覧"},
-                    "agent_name": {"type": "string", "description": "エージェント名（省略時は実行環境から自動検出）"}
+                    "agent_name": {"type": "string", "description": "エージェント名（省略時は実行環境から自動検出）"},
+                    "wait_decision": {"type": "boolean", "default": True, "description": "判定を待つか (False=非同期送信)"}
                 },
                 "required": ["question"]
+            }
+        },
+        {
+            "name": "cancel_pending",
+            "description": "PC側で解決・確認された保留中の要求（スマホ側のバナー・カード）を取り下げ・自動消去します。",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "request_id": {"type": "string", "default": "", "description": "取り消すリクエストID（省略時は最新）"},
+                    "reason": {"type": "string", "default": "resolved_on_pc", "description": "取り消し理由"}
+                }
             }
         },
         {
@@ -694,7 +762,13 @@ def run_fallback_jsonrpc_server() -> None:
                     res = execute_notify_user_input_needed(
                         question=args.get("question", ""),
                         choices=args.get("choices", ""),
-                        agent_name=args.get("agent_name", "")
+                        agent_name=args.get("agent_name", ""),
+                        wait_decision=args.get("wait_decision", True)
+                    )
+                elif name == "cancel_pending":
+                    res = execute_cancel_pending(
+                        request_id=args.get("request_id", ""),
+                        reason=args.get("reason", "resolved_on_pc")
                     )
                 elif name == "create_task":
                     res = execute_create_task(

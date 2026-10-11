@@ -379,9 +379,24 @@ class AgentBridgeHub:
             )
             return True, "ok"
 
-    def cancel_pending(self, request_id: str, reason: str = "") -> str:
-        """エージェント側（PC側）で解決・キャンセルされた保留中リクエストを取り消す."""
+    def cancel_pending(self, request_id: str = "", reason: str = "") -> str:
+        """エージェント側（PC側）で解決・キャンセルされた保留中リクエストを取り消す.
+
+        Args:
+            request_id: 対象リクエストID。空文字またはNoneの場合は直近の最新保留要求を対象とする。
+            reason: 取り消し理由。
+
+        Returns:
+            str: "cancelled", "already_resolved", または "not_found"。
+        """
         with self._lock:
+            # request_id が未指定の場合は最新の保留中要求を自動取得
+            if not request_id or not str(request_id).strip():
+                latest = self.get_latest_pending()
+                if not latest or not latest.get("request_id"):
+                    return "not_found"
+                request_id = str(latest["request_id"])
+
             req = self.pending_requests.get(request_id)
             target_id = request_id
             if not req:
@@ -403,6 +418,8 @@ class AgentBridgeHub:
 
             req.resolve("cancelled", reason or "cancelled")
             self.history.append(req.to_dict())
+            if len(self.history) > 200:
+                self.history = self.history[-200:]
             self.pending_requests.pop(target_id, None)
             logger.info(
                 f"🚫 [Agent Bridge] リクエストが取り消されました: ID={target_id} (理由: {reason})"

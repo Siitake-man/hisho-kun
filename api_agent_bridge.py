@@ -372,10 +372,13 @@ def handle_agent_cancel_pending(ctx: ApiContext) -> None:
         request_id = data.get("request_id")
         reason = data.get("reason", "cancelled_by_agent")
 
-        # ゼロトラスト入力検証
-        if not request_id or not isinstance(request_id, str) or len(request_id) > 256:
-            ctx.send_error_json("Invalid request_id", status_code=400)
-            return
+        # ゼロトラスト入力検証: 空文字/None の場合は Hub 側の最新自動解決へ委譲
+        if request_id is not None and request_id != "":
+            if not isinstance(request_id, str) or len(request_id) > 256:
+                ctx.send_error_json("Invalid request_id", status_code=400)
+                return
+        else:
+            request_id = ""
 
         if not isinstance(reason, str) or len(reason) > 256:
             reason = "cancelled_by_agent"

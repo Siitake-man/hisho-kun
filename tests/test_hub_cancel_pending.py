@@ -159,13 +159,38 @@ class TestApiAgentCancelPending(unittest.TestCase):
         self.assertEqual(resp.get("status"), "not_found")
         self.assertEqual(resp.get("result"), "not_found")
 
+    def test_handle_agent_cancel_pending_empty_request_id_cancels_latest(self) -> None:
+        """request_id が省略または空の場合は最新の保留要求が取り消されること."""
+        from api_context import ApiContext
+        from api_agent_bridge import handle_agent_cancel_pending
+        from server.agent_bridge_hub import get_bridge_hub
+
+        hub = get_bridge_hub()
+        hub.create_approval_request(
+            agent_name="TestAgent",
+            command="echo latest",
+            summary="最新テスト",
+            request_id="req_latest_test",
+        )
+
+        handler = DummyHandler()
+        body = json.dumps({"reason": "resolved_on_pc"}).encode("utf-8")
+        ctx = ApiContext(handler, body=body, client_ip="127.0.0.1", auth_identity="agent")
+
+        handle_agent_cancel_pending(ctx)
+
+        self.assertEqual(handler.response_status, 200)
+        resp = json.loads(handler.wfile.getvalue().decode("utf-8"))
+        self.assertEqual(resp.get("status"), "success")
+        self.assertEqual(resp.get("result"), "cancelled")
+
     def test_handle_agent_cancel_pending_invalid_payload(self) -> None:
-        """request_id が空の場合は 400 エラーになること."""
+        """request_id の型が不正（非文字列）の場合は 400 エラーになること."""
         from api_context import ApiContext
         from api_agent_bridge import handle_agent_cancel_pending
 
         handler = DummyHandler()
-        body = json.dumps({"reason": "test"}).encode("utf-8")
+        body = json.dumps({"request_id": 12345, "reason": "test"}).encode("utf-8")
         ctx = ApiContext(handler, body=body, client_ip="127.0.0.1", auth_identity="agent")
 
         handle_agent_cancel_pending(ctx)

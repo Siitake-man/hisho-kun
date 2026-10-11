@@ -3,8 +3,8 @@
 [![CI](https://github.com/Siitake-man/hisho-kun/actions/workflows/ci.yml/badge.svg)](https://github.com/Siitake-man/hisho-kun/actions/workflows/ci.yml)
 ![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
 [![Python](https://img.shields.io/badge/Python-3.11%20%7C%203.12%20%7C%203.13-blue.svg)](https://www.python.org/)
-[![Latest Release](https://img.shields.io/badge/Release-v1.1.18-emerald.svg)](https://github.com/Siitake-man/hisho-kun/releases/tag/v1.1.18)
-[![Tests Passing](https://img.shields.io/badge/Tests-980%2B%20Passed-brightgreen.svg)](tests/)
+[![Latest Release](https://img.shields.io/badge/Release-v1.2.0-emerald.svg)](https://github.com/Siitake-man/hisho-kun/releases/tag/v1.2.0)
+[![Tests Passing](https://img.shields.io/badge/Tests-1029%2B%20Passed-brightgreen.svg)](tests/)
 [![English README](https://img.shields.io/badge/README-English-blue.svg)](README.md)
 
 > 🇬🇧 **English documentation is available!** ➔ Check out [README.md](README.md) for full English guide.  
@@ -30,8 +30,8 @@
     <img src="https://img.shields.io/badge/📘_Cheat_Sheets-公式利用ガイド完全版-8b5e3c?style=for-the-badge&logo=readthedocs&logoColor=white" alt="Official Cheat Sheets">
   </a>
   &nbsp;&nbsp;
-  <a href="https://github.com/Siitake-man/hisho-kun/releases/tag/v1.1.18">
-    <img src="https://img.shields.io/badge/📦_Download_v1.1.18-最新ZIPを入手-10b981?style=for-the-badge&logo=windows&logoColor=white" alt="Download Release v1.1.18">
+  <a href="https://github.com/Siitake-man/hisho-kun/releases/tag/v1.2.0">
+    <img src="https://img.shields.io/badge/📦_Download_v1.2.0-最新ZIPを入手-10b981?style=for-the-badge&logo=windows&logoColor=white" alt="Download Release v1.2.0">
   </a>
 </p>
 

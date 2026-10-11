@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>ELI5: Antigravity デュアル選択肢連携 ＆ cancel_pending 自動消去の物理構造</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --card-bg: #1e293b;
+      --text: #f8fafc;
+      --subtext: #94a3b8;
+      --accent: #38bdf8;
+      --success: #4ade80;
+      --warning: #facc15;
+      --danger: #f87171;
+      --purple: #c084fc;
+      --border: #334155;
+    }
+    body {
+      margin: 0;
+      padding: 24px;
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+      line-height: 1.6;
+    }
+    .container {
+      max-width: 960px;
+      margin: 0 auto;
+    }
+    header {
+      text-align: center;
+      margin-bottom: 32px;
+    }
+    h1 {
+      margin: 0 0 8px;
+      font-size: 26px;
+      color: var(--accent);
+    }
+    .badge {
+      display: inline-block;
+      padding: 4px 12px;
+      background: rgba(56, 189, 248, 0.15);
+      border: 1px solid var(--accent);
+      border-radius: 999px;
+      font-size: 13px;
+      color: var(--accent);
+      margin-bottom: 12px;
+    }
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 24px;
+      margin-bottom: 24px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+    }
+    h2 {
+      margin-top: 0;
+      font-size: 20px;
+      border-bottom: 2px solid var(--border);
+      padding-bottom: 8px;
+      color: var(--text);
+    }
+    /* SVG Simulator */
+    .sim-controls {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 16px;
+      align-items: center;
+    }
+    button {
+      background: var(--accent);
+      color: #0f172a;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 6px;
+      font-weight: bold;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    button:hover {
+      background: #7dd3fc;
+      transform: translateY(-1px);
+    }
+    .stage-label {
+      font-size: 14px;
+      color: var(--warning);
+      font-weight: bold;
+    }
+    svg {
+      width: 100%;
+      height: 280px;
+      background: #090d16;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+    }
+    /* Accordion */
+    details {
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      margin-bottom: 10px;
+      padding: 12px;
+    }
+    summary {
+      font-weight: bold;
+      color: var(--accent);
+      cursor: pointer;
+      outline: none;
+    }
+    details[open] summary {
+      margin-bottom: 8px;
+      color: var(--warning);
+    }
+    code {
+      background: #020617;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-family: monospace;
+      color: #38bdf8;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div class="badge">ネオ秘書くん v1.2.0 アーキテクチャ解説</div>
+      <h1>デュアル選択肢連携 ＆ cancel_pending 自動消去の物理構造</h1>
+      <p style="color: var(--subtext); margin: 0;">PC画面のモーダルとスマホDesk Petを共存させ、二度手間とゴミ通知を完全にゼロにする仕組み</p>
+    </header>
+
+    <!-- 1. 動くSVGシミュレータ -->
+    <div class="card">
+      <h2>1. 動くシミュレータ：通知と消去のパケット・イベントフロー</h2>
+      <div class="sim-controls">
+        <button id="stepBtn" onclick="nextStep()">次へ進める ▶</button>
+        <button onclick="resetSim()" style="background: var(--border); color: var(--text);">リセット</button>
+        <span id="stageText" class="stage-label">Step 0: アイドル状態</span>
+      </div>
+      <svg id="simSvg" viewBox="0 0 900 280">
+        <!-- PC領域 -->
+        <rect x="50" y="30" width="240" height="200" rx="8" fill="#1e293b" stroke="#38bdf8" stroke-width="2"/>
+        <text x="170" y="55" fill="#38bdf8" text-anchor="middle" font-weight="bold">💻 PC (Antigravity)</text>
+        <rect id="pcModal" x="70" y="80" width="200" height="130" rx="6" fill="#0f172a" stroke="#475569" stroke-width="1"/>
+        <text id="pcModalText" x="170" y="145" fill="#64748b" text-anchor="middle" font-size="13">通常作業中...</text>
+
+        <!-- Hub同期サーバー領域 -->
+        <rect x="350" y="30" width="200" height="200" rx="8" fill="#1e293b" stroke="#a855f7" stroke-width="2"/>
+        <text x="450" y="55" fill="#a855f7" text-anchor="middle" font-weight="bold">🔄 秘書くん Hub (8765)</text>
+        <rect id="hubQueue" x="370" y="80" width="160" height="130" rx="6" fill="#0f172a" stroke="#475569" stroke-width="1"/>
+        <text id="hubQueueText" x="450" y="145" fill="#64748b" text-anchor="middle" font-size="13">キュー: 空</text>
+
+        <!-- スマホ領域 -->
+        <rect x="610" y="30" width="240" height="200" rx="8" fill="#1e293b" stroke="#4ade80" stroke-width="2"/>
+        <text x="730" y="55" fill="#4ade80" text-anchor="middle" font-weight="bold">📱 卓上スマホ (Desk Pet)</text>
+        <rect id="phoneBanner" x="630" y="80" width="200" height="130" rx="6" fill="#0f172a" stroke="#475569" stroke-width="1"/>
+        <text id="phoneBannerText" x="730" y="145" fill="#64748b" text-anchor="middle" font-size="13">アンビエント待機中🐾</text>
+
+        <!-- 動くパケット -->
+        <circle id="packet" cx="-50" cy="-50" r="8" fill="#facc15"/>
+      </svg>
+    </div>
+
+    <!-- 2. 初級エンジニア向けの物理構造解説 -->
+    <div class="card">
+      <h2>2. 身近な例えでの物理構造解説：なぜこの仕組みが必要なのか？</h2>
+      <p>
+        <strong>身近な例え：「オフィスの内線電話」と「卓上チャイム」</strong><br>
+        これまでのネオ秘書くんは、スマホに通知を送ると、AIが「スマホでボスがボタンを押すまで受話器を持ったまま何分も待ち続ける（ブロッキング）」構造でした。
+        そのため、<strong>PCの目の前に座っているボスから見ても、PCの画面上には選択肢ボタンが出ず、スマホに手を伸ばさないといけない</strong>という奇妙な手間が生じていました。
+      </p>
+      <p>
+        <strong>v1.2.0 で完成した「デュアル連携 ＆ cancel_pending」の仕組み：</strong>
+      </p>
+      <ul>
+        <li><strong>① 呼び鈴を鳴らして受話器を置く（非同期送信 <code>wait_decision=False</code>）</strong>: AIはスマホ宛てに「確認事項があります」とチャイムを鳴らしつつ、受話器を即座に置きます。</li>
+        <li><strong>② PC画面に直接ポップアップを出す（<code>ask_question</code>）</strong>: 同時にAntigravityの画面上にも選択肢モーダル（ラジオボタンや送信ボタン）を表示します。</li>
+        <li><strong>③ PCで答えたら、スマホのランプを一瞬で消す（<code>cancel_pending</code>）</strong>: ボスがPC上で「カチッ」とボタンを押した瞬間、0.2秒でスマホ側の保留バナーが自動消去されます。</li>
+      </ul>
+      <p>
+        これにより、<strong>「PCの前にいるときはマウスで即座に1秒で選べ、スマホ側にも不要なゴミ通知が残らない。離席しているときはスマホからワンタップで進められる」</strong>という、生活空間のアンビエント相棒としての真価が完成しました。
+      </p>
+    </div>
+
+    <!-- 3. 登場した専門用語の完全解体辞典 -->
+    <div class="card">
+      <h2>3. 専門用語の完全解体辞典</h2>
+      <details>
+        <summary>非ブロッキング / 非同期（wait_decision=False）とは？</summary>
+        <p>相手の返事をその場で待たずに、要件だけ伝えて次の処理へ進むこと。内線電話をかけ続けるのではなく、「不在着信メモ」を置いて自分は別の仕事をするような仕組みです。</p>
+      </details>
+      <details>
+        <summary>cancel_pending（自動消去）とは？</summary>
+        <p>保留中（pending）としてキューに登録されている要請を、プログラム側から明示的に取り下げるAPI。PC側で問題が解決した後に、スマホ画面に古い通知が残り続ける「通知のゴミ箱化」を防ぎます。</p>
+      </details>
+      <details>
+        <summary>Deep Module（ディープモジュール）とは？</summary>
+        <p>スタンフォード大のジョン・オースターハウト教授が提唱した設計思想。「公開する操作窓口（インターフェース）は極めてシンプルで薄く、その背後で動く機能や情報隠蔽が極めて深いモジュール」のこと。今回リファクタリングされた <code>app_paths.py</code> がこれに該当します。</p>
+      </details>
+      <details>
+        <summary>Fan-out（並列展開）と Fan-in（成果統合）とは？</summary>
+        <p>互いにファイルやデータの依存関係がない独立したタスク（例: PRマージとデモ撮影準備）を、直列に1個ずつこなすのではなく、同時に複数のサブエージェントを起動して並行処理させ（Fan-out）、最後に成果を1つに合流・統合すること（Fan-in）。開発時間を大幅に短縮します。</p>
+      </details>
+    </div>
+  </div>
+
+  <script>
+    let step = 0;
+    const stages = [
+      "Step 0: アイドル状態（平穏な通常開発）",
+      "Step 1: AIが質問発生！PCモーダル表示 ＆ スマホへ非同期通知送信",
+      "Step 2: スマホ上部に「🛡️ 承認バナー」着信！PC画面にも選択肢表示",
+      "Step 3: ボスがPC画面で選択肢を決定（クリック）！",
+      "Step 4: cancel_pending 発火！スマホのバナーが0.2秒で自動消去！",
+      "Step 5: 完了！ゴミ通知ゼロで開発再開"
+    ];
+
+    function updateView() {
+      document.getElementById("stageText").innerText = stages[step];
+      const pcModal = document.getElementById("pcModal");
+      const pcText = document.getElementById("pcModalText");
+      const hubQueue = document.getElementById("hubQueue");
+      const hubText = document.getElementById("hubQueueText");
+      const phoneBanner = document.getElementById("phoneBanner");
+      const phoneText = document.getElementById("phoneBannerText");
+
+      if (step === 0) {
+        pcModal.setAttribute("fill", "#0f172a");
+        pcText.textContent = "通常作業中...";
+        pcText.setAttribute("fill", "#64748b");
+        hubQueue.setAttribute("fill", "#0f172a");
+        hubText.textContent = "キュー: 空";
+        hubText.setAttribute("fill", "#64748b");
+        phoneBanner.setAttribute("fill", "#0f172a");
+        phoneText.textContent = "アンビエント待機中🐾";
+        phoneText.setAttribute("fill", "#64748b");
+      } else if (step === 1) {
+        pcModal.setAttribute("fill", "#1e1b4b");
+        pcText.textContent = "選択肢モーダル出現！";
+        pcText.setAttribute("fill", "#38bdf8");
+        hubQueue.setAttribute("fill", "#3b0764");
+        hubText.textContent = "保留登録: req_01";
+        hubText.setAttribute("fill", "#c084fc");
+      } else if (step === 2) {
+        phoneBanner.setAttribute("fill", "#450a0a");
+        phoneText.textContent = "🔔 承認バナー着信！";
+        phoneText.setAttribute("fill", "#f87171");
+      } else if (step === 3) {
+        pcText.textContent = "✅ PC側で選択完了！";
+        pcText.setAttribute("fill", "#4ade80");
+      } else if (step === 4) {
+        hubText.textContent = "💨 cancel_pending 処理";
+        hubText.setAttribute("fill", "#facc15");
+        phoneBanner.setAttribute("fill", "#0f172a");
+        phoneText.textContent = "✨ バナー自動消滅！";
+        phoneText.setAttribute("fill", "#38bdf8");
+      } else if (step === 5) {
+        hubText.textContent = "キュー: 空";
+        hubText.setAttribute("fill", "#64748b");
+        phoneText.textContent = "安眠スリープ🐾";
+        phoneText.setAttribute("fill", "#4ade80");
+      }
+    }
+
+    function nextStep() {
+      step = (step + 1) % stages.length;
+      updateView();
+    }
+
+    function resetSim() {
+      step = 0;
+      updateView();
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,1129 @@
+pyimod02_importers.py:457: LangChainPendingDeprecationWarning: The default value of `allowed_objects` will change in a future version. Pass an explicit value (e.g., allowed_objects='messages' or allowed_objects='core') to suppress this warning.
+2026-10-11 20:31:05,910 - __main__ - INFO - \U0001f680 ƒlƒI”é‘‚­‚ñ‚ğ‹N“®‚µ‚Ü‚· (build: 2026-09-12a / tray-quit¨quit_app Œo˜H / lock 54321 LISTEN)
+2026-10-11 20:31:05,970 - __main__ - INFO - \U0001f310 Tailscale serve ‚ğ©“®‹N“®‚µ‚Ü‚µ‚½ (https://node.tail08a991.ts.net/)
+2026-10-11 20:31:05,974 - storage.connection - INFO - habits/habit_logsƒe[ƒuƒ‹‚ğŠm”F/ì¬‚µ‚Ü‚µ‚½
+2026-10-11 20:31:05,975 - storage.connection - INFO - minigame_scoresƒe[ƒuƒ‹‚ğŠm”F/ì¬‚µ‚Ü‚µ‚½
+2026-10-11 20:31:05,976 - storage.connection - INFO - devicesƒe[ƒuƒ‹‚ğŠm”F/ì¬‚µ‚Ü‚µ‚½
+2026-10-11 20:31:05,977 - storage.connection - INFO - push_subscriptionsƒe[ƒuƒ‹‚ğŠm”F/ì¬‚µ‚Ü‚µ‚½
+2026-10-11 20:31:05,977 - storage.connection - INFO - vapid_keysƒe[ƒuƒ‹‚ğŠm”F/ì¬‚µ‚Ü‚µ‚½
+2026-10-11 20:31:05,977 - storage.connection - INFO - approval_audit_logsƒe[ƒuƒ‹‚ğŠm”F/ì¬‚µ‚Ü‚µ‚½
+2026-10-11 20:31:05,979 - storage.connection - INFO - ƒf[ƒ^ƒx[ƒX‰Šú‰»Š®—¹: C:\Users\bonob\AppData\Local\NeoHisho\neo_secretary.db (6ms)
+2026-10-11 20:31:05,988 - storage.connection - INFO - ƒf[ƒ^ƒx[ƒX‚ÌƒIƒ“ƒ‰ƒCƒ“ƒoƒbƒNƒAƒbƒv‚ğì¬‚µ‚Ü‚µ‚½: C:\Users\bonob\AppData\Local\NeoHisho\backups\neo_secretary_backup_20261011_203105.db
+2026-10-11 20:31:05,990 - storage.connection - INFO - ŒÃ‚¢ƒoƒbƒNƒAƒbƒv‚ğ©“®ƒ[ƒe[ƒVƒ‡ƒ“íœ‚µ‚Ü‚µ‚½: neo_secretary_backup_20261005_221605.db
+2026-10-11 20:31:05,991 - __main__ - INFO - UI‚ğ‰Šú‰»‚µ‚Ü‚·...
+2026-10-11 20:31:07,963 - ui.system_tray - INFO - \U0001f5a5\ufe0f [SystemTray] ƒ^ƒXƒNƒgƒŒƒCƒAƒCƒRƒ“‚ğŠJn‚µ‚Ü‚µ‚½
+2026-10-11 20:31:07,963 - __main__ - INFO - ƒG[ƒWƒFƒ“ƒg‚ğ‰Šú‰»‚µ‚Ü‚·...
+2026-10-11 20:31:07,981 - proactive_engine - INFO - ProactiveCareEngine ‚ª‰Šú‰»‚³‚ê‚Ü‚µ‚½iŒ©ç‚èŠÔŠu: 45•ªE—\’èƒŠƒ}ƒCƒ“ƒ_[“‡j
+2026-10-11 20:31:07,982 - proactive_scheduler - INFO - \u23f1\ufe0f [Scheduler] ƒvƒ‰ƒOƒCƒ““o˜^: proactive_care (“o˜^”: 1)
+2026-10-11 20:31:07,983 - proactive_scheduler - INFO - \u23f1\ufe0f [Scheduler] ‹N“®‚µ‚Ü‚µ‚½ (üŠú: 1.0•b / ƒvƒ‰ƒOƒCƒ“: 1)
+2026-10-11 20:31:08,031 - local_sync_server.sync_token_manager - INFO - \U0001f510 [SyncAuth] Šù‘¶‚Ì“¯Šúƒg[ƒNƒ“‚ğƒ[ƒh‚µ‚Ü‚µ‚½
+2026-10-11 20:31:08,032 - server.gui_bridge - INFO - \U0001f510 [SyncAuth] Human-in-the-Loop ’[––Ú‘±³”FƒR[ƒ‹ƒoƒbƒN‚ğ“o˜^‚µ‚Ü‚µ‚½
+2026-10-11 20:31:08,033 - server.gui_bridge - INFO - \U0001f510 [SyncAuth] Human-in-the-Loop ’[––Ú‘±³”FƒR[ƒ‹ƒoƒbƒN‚ğ“o˜^‚µ‚Ü‚µ‚½
+2026-10-11 20:31:08,040 - life_dreamer - INFO - \U0001f308 [LifeDreamer] ©—¥¶ŠˆƒhƒŠ[ƒ}[ƒGƒ“ƒWƒ“‚ğ‹N“®‚µ‚Ü‚µ‚½
+2026-10-11 20:31:08,096 - local_sync_server.httpd_core - INFO - \U0001f4f1 [Agent Bridge Hub] Desk Pet “¯ŠúƒT[ƒo[‚ª‹N“®‚µ‚Ü‚µ‚½: http://localhost:8765 (LAN/Bluetooth‘Î‰)
+2026-10-11 20:31:08,100 - server_watchdog - INFO - \U0001f415 [sync-server-watchdog] ©ŒÈ¡–üƒEƒHƒbƒ`ƒhƒbƒO‚ğŠJn‚µ‚Ü‚µ‚½ (üŠú=5.0s)
+2026-10-11 20:31:08,103 - agent_watcher - INFO - AgentWatcher (ŠO•”AgentƒƒOŠÄ‹ƒGƒ“ƒWƒ“) ‚ªŠJn‚³‚ê‚Ü‚µ‚½B
+2026-10-11 20:31:08,104 - update_checker - INFO - \U0001f504 XVƒ`ƒFƒbƒJ[‚ğŠJn‚µ‚Ü‚µ‚½ (Œ»s v1.2.0, ŠÔŠu 6ŠÔ)
+2026-10-11 20:31:08,107 - proactive_scheduler - INFO - \u23f1\ufe0f [Scheduler] ƒvƒ‰ƒOƒCƒ““o˜^: ReminderEngine (“o˜^”: 2)
+2026-10-11 20:31:08,107 - reminder_engine - INFO - \u23f0 ƒŠƒ}ƒCƒ“ƒ_[ƒGƒ“ƒWƒ“‚ğ‹N“®‚µ‚Ü‚µ‚½ (üŠú: 30.0•b / ’Ê’m: 10•ª‘O)
+2026-10-11 20:31:08,243 - __main__ - INFO - “úŸƒuƒŠ[ƒtƒBƒ“ƒO‚ğ¶¬‚µ‚Ü‚µ‚½
+2026-10-11 20:31:08,246 - storage.sticky_repo - INFO - 0Œ‚Ì•tâ³‚ğæ“¾‚µ‚Ü‚µ‚½
+2026-10-11 20:31:08,257 - __main__ - INFO - ”ñ“¯ŠúƒƒCƒ“ƒ‹[ƒv‚ğŠJn‚µ‚Ü‚·
+2026-10-11 20:31:08,662 - ics_tools - INFO - uƒƒCƒ“ƒJƒŒƒ“ƒ_[v: æ‚è‚İ‘‹ŠO‚Ì—\’è 254 Œ‚ğƒXƒLƒbƒv‚µ‚Ü‚µ‚½
+2026-10-11 20:31:08,684 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=66988, title=HOT PEPPER Beauty‚ÌƒTƒƒ“—\–ñ
+2026-10-11 20:31:08,693 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=66989, title=LUCOLU`Tailors of beauty`VŠ‘òyƒ‹ƒRƒ‹ƒeƒCƒ‰[ƒIƒuƒrƒ…[ƒeƒB[z‚Ì—\–ñ
+2026-10-11 20:31:08,703 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=66990, title=‰f‰æ‚¿‚¢‚©‚í l‹›‚Ì“‡‚Ì‚Ğ‚İ‚Â
+2026-10-11 20:31:08,715 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=66991, title=HOT PEPPER Beauty‚ÌƒTƒƒ“—\–ñ
+2026-10-11 20:31:08,728 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=66992, title=KTR‚ÌCisco“ü‚ê‘Ö‚¦ì‹Æ
+2026-10-11 20:31:08,741 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=66993, title=HOT PEPPER Beauty‚ÌƒTƒƒ“—\–ñ
+2026-10-11 20:31:08,751 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=66994, title=KEITO ~ ’†“‡‘ “Á•ÊƒRƒ‰ƒ{ƒEƒFƒrƒi[ AIĞˆõ‚ª100l•ª‚Ìd–‚ğ‚±‚È‚·
+2026-10-11 20:31:08,761 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=66995, title=ƒvƒƒOƒfƒ“ƒX‘Å‚¿‡‚í‚¹
+2026-10-11 20:31:08,772 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=66996, title=LUCOLU`Tailors of beauty`VŠ‘òyƒ‹ƒRƒ‹ƒeƒCƒ‰[ƒIƒuƒrƒ…[ƒeƒB[z‚Ì—\–ñ
+2026-10-11 20:31:08,791 - ics_tools - INFO - GoogleƒJƒŒƒ“ƒ_[ iCal “¯ŠúŠ®—¹ (ƒƒCƒ“ƒJƒŒƒ“ƒ_[): 9Œ
+2026-10-11 20:31:08,858 - server.api_status - INFO - \U0001f4f1 [Link Monitor] ƒXƒ}ƒz’[––‚ªÚ‘±‚³‚ê‚Ü‚µ‚½: Windows PC (127.0.0.1)
+2026-10-11 20:31:08,895 - proactive_scheduler - INFO - \u23f1\ufe0f [Scheduler] ƒvƒ‰ƒOƒCƒ““o˜^: SuggestRefresh (“o˜^”: 3)
+2026-10-11 20:31:08,898 - suggest_engine - INFO - ƒTƒWƒFƒXƒgÄ¶¬ƒvƒ‰ƒOƒCƒ“‚ğƒXƒPƒWƒ…[ƒ‰‚Ö“o˜^‚µ‚Ü‚µ‚½ (üŠú 30•b)
+2026-10-11 20:31:09,588 - llm_factory - INFO - ƒ‚ƒfƒ‹ƒLƒƒƒbƒVƒ…‚ğƒ[ƒh‚µ‚Ü‚µ‚½: [<LLMProvider.CLAUDE: 'claude'>, <LLMProvider.OPENCODE: 'opencode'>, <LLMProvider.GEMINI: 'gemini'>, <LLMProvider.LOCAL_GGUF: 'local_gguf'>]
+2026-10-11 20:31:09,590 - llm_factory - INFO - LLMFactory ‚ª‰Šú‰»‚³‚ê‚Ü‚µ‚½BŒ»İ‚ÌƒvƒƒoƒCƒ_: opencode (ƒ‚ƒfƒ‹: deepseek-v4-flash)
+2026-10-11 20:31:09,595 - llm_factory - INFO - LLMƒ‚ƒfƒ‹‚ğ¶¬’†: Provider=opencode, Model=deepseek-v4-flash
+2026-10-11 20:31:10,304 - ics_tools - INFO - uƒJƒŒƒ“ƒ_[2v: æ‚è‚İ‘‹ŠO‚Ì—\’è 583 Œ‚ğƒXƒLƒbƒv‚µ‚Ü‚µ‚½
+2026-10-11 20:31:10,337 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=66997, title=•a‰@‘—Œ}
+2026-10-11 20:31:10,358 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=66998, title=Block
+2026-10-11 20:31:10,381 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=66999, title=Block
+2026-10-11 20:31:10,402 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67000, title=yŒ»êz
+2026-10-11 20:31:10,427 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67001, title=yŒ»êzƒLƒƒƒ“ƒZƒ‹Ï‚İ: yKKCzˆøŒp‚¬
+2026-10-11 20:31:10,442 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67002, title=yŒ»êzyUR-WANz‰Û‘è®—E‘Š’k
+2026-10-11 20:31:10,446 - life_dreamer - INFO - \U0001f308 [LifeDreamer] ƒŠƒAƒ‹“V‹C‚ğ”½‰f: \u2600\ufe0f °‚ê 19.0‹C (Š‘òs, “ú–{)
+2026-10-11 20:31:10,447 - life_dreamer - INFO - \U0001f308 [LifeDreamer] ƒŠƒAƒ‹“V‹C‚ğ”½‰f: \u2600\ufe0f °‚ê 19.0‹C (Š‘òs, “ú–{)
+2026-10-11 20:31:10,460 - llm_factory - INFO - LLMƒ‚ƒfƒ‹‚ğ¶¬’†: Provider=opencode, Model=deepseek-v4-flash
+2026-10-11 20:31:10,467 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67003, title=Œo‰cŠÇ—ƒVƒXƒeƒ€ŠÄ‹ÃŠÏì‹Æ
+2026-10-11 20:31:10,489 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67004, title=ƒLƒƒƒ“ƒZƒ‹Ï‚İ: yKTRz‰^—p’è—á‰ï
+2026-10-11 20:31:10,508 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67005, title=yKTRzMFWİ’èì‹ÆƒŒƒNƒ`ƒƒ[
+2026-10-11 20:31:10,527 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67006, title=yŒ»êzyKTRzR8-12@“à•”’è—á‰ï
+2026-10-11 20:31:10,558 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67007, title=ŒŸ’è—á‘SĞ‰ïiAll-hands Meetingj
+2026-10-11 20:31:10,580 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67008, title=(Šm’è)UR-WAN@ƒNƒ‰ƒEƒhƒVƒXƒeƒ€Ø‚è‘Ö‚¦‘Å‚¿‡‚í‚¹ ¦–{•¶ƒŠƒ“ƒN‚©‚çQ‰Á
+2026-10-11 20:31:10,595 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67009, title=”ñŒöŠJ‚Ì—\’è
+2026-10-11 20:31:10,618 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67010, title=yŒ»êzyKTRz’©‰ï
+2026-10-11 20:31:10,638 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67011, title=‰ï‹c
+2026-10-11 20:31:10,661 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67012, title=yŒ»êzyKTRz’©‰ï
+2026-10-11 20:31:10,708 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67013, title=©Ğ‹Æ–±
+2026-10-11 20:31:10,738 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67014, title=yKTRzR8-12@“à•”’è—á‰ï
+2026-10-11 20:31:10,760 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67015, title=Œ’Nf’f
+2026-10-11 20:31:10,777 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67016, title=yŒ»êz‰¡’fMTG
+2026-10-11 20:31:10,822 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67017, title=yŒ»êz‰ğ–ñEV‹K‚Ìƒ|[ƒŠƒ“ƒOAİ’è€”õó‹µŠm”F
+2026-10-11 20:31:10,853 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67018, title=ƒLƒƒƒ“ƒZƒ‹Ï‚İ: Bƒ`[ƒ€‰ï
+2026-10-11 20:31:10,873 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67019, title=ƒLƒƒƒ“ƒZƒ‹Ï‚İ: yKKCzˆøŒp‚¬
+2026-10-11 20:31:10,902 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67020, title=ƒLƒƒƒ“ƒZƒ‹Ï‚İ: Bƒ`[ƒ€‰ï
+2026-10-11 20:31:10,918 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67021, title=yŒ»êzyKTRz’©‰ï
+2026-10-11 20:31:10,941 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67022, title=T•ñƒVƒXƒeƒ€‚É‚Â‚¢‚Ä
+2026-10-11 20:31:10,955 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67023, title=yKKCz—vŒƒqƒAƒŠƒ“ƒO“à—e”F¯‡‚í‚¹
+2026-10-11 20:31:10,973 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67024, title=Ğ“àƒVƒXƒeƒ€‘Å‚¿‡‚í‚¹
+2026-10-11 20:31:10,995 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67025, title=yKTR R(-12zIPS/IDS‘Å‚¿‡‚í‚¹
+2026-10-11 20:31:11,019 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67026, title=yŒ»êzyUR-WANz’©MTG
+2026-10-11 20:31:11,050 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67027, title=yŒ»êzyKTRzR8-12@“à•”’è—á‰ï
+2026-10-11 20:31:11,074 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67028, title=(Šm’è)yKTRzŒŸ•ñ‰ï
+2026-10-11 20:31:11,091 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67029, title=yKTRzR8-12@“à•”’è—á‰ï
+2026-10-11 20:31:11,110 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67030, title=‘Š’kzUR-WAN‰„’·(2027/4`2027/5)
+2026-10-11 20:31:11,130 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67031, title=”ñŒöŠJ‚Ì—\’è
+2026-10-11 20:31:11,142 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67032, title=yŒ»êzƒLƒƒƒ“ƒZƒ‹Ï‚İ: [UR] ‰c‹Æ/SI “à•”’è—á
+2026-10-11 20:31:11,152 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67033, title=yŒ»êzyKKCzˆøŒp‚¬
+2026-10-11 20:31:11,159 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67034, title=yŒ»êzƒ`[ƒ€B•×‹­‰ï
+2026-10-11 20:31:11,169 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67035, title=yŒ»êzUNIT1\,2’è—á
+2026-10-11 20:31:11,180 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67036, title=KTR¿–â‰ï
+2026-10-11 20:31:11,193 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67037, title=”ñŒöŠJ‚Ì—\’è
+2026-10-11 20:31:11,210 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67038, title=ŒŸ’è—á‘SĞ‰ïiAll-hands Meetingj
+2026-10-11 20:31:11,222 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67039, title=MGR‚à‚­‚à‚­
+2026-10-11 20:31:11,234 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67040, title=MTGFIIJ‘Ì§‚É‚Â‚¢‚Ä
+2026-10-11 20:31:11,246 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67041, title=yŒ»êzMTG(R“c)
+2026-10-11 20:31:11,255 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67042, title=yŒ»êzƒ`[ƒ€BT•ñXV
+2026-10-11 20:31:11,264 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67043, title=”ñŒöŠJ‚Ì—\’è
+2026-10-11 20:31:11,271 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67044, title=yŒ»êzƒ`[ƒ€BT•ñXV
+2026-10-11 20:31:11,279 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67045, title=yUR-WANzˆøŒp‚¬Œv‰æ‘Í—§‚ÄŠm”F
+2026-10-11 20:31:11,287 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67046, title=yŒ»êzyKTRzR8-12@“à•”’è—á‰ï
+2026-10-11 20:31:11,294 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67047, title=‰Û‘èŠÇ—•\®—
+2026-10-11 20:31:11,302 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67048, title=yŒ»êzBlock
+2026-10-11 20:31:11,309 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67049, title=¡˜b‘è‚ÌAIuJevv‚Á‚Ä‰½H ‰F’ˆÅ‘¬‚ÅŠw‚Ô‰ï
+2026-10-11 20:31:11,317 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67050, title=©Ğ‘Å‚¿‡‚í‚¹
+2026-10-11 20:31:11,324 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67051, title=yŒ»êz©ĞMTG
+2026-10-11 20:31:11,331 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67052, title=ŒŸ’è—á‘SĞ‰ïiAll-hands Meetingj
+2026-10-11 20:31:11,338 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67053, title=Block
+2026-10-11 20:31:11,346 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67054, title=(Šm’è)yKTRzŒŸ•ñ‰ï
+2026-10-11 20:31:11,354 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67055, title=ŒŸ’è—á‘SĞ‰ïiAll-hands Meetingj
+2026-10-11 20:31:11,362 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67056, title=yŒ»êzƒ`[ƒ€BT•ñXV
+2026-10-11 20:31:11,370 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67057, title=yŒ»êzƒLƒƒƒ“ƒZƒ‹Ï‚İ: yƒŠƒXƒPz–¾¡ƒRƒ“ƒTƒ‹ƒ^ƒ“ƒg‚³‚Ü(‘Ûq‹Æ‚³‚Ü)—ŒÚ‹qƒeƒiƒ“ƒg
+2026-10-11 20:31:11,377 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67058, title=ˆøŒp‚¬Œv‰æ‘“à—eŠm”F
+2026-10-11 20:31:11,385 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67059, title=yŒ»êzƒ`[ƒ€BT•ñXV
+2026-10-11 20:31:11,392 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67060, title=yŒ»êzyUR-WANTŸì‹ÆzUOMƒOƒ‰ƒtæ“¾
+2026-10-11 20:31:11,399 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67061, title=yŒ»êzyUR-WANzŒŸ’è—á‰ï16@”nÔ“¹@(ˆÚ“®ŠÔ‚İ)
+2026-10-11 20:31:11,406 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67062, title=MTGFR“c“ÄjiIIJŒ»ê‚ÌŒj
+2026-10-11 20:31:11,414 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67063, title=yŒ»êzMTG(R“c)
+2026-10-11 20:31:11,422 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67064, title=–ìŠÚ —m•ã‚³‚ñ: yƒNƒ‰ƒEƒh•ƒCƒ“ƒtƒ‰Gzñ“sŒ—‘æˆêƒZƒNƒVƒ‡ƒ“@1on1@byR“c
+2026-10-11 20:31:11,430 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67065, title=ADiXi‘SĞ‘‰ï
+2026-10-11 20:31:11,437 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67066, title=ƒZƒLƒ…ƒŠƒeƒBŒ¤Ci2026”N“x ‘æ2l”¼Šú•ªj
+2026-10-11 20:31:11,444 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67067, title=yŒ»êz©ĞMTG
+2026-10-11 20:31:11,453 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67068, title=ƒ^ƒŒƒ}ƒlƒVƒXƒeƒ€‚ÌƒNƒ‰ƒEƒh‰»‚É‚Â‚¢‚Ä
+2026-10-11 20:31:11,464 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67069, title=yMTG_Ğ“àz‹g“c‚³‚ñ/ƒvƒƒOˆÄŒ
+2026-10-11 20:31:11,471 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67070, title=©ĞMTG
+2026-10-11 20:31:11,480 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67071, title=ƒ^ƒŒƒ“ƒgƒ}ƒlƒWƒƒ“ƒgƒVƒXƒeƒ€‚É‚Â‚¢‚Ä
+2026-10-11 20:31:11,487 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67072, title=yŒ»êzSI3-3‰^—pƒ`[ƒ€’è—á
+2026-10-11 20:31:11,495 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67073, title=yKKCz6‹’“_ŠÔVPNÚ‘± “à•”’è—á
+2026-10-11 20:31:11,502 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67074, title=ƒf[ƒ^•ªÍ(roBIta)Ø‚è‘Ö‚¦ì‹Æ
+2026-10-11 20:31:11,509 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67075, title=yŒ»êzyKKCzˆÄŒˆøŒp‚¬‰ï
+2026-10-11 20:31:11,518 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67076, title=yKTRzR8-12@“à•”’è—á‰ï
+2026-10-11 20:31:11,525 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67077, title=ƒZƒLƒ…ƒŠƒeƒBŒ¤Ci2026”N“x_‘æ2l”¼Šú•ª_‘º‰zƒZƒNƒVƒ‡ƒ“j
+2026-10-11 20:31:11,532 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67078, title=yŒ»êz‘ŞĞ
+2026-10-11 20:31:11,539 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67079, title=”ñŒöŠJ‚Ì—\’è
+2026-10-11 20:31:11,546 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67080, title=KTR ¿–â–€’ño
+2026-10-11 20:31:11,556 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67081, title=yŒ»êz
+2026-10-11 20:31:11,563 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67082, title=T•ñ‘Å‚¿‡‚í‚¹
+2026-10-11 20:31:11,571 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67083, title=–{ĞŠÄ‹ÃŠÏİ’èì‹Æ
+2026-10-11 20:31:11,579 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67084, title=yŒ»êz
+2026-10-11 20:31:11,588 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67085, title=3•ªŠÔUOMƒOƒ‰ƒtæ“¾
+2026-10-11 20:31:11,644 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67086, title=Œo‰cŠÇ—ƒVƒXƒeƒ€ƒZƒOƒƒ“ƒgİ’è’Ç‰ÁƒŒƒrƒ…[
+2026-10-11 20:31:11,690 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67087, title=yAWS/AzurezVMware‚©‚ç‚ÌuˆÚsƒ\ƒŠƒ…[ƒVƒ‡ƒ“v‚ÆuƒNƒ‰ƒEƒhˆÚsˆÄŒ–—áv‚ÌĞ‰î
+2026-10-11 20:31:11,704 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67088, title=yŒ»êz
+2026-10-11 20:31:11,724 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67089, title=yŒ»êz
+2026-10-11 20:31:11,738 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67090, title=yŒ»êzyKKCzˆÄŒˆøŒp‚¬‰ï
+2026-10-11 20:31:11,758 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67091, title=Canceled: yKTRzFWÕ’fİ’èà–¾(‹N•[`ì‹Æ‚Ü‚Å)
+2026-10-11 20:31:11,772 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67092, title=yŒ»êzSI3-3‰^—pƒ`[ƒ€’è—á
+2026-10-11 20:31:11,787 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67093, title=yŒ»êzyUR-WANz“Á’è’ÊM•s‰Â–Û‚É‚Â‚¢‚Ä
+2026-10-11 20:31:11,826 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67094, title=yŒ»êzyUR-WANzŒŸ’è—á‰ï16
+2026-10-11 20:31:11,844 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67095, title=yŒ»êzUNIT1\,2’è—á
+2026-10-11 20:31:11,867 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67096, title=ŒŸ’è—á‘SĞ‰ïiAll-hands Meetingj
+2026-10-11 20:31:11,885 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67097, title=yŒ»êzyUR-WANTŸì‹ÆzUOMƒOƒ‰ƒtæ“¾
+2026-10-11 20:31:11,899 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67098, title=yŒ»êzyKTRzR8-12@“à•”’è—á‰ï
+2026-10-11 20:31:11,926 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67099, title=‘S‹x
+2026-10-11 20:31:11,938 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67100, title=ŒŸ’è—á‘SĞ‰ïiAll-hands Meetingj
+2026-10-11 20:31:11,951 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67101, title=ŠÖ“Œ’n®iR8-12ƒCƒ“ƒ^[ƒlƒbƒg‰ñüÚ‘±‹Æ–±j
+2026-10-11 20:31:11,965 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67102, title=yKTRzR8-12@“à•”’è—á‰ï
+2026-10-11 20:31:11,977 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67103, title=AIƒ‰ƒ{_AI PM/PMOƒR[ƒXƒR[ƒXƒZƒbƒVƒ‡ƒ“_‘æ4‰ñ
+2026-10-11 20:31:12,046 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67104, title=URWAN@ŸŠúWANˆÚsà–¾‘—¿‘Å‚¿‡‚í‚¹
+2026-10-11 20:31:12,081 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67105, title=yŒ»êz
+2026-10-11 20:31:12,124 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67106, title=yŒ»êzUR-WAN i’»Šm”F
+2026-10-11 20:31:12,175 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67107, title=”ñŒöŠJ‚Ì—\’è
+2026-10-11 20:31:12,196 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67108, title=yŒ»êz
+2026-10-11 20:31:12,215 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67109, title=yŒ»êzyUR-WANzIPFAX’ÊM‚ÌŒ
+2026-10-11 20:31:12,229 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67110, title=yŒ»êz
+2026-10-11 20:31:12,241 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67111, title=yŒ»êzyKKCzˆÄŒˆøŒp‚¬‰ï
+2026-10-11 20:31:12,254 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67112, title=yŒ»êz
+2026-10-11 20:31:12,268 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67113, title=yŒ»êz1on1
+2026-10-11 20:31:12,280 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67114, title=yŒ»êzyKTRzR8-12@“à•”’è—á‰ï
+2026-10-11 20:31:12,292 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67115, title=ŒŸ’è—á‘SĞ‰ïiAll-hands Meetingj
+2026-10-11 20:31:12,306 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67116, title=ƒZƒNƒVƒ‡ƒ“ƒ}ƒl[ƒWƒƒ[‚à‚­‚à‚­
+2026-10-11 20:31:12,326 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67117, title=T•ñƒVƒXƒeƒ€‹@”\ƒŠƒŠ[ƒX
+2026-10-11 20:31:12,336 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67118, title=yŒ»êzì‹Æ•i¿Œüã@•×‹­‰ï@cantata
+2026-10-11 20:31:12,378 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67119, title=ŒŸ’è—á‘SĞ‰ïiAll-hands Meetingj
+2026-10-11 20:31:12,401 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67120, title=yŒ»êz
+2026-10-11 20:31:12,412 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67121, title=ƒLƒƒƒ“ƒZƒ‹Ï‚İ: Bƒ`[ƒ€‰ï
+2026-10-11 20:31:12,425 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67122, title=yŒ»êzyKTRz’©‰ï
+2026-10-11 20:31:12,440 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67123, title=yŒ»êz©ĞMTG
+2026-10-11 20:31:12,451 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67124, title=yMTGzƒtƒ@ƒCƒiƒ“ƒXƒgƒŒ[ƒjƒ“ƒOi•ë‹LE‰ïŒvj
+2026-10-11 20:31:12,464 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67125, title=Block
+2026-10-11 20:31:12,479 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67126, title=”ñŒöŠJ‚Ì—\’è
+2026-10-11 20:31:12,494 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67127, title=yŒ»êzyKKCzˆÄŒˆøŒp‚¬‰ï
+2026-10-11 20:31:12,502 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67128, title=yUR-WANz‰Û‘è®—E‘Š’k
+2026-10-11 20:31:12,511 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67129, title=yŒ»êzƒf[ƒ^•ªÍ(roBIta)Ø‚è‘Ö‚¦ì‹Æ
+2026-10-11 20:31:12,519 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67130, title=yŒ»êzyKTRz‰^—p’è—á‰ï
+2026-10-11 20:31:12,527 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67131, title=yŒ»êzyUR-WANTŸì‹ÆzUOMƒOƒ‰ƒtæ“¾
+2026-10-11 20:31:12,537 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67132, title=yKTRzR8-12@“à•”’è—á‰ï
+2026-10-11 20:31:12,545 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67133, title=yŒ»êzBlock
+2026-10-11 20:31:12,554 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67134, title=yŒ»êzyKTRzR8-12@“à•”’è—á‰ï
+2026-10-11 20:31:12,565 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67135, title=yŒ»êzyKTRz‰^—p’è—á‰ï
+2026-10-11 20:31:12,573 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67136, title=yŒ»êzyUR-WANz‰Û‘è®—E‘Š’k
+2026-10-11 20:31:12,581 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67137, title=‘ŞĞ
+2026-10-11 20:31:12,589 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67138, title=ŠÖ“Œ’n®iR8-12jMFWEIPSƒ~[ƒeƒBƒ“ƒO
+2026-10-11 20:31:12,598 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67139, title=yĞ“à–Ê’kzƒvƒƒOiIIJj
+2026-10-11 20:31:12,608 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67140, title=©ĞMTG
+2026-10-11 20:31:12,617 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67141, title=SI3-3‰^—pƒ`[ƒ€’è—á
+2026-10-11 20:31:12,625 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67142, title=Œo‰cŠÇ—ƒVƒXƒeƒ€ŠJ”­‹’“_ACL’Ç‰ÁƒŒƒrƒ…[
+2026-10-11 20:31:12,633 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67143, title=y“d˜b”ÔzUR’À‘İƒVƒ‡ƒbƒv‰¡•l
+2026-10-11 20:31:12,642 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67144, title=MTG
+2026-10-11 20:31:12,649 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67145, title=yŒ»êzyKKCzˆøŒp‚¬
+2026-10-11 20:31:12,656 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67146, title=ƒŠ[ƒ_[MTG‘æ“ñ•”iR“cGj
+2026-10-11 20:31:12,664 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67147, title=‘S‹x
+2026-10-11 20:31:12,670 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67148, title=yŒ»êzBlock
+2026-10-11 20:31:12,678 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67149, title=(Šm’è)yKTRzR8-12ƒLƒbƒNƒIƒt•ŒŸ•ñ‰ï
+2026-10-11 20:31:12,687 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67150, title=yŒ»êzyUR-WANz’©MTG
+2026-10-11 20:31:12,695 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67151, title=yŒ»êzyKTRz’©‰ï
+2026-10-11 20:31:12,703 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67152, title=ˆÚ“®(”nÔ“¹)
+2026-10-11 20:31:12,710 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67153, title=yŒ»êzyKTRz’©‰ï
+2026-10-11 20:31:12,719 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67154, title=yŒ»êz
+2026-10-11 20:31:12,729 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67155, title=ˆÉ“¡‚³‚ñ‚Æ‚OŸ‰ï‚â‚é
+2026-10-11 20:31:12,737 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67156, title=yŒ»êzyKTRz’©‰ï
+2026-10-11 20:31:12,745 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67157, title=yKKCzˆÄŒˆøŒp‚¬‰ï
+2026-10-11 20:31:12,753 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67158, title=yKTRzR8-12@“à•”’è—á‰ï
+2026-10-11 20:31:12,763 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67159, title=yŒ»êzˆÚ“®(”nÔ“¹)
+2026-10-11 20:31:12,774 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67160, title=yŒ»êzyKTRz’©‰ï
+2026-10-11 20:31:12,784 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67161, title=yŒ»êzSI3-3‰^—pƒ`[ƒ€’è—á
+2026-10-11 20:31:12,792 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67162, title=ƒAƒfƒBƒNƒVƒBŠ”®‰ïĞ ˆÉ“¡—å¶‚³‚ñ: yƒNƒ‰ƒEƒh•ƒCƒ“ƒtƒ‰Gzñ“sŒ—‘æˆêƒZƒNƒVƒ‡ƒ“@1on1@byR“c
+2026-10-11 20:31:12,801 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67163, title=UR[WAN‚ÌŸŠúWANƒpƒƒ|ì¬
+2026-10-11 20:31:12,808 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67164, title=”¨–ì‚³‚ñ~R“c‚³‚ñ~›è
+2026-10-11 20:31:12,816 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67165, title=yŒ»êzCanceled: yKKCz6‹’“_ŠÔVPNÚ‘± “à•”’è—á
+2026-10-11 20:31:12,824 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67166, title=SI3-3‰^—pƒ`[ƒ€‘Ì§&ƒCƒ“ƒVƒfƒ“ƒg‚É‚Â‚¢‚Ä
+2026-10-11 20:31:12,832 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67167, title=yŒ»êzyKKCzˆÄŒˆøŒp‚¬‰ï
+2026-10-11 20:31:12,839 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67168, title=yŒ»êzyUR-WANTŸì‹ÆzUOMƒOƒ‰ƒtæ“¾
+2026-10-11 20:31:12,847 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67169, title=”ñŒöŠJ‚Ì—\’è
+2026-10-11 20:31:12,856 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67170, title=‚¨‚¹‚¿•×‹­‰ï #194: Codex‚ÅÀŠJ”­‚ğ‚Ç‚±‚Ü‚Å‰ñ‚¹‚é‚©
+2026-10-11 20:31:12,863 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67171, title=yŒ»êzBloack
+2026-10-11 20:31:12,872 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67172, title=yƒIƒ“ƒ‰ƒCƒ“zƒOƒ‹[ƒv’·MTG
+2026-10-11 20:31:12,882 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67173, title=1on1(R“c)
+2026-10-11 20:31:12,892 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67174, title=ƒLƒƒƒ“ƒZƒ‹Ï‚İ: (‰¼)NTT“Œ“ú–{ (URˆÄŒ)
+2026-10-11 20:31:12,900 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67175, title=yUR-WANzŒŸ’è—á‰ï16
+2026-10-11 20:31:12,909 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67176, title=yŒ»êz(Šm’è)yKTRzŒŸ•ñ‰ï
+2026-10-11 20:31:12,919 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67177, title=Security Summit '26
+2026-10-11 20:31:12,928 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67178, title=yŒ»êzyUR-WANz’©MTG
+2026-10-11 20:31:12,934 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67179, title=yŒ»êzUNIT1\,2’è—á
+2026-10-11 20:31:12,941 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67180, title=yŒ»êzyKTRz’©‰ï
+2026-10-11 20:31:12,949 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67181, title=yŒ»êzMTG(R“c)
+2026-10-11 20:31:12,958 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67182, title=yŒ»êz
+2026-10-11 20:31:12,966 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67183, title=yŒ»êzyUR-WANzƒuƒ[ƒhƒLƒƒƒXƒg’ÊM‚ÉŠÖ‚·‚é‘Å‚¿‡‚í‚¹
+2026-10-11 20:31:12,973 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67184, title=yŒ»êzyKTRz’©‰ï
+2026-10-11 20:31:12,982 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67185, title=KTRà–¾‰ï
+2026-10-11 20:31:12,990 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67186, title=yKKCzˆÄŒˆøŒp‚¬‰ï
+2026-10-11 20:31:12,998 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67187, title=‰^—pˆÄŒˆøŒp‚¬
+2026-10-11 20:31:13,006 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67188, title=‘—¿ì¬
+2026-10-11 20:31:13,013 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67189, title=ŠÔ‹x
+2026-10-11 20:31:13,021 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67190, title=Bƒ`[ƒ€‰ï
+2026-10-11 20:31:13,023 - httpx2 - INFO - HTTP Request: POST https://opencode.ai/zen/go/v1/chat/completions "HTTP/1.1 401 Unauthorized"
+2026-10-11 20:31:13,031 - llm_factory - INFO - LLMƒ‚ƒfƒ‹‚ğ¶¬’†: Provider=opencode, Model=deepseek-v4-flash
+2026-10-11 20:31:13,035 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67191, title=yUR-WANzroBItaƒNƒ‰ƒEƒhØ‚è‘Ö‚¦‘O‘Å‚¿‡‚í‚¹
+2026-10-11 20:31:13,038 - httpx2 - INFO - HTTP Request: POST https://opencode.ai/zen/go/v1/chat/completions "HTTP/1.1 401 Unauthorized"
+2026-10-11 20:31:13,039 - life_dreamer - INFO - \U0001f308 [LifeDreamer] LLMŒÄ‚Ño‚µ¸”sAƒ‹[ƒ‹‚ÉƒtƒH[ƒ‹ƒoƒbƒN: Error code: 401 - {'type': 'error', 'error': {'type': 'AuthError', 'message': 'Invalid API key.'}}
+2026-10-11 20:31:13,043 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67192, title=yŒ»êzyUR-WANTŸì‹ÆzUOMƒOƒ‰ƒtæ“¾
+2026-10-11 20:31:13,050 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67193, title=‰ï‹c
+2026-10-11 20:31:13,058 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67194, title=yŒ»êzyUR-WANz’©MTG
+2026-10-11 20:31:13,069 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67195, title=yKKCzˆøŒp‚¬
+2026-10-11 20:31:13,077 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67196, title=yŒ»êzBlock
+2026-10-11 20:31:13,084 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67197, title=yUR-WANzCRMƒNƒ‰ƒEƒhØ‚è‘Ö‚¦‚ÌIIJƒvƒ‰ƒ“ŒŸ“¢
+2026-10-11 20:31:13,091 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67198, title=ŒŸ’è—á‘SĞ‰ïiAll-hands Meetingj
+2026-10-11 20:31:13,100 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67199, title=yŒ»êzCanceled: yKKCz6‹’“_ŠÔVPNÚ‘± “à•”’è—á
+2026-10-11 20:31:13,108 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67200, title=yŒ»êz
+2026-10-11 20:31:13,115 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67201, title=yŒ»êzUR-WAN i’»Šm”F
+2026-10-11 20:31:13,121 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67202, title=ƒ`[ƒ€B•×‹­‰ï
+2026-10-11 20:31:13,128 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67203, title=yŒ»êz
+2026-10-11 20:31:13,136 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67204, title=(Šm’è)yUR-WANzŒÅ’è‘YØ‘Öì‹Æ‚Ì–‘O‘Å‚¿‡‚í‚¹
+2026-10-11 20:31:13,142 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67205, title=yŒ»êzyUR-WANzIPFAX‘Î‰‚ÌOmnibusİ’è•ÏX
+2026-10-11 20:31:13,151 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67206, title=yŒ»êz
+2026-10-11 20:31:13,158 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67207, title=yMTG_Ğ“àz›Œ´˜a–ç‚³‚ñ/ƒvƒƒOˆÄŒ
+2026-10-11 20:31:13,167 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67208, title=yKKCz6‹’“_ƒCƒ“ƒ^[ƒlƒbƒgVPN(Omnibus)@“à•”ƒLƒbƒNƒIƒt
+2026-10-11 20:31:13,174 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67209, title=T•ñXV
+2026-10-11 20:31:13,182 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67210, title=SI3-3‰^—pƒ`[ƒ€’è—á
+2026-10-11 20:31:13,191 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67211, title=yKTRzŠÄ‹İ’è‚É‚Â‚¢‚Ä‚Ì’²¸
+2026-10-11 20:31:13,201 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67212, title=yŒ»êzyKTRzNOP‘Å‡‚¹
+2026-10-11 20:31:13,209 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67213, title=yŒ»êzBƒ`[ƒ€‰ï
+2026-10-11 20:31:13,218 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67214, title=©Ğ‹Æ–±
+2026-10-11 20:31:13,228 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67215, title=yŒ»êz
+2026-10-11 20:31:13,238 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67216, title=UR-WAN“à•”Mtg
+2026-10-11 20:31:13,244 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67217, title=yŒ»êz(Šm’è)yKTRzR8-12‘Å‡‚¹
+2026-10-11 20:31:13,252 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67218, title=yŒ»êzyKKCz6‹’“_ŠÔVPNÚ‘± “à•”’è—á
+2026-10-11 20:31:13,259 - httpx2 - INFO - HTTP Request: POST https://opencode.ai/zen/go/v1/chat/completions "HTTP/1.1 401 Unauthorized"
+2026-10-11 20:31:13,263 - llm_factory - INFO - LLMƒ‚ƒfƒ‹‚ğ¶¬’†: Provider=opencode, Model=deepseek-v4-flash
+2026-10-11 20:31:13,268 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67219, title=yŒ»êz
+2026-10-11 20:31:13,277 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67220, title=©Ğ—p
+2026-10-11 20:31:13,285 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67221, title=Block
+2026-10-11 20:31:13,292 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67222, title=yŒ»êzƒLƒƒƒ“ƒZƒ‹Ï‚İ: [UR] ‰c‹Æ/SI “à•”’è—á
+2026-10-11 20:31:13,301 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67223, title=(Šm’è)yKTRzR8-12‘Å‡‚¹
+2026-10-11 20:31:13,312 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67224, title=yŒ»êzyKTRz‰^—p’è—á‰ï
+2026-10-11 20:31:13,321 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67225, title=yŒ»êzyUR-WANz’©MTG
+2026-10-11 20:31:13,329 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67226, title=yŒ»êzBlock
+2026-10-11 20:31:13,340 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67227, title=T•ñƒVƒXƒeƒ€‚·‚è‡‚í‚¹
+2026-10-11 20:31:13,348 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67228, title=COMPANY‚ÌŸŠúWAN‚Ö‚ÌØ‚è‘Ö‚¦ì‹Æ
+2026-10-11 20:31:13,355 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67229, title=COMPANYƒNƒ‰ƒEƒhØ‚è‘Ö‚¦İ’èƒŒƒrƒ…[
+2026-10-11 20:31:13,364 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67230, title=yKTRz“à•”MTG
+2026-10-11 20:31:13,370 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67231, title=yŒ»êz
+2026-10-11 20:31:13,381 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67232, title=ƒLƒƒƒ“ƒZƒ‹Ï‚İ: (’²®’†)yKTRzR8-12ƒLƒbƒNƒIƒt•ŒŸ•ñ‰ï
+2026-10-11 20:31:13,389 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67233, title=yŒ»êzyKTRz’©‰ï
+2026-10-11 20:31:13,399 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67234, title=‘‘Ş
+2026-10-11 20:31:13,408 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67235, title=Šm’èjƒlƒbƒgƒƒ“ƒp[ƒgƒi[ƒY—lƒ~[ƒeƒBƒ“ƒO
+2026-10-11 20:31:13,415 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67236, title=yŒ»êzyKKCzˆøŒp‚¬
+2026-10-11 20:31:13,423 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67237, title=yŒ»êzyKTRz‰^—p’è—á‰ï
+2026-10-11 20:31:13,431 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67238, title=yŒ»êzyKTRz’©‰ï
+2026-10-11 20:31:13,439 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67239, title=UR-WAN ƒXƒNƒŠƒvƒgC³
+2026-10-11 20:31:13,446 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67240, title=yŒ»êzUNIT1\,2’è—á
+2026-10-11 20:31:13,453 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67241, title=yKTRzR8-12@H’ö®—‰ï
+2026-10-11 20:31:13,461 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67242, title=KTR WebsocketŠm”F
+2026-10-11 20:31:13,468 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67243, title=ƒLƒƒƒ“ƒZƒ‹Ï‚İ: (’²®’†)yKTRzR8-12ƒLƒbƒNƒIƒt•ŒŸ•ñ‰ï
+2026-10-11 20:31:13,476 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67244, title=yƒIƒ“ƒ‰ƒCƒ“zƒOƒ‹[ƒv’·MTG
+2026-10-11 20:31:13,485 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67245, title=ŠÖ“Œ’n®Œü‚¯ƒ~[ƒeƒBƒ“ƒO
+2026-10-11 20:31:13,491 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67246, title=SI3-3‰^—pƒ`[ƒ€’è—á
+2026-10-11 20:31:13,494 - httpx2 - INFO - HTTP Request: POST https://opencode.ai/zen/go/v1/chat/completions "HTTP/1.1 401 Unauthorized"
+2026-10-11 20:31:13,501 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67247, title=T•ñ‘Å‚¿‡‚í‚¹
+2026-10-11 20:31:13,510 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67248, title=yŒ»êzyUR-WANz‰Û‘è®—E‘Š’k
+2026-10-11 20:31:13,518 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67249, title=yŒ»êzƒLƒƒƒ“ƒZƒ‹Ï‚İ: [UR] ‰c‹Æ/SI “à•”’è—á
+2026-10-11 20:31:13,527 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67250, title=adixi ‰¬–ìr•ã‚³‚ñ: yƒNƒ‰ƒEƒh•ƒCƒ“ƒtƒ‰Gzñ“sŒ—‘æˆêƒZƒNƒVƒ‡ƒ“@1on1@byR“c
+2026-10-11 20:31:13,535 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67251, title=yŒ»êz
+2026-10-11 20:31:13,542 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67252, title=yŒ»êzUR-WAN i’»Šm”F
+2026-10-11 20:31:13,550 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67253, title=yŒ»êzyUR-WANzroBItaƒNƒ‰ƒEƒhØ‚è‘Ö‚¦‘O‘Å‚¿‡‚í‚¹
+2026-10-11 20:31:13,557 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67254, title=”ñŒöŠJ‚Ì—\’è
+2026-10-11 20:31:13,565 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67255, title=yŒ»êzyKTRz’©‰ï
+2026-10-11 20:31:13,572 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67256, title=MTG(R“c)
+2026-10-11 20:31:13,580 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67257, title=yŒ»êz
+2026-10-11 20:31:13,590 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67258, title=COMPANYİ’èƒtƒ@ƒCƒ‹“Š“üì‹Æ
+2026-10-11 20:31:13,598 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67259, title=T•ñƒVƒXƒeƒ€ƒqƒAƒŠƒ“ƒO
+2026-10-11 20:31:13,606 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67260, title=yAI•×‹­‰ïzR“c‚ÌŠJ”­ŠÂ‹«Eè–@ƒAƒEƒgƒvƒbƒg‰ï
+2026-10-11 20:31:13,617 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67261, title=ŠÖ“Œ’n®iR8-12jIP•ME
+2026-10-11 20:31:13,626 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67262, title=yŒ»êzSI3-3‰^—pƒ`[ƒ€’è—á
+2026-10-11 20:31:13,634 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67263, title=MTG(R“c)
+2026-10-11 20:31:13,643 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67264, title=(Šm’è)yKTRzŒŸ•ñ‰ï
+2026-10-11 20:31:13,651 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67265, title=ˆÀ”ÛŠm”FƒVƒXƒeƒ€‚É‚Â‚¢‚Ä
+2026-10-11 20:31:13,660 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67266, title=yŒ»êzyKTRz’©‰ï
+2026-10-11 20:31:13,667 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67267, title=yŒ»êzyKTRzR8-12@“à•”’è—á‰ï
+2026-10-11 20:31:13,676 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67268, title=UNIT1\,2’è—á
+2026-10-11 20:31:13,683 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67269, title=yŒ»êz‰ï‹c
+2026-10-11 20:31:13,693 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67270, title=ˆøŒp‚¬‰ï(2‰ñ–Ú)
+2026-10-11 20:31:13,701 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67271, title=Canceled: (KTR)WEBƒzƒXƒeƒBƒ“ƒOX‰ü‘—¿ì¬‘Š’kMTG
+2026-10-11 20:31:13,708 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67272, title=İ’è“à—eƒŒƒrƒ…[‰ïiWAN Profile/LAN Profilej
+2026-10-11 20:31:13,717 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67273, title=ƒ`[ƒ€ƒŠ[ƒ_[‰ï‚Q•”
+2026-10-11 20:31:13,724 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67274, title=Bƒ`[ƒ€‰ï
+2026-10-11 20:31:13,731 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67275, title=yŒ»êz
+2026-10-11 20:31:13,739 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67276, title=MTGR“c
+2026-10-11 20:31:13,747 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67277, title=”ñŒöŠJ‚Ì—\’è
+2026-10-11 20:31:13,754 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67278, title=yŒ»êzMTG(R“c)
+2026-10-11 20:31:13,763 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67279, title=yŒ»êzyUR-WANz’©MTG
+2026-10-11 20:31:13,771 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67280, title=Block
+2026-10-11 20:31:13,779 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67281, title=yŒ»êz
+2026-10-11 20:31:13,786 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67282, title=’‹‹xŒe
+2026-10-11 20:31:13,794 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67283, title=yŒ»êzUNIT1\,2’è—á
+2026-10-11 20:31:13,806 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67284, title=yŒ»êz
+2026-10-11 20:31:13,813 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67285, title=yŒ»êzyUR-WANz‰Û‘è®—E‘Š’k
+2026-10-11 20:31:13,821 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67286, title=U‚è•ª‚¯ƒvƒƒLƒV‚ÌƒŠƒXƒg‚ÉŠÖ‚µ‚Ä
+2026-10-11 20:31:13,830 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67287, title=ŠÖ“Œ’n®@SWGiHTTPSƒfƒR[ƒhƒIƒvƒVƒ‡ƒ“j
+2026-10-11 20:31:13,840 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67288, title=ŠÖ“Œ’n®iR8-12jMFWƒ~[ƒeƒBƒ“ƒO
+2026-10-11 20:31:13,850 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67289, title=yŒ»êz‘S‹x
+2026-10-11 20:31:13,859 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67290, title=”ñŒöŠJ‚Ì—\’è
+2026-10-11 20:31:13,868 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67291, title=yKTRzŠÄ‹İ’è€–Ú‚É‚Â‚¢‚Ä‚ÌŠm”F
+2026-10-11 20:31:13,878 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67292, title=yŒ»êzyKKCz6‹’“_ŠÔVPNÚ‘± “à•”’è—á
+2026-10-11 20:31:13,887 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67293, title=y‚¨\‚µ‚İŠ®—¹zGoogle Cloud - ‚ß‚´‚¹I¶¬ AI ”F’è‘Ši ` Generative AI Leader `
+2026-10-11 20:31:13,895 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67294, title=y“¯ÈzƒvƒƒOƒ‰ƒCƒu-‹{–{‚³‚ñ
+2026-10-11 20:31:13,903 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67295, title=ŒŸ’è—á‘SĞ‰ïiAll-hands Meetingj
+2026-10-11 20:31:13,910 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67296, title=yŒ»êzyKKCzˆÄŒˆøŒp‚¬‰ï
+2026-10-11 20:31:13,918 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67297, title=yŒ»êzyKTRzR8-12@“à•”’è—á‰ï
+2026-10-11 20:31:13,927 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67298, title=ƒLƒƒƒ“ƒZƒ‹Ï‚İ: (’²®’†)yKTRzR8-12ƒLƒbƒNƒIƒt•ŒŸ•ñ‰ï
+2026-10-11 20:31:13,936 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67299, title=T•ñ‘Å‚¿‡‚í‚¹
+2026-10-11 20:31:13,943 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67300, title=yŒ»êzBlock
+2026-10-11 20:31:13,951 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67301, title=yMTGzR“c‚³‚ñ/T•ñƒVƒXƒeƒ€‚ÌŒ
+2026-10-11 20:31:13,958 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67302, title=yŠm’èzKKC 6‹’“_VPN ƒLƒbƒNƒIƒt—ŒÚ‹qƒeƒiƒ“ƒg
+2026-10-11 20:31:13,966 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67303, title=yŒ»êzyKTRz’©‰ï
+2026-10-11 20:31:13,973 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67304, title=”ñŒöŠJ‚Ì—\’è
+2026-10-11 20:31:13,981 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67305, title=yƒIƒ“ƒ‰ƒCƒ“zƒŠ[ƒ_[MTG
+2026-10-11 20:31:13,989 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67306, title=R8-12ŠÖ˜A‰ï‹c
+2026-10-11 20:31:13,998 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67307, title=yKTRzR8-12@“à•”’è—á‰ï
+2026-10-11 20:31:14,006 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67308, title=y“d˜b”ÔzUR’À‘İƒVƒ‡ƒbƒv•z‘Ü‰w‘O
+2026-10-11 20:31:14,015 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67309, title=yŒ»êzyKTRzR8-12@“à•”’è—á‰ï
+2026-10-11 20:31:14,022 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67310, title=yŒ»êzyKTRz’©‰ï
+2026-10-11 20:31:14,029 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67311, title=ƒLƒƒƒ“ƒZƒ‹Ï‚İ: (’²®’†)NOP‘Å‡‚¹
+2026-10-11 20:31:14,038 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67312, title=TeckŒğ—¬‰ï
+2026-10-11 20:31:14,047 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67313, title=”ñŒöŠJ‚Ì—\’è
+2026-10-11 20:31:14,056 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67314, title=yŒ»êzBƒ`[ƒ€‰ï
+2026-10-11 20:31:14,066 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67315, title=yKKCzLBO+ƒZƒLƒ…ƒŠƒeƒBƒpƒbƒ`“K—pì‹Æ“à—e‚Ì‚²à–¾
+2026-10-11 20:31:14,075 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67316, title=yŒ»êz
+2026-10-11 20:31:14,083 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67317, title=yŒ»êz
+2026-10-11 20:31:14,091 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67318, title=UR-WAN@ƒpƒƒ|ì¬
+2026-10-11 20:31:14,098 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67319, title=1on1
+2026-10-11 20:31:14,106 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67320, title=ì‹Æ•i¿Œüã@•×‹­‰ï@cantata
+2026-10-11 20:31:14,117 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67321, title=yŒ»êz
+2026-10-11 20:31:14,125 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67322, title=Block
+2026-10-11 20:31:14,134 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67323, title=yŒ»êz
+2026-10-11 20:31:14,141 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67324, title=yŒ»êzyUR-WANz’©MTG
+2026-10-11 20:31:14,149 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67325, title=Bloack
+2026-10-11 20:31:14,157 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67326, title=T•ñƒVƒXƒeƒ€‘Å‚¿‡‚í‚¹
+2026-10-11 20:31:14,166 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67327, title=yŒ»êzCanceled: yKKCz6‹’“_ŠÔVPNÚ‘± ƒR[ƒfƒBƒl[ƒ^‚Æ‚Ì”F¯‡‚í‚¹
+2026-10-11 20:31:14,175 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67328, title=‘S‹x
+2026-10-11 20:31:14,183 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67329, title=yŒ»êzB/Cƒ`[ƒ€‰ï
+2026-10-11 20:31:14,193 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67330, title=‰Á“¡‚³‚ñ@‰ï˜b
+2026-10-11 20:31:14,201 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67331, title=ƒf[ƒ^•ªÍ(roBIta)ŠÄ‹ÃŠÏì‹Æ
+2026-10-11 20:31:14,211 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67332, title=yŒ»êzyKKCzˆÄŒˆøŒp‚¬‰ï
+2026-10-11 20:31:14,219 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67333, title=yŒ»êz(Šm’è)yUR-WANz“dqŒˆÙƒNƒ‰ƒEƒhØ‚è‘Ö‚¦‘Å‚¿‡‚í‚¹
+2026-10-11 20:31:14,228 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67334, title=yŒ»êzyKKCzˆÄŒˆøŒp‚¬‰ï
+2026-10-11 20:31:14,237 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67335, title=T•ñ‘Å‚¿‡‚í‚¹
+2026-10-11 20:31:14,245 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67336, title=ƒZƒNƒVƒ‡ƒ“ƒ}ƒl[ƒWƒƒ[‚à‚­‚à‚­
+2026-10-11 20:31:14,254 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67337, title=Block
+2026-10-11 20:31:14,264 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67338, title=yŒ»êz
+2026-10-11 20:31:14,273 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67339, title=yŒ»êzBlock
+2026-10-11 20:31:14,284 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67340, title=yŒ»êzyKKCzˆøŒp‚¬
+2026-10-11 20:31:14,291 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67341, title=UR-WANˆÄŒ‚²‘Š’k
+2026-10-11 20:31:14,300 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67342, title=©Ğ‹Æ–±
+2026-10-11 20:31:14,307 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67343, title=yKTRzR8-12‚Ì‹Zpd—l‘’ño‘OƒŒƒrƒ…[
+2026-10-11 20:31:14,315 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67344, title=yŒ»êzyKKCz6‹’“_ŠÔVPNÚ‘± “à•”’è—á
+2026-10-11 20:31:14,323 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67345, title=yƒIƒ“ƒ‰ƒCƒ“zƒŠ[ƒ_[MTG
+2026-10-11 20:31:14,330 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67346, title=MTG
+2026-10-11 20:31:14,337 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67347, title=ƒNƒ‰ƒEƒh”[•i•¨A‹c–˜^Šm”F
+2026-10-11 20:31:14,345 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67348, title=yŒ»êz‘S‹x
+2026-10-11 20:31:14,354 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67349, title=yŒ»êzyKTRz’©‰ï
+2026-10-11 20:31:14,361 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67350, title=yŒ»êzyKTRz’©‰ï
+2026-10-11 20:31:14,369 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67351, title=yƒIƒ“ƒ‰ƒCƒ“zƒOƒ‹[ƒv’·MTG
+2026-10-11 20:31:14,377 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67352, title=yŒ»êzyKKCzˆøŒp‚¬
+2026-10-11 20:31:14,385 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67353, title=‘S‹x
+2026-10-11 20:31:14,393 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67354, title=yŒ»êzyKTRz’©‰ï
+2026-10-11 20:31:14,400 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67355, title=yŒ»êzyKTRz‰^—p’è—á‰ï
+2026-10-11 20:31:14,409 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67356, title=yŒ»êzyKTR_R8-12zIIJ-NOP’èŠúƒ~[ƒeƒBƒ“ƒO
+2026-10-11 20:31:14,417 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67357, title=yKTRzIPƒAƒhƒŒƒXÕ’fİ’èì‹ÆˆøŒp‚¬
+2026-10-11 20:31:14,425 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67358, title=©Ğ‹Æ–±
+2026-10-11 20:31:14,432 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67359, title=yŒ»êzyKTRz’©‰ï
+2026-10-11 20:31:14,439 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67360, title=yUR-WANz“Á’è’ÊM•s‰Â–Û‚É‚Â‚¢‚Ä
+2026-10-11 20:31:14,446 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67361, title=UR-WAN ƒNƒ[ƒWƒ“ƒO‘—¿Šm”FEŒŸ“¢
+2026-10-11 20:31:14,456 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67362, title=yŒ»êzƒ`[ƒ€BT•ñXV
+2026-10-11 20:31:14,463 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67363, title=yUR-WANzŒŸ’è—á‰ï16
+2026-10-11 20:31:14,472 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67364, title=Œo‰cŠÇ—ƒVƒXƒeƒ€İ’è“Š“ü‡@
+2026-10-11 20:31:14,480 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67365, title=yŒ»êzyKTRz’©‰ï
+2026-10-11 20:31:14,487 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67366, title=ˆÚ“®(©‘î¨©Ğ)
+2026-10-11 20:31:14,495 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67367, title=ƒLƒƒƒ“ƒZƒ‹Ï‚İ: ‰¼jƒlƒbƒgƒƒ“ƒ~[ƒeƒBƒ“ƒO
+2026-10-11 20:31:14,503 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67368, title=“ú’öŒŸ“¢
+2026-10-11 20:31:14,511 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67369, title=yŠm’èzNTT“Œ“ú–{ (URˆÄŒ)
+2026-10-11 20:31:14,519 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67370, title=yŒ»êz(Šm’è)yUR-WANzCRMƒNƒ‰ƒEƒhØ‚è‘Ö‚¦ì‹Æ@‘Å‚¿‡‚í‚¹
+2026-10-11 20:31:14,529 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67371, title=yŒ»êz[UR] ‰c‹Æ/SI “à•”’è—á
+2026-10-11 20:31:14,537 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67372, title=Œ’Nf’f
+2026-10-11 20:31:14,544 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67373, title=¼ŠÚ‚­‚ñMTG
+2026-10-11 20:31:14,555 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67374, title=yŒ»êzSI3-3‰^—pƒ`[ƒ€’è—á
+2026-10-11 20:31:14,564 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67375, title=yŒ»êz[UR] ‰c‹Æ/SI “à•”’è—á
+2026-10-11 20:31:14,573 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67376, title=yŒ»êzyKKCzˆøŒp‚¬
+2026-10-11 20:31:14,583 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67377, title=yKTRz“à•”MTG
+2026-10-11 20:31:14,591 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67378, title=Canceled: yKKCz6‹’“_ŠÔVPNÚ‘± “à•”’è—á
+2026-10-11 20:31:14,600 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67379, title=(Šm’è)NOP‘Å‡‚¹
+2026-10-11 20:31:14,609 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67380, title=Bƒ`[ƒ€‰ï
+2026-10-11 20:31:14,617 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67381, title=yŒ»êzyUR-WANz‰Û‘è®—E‘Š’k
+2026-10-11 20:31:14,626 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67382, title=yKTRzNOP‘Å‡‚¹
+2026-10-11 20:31:14,634 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67383, title=(Šm’è)yUR-WANz8/3ƒNƒ‰ƒEƒhØ‚è‘Ö‚¦ƒgƒ‰ƒCƒAƒ‹‚Ì–‘O‘Å‚¿‡‚í‚¹
+2026-10-11 20:31:14,642 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67384, title=‘S‹x
+2026-10-11 20:31:14,650 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67385, title=yKKCzˆøŒp‚¬
+2026-10-11 20:31:14,657 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67386, title=UNIT1\,2’è—á
+2026-10-11 20:31:14,666 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67387, title=yŒ»êz
+2026-10-11 20:31:14,674 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67388, title=yŒ»êzyKKCzˆÄŒˆøŒp‚¬‰ï
+2026-10-11 20:31:14,681 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67389, title=yKTRzR8-12@“à•”’è—á‰ï
+2026-10-11 20:31:14,688 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67390, title=yŒ»êz
+2026-10-11 20:31:14,696 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67391, title=‘S‹x
+2026-10-11 20:31:14,704 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67392, title=yŒ»êzyUR-WANz’©MTG
+2026-10-11 20:31:14,712 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67393, title=yUR-WANzŒŸ’è—á‰ï16
+2026-10-11 20:31:14,720 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67394, title=yŒ»êzyKKCzˆÄŒˆøŒp‚¬‰ï
+2026-10-11 20:31:14,729 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67395, title=ƒLƒƒƒ“ƒZƒ‹Ï‚İ: ‰¼jƒlƒbƒgƒƒ“ƒp[ƒgƒi[ƒYƒ~[ƒeƒBƒ“ƒO
+2026-10-11 20:31:14,737 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67396, title=yŒ»êzyKTRz’©‰ï
+2026-10-11 20:31:14,744 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67397, title=yŒ»êzyUR-WANz’©MTG
+2026-10-11 20:31:14,752 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67398, title=y–Ê’k_ƒIƒtƒ@[z•x“c ˜a‹P‚³‚ñ
+2026-10-11 20:31:14,761 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67399, title=ŠÖ“Œ’n®Œü‚¯IP‚ÌŒˆÓ¯‡‚í‚¹
+2026-10-11 20:31:14,770 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67400, title=yKKCzˆøŒp‚¬
+2026-10-11 20:31:14,779 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67401, title=yŒ»êzyKTRz’©‰ï
+2026-10-11 20:31:14,787 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67402, title=yŒ»êzyKTRz’©‰ï
+2026-10-11 20:31:14,795 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67403, title=SI3-3‰^—pƒ`[ƒ€’è—á
+2026-10-11 20:31:14,804 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67404, title=yŒ»êzyKTRz’©‰ï
+2026-10-11 20:31:14,813 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67405, title=yKKCzˆÄŒˆøŒp‚¬‰ï
+2026-10-11 20:31:14,822 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67406, title=yŒ»êz
+2026-10-11 20:31:14,831 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67407, title=yŒ»êz
+2026-10-11 20:31:14,840 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67408, title=MTG
+2026-10-11 20:31:14,848 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67409, title=UNIT1\,2’è—á
+2026-10-11 20:31:14,856 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67410, title=yŒ»êzƒLƒƒƒ“ƒZƒ‹Ï‚İ: [UR] ‰c‹Æ/SI “à•”’è—á
+2026-10-11 20:31:14,863 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67411, title=yŒ»êzyUR-WANz’©MTG
+2026-10-11 20:31:14,872 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67412, title=ŠÖ“Œ’n®Œü‚¯ƒ‚ƒoƒCƒ‹ˆÄŒ
+2026-10-11 20:31:14,881 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67413, title=yŒ»êzMTG(R“c)
+2026-10-11 20:31:14,889 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67414, title=yŒ»êzyKKCzˆøŒp‚¬
+2026-10-11 20:31:14,920 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67415, title=yŒ»êzyKTRz‰^—p’è—á‰ï
+2026-10-11 20:31:14,927 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67416, title=yŒ»êz
+2026-10-11 20:31:14,935 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67417, title=yŒ»êzBƒ`[ƒ€‰ï
+2026-10-11 20:31:14,942 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67418, title=yŒ»êzƒ`[ƒ€BT•ñXV
+2026-10-11 20:31:14,950 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67419, title=yŒ»êzBƒ`[ƒ€‰ï
+2026-10-11 20:31:14,956 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67420, title=yŒ»êzSI3-3‰^—pƒ`[ƒ€’è—á
+2026-10-11 20:31:14,965 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67421, title=yŒ»êzyKKCzˆøŒp‚¬
+2026-10-11 20:31:14,974 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67422, title=yŒ»êzyKTRzR8-12@“à•”’è—á‰ï
+2026-10-11 20:31:14,982 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67423, title=yŒ»êzƒ`[ƒ€BT•ñXV
+2026-10-11 20:31:14,990 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67424, title=yŒ»êzyKTRzR8-12@“à•”’è—á‰ï
+2026-10-11 20:31:14,997 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67425, title=yŒ»êzBƒ`[ƒ€‰ï
+2026-10-11 20:31:15,006 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67426, title=yŒ»êzSI3-3‰^—pƒ`[ƒ€’è—á
+2026-10-11 20:31:15,017 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67427, title=yŒ»êzyUR-WANzCACHATTOƒNƒ‰ƒEƒhØ‚è‘Ö‚¦ì‹Æ
+2026-10-11 20:31:15,025 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67428, title=yŒ»êzyKTRzR8-12@“à•”’è—á‰ï
+2026-10-11 20:31:15,035 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67429, title=yŒ»êzyUR-WANz’©MTG
+2026-10-11 20:31:15,044 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67430, title=yŒ»êz‰¡’fMTG
+2026-10-11 20:31:15,053 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67431, title=yŒ»êz‰¡’fMTG
+2026-10-11 20:31:15,063 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67432, title=yŒ»êz
+2026-10-11 20:31:15,073 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67433, title=yŒ»êzUR-WAN i’»Šm”F
+2026-10-11 20:31:15,083 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67434, title=yŒ»êz
+2026-10-11 20:31:15,091 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67435, title=yŒ»êz
+2026-10-11 20:31:15,101 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67436, title=yŒ»êzyKTRz‰^—p’è—á‰ï
+2026-10-11 20:31:15,113 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67437, title=’èŠúMTG(¼ŠÙ‚³‚ñA•àV‚³‚ñ)
+2026-10-11 20:31:15,121 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67438, title=yŒ»êz
+2026-10-11 20:31:15,132 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67439, title=yŒ»êzyKKCz6‹’“_ŠÔVPNÚ‘± “à•”’è—á
+2026-10-11 20:31:15,140 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67440, title=yŒ»êz‰¡’fMTG
+2026-10-11 20:31:15,150 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67441, title=yŒ»êz[UR] ‰c‹Æ/SI “à•”’è—á
+2026-10-11 20:31:15,161 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67442, title=yŒ»êz‰¡’fMTG
+2026-10-11 20:31:15,169 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67443, title=yŒ»êz[UR] ‰c‹Æ/SI “à•”’è—á
+2026-10-11 20:31:15,180 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67444, title=yŒ»êzyKTRz’©‰ï
+2026-10-11 20:31:15,190 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67445, title=yŒ»êzyKTRz‰^—p’è—á‰ï
+2026-10-11 20:31:15,199 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67446, title=yŒ»êzyUR-WANTŸì‹ÆzUOMƒOƒ‰ƒtæ“¾
+2026-10-11 20:31:15,209 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67447, title=yŒ»êzyKKCzˆøŒp‚¬
+2026-10-11 20:31:15,220 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67448, title=yŒ»êzUR-WAN i’»Šm”F
+2026-10-11 20:31:15,229 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67449, title=yŒ»êz
+2026-10-11 20:31:15,237 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67450, title=yŒ»êzyKTRzR8-12@“à•”’è—á‰ï
+2026-10-11 20:31:15,247 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67451, title=yŒ»êzyKTRzR8-12@“à•”’è—á‰ï
+2026-10-11 20:31:15,257 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67452, title=yŒ»êzUNIT1\,2’è—á
+2026-10-11 20:31:15,264 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67453, title=yŒ»êzƒ`[ƒ€BT•ñXV
+2026-10-11 20:31:15,274 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67454, title=yŒ»êz
+2026-10-11 20:31:15,285 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67455, title=yŒ»êzyKTRz’©‰ï
+2026-10-11 20:31:15,293 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67456, title=yŒ»êz
+2026-10-11 20:31:15,302 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67457, title=yŒ»êzUNIT1\,2’è—á
+2026-10-11 20:31:15,309 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67458, title=yŒ»êzUNIT1\,2’è—á
+2026-10-11 20:31:15,317 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67459, title=yŒ»êz‰¡’fMTG
+2026-10-11 20:31:15,327 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67460, title=yŒ»êzyKTRz’©‰ï
+2026-10-11 20:31:15,335 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67461, title=yŒ»êzyKKCz6‹’“_ŠÔVPNÚ‘± “à•”’è—á
+2026-10-11 20:31:15,345 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67462, title=yŒ»êzUNIT1\,2’è—á
+2026-10-11 20:31:15,354 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67463, title=yŒ»êzyUR-WANz’©MTG
+2026-10-11 20:31:15,362 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67464, title=yŒ»êz[UR] ‰c‹Æ/SI “à•”’è—á
+2026-10-11 20:31:15,369 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67465, title=yŒ»êzyKTRz’©‰ï
+2026-10-11 20:31:15,377 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67466, title=yŒ»êzyUR-WANz‰Û‘è®—E‘Š’k
+2026-10-11 20:31:15,388 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67467, title=yŒ»êzyKKCzˆøŒp‚¬
+2026-10-11 20:31:15,397 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67468, title=yŒ»êz
+2026-10-11 20:31:15,405 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67469, title=yŒ»êzBƒ`[ƒ€‰ï
+2026-10-11 20:31:15,418 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67470, title=yŒ»êzyUR-WANz’©MTG
+2026-10-11 20:31:15,429 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67471, title=yŒ»êzyUR-WANz’©MTG
+2026-10-11 20:31:15,438 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67472, title=yŒ»êzSI3-3‰^—pƒ`[ƒ€’è—á
+2026-10-11 20:31:15,446 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67473, title=yŒ»êzyUR-WANz’©MTG
+2026-10-11 20:31:15,455 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67474, title=yŒ»êzyUR-WANTŸì‹ÆzUOMƒOƒ‰ƒtæ“¾
+2026-10-11 20:31:15,463 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67475, title=yŒ»êzyUR-WANz’©MTG
+2026-10-11 20:31:15,472 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67476, title=yŒ»êzyKTRz’©‰ï
+2026-10-11 20:31:15,480 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67477, title=yŒ»êzyKTRz‰^—p’è—á‰ï
+2026-10-11 20:31:15,487 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67478, title=yŒ»êzyKTRz’©‰ï
+2026-10-11 20:31:15,494 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67479, title=yŒ»êzyKTRz’©‰ï
+2026-10-11 20:31:15,502 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67480, title=yŒ»êz
+2026-10-11 20:31:15,511 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67481, title=yŒ»êzUNIT1\,2’è—á
+2026-10-11 20:31:15,519 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67482, title=yŒ»êz–{ĞƒŠƒ‚[ƒg4‚Ìì‹ÆƒŒƒrƒ…[E“Š“ü
+2026-10-11 20:31:15,527 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67483, title=yŒ»êzyKTRz‰^—p’è—á‰ï
+2026-10-11 20:31:15,536 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67484, title=yŒ»êzyKTRz’©‰ï
+2026-10-11 20:31:15,543 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67485, title=yŒ»êzUR-WAN i’»Šm”F
+2026-10-11 20:31:15,550 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67486, title=yŒ»êzyKTRzR8-12@“à•”’è—á‰ï
+2026-10-11 20:31:15,558 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67487, title=yŒ»êzyKTRz’©‰ï
+2026-10-11 20:31:15,566 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67488, title=yŒ»êzUNIT1\,2’è—á
+2026-10-11 20:31:15,576 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67489, title=yŒ»êz‰¡’fMTG
+2026-10-11 20:31:15,584 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67490, title=yŒ»êzyUR-WANz’©MTG
+2026-10-11 20:31:15,594 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67491, title=yŒ»êzyUR-WANz‰Û‘è®—E‘Š’k
+2026-10-11 20:31:15,602 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67492, title=yŒ»êzyUR-WANz’©MTG
+2026-10-11 20:31:15,611 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67493, title=yŒ»êz‰¡’fMTG
+2026-10-11 20:31:15,619 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67494, title=yŒ»êzyKTRz’©‰ï
+2026-10-11 20:31:15,626 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67495, title=yŒ»êzyKTRz‰^—p’è—á‰ï
+2026-10-11 20:31:15,634 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67496, title=yŒ»êz
+2026-10-11 20:31:15,641 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67497, title=yŒ»êzyKTRzR8-12@“à•”’è—á‰ï
+2026-10-11 20:31:15,648 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67498, title=yŒ»êzyKTRz’©‰ï
+2026-10-11 20:31:15,656 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67499, title=yŒ»êzyUR-WANz’©MTG
+2026-10-11 20:31:15,665 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67500, title=yŒ»êzMTG(R“c)
+2026-10-11 20:31:15,673 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67501, title=yŒ»êzyUR-WANz’©MTG
+2026-10-11 20:31:15,681 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67502, title=yŒ»êz[UR] ‰c‹Æ/SI “à•”’è—á
+2026-10-11 20:31:15,690 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67503, title=yŒ»êzyKTRz’©‰ï
+2026-10-11 20:31:15,697 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67504, title=yŒ»êzyKTRz‰^—p’è—á‰ï
+2026-10-11 20:31:15,704 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67505, title=yŒ»êzyKTRz’©‰ï
+2026-10-11 20:31:15,714 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67506, title=yŒ»êzyKTRz’©‰ï
+2026-10-11 20:31:15,721 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67507, title=yŒ»êz
+2026-10-11 20:31:15,729 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67508, title=yŒ»êzyKTRz’©‰ï
+2026-10-11 20:31:15,737 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67509, title=yŒ»êz[UR] ‰c‹Æ/SI “à•”’è—á
+2026-10-11 20:31:15,745 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67510, title=yŒ»êzyKKCzˆøŒp‚¬
+2026-10-11 20:31:15,753 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67511, title=yŒ»êzyŠm’èz–¾¡ƒRƒ“ƒTƒ‹ƒ^ƒ“ƒg‚³‚Ü—ŒÚ‹qƒeƒiƒ“ƒg
+2026-10-11 20:31:15,762 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67512, title=yŒ»êzyKTRz‰^—p’è—á‰ï
+2026-10-11 20:31:15,771 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67513, title=yŒ»êzyKKCzˆøŒp‚¬
+2026-10-11 20:31:15,779 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67514, title=yŒ»êzyUR-WANTŸì‹ÆzUOMƒOƒ‰ƒtæ“¾
+2026-10-11 20:31:15,786 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67515, title=yŒ»êzyUR-WANz’©MTG
+2026-10-11 20:31:15,793 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67516, title=yŒ»êzSI3-3‰^—pƒ`[ƒ€’è—á
+2026-10-11 20:31:15,801 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67517, title=yŒ»êzyKTRz’©‰ï
+2026-10-11 20:31:15,809 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67518, title=yŒ»êzƒLƒƒƒ“ƒZƒ‹Ï‚İ: yŒó•â‡@z–¾¡ƒRƒ“ƒTƒ‹ƒ^ƒ“ƒg‚³‚Ü(‘Ûq‹Æ‚³‚Ü)—ŒÚ‹qƒeƒiƒ“ƒg
+2026-10-11 20:31:15,818 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67519, title=yŒ»êzyKTRz’©‰ï
+2026-10-11 20:31:15,827 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67520, title=yŒ»êz
+2026-10-11 20:31:15,834 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67521, title=yŒ»êzUR-WAN i’»Šm”F
+2026-10-11 20:31:15,843 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67522, title=yŒ»êzyKTRz’©‰ï
+2026-10-11 20:31:15,849 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67523, title=yŒ»êzyKTRz’©‰ï
+2026-10-11 20:31:15,857 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67524, title=yŒ»êz[UR] ‰c‹Æ/SI “à•”’è—á
+2026-10-11 20:31:15,867 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67525, title=yŒ»êzyUR-WANz’©MTG
+2026-10-11 20:31:15,874 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67526, title=yŒ»êzyKTRz’©‰ï
+2026-10-11 20:31:15,881 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67527, title=yŒ»êzyKTRz’©‰ï
+2026-10-11 20:31:15,890 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67528, title=yŒ»êzMTG(R“c)
+2026-10-11 20:31:15,898 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67529, title=yŒ»êzyUR-WANz’©MTG
+2026-10-11 20:31:15,907 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67530, title=yŒ»êzyKTRz’©‰ï
+2026-10-11 20:31:15,915 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67531, title=yŒ»êzyKTRz’©‰ï
+2026-10-11 20:31:15,922 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67532, title=yŒ»êzyKTRz’©‰ï
+2026-10-11 20:31:15,929 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67533, title=yŒ»êzSI3-3‰^—pƒ`[ƒ€’è—á
+2026-10-11 20:31:15,937 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67534, title=yŒ»êzyKKCz6‹’“_ŠÔVPNÚ‘± “à•”’è—á
+2026-10-11 20:31:15,944 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67535, title=yŒ»êzUR-WAN i’»Šm”F
+2026-10-11 20:31:15,958 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67536, title=yŒ»êz(‰¼)yUR-WANzŒo—BPOØ‚è‘Ö‚¦‘Å‚¿‡‚ ‚í‚¹
+2026-10-11 20:31:15,966 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67537, title=yŒ»êzyKTRz’©‰ï
+2026-10-11 20:31:15,972 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67538, title=yŒ»êzUR-WAN i’»Šm”F
+2026-10-11 20:31:15,980 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67539, title=yŒ»êzyKTRzR8-12@“à•”’è—á‰ï
+2026-10-11 20:31:15,987 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67540, title=yŒ»êzUR-WAN i’»Šm”F
+2026-10-11 20:31:15,995 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67541, title=yŒ»êz
+2026-10-11 20:31:16,003 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67542, title=yŒ»êzyUR-WANz’©MTG
+2026-10-11 20:31:16,010 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67543, title=yŒ»êz[UR] ‰c‹Æ/SI “à•”’è—á
+2026-10-11 20:31:16,019 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67544, title=yŒ»êzyKTRz’©‰ï
+2026-10-11 20:31:16,026 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67545, title=yŒ»êzyKTRz’©‰ï
+2026-10-11 20:31:16,034 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67546, title=yŒ»êzyKKCzˆøŒp‚¬
+2026-10-11 20:31:16,041 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67547, title=yŒ»êzyKTRz’©‰ï
+2026-10-11 20:31:16,050 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67548, title=yŒ»êzyKTRz’©‰ï
+2026-10-11 20:31:16,057 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67549, title=yŒ»êzUR-WAN i’»Šm”F
+2026-10-11 20:31:16,066 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67550, title=yŒ»êzƒLƒƒƒ“ƒZƒ‹Ï‚İ: (’²®’†)yKTRzŒŸ•ñ‰ï
+2026-10-11 20:31:16,075 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67551, title=yŒ»êzBƒ`[ƒ€‰ï
+2026-10-11 20:31:16,083 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67552, title=yŒ»êzyKTRz‰^—p’è—á‰ï
+2026-10-11 20:31:16,090 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67553, title=yŒ»êz(Šm’è)yUR-WANzCACHATTOƒNƒ‰ƒEƒhØ‚è‘Ö‚¦ì‹Æ
+2026-10-11 20:31:16,099 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67554, title=yŒ»êzyKTRzR8-12@“à•”’è—á‰ï
+2026-10-11 20:31:16,108 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67555, title=yŒ»êzBƒ`[ƒ€‰ï
+2026-10-11 20:31:16,115 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67556, title=yŒ»êz‰¡’fMTG
+2026-10-11 20:31:16,122 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67557, title=yŒ»êzyKTRzR8-12@“à•”’è—á‰ï
+2026-10-11 20:31:16,129 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67558, title=yŒ»êzyUR-WANz’©MTG
+2026-10-11 20:31:16,137 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67559, title=yŒ»êzyKKCzˆøŒp‚¬
+2026-10-11 20:31:16,145 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67560, title=yŒ»êzUNIT1\,2’è—á
+2026-10-11 20:31:16,153 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67561, title=yŒ»êzyUR-WANz’©MTG
+2026-10-11 20:31:16,160 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67562, title=yŒ»êzyUR-WANz’©MTG
+2026-10-11 20:31:16,168 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67563, title=yŒ»êzUNIT1\,2’è—á
+2026-10-11 20:31:16,175 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67564, title=yŒ»êzyKKCzˆøŒp‚¬
+2026-10-11 20:31:16,182 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67565, title=yŒ»êz‰¡’fMTG
+2026-10-11 20:31:16,189 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67566, title=yŒ»êzyKTRz’©‰ï
+2026-10-11 20:31:16,196 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67567, title=yŒ»êzBƒ`[ƒ€‰ï
+2026-10-11 20:31:16,203 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67568, title=yŒ»êzUNIT1\,2’è—á
+2026-10-11 20:31:16,211 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67569, title=yŒ»êzyKTRz’©‰ï
+2026-10-11 20:31:16,220 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67570, title=yŒ»êzyKTRzR8-12@“à•”’è—á‰ï
+2026-10-11 20:31:16,228 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67571, title=yŒ»êzyKTRz’©‰ï
+2026-10-11 20:31:16,237 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67572, title=yŒ»êzyKTRz’©‰ï
+2026-10-11 20:31:16,245 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67573, title=yŒ»êzUR-WAN i’»Šm”F
+2026-10-11 20:31:16,252 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67574, title=yŒ»êzyUR-WANz’©MTG
+2026-10-11 20:31:16,261 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67575, title=yŒ»êz
+2026-10-11 20:31:16,270 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67576, title=yŒ»êz
+2026-10-11 20:31:16,277 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67577, title=yŒ»êzyKTRz’©‰ï
+2026-10-11 20:31:16,286 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67578, title=yŒ»êzyKTRz’©‰ï
+2026-10-11 20:31:16,293 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67579, title=yŒ»êz[UR] ‰c‹Æ/SI “à•”’è—á
+2026-10-11 20:31:16,304 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67580, title=yŒ»êzyKKCzˆøŒp‚¬
+2026-10-11 20:31:16,312 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67581, title=yŒ»êz‰¡’fMTG
+2026-10-11 20:31:16,320 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67582, title=yŒ»êzyKKCzˆøŒp‚¬
+2026-10-11 20:31:16,330 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67583, title=yŒ»êzƒ`[ƒ€BT•ñXV
+2026-10-11 20:31:16,338 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67584, title=yŒ»êzUR-WAN i’»Šm”F
+2026-10-11 20:31:16,347 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67585, title=yŒ»êzBƒ`[ƒ€‰ï
+2026-10-11 20:31:16,354 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67586, title=yŒ»êz
+2026-10-11 20:31:16,362 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67587, title=yŒ»êzyKTRz’©‰ï
+2026-10-11 20:31:16,369 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67588, title=yŒ»êzUR-WAN i’»Šm”F
+2026-10-11 20:31:16,376 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67589, title=yŒ»êzƒ`[ƒ€BT•ñXV
+2026-10-11 20:31:16,384 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67590, title=MTGFIIJ’¼Œ_–ñ‚ÉŒü‚¯‚Ä‘Ì§\’z‚Ì{ô
+2026-10-11 20:31:16,392 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67591, title=yŒ»êzUNIT1\,2’è—á
+2026-10-11 20:31:16,402 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67592, title=yŒ»êz‰¡’fMTG
+2026-10-11 20:31:16,409 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67593, title=yŒ»êzƒ`[ƒ€BT•ñXV
+2026-10-11 20:31:16,418 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67594, title=yŒ»êzyKTRzR8-12@“à•”’è—á‰ï
+2026-10-11 20:31:16,426 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67595, title=yŒ»êzUR-WAN i’»Šm”F
+2026-10-11 20:31:16,434 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67596, title=yŒ»êzUNIT1\,2’è—á
+2026-10-11 20:31:16,442 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67597, title=yŒ»êzyKTRz’©‰ï
+2026-10-11 20:31:16,450 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67598, title=yŒ»êz[UR] ‰c‹Æ/SI “à•”’è—á
+2026-10-11 20:31:16,458 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67599, title=yŒ»êz‘‘Ş
+2026-10-11 20:31:16,466 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67600, title=yŒ»êzyUR-WANTŸì‹ÆzUOMƒOƒ‰ƒtæ“¾
+2026-10-11 20:31:16,473 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67601, title=yŒ»êzƒ`[ƒ€BT•ñXV
+2026-10-11 20:31:16,480 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67602, title=yŒ»êz[UR] ‰c‹Æ/SI “à•”’è—á
+2026-10-11 20:31:16,488 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67603, title=yŒ»êz
+2026-10-11 20:31:16,497 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67604, title=yŒ»êzyUR-WANz’©MTG
+2026-10-11 20:31:16,505 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67605, title=yŒ»êzyKTRz‰^—p’è—á‰ï
+2026-10-11 20:31:16,512 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67606, title=yŒ»êzSI3-3‰^—pƒ`[ƒ€’è—á
+2026-10-11 20:31:16,520 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67607, title=yŒ»êzyKTRz’©‰ï
+2026-10-11 20:31:16,526 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67608, title=yŒ»êzMTG(R“c)
+2026-10-11 20:31:16,533 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67609, title=yŒ»êzƒ`[ƒ€BT•ñXV
+2026-10-11 20:31:16,540 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67610, title=yŒ»êzyKKCzˆøŒp‚¬
+2026-10-11 20:31:16,547 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67611, title=yŒ»êzyKTRz’©‰ï
+2026-10-11 20:31:16,554 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67612, title=yŒ»êz
+2026-10-11 20:31:16,562 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67613, title=yŒ»êzyUR-WANTŸì‹ÆzUOMƒOƒ‰ƒtæ“¾
+2026-10-11 20:31:16,570 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67614, title=yŒ»êzyKTRz’©‰ï
+2026-10-11 20:31:16,579 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67615, title=yŒ»êzyKTRz’©‰ï
+2026-10-11 20:31:16,587 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67616, title=yŒ»êzBƒ`[ƒ€‰ï
+2026-10-11 20:31:16,594 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67617, title=yŒ»êzyKTRz’©‰ï
+2026-10-11 20:31:16,601 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67618, title=yŒ»êzyUR-WANTŸì‹ÆzUOMƒOƒ‰ƒtæ“¾
+2026-10-11 20:31:16,610 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67619, title=yŒ»êz
+2026-10-11 20:31:16,618 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67620, title=’èŠúMTG(¼ŠÙ‚³‚ñA•àV‚³‚ñ)
+2026-10-11 20:31:16,626 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67621, title=’èŠúMTG(¼ŠÙ‚³‚ñA•àV‚³‚ñ)
+2026-10-11 20:31:16,635 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67622, title=yŒ»êzyKTRz’©‰ï
+2026-10-11 20:31:16,645 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67623, title=yŒ»êzyKTRz’©‰ï
+2026-10-11 20:31:16,654 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67624, title=yŒ»êzyKTRz’©‰ï
+2026-10-11 20:31:16,664 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67625, title=yŒ»êzyUR-WANz’©MTG
+2026-10-11 20:31:16,672 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67626, title=yŒ»êzUNIT1\,2’è—á
+2026-10-11 20:31:16,681 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67627, title=yŒ»êzyUR-WANz’©MTG
+2026-10-11 20:31:16,689 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67628, title=yŒ»êzyKTRz’©‰ï
+2026-10-11 20:31:16,698 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67629, title=yŒ»êzƒ`[ƒ€BT•ñXV
+2026-10-11 20:31:16,705 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67630, title=yŒ»êz
+2026-10-11 20:31:16,714 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67631, title=yŒ»êzyKTRz‰^—p’è—á‰ï
+2026-10-11 20:31:16,722 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67632, title=’èŠúMTG(¼ŠÙ‚³‚ñA•àV‚³‚ñ)
+2026-10-11 20:31:16,729 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67633, title=yŒ»êzyKTRz’©‰ï
+2026-10-11 20:31:16,736 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67634, title=yŒ»êzMTG(R“c)
+2026-10-11 20:31:16,743 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67635, title=yŒ»êzlf‚Ì‘å—Ê‰ğ–ñ‚É‚Â‚¢‚Ä
+2026-10-11 20:31:16,752 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67636, title=yŒ»êzBƒ`[ƒ€‰ï
+2026-10-11 20:31:16,762 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67637, title=yŒ»êz
+2026-10-11 20:31:16,769 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67638, title=yŒ»êzyUR-WANz’©MTG
+2026-10-11 20:31:16,778 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67639, title=yŒ»êz
+2026-10-11 20:31:16,784 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67640, title=yŒ»êzyKKCzˆøŒp‚¬
+2026-10-11 20:31:16,791 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67641, title=yŒ»êzyKKCzˆøŒp‚¬
+2026-10-11 20:31:16,799 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67642, title=yŒ»êzyKTRz’©‰ï
+2026-10-11 20:31:16,805 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67643, title=yŒ»êzUNIT1\,2’è—á
+2026-10-11 20:31:16,812 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67644, title=yŒ»êzMTG(R“c)
+2026-10-11 20:31:16,820 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67645, title=yŒ»êzMTG(R“c)
+2026-10-11 20:31:16,826 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67646, title=yŒ»êzSI3-3‰^—pƒ`[ƒ€’è—á
+2026-10-11 20:31:16,832 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67647, title=yŒ»êzUR-WAN i’»Šm”F
+2026-10-11 20:31:16,840 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67648, title=yŒ»êzyKTRzR8-12@“à•”’è—á‰ï
+2026-10-11 20:31:16,847 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67649, title=yŒ»êzyKTRz’©‰ï
+2026-10-11 20:31:16,855 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67650, title=yŒ»êzyKKCz6‹’“_ŠÔVPNÚ‘± “à•”’è—á
+2026-10-11 20:31:16,863 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67651, title=yŒ»êz
+2026-10-11 20:31:16,870 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67652, title=yŒ»êzyKTRz’©‰ï
+2026-10-11 20:31:16,878 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67653, title=yŒ»êzMTG(R“c)
+2026-10-11 20:31:16,887 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67654, title=yŒ»êz
+2026-10-11 20:31:16,896 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67655, title=yŒ»êzSI3-3‰^—pƒ`[ƒ€’è—á
+2026-10-11 20:31:16,926 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67656, title=yŒ»êz‰¡’fMTG
+2026-10-11 20:31:16,932 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67657, title=yŒ»êzyKTRz‰^—p’è—á‰ï
+2026-10-11 20:31:16,941 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67658, title=yŒ»êzyKTRz’©‰ï
+2026-10-11 20:31:16,949 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67659, title=yŒ»êzyUR-WANz’©MTG
+2026-10-11 20:31:16,957 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67660, title=yŒ»êz
+2026-10-11 20:31:16,965 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67661, title=yŒ»êzyKTRz’©‰ï
+2026-10-11 20:31:16,971 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67662, title=yŒ»êzSI3-3‰^—pƒ`[ƒ€’è—á
+2026-10-11 20:31:16,980 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67663, title=yŒ»êz
+2026-10-11 20:31:16,988 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67664, title=yŒ»êzyKTRz’©‰ï
+2026-10-11 20:31:16,995 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67665, title=yŒ»êzyKTRz’©‰ï
+2026-10-11 20:31:17,002 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67666, title=yŒ»êzyKTRz’©‰ï
+2026-10-11 20:31:17,010 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67667, title=yŒ»êzyKTRzR8-12@“à•”’è—á‰ï
+2026-10-11 20:31:17,021 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67668, title=yŒ»êzyUR-WANz“dqŒˆÙƒNƒ‰ƒEƒhØ‚è‘Ö‚¦ì‹Æ
+2026-10-11 20:31:17,029 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67669, title=yŒ»êzBƒ`[ƒ€‰ï
+2026-10-11 20:31:17,036 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67670, title=yŒ»êzUR-WAN i’»Šm”F
+2026-10-11 20:31:17,049 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67671, title=yŒ»êzyUR-WANz’©MTG
+2026-10-11 20:31:17,058 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67672, title=’èŠúMTG(¼ŠÙ‚³‚ñA•àV‚³‚ñ)
+2026-10-11 20:31:17,067 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67673, title=yŒ»êzyKTRz’©‰ï
+2026-10-11 20:31:17,076 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67674, title=yŒ»êzyKTRz’©‰ï
+2026-10-11 20:31:17,083 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67675, title=yŒ»êzUNIT1\,2’è—á
+2026-10-11 20:31:17,090 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67676, title=yŒ»êz
+2026-10-11 20:31:17,098 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67677, title=yŒ»êzyKTRzR8-12@“à•”’è—á‰ï
+2026-10-11 20:31:17,105 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67678, title=yŒ»êzyKTRz’©‰ï
+2026-10-11 20:31:17,113 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67679, title=yŒ»êzUNIT1\,2’è—á
+2026-10-11 20:31:17,120 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67680, title=yŒ»êz
+2026-10-11 20:31:17,128 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67681, title=yŒ»êzBƒ`[ƒ€‰ï
+2026-10-11 20:31:17,137 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67682, title=yŒ»êzyUR-WANzCRMƒNƒ‰ƒEƒhØ‚è‘Ö‚¦ì‹Æ
+2026-10-11 20:31:17,146 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67683, title=yŒ»êzyUR-WANz’©MTG
+2026-10-11 20:31:17,153 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67684, title=yŒ»êzyKTRz’©‰ï
+2026-10-11 20:31:17,161 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67685, title=yŒ»êzUR-WAN i’»Šm”F
+2026-10-11 20:31:17,169 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67686, title=yŒ»êzyUR-WANz’©MTG
+2026-10-11 20:31:17,178 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67687, title=yŒ»êzyUR-WANTŸì‹ÆzUOMƒOƒ‰ƒtæ“¾
+2026-10-11 20:31:17,187 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67688, title=yŒ»êzyKTRz’©‰ï
+2026-10-11 20:31:17,195 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67689, title=yŒ»êzyKTRzR8-12@“à•”’è—á‰ï
+2026-10-11 20:31:17,203 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67690, title=yŒ»êzMTG(R“c)
+2026-10-11 20:31:17,211 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67691, title=yŒ»êzyKTRz’©‰ï
+2026-10-11 20:31:17,220 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67692, title=yŒ»êzyUR-WANz‰Û‘è®—E‘Š’k
+2026-10-11 20:31:17,227 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67693, title=yŒ»êzyKTRz’©‰ï
+2026-10-11 20:31:17,233 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67694, title=yŒ»êzyKTRz’©‰ï
+2026-10-11 20:31:17,241 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67695, title=yŒ»êzyKTRz‰^—p’è—á‰ï
+2026-10-11 20:31:17,250 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67696, title=yŒ»êzyUR-WANz‰Û‘è®—E‘Š’k
+2026-10-11 20:31:17,259 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67697, title=’èŠúMTG(¼ŠÙ‚³‚ñA•àV‚³‚ñ)
+2026-10-11 20:31:17,266 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67698, title=yŒ»êzyKKCzˆøŒp‚¬
+2026-10-11 20:31:17,273 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67699, title=yŒ»êz‰¡’fMTG
+2026-10-11 20:31:17,282 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67700, title=yŒ»êz
+2026-10-11 20:31:17,290 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67701, title=yŒ»êzyKTRzR8-12@“à•”’è—á‰ï
+2026-10-11 20:31:17,298 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67702, title=yŒ»êzyKTRz’©‰ï
+2026-10-11 20:31:17,305 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67703, title=yŒ»êzyUR-WANz’©MTG
+2026-10-11 20:31:17,313 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67704, title=yŒ»êzBƒ`[ƒ€‰ï
+2026-10-11 20:31:17,321 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67705, title=yŒ»êzyKTRz’©‰ï
+2026-10-11 20:31:17,328 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67706, title=yŒ»êzUNIT1\,2’è—á
+2026-10-11 20:31:17,335 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67707, title=yŒ»êzyKTRzR8-12@“à•”’è—á‰ï
+2026-10-11 20:31:17,342 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67708, title=yŒ»êzyKTRz’©‰ï
+2026-10-11 20:31:17,350 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67709, title=yŒ»êzyKTRz’©‰ï
+2026-10-11 20:31:17,357 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67710, title=yŒ»êzBƒ`[ƒ€‰ï
+2026-10-11 20:31:17,365 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67711, title=yŒ»êzyKTRz’©‰ï
+2026-10-11 20:31:17,373 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67712, title=yŒ»êzUR-WAN i’»Šm”F
+2026-10-11 20:31:17,382 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67713, title=yŒ»êzyKTRzR8-12@“à•”’è—á‰ï
+2026-10-11 20:31:17,390 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67714, title=yŒ»êzyUR-WANTŸì‹ÆzUOMƒOƒ‰ƒtæ“¾
+2026-10-11 20:31:17,397 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67715, title=yŒ»êz‰¡’fMTG
+2026-10-11 20:31:17,404 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67716, title=yŒ»êzUNIT1\,2’è—á
+2026-10-11 20:31:17,414 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67717, title=yŒ»êzyKTRz’©‰ï
+2026-10-11 20:31:17,421 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67718, title=yŒ»êzMTG(R“c)
+2026-10-11 20:31:17,429 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67719, title=yWEB‰ï‹czƒvƒƒOƒ‰ƒCƒuƒRƒ“ƒTƒ‹OD—lA’†ì—l
+2026-10-11 20:31:17,438 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67720, title=yŒ»êzyUR-WANz’©MTG
+2026-10-11 20:31:17,447 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67721, title=yŒ»êz‰¡’fMTG
+2026-10-11 20:31:17,455 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67722, title=yŒ»êz‰ğ–ñEV‹K‚Ìƒ|[ƒŠƒ“ƒOAİ’è€”õó‹µŠm”F
+2026-10-11 20:31:17,466 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67723, title=yŒ»êzyKTRzR8-12@“à•”’è—á‰ï
+2026-10-11 20:31:17,473 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67724, title=yŒ»êzMTG(R“c)
+2026-10-11 20:31:17,480 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67725, title=yŒ»êzyKTRz’©‰ï
+2026-10-11 20:31:17,487 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67726, title=yŒ»êzUR-WAN i’»Šm”F
+2026-10-11 20:31:17,495 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67727, title=yŒ»êzMTG(R“c)
+2026-10-11 20:31:17,503 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67728, title=yŒ»êzMTG(R“c)
+2026-10-11 20:31:17,511 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67729, title=yŒ»êzyUR-WANz‰Û‘è®—E‘Š’k
+2026-10-11 20:31:17,521 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67730, title=yŒ»êz[UR] ‰c‹Æ/SI “à•”’è—á
+2026-10-11 20:31:17,529 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67731, title=yŒ»êzyKTRz‰^—p’è—á‰ï
+2026-10-11 20:31:17,536 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67732, title=yŒ»êzyUR-WANTŸì‹ÆzUOMƒOƒ‰ƒtæ“¾
+2026-10-11 20:31:17,546 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67733, title=yŒ»êzyKTRz’©‰ï
+2026-10-11 20:31:17,556 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67734, title=yŒ»êz
+2026-10-11 20:31:17,564 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67735, title=yŒ»êzUR-WAN i’»Šm”F
+2026-10-11 20:31:17,576 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67736, title=yŒ»êzMTG(R“c)
+2026-10-11 20:31:17,584 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67737, title=yŒ»êzyUR-WANz’©MTG
+2026-10-11 20:31:17,592 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67738, title=yŒ»êzUNIT1\,2’è—á
+2026-10-11 20:31:17,600 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67739, title=yŒ»êzUNIT1\,2’è—á
+2026-10-11 20:31:17,608 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67740, title=yŒ»êzyUR-WANz’©MTG
+2026-10-11 20:31:17,616 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67741, title=yŒ»êz
+2026-10-11 20:31:17,622 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67742, title=yŒ»êzyKTRz’©‰ï
+2026-10-11 20:31:17,627 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67743, title=yŒ»êzyKKCz6‹’“_ŠÔVPNÚ‘± “à•”’è—á
+2026-10-11 20:31:17,634 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67744, title=yŒ»êz
+2026-10-11 20:31:17,641 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67745, title=yŒ»êz[UR] ‰c‹Æ/SI “à•”’è—á
+2026-10-11 20:31:17,649 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67746, title=yŒ»êzyKTR_R8-12zIIJ-NOP’èŠúƒ~[ƒeƒBƒ“ƒO
+2026-10-11 20:31:17,655 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67747, title=yŒ»êzBƒ`[ƒ€‰ï
+2026-10-11 20:31:17,662 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67748, title=yŒ»êzyUR-WANz‰Û‘è®—E‘Š’k
+2026-10-11 20:31:17,669 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67749, title=yŒ»êzyUR-WANz’©MTG
+2026-10-11 20:31:17,680 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67750, title=yŒ»êzyUR-WANz‰Û‘è®—E‘Š’k
+2026-10-11 20:31:17,688 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67751, title=yŒ»êz[UR] ‰c‹Æ/SI “à•”’è—á
+2026-10-11 20:31:17,696 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67752, title=yŒ»êzyKTRz’©‰ï
+2026-10-11 20:31:17,703 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67753, title=yŒ»êzSI3-3‰^—pƒ`[ƒ€’è—á
+2026-10-11 20:31:17,710 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67754, title=yŒ»êz(Šm’è)yKTRzŒŸ•ñ‰ï
+2026-10-11 20:31:17,717 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67755, title=yŒ»êzyKTRz’©‰ï
+2026-10-11 20:31:17,726 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67756, title=yŒ»êz[UR] ‰c‹Æ/SI “à•”’è—á
+2026-10-11 20:31:17,736 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67757, title=yŒ»êzBƒ`[ƒ€‰ï
+2026-10-11 20:31:17,748 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67758, title=yŒ»êzMTG(R“c)
+2026-10-11 20:31:17,758 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67759, title=yŒ»êzyKTRz’©‰ï
+2026-10-11 20:31:17,766 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67760, title=yŒ»êz
+2026-10-11 20:31:17,774 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67761, title=yŒ»êz
+2026-10-11 20:31:17,785 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67762, title=yŒ»êzyUR-WANz‰Û‘è®—E‘Š’k
+2026-10-11 20:31:17,793 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67763, title=yŒ»êzUNIT1\,2’è—á
+2026-10-11 20:31:17,801 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67764, title=’èŠúMTG(¼ŠÙ‚³‚ñA•àV‚³‚ñ)
+2026-10-11 20:31:17,809 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67765, title=yŒ»êz
+2026-10-11 20:31:17,819 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67766, title=yŒ»êz
+2026-10-11 20:31:17,827 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67767, title=yŒ»êzyKKCz6‹’“_ŠÔVPNÚ‘± “à•”’è—á
+2026-10-11 20:31:17,836 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67768, title=yŒ»êz‰ğ–ñEV‹K‚Ìƒ|[ƒŠƒ“ƒOAİ’è€”õó‹µŠm”F
+2026-10-11 20:31:17,846 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67769, title=yŒ»êzCanceled: yKKCz6‹’“_ŠÔVPNÚ‘± “à•”’è—á
+2026-10-11 20:31:17,855 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67770, title=yŒ»êzyKKCzˆøŒp‚¬
+2026-10-11 20:31:17,863 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67771, title=yŒ»êzyUR-WANz’©MTG
+2026-10-11 20:31:17,871 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67772, title=yŒ»êz
+2026-10-11 20:31:17,879 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67773, title=yŒ»êzyUR-WANTŸì‹ÆzUOMƒOƒ‰ƒtæ“¾
+2026-10-11 20:31:17,888 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67774, title=yŒ»êzyKTRz’©‰ï
+2026-10-11 20:31:17,896 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67775, title=yŒ»êzyUR-WANz’©MTG
+2026-10-11 20:31:17,904 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67776, title=yŒ»êz
+2026-10-11 20:31:17,912 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67777, title=yŒ»êzyKTRz’©‰ï
+2026-10-11 20:31:17,919 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67778, title=yŒ»êzSI3-3‰^—pƒ`[ƒ€’è—á
+2026-10-11 20:31:17,926 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67779, title=yŒ»êzyKTRz’©‰ï
+2026-10-11 20:31:17,934 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67780, title=yŒ»êzyUR-WANz’©MTG
+2026-10-11 20:31:17,943 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67781, title=yŒ»êzyKTRzR8-12@“à•”’è—á‰ï
+2026-10-11 20:31:17,951 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67782, title=yŒ»êzyKKCzˆøŒp‚¬
+2026-10-11 20:31:17,959 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67783, title=yŒ»êzyUR-WANTŸì‹ÆzUOMƒOƒ‰ƒtæ“¾
+2026-10-11 20:31:17,967 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67784, title=yŒ»êzyUR-WANz‰Û‘è®—E‘Š’k
+2026-10-11 20:31:17,975 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67785, title=yŒ»êzUR-WAN i’»Šm”F
+2026-10-11 20:31:17,982 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67786, title=yŒ»êzyKTRz’©‰ï
+2026-10-11 20:31:17,989 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67787, title=yŒ»êz
+2026-10-11 20:31:17,997 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67788, title=yŒ»êz‰¡’fMTG
+2026-10-11 20:31:18,005 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67789, title=yŒ»êzyUR-WANz’©MTG
+2026-10-11 20:31:18,013 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67790, title=yŒ»êzyUR-WANz‰Û‘è®—E‘Š’k
+2026-10-11 20:31:18,020 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67791, title=yŒ»êzBƒ`[ƒ€‰ï
+2026-10-11 20:31:18,025 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67792, title=yŒ»êzyUR-WANTŸì‹ÆzUOMƒOƒ‰ƒtæ“¾
+2026-10-11 20:31:18,034 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67793, title=yŒ»êzyKTRz‰^—p’è—á‰ï
+2026-10-11 20:31:18,041 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67794, title=yŒ»êzyKTRz’©‰ï
+2026-10-11 20:31:18,049 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67795, title=yŒ»êz[UR] ‰c‹Æ/SI “à•”’è—á
+2026-10-11 20:31:18,056 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67796, title=yŒ»êzUNIT1\,2’è—á
+2026-10-11 20:31:18,069 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67797, title=yŒ»êzyKTR_R8-12zIIJ-NOP’èŠúƒ~[ƒeƒBƒ“ƒO
+2026-10-11 20:31:18,076 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67798, title=yŒ»êzyKTRzR8-12@“à•”’è—á‰ï
+2026-10-11 20:31:18,083 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67799, title=yŒ»êzyKTRzR8-12@“à•”’è—á‰ï
+2026-10-11 20:31:18,090 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67800, title=yŒ»êzMTG(R“c)
+2026-10-11 20:31:18,097 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67801, title=yŒ»êzBƒ`[ƒ€‰ï
+2026-10-11 20:31:18,105 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67802, title=yŒ»êzyUR-WANz‰Û‘è®—E‘Š’k
+2026-10-11 20:31:18,113 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67803, title=yŒ»êzyUR-WANz‰Û‘è®—E‘Š’k
+2026-10-11 20:31:18,120 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67804, title=yŒ»êzMTG(R“c)
+2026-10-11 20:31:18,129 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67805, title=yŒ»êzBƒ`[ƒ€‰ï
+2026-10-11 20:31:18,135 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67806, title=yŒ»êzyUR-WANTŸì‹ÆzUOMƒOƒ‰ƒtæ“¾
+2026-10-11 20:31:18,145 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67807, title=yŒ»êzyUR-WANTŸì‹ÆzUOMƒOƒ‰ƒtæ“¾
+2026-10-11 20:31:18,153 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67808, title=yŒ»êzyKTRz’©‰ï
+2026-10-11 20:31:18,160 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67809, title=yŒ»êz
+2026-10-11 20:31:18,168 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67810, title=’èŠúMTG(¼ŠÙ‚³‚ñA•àV‚³‚ñ)
+2026-10-11 20:31:18,176 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67811, title=yŒ»êzyKTRz’©‰ï
+2026-10-11 20:31:18,185 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67812, title=yŒ»êzyKTRz’©‰ï
+2026-10-11 20:31:18,193 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67813, title=yŒ»êzyUR-WANz’©MTG
+2026-10-11 20:31:18,202 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67814, title=yŒ»êzyUR-WANz’©MTG
+2026-10-11 20:31:18,210 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67815, title=yŒ»êzyKTRz‰^—p’è—á‰ï
+2026-10-11 20:31:18,220 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67816, title=yŒ»êz
+2026-10-11 20:31:18,229 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67817, title=yŒ»êzSI3-3‰^—pƒ`[ƒ€’è—á
+2026-10-11 20:31:18,238 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67818, title=yŒ»êzyKTRzR8-12@“à•”’è—á‰ï
+2026-10-11 20:31:18,247 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67819, title=yŒ»êzyKTRzR8-12@“à•”’è—á‰ï
+2026-10-11 20:31:18,256 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67820, title=yŒ»êzSI3-3‰^—pƒ`[ƒ€’è—á
+2026-10-11 20:31:18,264 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67821, title=yŒ»êzyKTRz’©‰ï
+2026-10-11 20:31:18,271 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67822, title=yŒ»êz‰¡’fMTG
+2026-10-11 20:31:18,278 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67823, title=yŒ»êzyKTRz’©‰ï
+2026-10-11 20:31:18,285 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67824, title=yŒ»êzyKTRz’©‰ï
+2026-10-11 20:31:18,292 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67825, title=yŒ»êzyKTRz’©‰ï
+2026-10-11 20:31:18,299 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67826, title=yŒ»êzyUR-WANz‰Û‘è®—E‘Š’k
+2026-10-11 20:31:18,307 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67827, title=yŒ»êzyKTRz’©‰ï
+2026-10-11 20:31:18,318 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67828, title=yŒ»êzyUR-WANz‰Û‘è®—E‘Š’k
+2026-10-11 20:31:18,327 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67829, title=yŒ»êzyKTRz’©‰ï
+2026-10-11 20:31:18,335 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67830, title=yŒ»êz[UR] ‰c‹Æ/SI “à•”’è—á
+2026-10-11 20:31:18,343 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67831, title=yŒ»êzyKTRz’©‰ï
+2026-10-11 20:31:18,352 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67832, title=yŒ»êzyKKCzˆøŒp‚¬
+2026-10-11 20:31:18,360 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67833, title=yŒ»êzyKTRz’©‰ï
+2026-10-11 20:31:18,368 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67834, title=yŒ»êzSI3-3‰^—pƒ`[ƒ€’è—á
+2026-10-11 20:31:18,375 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67835, title=yŒ»êzSI3-3‰^—pƒ`[ƒ€’è—á
+2026-10-11 20:31:18,383 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67836, title=yŒ»êz‰¡’fMTG
+2026-10-11 20:31:18,391 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67837, title=yŒ»êzyKTRz‰^—p’è—á‰ï
+2026-10-11 20:31:18,400 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67838, title=yŒ»êzyKTRz’©‰ï
+2026-10-11 20:31:18,407 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67839, title=yŒ»êzUNIT1\,2’è—á
+2026-10-11 20:31:18,417 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67840, title=yŒ»êzUNIT1\,2’è—á
+2026-10-11 20:31:18,425 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67841, title=yŒ»êz‰¡’fMTG
+2026-10-11 20:31:18,434 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67842, title=yŒ»êz
+2026-10-11 20:31:18,442 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67843, title=yŒ»êz[UR] ‰c‹Æ/SI “à•”’è—á
+2026-10-11 20:31:18,451 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67844, title=yŒ»êzyUR-WANTŸì‹ÆzUOMƒOƒ‰ƒtæ“¾
+2026-10-11 20:31:18,459 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67845, title=yŒ»êzyKTRzR8-12@“à•”’è—á‰ï
+2026-10-11 20:31:18,467 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67846, title=yŒ»êzyKTRz’©‰ï
+2026-10-11 20:31:18,474 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67847, title=yŒ»êz“dqŒˆÙì‹Æ€”õ
+2026-10-11 20:31:18,484 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67848, title=yŒ»êzyUR-WANz‰Û‘è®—E‘Š’k
+2026-10-11 20:31:18,492 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67849, title=yŒ»êzyUR-WANz’©MTG
+2026-10-11 20:31:18,498 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67850, title=yŒ»êzyKTRz’©‰ï
+2026-10-11 20:31:18,505 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67851, title=yŒ»êz
+2026-10-11 20:31:18,512 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67852, title=yŒ»êzyUR-WANTŸì‹ÆzUOMƒOƒ‰ƒtæ“¾
+2026-10-11 20:31:18,519 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67853, title=yŒ»êzyUR-WANzŒŸ’è—á‰ï16
+2026-10-11 20:31:18,526 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67854, title=yŒ»êzƒ`[ƒ€BT•ñXV
+2026-10-11 20:31:18,534 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67855, title=yŒ»êzyKTRz’©‰ï
+2026-10-11 20:31:18,541 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67856, title=yŒ»êzUR-WAN i’»Šm”F
+2026-10-11 20:31:18,548 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67857, title=yŒ»êz‰¡’fMTG
+2026-10-11 20:31:18,556 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67858, title=yŒ»êzƒ`[ƒ€BT•ñXV
+2026-10-11 20:31:18,564 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67859, title=’èŠúMTG(¼ŠÙ‚³‚ñA•àV‚³‚ñ)
+2026-10-11 20:31:18,571 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67860, title=yŒ»êzMTG(R“c)
+2026-10-11 20:31:18,578 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67861, title=yŒ»êzyKTRz’©‰ï
+2026-10-11 20:31:18,585 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67862, title=yŒ»êzyKTRz’©‰ï
+2026-10-11 20:31:18,592 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67863, title=yŒ»êz
+2026-10-11 20:31:18,599 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67864, title=yŒ»êz
+2026-10-11 20:31:18,607 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67865, title=yŒ»êzyKTRz’©‰ï
+2026-10-11 20:31:18,613 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67866, title=yŒ»êzyKTR_R8-12zIIJ-NOP’èŠúƒ~[ƒeƒBƒ“ƒO
+2026-10-11 20:31:18,621 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67867, title=yŒ»êz‰¡’fMTG
+2026-10-11 20:31:18,628 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67868, title=yŒ»êzyUR-WANTŸì‹ÆzUOMƒOƒ‰ƒtæ“¾
+2026-10-11 20:31:18,635 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67869, title=yŒ»êzyKTRzR8-12@“à•”’è—á‰ï
+2026-10-11 20:31:18,644 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67870, title=yŒ»êz[UR] ‰c‹Æ/SI “à•”’è—á
+2026-10-11 20:31:18,652 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67871, title=yŒ»êzUNIT1\,2’è—á
+2026-10-11 20:31:18,660 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67872, title=yŒ»êzUR-WAN i’»Šm”F
+2026-10-11 20:31:18,669 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67873, title=yŒ»êzyUR-WANz‰Û‘è®—E‘Š’k
+2026-10-11 20:31:18,677 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67874, title=yŒ»êz
+2026-10-11 20:31:18,685 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67875, title=yŒ»êzyUR-WANz‰Û‘è®—E‘Š’k
+2026-10-11 20:31:18,693 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67876, title=yŒ»êzyUR-WANz’©MTG
+2026-10-11 20:31:18,701 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67877, title=yŒ»êzyKTR_R8-12zIIJ-NOP’èŠúƒ~[ƒeƒBƒ“ƒO
+2026-10-11 20:31:18,708 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67878, title=yŒ»êz
+2026-10-11 20:31:18,714 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67879, title=yŒ»êzyKTRz’©‰ï
+2026-10-11 20:31:18,722 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67880, title=yŒ»êzyKTR_R8-12zIIJ-NOP’èŠúƒ~[ƒeƒBƒ“ƒO
+2026-10-11 20:31:18,730 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67881, title=yŒ»êzSI3-3‰^—pƒ`[ƒ€’è—á
+2026-10-11 20:31:18,738 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67882, title=yŒ»êz[UR] ‰c‹Æ/SI “à•”’è—á
+2026-10-11 20:31:18,747 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67883, title=yŒ»êzyUR-WANz’©MTG
+2026-10-11 20:31:18,754 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67884, title=yŒ»êz[UR] ‰c‹Æ/SI “à•”’è—á
+2026-10-11 20:31:18,761 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67885, title=yŒ»êzyKTRz’©‰ï
+2026-10-11 20:31:18,770 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67886, title=yŒ»êzyUR-WANz’©MTG
+2026-10-11 20:31:18,776 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67887, title=yŒ»êz‰ğ–ñEV‹K‚Ìƒ|[ƒŠƒ“ƒOAİ’è€”õó‹µŠm”F
+2026-10-11 20:31:18,783 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67888, title=yŒ»êzSI3-3‰^—pƒ`[ƒ€’è—á
+2026-10-11 20:31:18,792 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67889, title=yŒ»êz‰¡’fMTG
+2026-10-11 20:31:18,799 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67890, title=yŒ»êz
+2026-10-11 20:31:18,807 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67891, title=yŒ»êzyKTRz’©‰ï
+2026-10-11 20:31:18,815 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67892, title=yŒ»êzyUR-WANz‰Û‘è®—E‘Š’k
+2026-10-11 20:31:18,822 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67893, title=yŒ»êzyKKCzˆøŒp‚¬
+2026-10-11 20:31:18,831 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67894, title=yŒ»êzyKTRz’©‰ï
+2026-10-11 20:31:18,838 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67895, title=yŒ»êz
+2026-10-11 20:31:18,846 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67896, title=yŒ»êz‰¡’fMTG
+2026-10-11 20:31:18,854 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67897, title=yŒ»êzyKTRz’©‰ï
+2026-10-11 20:31:18,862 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67898, title=yŒ»êzyKTRz‰^—p’è—á‰ï
+2026-10-11 20:31:18,870 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67899, title=yŒ»êzyKTRz’©‰ï
+2026-10-11 20:31:18,880 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67900, title=yŒ»êzyKTRzR8-12@“à•”’è—á‰ï
+2026-10-11 20:31:18,905 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67901, title=yŒ»êz
+2026-10-11 20:31:18,914 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67902, title=yŒ»êzƒLƒƒƒ“ƒZƒ‹Ï‚İ: yŒó•â‡Bz–¾¡ƒRƒ“ƒTƒ‹ƒ^ƒ“ƒg‚³‚Ü(‘Ûq‹Æ‚³‚Ü)—ŒÚ‹qƒeƒiƒ“ƒg
+2026-10-11 20:31:18,932 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67903, title=yŒ»êzyUR-WANTŸì‹ÆzUOMƒOƒ‰ƒtæ“¾
+2026-10-11 20:31:18,942 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67904, title=yŒ»êzyKTRz’©‰ï
+2026-10-11 20:31:18,950 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67905, title=yŒ»êzyKTR_R8-12zIIJ-NOP’èŠúƒ~[ƒeƒBƒ“ƒO
+2026-10-11 20:31:18,959 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67906, title=yŒ»êzyKTRz’©‰ï
+2026-10-11 20:31:18,970 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67907, title=yŒ»êzyUR-WANTŸì‹ÆzUOMƒOƒ‰ƒtæ“¾
+2026-10-11 20:31:18,979 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67908, title=yŒ»êzMTG(R“c)
+2026-10-11 20:31:18,988 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67909, title=yŒ»êz
+2026-10-11 20:31:18,997 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67910, title=yŒ»êz[UR] ‰c‹Æ/SI “à•”’è—á
+2026-10-11 20:31:19,005 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67911, title=yŒ»êz
+2026-10-11 20:31:19,014 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67912, title=yŒ»êz
+2026-10-11 20:31:19,023 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67913, title=yŒ»êzyKTRz’©‰ï
+2026-10-11 20:31:19,033 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67914, title=yŒ»êzyKTRz’©‰ï
+2026-10-11 20:31:19,041 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67915, title=yŒ»êzyKTRz‰^—p’è—á‰ï
+2026-10-11 20:31:19,049 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67916, title=yŒ»êzyUR-WANz‰Û‘è®—E‘Š’k
+2026-10-11 20:31:19,057 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67917, title=yŒ»êzyKTRz’©‰ï
+2026-10-11 20:31:19,067 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67918, title=yŒ»êzyKTRzR8-12@“à•”’è—á‰ï
+2026-10-11 20:31:19,078 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67919, title=yŒ»êz
+2026-10-11 20:31:19,087 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67920, title=yŒ»êzyKTRzR8-12@“à•”’è—á‰ï
+2026-10-11 20:31:19,094 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67921, title=yŒ»êz
+2026-10-11 20:31:19,104 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67922, title=yŒ»êzyKTRz’©‰ï
+2026-10-11 20:31:19,114 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67923, title=yŒ»êzyKKCzˆøŒp‚¬
+2026-10-11 20:31:19,123 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67924, title=yŒ»êzyKTRz’©‰ï
+2026-10-11 20:31:19,133 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67925, title=yŒ»êzyKTRz’©‰ï
+2026-10-11 20:31:19,142 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67926, title=yŒ»êz
+2026-10-11 20:31:19,154 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67927, title=yŒ»êzyKTRz’©‰ï
+2026-10-11 20:31:19,162 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67928, title=yŒ»êzUNIT1\,2’è—á
+2026-10-11 20:31:19,173 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67929, title=yŒ»êzMTG(R“c)
+2026-10-11 20:31:19,180 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67930, title=yŒ»êzyKTRz’©‰ï
+2026-10-11 20:31:19,188 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67931, title=yŒ»êzyKKCzˆøŒp‚¬
+2026-10-11 20:31:19,195 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67932, title=yŒ»êzyUR-WANz’©MTG
+2026-10-11 20:31:19,204 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67933, title=yŒ»êzUR-WAN i’»Šm”F
+2026-10-11 20:31:19,212 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67934, title=yŒ»êzyKTRz’©‰ï
+2026-10-11 20:31:19,220 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67935, title=yŒ»êzyKTRz’©‰ï
+2026-10-11 20:31:19,229 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67936, title=yŒ»êzyUR-WANz‰Û‘è®—E‘Š’k
+2026-10-11 20:31:19,237 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67937, title=yŒ»êzyUR-WANz’©MTG
+2026-10-11 20:31:19,245 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67938, title=yŒ»êzyKTRzR8-12@“à•”’è—á‰ï
+2026-10-11 20:31:19,254 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67939, title=yŒ»êzyKTRzR8-12@“à•”’è—á‰ï
+2026-10-11 20:31:19,262 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67940, title=yŒ»êzyKTRz’©‰ï
+2026-10-11 20:31:19,270 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67941, title=yŒ»êzyUR-WANz’©MTG
+2026-10-11 20:31:19,278 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67942, title=yŒ»êz‰¡’fMTG
+2026-10-11 20:31:19,285 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67943, title=yŒ»êzyUR-WANz192.168‘Î‰İ’è“Š“ü
+2026-10-11 20:31:19,293 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67944, title=yŒ»êzyUR-WANz‰Û‘è®—E‘Š’k
+2026-10-11 20:31:19,301 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67945, title=yŒ»êzyUR-WANz‰Û‘è®—E‘Š’k
+2026-10-11 20:31:19,312 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67946, title=yŒ»êz‰¡’fMTG
+2026-10-11 20:31:19,323 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67947, title=yŒ»êzBƒ`[ƒ€‰ï
+2026-10-11 20:31:19,333 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67948, title=yŒ»êzyKTRz’©‰ï
+2026-10-11 20:31:19,341 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67949, title=yŒ»êz‰¡’fMTG
+2026-10-11 20:31:19,352 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67950, title=yŒ»êzyKTRz’©‰ï
+2026-10-11 20:31:19,361 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67951, title=yŒ»êz[UR] ‰c‹Æ/SI “à•”’è—á
+2026-10-11 20:31:19,374 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67952, title=yŒ»êz
+2026-10-11 20:31:19,384 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67953, title=yŒ»êzyKTRzR8-12@“à•”’è—á‰ï
+2026-10-11 20:31:19,396 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67954, title=yŒ»êzMTG(R“c)
+2026-10-11 20:31:19,404 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67955, title=yŒ»êzƒ`[ƒ€BT•ñXV
+2026-10-11 20:31:19,414 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67956, title=yŒ»êzyKTRzR8-12@“à•”’è—á‰ï
+2026-10-11 20:31:19,424 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67957, title=yŒ»êzŠÄ‹ÃŠÏ“o˜^(iwr15676575_‹ãBxĞ#1Aiwr79485388_‹ãBxĞ#2)
+2026-10-11 20:31:19,431 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67958, title=yŒ»êzyKTRz’©‰ï
+2026-10-11 20:31:19,440 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67959, title=yŒ»êzyKTRz’©‰ï
+2026-10-11 20:31:19,448 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67960, title=yŒ»êzMTG(R“c)
+2026-10-11 20:31:19,457 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67961, title=yŒ»êzyKTRz’©‰ï
+2026-10-11 20:31:19,465 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67962, title=yŒ»êzyKTRz‰^—p’è—á‰ï
+2026-10-11 20:31:19,474 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67963, title=yŒ»êzyUR-WANz’©MTG
+2026-10-11 20:31:19,483 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67964, title=yŒ»êzMTG(R“c)
+2026-10-11 20:31:19,492 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67965, title=yŒ»êzBƒ`[ƒ€‰ï
+2026-10-11 20:31:19,501 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67966, title=yŒ»êz
+2026-10-11 20:31:19,511 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67967, title=yŒ»êzƒ`[ƒ€BT•ñXV
+2026-10-11 20:31:19,519 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67968, title=yŒ»êzSI3-3‰^—pƒ`[ƒ€’è—á
+2026-10-11 20:31:19,529 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67969, title=yŒ»êzUR-WAN i’»Šm”F
+2026-10-11 20:31:19,537 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67970, title=yŒ»êz
+2026-10-11 20:31:19,546 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67971, title=yŒ»êzyKTRzR8-12@“à•”’è—á‰ï
+2026-10-11 20:31:19,556 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67972, title=yŒ»êz
+2026-10-11 20:31:19,565 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67973, title=yŒ»êzBƒ`[ƒ€‰ï
+2026-10-11 20:31:19,574 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67974, title=yŒ»êz[UR] ‰c‹Æ/SI “à•”’è—á
+2026-10-11 20:31:19,585 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67975, title=yŒ»êzyKTRzR8-12@“à•”’è—á‰ï
+2026-10-11 20:31:19,594 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67976, title=yŒ»êzUR-WAN i’»Šm”F
+2026-10-11 20:31:19,602 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67977, title=yŒ»êz[UR] ‰c‹Æ/SI “à•”’è—á
+2026-10-11 20:31:19,611 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67978, title=yŒ»êzyKTRz’©‰ï
+2026-10-11 20:31:19,618 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67979, title=yŒ»êzƒLƒƒƒ“ƒZƒ‹Ï‚İ: yŒó•â‡Az–¾¡ƒRƒ“ƒTƒ‹ƒ^ƒ“ƒg‚³‚Ü(‘Ûq‹Æ‚³‚Ü)—ŒÚ‹qƒeƒiƒ“ƒg
+2026-10-11 20:31:19,627 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67980, title=yŒ»êzyKTRz’©‰ï
+2026-10-11 20:31:19,635 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67981, title=yŒ»êzyUR-WANz’©MTG
+2026-10-11 20:31:19,645 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67982, title=yŒ»êz
+2026-10-11 20:31:19,653 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67983, title=yŒ»êz[UR] ‰c‹Æ/SI “à•”’è—á
+2026-10-11 20:31:19,663 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67984, title=yŒ»êzyUR-WANz’©MTG
+2026-10-11 20:31:19,673 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67985, title=yŒ»êzSI3-3‰^—pƒ`[ƒ€’è—á
+2026-10-11 20:31:19,683 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67986, title=yŒ»êzyUR-WANz‰Û‘è®—E‘Š’k
+2026-10-11 20:31:19,695 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67987, title=yŒ»êz
+2026-10-11 20:31:19,705 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67988, title=yŒ»êz‰ğ–ñEV‹K‚Ìƒ|[ƒŠƒ“ƒOAİ’è€”õó‹µŠm”F
+2026-10-11 20:31:19,715 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67989, title=yŒ»êzyKTRz’©‰ï
+2026-10-11 20:31:19,723 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67990, title=yŒ»êzyKTRz‰^—p’è—á‰ï
+2026-10-11 20:31:19,731 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67991, title=yŒ»êzyKTRz‰^—p’è—á‰ï
+2026-10-11 20:31:19,743 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67992, title=yŒ»êzyKTRz’©‰ï
+2026-10-11 20:31:19,753 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67993, title=yŒ»êzyKKCzˆøŒp‚¬
+2026-10-11 20:31:19,765 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67994, title=yŒ»êz‘S‹x
+2026-10-11 20:31:19,772 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67995, title=yŒ»êzyUR-WANTŸì‹ÆzUOMƒOƒ‰ƒtæ“¾
+2026-10-11 20:31:19,781 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67996, title=yŒ»êzBƒ`[ƒ€‰ï
+2026-10-11 20:31:19,789 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67997, title=yŒ»êz
+2026-10-11 20:31:19,798 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67998, title=yŒ»êzyKTRz’©‰ï
+2026-10-11 20:31:19,807 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=67999, title=yŒ»êzMTG(R“c)
+2026-10-11 20:31:19,814 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=68000, title=yŒ»êzyUR-WANz’©MTG
+2026-10-11 20:31:19,824 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=68001, title=yŒ»êzyUR-WANTŸì‹ÆzUOMƒOƒ‰ƒtæ“¾
+2026-10-11 20:31:19,833 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=68002, title=yŒ»êzSI3-3‰^—pƒ`[ƒ€’è—á
+2026-10-11 20:31:19,841 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=68003, title=yŒ»êzSI3-3‰^—pƒ`[ƒ€’è—á
+2026-10-11 20:31:19,849 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=68004, title=yŒ»êzƒ`[ƒ€BT•ñXV
+2026-10-11 20:31:19,859 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=68005, title=yŒ»êz‰ğ–ñEV‹K‚Ìƒ|[ƒŠƒ“ƒOAİ’è€”õó‹µŠm”F
+2026-10-11 20:31:19,869 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=68006, title=yŒ»êzyKTRzR8-12@“à•”’è—á‰ï
+2026-10-11 20:31:19,877 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=68007, title=yŒ»êzMTG(R“c)
+2026-10-11 20:31:19,886 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=68008, title=yŒ»êzSI3-3‰^—pƒ`[ƒ€’è—á
+2026-10-11 20:31:19,894 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=68009, title=yŒ»êzyUR-WANz’©MTG
+2026-10-11 20:31:19,903 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=68010, title=yŒ»êzyKTRzR8-12@“à•”’è—á‰ï
+2026-10-11 20:31:19,910 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=68011, title=yŒ»êzyUR-WANz‰Û‘è®—E‘Š’k
+2026-10-11 20:31:19,918 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=68012, title=yŒ»êz(‰¼)yUR-WANzIPFAX’ÊM•s—Ç‘Î‰
+2026-10-11 20:31:19,926 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=68013, title=yŒ»êzyKTRz‰^—p’è—á‰ï
+2026-10-11 20:31:19,935 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=68014, title=yŒ»êzyKTRz‰^—p’è—á‰ï
+2026-10-11 20:31:19,945 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=68015, title=yŒ»êzyKTRzR8-12@“à•”’è—á‰ï
+2026-10-11 20:31:19,953 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=68016, title=yŒ»êzyKTRzR8-12@“à•”’è—á‰ï
+2026-10-11 20:31:19,961 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=68017, title=yŒ»êz[UR] ‰c‹Æ/SI “à•”’è—á
+2026-10-11 20:31:19,972 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=68018, title=yŒ»êzyKTRz’©‰ï
+2026-10-11 20:31:19,980 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=68019, title=yŒ»êzSI3-3‰^—pƒ`[ƒ€’è—á
+2026-10-11 20:31:19,988 - storage.calendar_repo - INFO - —\’è‚ğì¬‚µ‚Ü‚µ‚½: ID=68020, title=yŒ»êzyKTRz’©‰ï
+2026-10-11 20:31:20,003 - ics_tools - INFO - GoogleƒJƒŒƒ“ƒ_[ iCal “¯ŠúŠ®—¹ (ƒJƒŒƒ“ƒ_[2): 1024Œ
+2026-10-11 20:31:20,005 - __main__ - INFO - \U0001f4c5 GoogleƒJƒŒƒ“ƒ_[’èŠú“¯Šú: uƒƒCƒ“ƒJƒŒƒ“ƒ_[v‚©‚ç 9 Œ ^ uƒJƒŒƒ“ƒ_[2v‚©‚ç 1024 Œ
+2026-10-11 20:31:23,115 - llm_factory - INFO - \U0001f310 ‘SƒvƒƒoƒCƒ_‚ÌÅVƒ‚ƒfƒ‹ˆê——‚ğ•À—ñ„‰ñE“¯Šú’†...
+2026-10-11 20:31:23,131 - llm_factory - INFO - ƒ‚ƒfƒ‹ƒLƒƒƒbƒVƒ…‚ğ discovered_models.json ‚É•Û‘¶‚µ‚Ü‚µ‚½
+2026-10-11 20:31:23,131 - llm_factory - INFO - claude ‚©‚ç 5 Œ‚Ìƒ‚ƒfƒ‹‚ğæ“¾EƒLƒƒƒbƒVƒ…‚µ‚Ü‚µ‚½B
+2026-10-11 20:31:23,848 - llm_factory - INFO - ƒ‚ƒfƒ‹ƒLƒƒƒbƒVƒ…‚ğ discovered_models.json ‚É•Û‘¶‚µ‚Ü‚µ‚½
+2026-10-11 20:31:23,865 - llm_factory - INFO - opencode ‚©‚ç 45 Œ‚Ìƒ‚ƒfƒ‹‚ğæ“¾EƒLƒƒƒbƒVƒ…‚µ‚Ü‚µ‚½B
+pyimod02_importers.py:457: FutureWarning: 
+
+All support for the `google.generativeai` package has ended. It will no longer be receiving 
+updates or bug fixes. Please switch to the `google.genai` package as soon as possible.
+See README for more details:
+
+https://github.com/google-gemini/deprecated-generative-ai-python/blob/main/README.md
+
+2026-10-11 20:31:24,108 - llm_factory - WARNING - SDKŒo—R‚Å‚ÌGeminiƒ‚ƒfƒ‹æ“¾‚ğƒXƒLƒbƒv‚µAREST API‚ÅÄs‚µ‚Ü‚·: 400 API key not valid. Please pass a valid API key. [reason: "API_KEY_INVALID"
+domain: "googleapis.com"
+metadata {
+  key: "service"
+  value: "generativelanguage.googleapis.com"
+}
+, locale: "en-US"
+message: "API key not valid. Please pass a valid API key."
+]
+2026-10-11 20:31:24,218 - llm_factory - ERROR - gemini ‚Ìƒ‚ƒfƒ‹ˆê——æ“¾‚É¸”s‚µ‚Ü‚µ‚½: HTTP Error 400: Bad Request
+2026-10-11 20:31:24,221 - llm_factory - INFO - gemini ‚ÌƒtƒH[ƒ‹ƒoƒbƒNƒ‚ƒfƒ‹ˆê—— (5 Œ) ‚ğƒ[ƒh‚µ‚Ü‚µ‚½B
+2026-10-11 20:31:24,227 - llm_factory - INFO - \u23ed [ƒ‚ƒfƒ‹“¯Šú] custom_openai ‚Í–¢İ’èE–¢‹N“®‚Ì‚½‚ß„‰ñ‚ğƒXƒLƒbƒv‚µ‚Ü‚·
+2026-10-11 20:31:24,243 - llm_factory - INFO - ƒ‚ƒfƒ‹ƒLƒƒƒbƒVƒ…‚ğ discovered_models.json ‚É•Û‘¶‚µ‚Ü‚µ‚½
+2026-10-11 20:31:24,246 - llm_factory - INFO - local_gguf ‚©‚ç 7 Œ‚Ìƒ‚ƒfƒ‹‚ğæ“¾EƒLƒƒƒbƒVƒ…‚µ‚Ü‚µ‚½B
+2026-10-11 20:31:25,280 - llm_factory - INFO - \u23ed [ƒ‚ƒfƒ‹“¯Šú] ollama ‚Í–¢İ’èE–¢‹N“®‚Ì‚½‚ß„‰ñ‚ğƒXƒLƒbƒv‚µ‚Ü‚·
+2026-10-11 20:31:26,305 - llm_factory - INFO - \u23ed [ƒ‚ƒfƒ‹“¯Šú] lm_studio ‚Í–¢İ’èE–¢‹N“®‚Ì‚½‚ß„‰ñ‚ğƒXƒLƒbƒv‚µ‚Ü‚·
+2026-10-11 20:31:27,218 - llm_factory - ERROR - groq ‚Ìƒ‚ƒfƒ‹ˆê——æ“¾‚É¸”s‚µ‚Ü‚µ‚½: <urlopen error [WinError 10061] ‘ÎÛ‚ÌƒRƒ“ƒsƒ…[ƒ^[‚É‚æ‚Á‚Ä‹‘”Û‚³‚ê‚½‚½‚ßAÚ‘±‚Å‚«‚Ü‚¹‚ñ‚Å‚µ‚½B>
+2026-10-11 20:31:27,231 - llm_factory - INFO - groq ‚ÌƒtƒH[ƒ‹ƒoƒbƒNƒ‚ƒfƒ‹ˆê—— (5 Œ) ‚ğƒ[ƒh‚µ‚Ü‚µ‚½B
+2026-10-11 20:31:27,231 - llm_factory - ERROR - openai ‚Ìƒ‚ƒfƒ‹ˆê——æ“¾‚É¸”s‚µ‚Ü‚µ‚½: <urlopen error [WinError 10061] ‘ÎÛ‚ÌƒRƒ“ƒsƒ…[ƒ^[‚É‚æ‚Á‚Ä‹‘”Û‚³‚ê‚½‚½‚ßAÚ‘±‚Å‚«‚Ü‚¹‚ñ‚Å‚µ‚½B>
+2026-10-11 20:31:27,232 - llm_factory - INFO - openai ‚ÌƒtƒH[ƒ‹ƒoƒbƒNƒ‚ƒfƒ‹ˆê—— (5 Œ) ‚ğƒ[ƒh‚µ‚Ü‚µ‚½B
+2026-10-11 20:31:27,989 - llm_factory - ERROR - openrouter ‚Ìƒ‚ƒfƒ‹ˆê——æ“¾‚É¸”s‚µ‚Ü‚µ‚½: <urlopen error [WinError 10061] ‘ÎÛ‚ÌƒRƒ“ƒsƒ…[ƒ^[‚É‚æ‚Á‚Ä‹‘”Û‚³‚ê‚½‚½‚ßAÚ‘±‚Å‚«‚Ü‚¹‚ñ‚Å‚µ‚½B>
+2026-10-11 20:31:28,002 - llm_factory - INFO - openrouter ‚ÌƒtƒH[ƒ‹ƒoƒbƒNƒ‚ƒfƒ‹ˆê—— (7 Œ) ‚ğƒ[ƒh‚µ‚Ü‚µ‚½B
+2026-10-11 20:31:28,005 - llm_factory - INFO - \u2713 ‘SƒvƒƒoƒCƒ_‚Ìƒ‚ƒfƒ‹“¯Šú‚ªŠ®—¹‚µ‚Ü‚µ‚½: {'gemini': 5, 'claude': 5, 'openai': 5, 'opencode': 45, 'groq': 5, 'openrouter': 7, 'custom_openai': 'skipped: –¢İ’èE–¢‹N“®', 'local_gguf': 7, 'ollama': 'skipped: –¢İ’èE–¢‹N“®', 'lm_studio': 'skipped: –¢İ’èE–¢‹N“®'}
+2026-10-11 20:31:46,268 - storage.push_subscription_repo - INFO - \U0001f514 [Push] w“Ç‚ğ•Û‘¶‚µ‚Ü‚µ‚½: id=4, endpoint=https://fcm.googleapis.com/fcm/send/cdPe-gW37Vo:APA91bHk3MKX...
+2026-10-11 20:31:46,273 - api_push - INFO - \U0001f514 [Push API] w“Ç‚ğó‚¯•t‚¯‚Ü‚µ‚½: endpoint=https://fcm.googleapis.com/fcm/send/cdPe-gW37Vo:APA91bHk3MKX...
+2026-10-11 20:32:03,819 - storage.push_subscription_repo - INFO - \U0001f514 [Push] w“Ç‚ğ•Û‘¶‚µ‚Ü‚µ‚½: id=4, endpoint=https://fcm.googleapis.com/fcm/send/cdPe-gW37Vo:APA91bHk3MKX...
+2026-10-11 20:32:03,832 - api_push - INFO - \U0001f514 [Push API] w“Ç‚ğó‚¯•t‚¯‚Ü‚µ‚½: endpoint=https://fcm.googleapis.com/fcm/send/cdPe-gW37Vo:APA91bHk3MKX...
+2026-10-11 20:44:14,058 - life_dreamer - INFO - \U0001f308 [LifeDreamer] ƒŠƒAƒ‹“V‹C‚ğ”½‰f: \u2600\ufe0f °‚ê 19.0‹C (Š‘òs, “ú–{)
+2026-10-11 20:44:14,066 - llm_factory - INFO - LLMƒ‚ƒfƒ‹‚ğ¶¬’†: Provider=opencode, Model=deepseek-v4-flash
+2026-10-11 20:44:14,574 - httpx2 - INFO - HTTP Request: POST https://opencode.ai/zen/go/v1/chat/completions "HTTP/1.1 401 Unauthorized"
+2026-10-11 20:44:14,589 - life_dreamer - INFO - \U0001f308 [LifeDreamer] LLMŒÄ‚Ño‚µ¸”sAƒ‹[ƒ‹‚ÉƒtƒH[ƒ‹ƒoƒbƒN: Error code: 401 - {'type': 'error', 'error': {'type': 'AuthError', 'message': 'Invalid API key.'}}
