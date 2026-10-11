@@ -520,7 +520,7 @@ class NeoSecretaryApp:
             #    (例: MissingSessionID) を吹き出しに 1 行だけ見せる。
             #    全文はログ (logger.error + exc_info) に記録済み。
             fallback_text = f"{fallback_text}\n（{format_llm_error_hint(e)}）"
-            self.gui.update_message(egg_fallback or fallback_text)
+            self.gui.update_message(fallback_text)
             self.gui.set_pet_state("idle")
 
 
