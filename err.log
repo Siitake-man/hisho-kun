@@ -1127,3 +1127,8 @@ message: "API key not valid. Please pass a valid API key."
 2026-10-11 20:44:14,066 - llm_factory - INFO - LLMモデルを生成中: Provider=opencode, Model=deepseek-v4-flash
 2026-10-11 20:44:14,574 - httpx2 - INFO - HTTP Request: POST https://opencode.ai/zen/go/v1/chat/completions "HTTP/1.1 401 Unauthorized"
 2026-10-11 20:44:14,589 - life_dreamer - INFO - \U0001f308 [LifeDreamer] LLM呼び出し失敗、ルールにフォールバック: Error code: 401 - {'type': 'error', 'error': {'type': 'AuthError', 'message': 'Invalid API key.'}}
+2026-10-11 20:54:05,142 - api_agent_bridge - INFO - \U0001f916 [Agent Bridge Notify] Antigravityから通知受信: セッションラップアップ完了（v1.2.0ビルド＆ADR-2実証） - お疲れ様でしたボス！v1.2.0配布パッケージビルド完了とADR-2データ境界の動作実証が完了し、次回5分で再開できるよう二重資産化・ドキュメント同期を整えました！\U0001f375\u2728
+2026-10-11 20:54:45,601 - life_dreamer - INFO - \U0001f308 [LifeDreamer] リアル天気を反映: \u2600\ufe0f 晴れ 19.0°C (所沢市, 日本)
+2026-10-11 20:54:45,609 - llm_factory - INFO - LLMモデルを生成中: Provider=opencode, Model=deepseek-v4-flash
+2026-10-11 20:54:46,164 - httpx2 - INFO - HTTP Request: POST https://opencode.ai/zen/go/v1/chat/completions "HTTP/1.1 401 Unauthorized"
+2026-10-11 20:54:46,166 - life_dreamer - INFO - \U0001f308 [LifeDreamer] LLM呼び出し失敗、ルールにフォールバック: Error code: 401 - {'type': 'error', 'error': {'type': 'AuthError', 'message': 'Invalid API key.'}}
