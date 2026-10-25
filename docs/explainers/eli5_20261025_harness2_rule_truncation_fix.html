@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ELI5: Google Harness² と 常駐ルール切り捨て（Truncation）解消の物理構造</title>
+  <style>
+    :root {
+      --bg-dark: #0f172a;
+      --card-bg: #1e293b;
+      --accent-blue: #38bdf8;
+      --accent-green: #4ade80;
+      --accent-red: #f87171;
+      --accent-amber: #fbbf24;
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --border-color: #334155;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      background: var(--bg-dark);
+      color: var(--text-main);
+      line-height: 1.6;
+      padding: 24px;
+    }
+    .container { max-width: 900px; margin: 0 auto; }
+    header { text-align: center; margin-bottom: 32px; }
+    header h1 { font-size: 1.8rem; color: var(--accent-blue); margin-bottom: 8px; }
+    header p { color: var(--text-muted); font-size: 0.95rem; }
+
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 24px;
+      margin-bottom: 28px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+    }
+    .card h2 {
+      font-size: 1.3rem;
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--accent-amber);
+    }
+
+    /* Interactive Simulator */
+    .sim-controls {
+      display: flex;
+      justify-content: center;
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+    .btn {
+      padding: 10px 20px;
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      background: #0f172a;
+      color: var(--text-main);
+      font-weight: bold;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .btn.active {
+      background: var(--accent-blue);
+      color: #0f172a;
+      border-color: var(--accent-blue);
+      box-shadow: 0 0 12px rgba(56, 189, 248, 0.4);
+    }
+
+    .sim-view {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+    }
+    @media (max-width: 700px) { .sim-view { grid-template-columns: 1fr; } }
+
+    .window-box {
+      background: #090d16;
+      border: 2px dashed var(--border-color);
+      border-radius: 8px;
+      padding: 16px;
+      position: relative;
+      min-height: 380px;
+      display: flex;
+      flex-direction: column;
+    }
+    .window-header {
+      font-size: 0.85rem;
+      font-weight: bold;
+      color: var(--text-muted);
+      border-bottom: 1px solid var(--border-color);
+      padding-bottom: 8px;
+      margin-bottom: 12px;
+      display: flex;
+      justify-content: space-between;
+    }
+    .memory-stack {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      flex-grow: 1;
+    }
+    .chunk {
+      padding: 10px;
+      border-radius: 6px;
+      font-size: 0.85rem;
+      font-weight: 500;
+      transition: all 0.4s ease;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .chunk-safe {
+      background: rgba(74, 222, 128, 0.15);
+      border: 1px solid var(--accent-green);
+      color: #86efac;
+    }
+    .chunk-bloat {
+      background: rgba(248, 113, 113, 0.2);
+      border: 1px solid var(--accent-red);
+      color: #fca5a5;
+    }
+    .chunk-truncated {
+      background: rgba(248, 113, 113, 0.3);
+      border: 2px dashed var(--accent-red);
+      color: var(--accent-red);
+      opacity: 0.4;
+      text-decoration: line-through;
+    }
+    .chunk-compact {
+      background: rgba(56, 189, 248, 0.15);
+      border: 1px solid var(--accent-blue);
+      color: #7dd3fc;
+    }
+    .status-badge {
+      font-size: 0.75rem;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-weight: bold;
+    }
+    .badge-ok { background: var(--accent-green); color: #0f172a; }
+    .badge-ng { background: var(--accent-red); color: #fff; }
+
+    /* Physical explanation */
+    .analogy-box {
+      background: rgba(56, 189, 248, 0.08);
+      border-left: 4px solid var(--accent-blue);
+      padding: 16px;
+      border-radius: 0 8px 8px 0;
+      margin: 16px 0;
+    }
+    .analogy-title { font-weight: bold; color: var(--accent-blue); margin-bottom: 6px; }
+
+    /* Accordion */
+    details {
+      background: #0f172a;
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      margin-bottom: 10px;
+      overflow: hidden;
+    }
+    summary {
+      padding: 12px 16px;
+      cursor: pointer;
+      font-weight: bold;
+      color: var(--text-main);
+      background: #172033;
+      user-select: none;
+    }
+    summary:hover { background: #1e293b; color: var(--accent-blue); }
+    .accordion-content {
+      padding: 14px 16px;
+      font-size: 0.9rem;
+      color: var(--text-muted);
+      border-top: 1px solid var(--border-color);
+    }
+    .code-pill {
+      background: #334155;
+      color: #f8fafc;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-family: monospace;
+    }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <header>
+    <h1>🧪 ELI5: 常駐ルール切り捨て（Truncation）解消とHarness²自己進化</h1>
+    <p>なぜAIは時々ルールの後半を忘れていたのか？Google Research Harness² が解き明かした物理構造</p>
+  </header>
+
+  <!-- 1. Interactive Simulator -->
+  <div class="card">
+    <h2>🎮 動く物理シミュレータ（改善前 vs 改善後）</h2>
+    <p style="font-size:0.9rem; color:var(--text-muted); margin-bottom:16px;">
+      下のボタンを切り替えて、AIの「常駐ポケット（24KB枠）」の中で何が起きていたかを目で確認してみましょう。
+    </p>
+
+    <div class="sim-controls">
+      <button class="btn active" id="btn-before" onclick="setMode('before')">❌ 改善前の状態 (43.2KB / 19.8KB切捨て)</button>
+      <button class="btn" id="btn-after" onclick="setMode('after')">✅ 改善後の状態 (15.4KB / 切捨て0byte)</button>
+    </div>
+
+    <div class="sim-view">
+      <!-- GEMINI.md Box -->
+      <div class="window-box">
+        <div class="window-header">
+          <span>📄 GEMINI.md (グローバルルール)</span>
+          <span id="gemini-size" style="color:var(--accent-red);">43.2 KB / 24 KB枠</span>
+        </div>
+        <div class="memory-stack" id="gemini-stack">
+          <!-- Injected via JS -->
+        </div>
+      </div>
+
+      <!-- AGENTS.md Box -->
+      <div class="window-box">
+        <div class="window-header">
+          <span>🛡️ AGENTS.md (プロジェクトルール)</span>
+          <span id="agents-size" style="color:var(--accent-red);">26.3 KB / 24 KB枠</span>
+        </div>
+        <div class="memory-stack" id="agents-stack">
+          <!-- Injected via JS -->
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 2. Physical explanation -->
+  <div class="card">
+    <h2>☕ 初級エンジニア向けの物理解説</h2>
+
+    <div class="analogy-box">
+      <div class="analogy-title">🎒 身近な日常の例え：胸ポケットと本棚の整理</div>
+      AIの常駐ルール枠は、いわば**「作業着の胸ポケット」**です。ここに入れたメモは、AIが作業中いつでも0秒でチラ見できます。<br>
+      しかし、胸ポケットにはサイズ限界（約24KB）があります。<br><br>
+      以前の状態は、<strong>「胸ポケットに厚さ10cmの辞書（13.6KBの英語テスト手順マニュアル）を無理やり突っ込んでいた」</strong>状態でした。その結果、ポケットからあふれ出た<strong>「一番大事な緊急連絡先や鍵（#JEV, #CLOUD, OpenCode規約）」がボロボロと地面に落ちて見えなくなっていた（Truncated）</strong>のです！
+    </div>
+
+    <h3 style="font-size:1.05rem; margin:16px 0 8px; color:var(--accent-blue);">💡 なぜGoogle Harness²がこの問題を解決できたのか？</h3>
+    <p style="font-size:0.9rem; color:var(--text-muted); margin-bottom:12px;">
+      Googleの研究チームが作った <strong>Harness²</strong> の中核には、まさにこの物理現象を防ぐための <span class="code-pill">always_on_max = 24,000</span> という絶対防壁がありました。
+    </p>
+    <ul style="font-size:0.9rem; color:var(--text-muted); padding-left:20px; line-height:1.7;">
+      <li><strong>Surface 分離の原則</strong>: 普段使わない専門マニュアル（辞書）は胸ポケットに入れず、「本棚（スキル `SKILL.md`）」へ置く。</li>
+      <li><strong>胸ポケットにはトリガーだけを書く</strong>: 胸ポケットには「◯◯の時は本棚の◯◯スキルを見よ」という1行だけを忍ばせる。</li>
+      <li><strong>自己改善ループ（Cue / Lesson / Evidence）</strong>: ルールが太ったりエラーが出たら、機械的に文字数を測って自動でポケットを整える。</li>
+    </ul>
+  </div>
+
+  <!-- 3. Glossary -->
+  <div class="card">
+    <h2>📖 登場した専門用語の完全解体辞典</h2>
+
+    <details open>
+      <summary>常駐ルール（Always-On Context）とは？</summary>
+      <div class="accordion-content">
+        AIエージェントがユーザーと会話する際、毎ターン必ずシステムの裏側でプロンプトの先頭に自動注入される前提知識のこと。<br>
+        Antigravityでは <code>GEMINI.md</code> と <code>AGENTS.md</code> がこれに該当します。手動で読み込まなくても最初から知っている反面、長すぎるとAIの思考予算（コンテキストウィンドウ）を圧迫します。
+      </div>
+    </details>
+
+    <details>
+      <summary>トランケーション（Truncation / 切り捨て）とは？</summary>
+      <div class="accordion-content">
+        システムがメモリ不足やトークン溢れを防ぐため、一定の文字数（Antigravityでは約23.5〜24KB）を超えた長文ルールの<strong>末尾をバッサリ切り捨てる</strong>現象。<br>
+        切り捨てられた部分はAIから完全に不可視になるため、「書いたはずのルールをAIがなぜか平然と無視する」という不可解な現象の真因となります。
+      </div>
+    </details>
+
+    <details>
+      <summary>Harness²（ハーネス・スクエア）とは？</summary>
+      <div class="accordion-content">
+        Google Research が 2026年4月に公開した、AIモデル自体の重みを変えずに、<strong>プロンプト・ガードレール・スキル・スクリプト（ハーネス）側を自己進化させるフレームワーク</strong>。<br>
+        「タスク実行 ➔ 失敗・摩擦の検知 ➔ 経験則（Cue/Lesson/Evidence）の抽出 ➔ ルール/スキルの自動書き換え」を自律的に繰り返します。
+      </div>
+    </details>
+
+    <details>
+      <summary>Cue / Lesson / Evidence（経験則の3点セット）とは？</summary>
+      <div class="accordion-content">
+        Harness² がルールを自己改善する際に必ず出力する構造化フォーマット：
+        <ul style="margin-top:6px; padding-left:20px;">
+          <li><strong>Cue（発動条件）</strong>: 「どんな場面・入力で問題が起きたか」</li>
+          <li><strong>Lesson（改善行動）</strong>: 「どのルールのどの手順をどう変えるべきか」</li>
+          <li><strong>Evidence（根拠）</strong>: 「どんな測定結果・エラー解決でその有効性が実証されたか」</li>
+        </ul>
+      </div>
+    </details>
+  </div>
+</div>
+
+<script>
+  const beforeGemini = [
+    { title: "WHO / HOW / WHAT (ボスの属性・対話原則)", status: "safe", note: "ロード成功" },
+    { title: "LEARN / DO / SKILL / CODE (鉄の掟・品質手順)", status: "safe", note: "ロード成功" },
+    { title: "ARTEMIS 英語テストマニュアル (約13.6KBの巨大な壁)", status: "bloat", note: "⚠️ ポケットを圧迫！" },
+    { title: "# JEV (TypeSafe Jev 意思決定連携)", status: "truncated", note: "❌ 切り捨て (消滅)" },
+    { title: "# CLOUD (Colab / Kaggle オフロード)", status: "truncated", note: "❌ 切り捨て (消滅)" },
+    { title: "# DSH 固有 ＆ @config/AGENTS.md", status: "truncated", note: "❌ 切り捨て (消滅)" }
+  ];
+
+  const afterGemini = [
+    { title: "WHO / HOW / WHAT (ボスの属性・対話原則)", status: "compact", note: "100% ロード" },
+    { title: "LEARN / DO / SKILL / CODE (鉄の掟・品質手順)", status: "compact", note: "100% ロード" },
+    { title: "# HISHO (ネオ秘書くん連携 ＆ 自動消去)", status: "compact", note: "100% ロード" },
+    { title: "# JEV (TypeSafe Jev 意思決定連携)", status: "compact", note: "100% 復活！" },
+    { title: "# CLOUD (Colab / Kaggle オフロード)", status: "compact", note: "100% 復活！" },
+    { title: "# ARTEMIS (日本語5行のコンパクトトリガー)", status: "compact", note: "100% 収容！" },
+    { title: "# DSH 固有 ＆ @config/AGENTS.md", status: "compact", note: "100% 復活！" }
+  ];
+
+  const beforeAgents = [
+    { title: "§1〜§2.4 (ペルソナ・型ヒント・非同期共存)", status: "safe", note: "ロード成功" },
+    { title: "§2.5〜§2.15 (4点セット同期・Tiered Gate・記憶境界)", status: "safe", note: "ロード成功" },
+    { title: "§2.16〜§3 (Pre-edit Gate・スマート宣言・禁止事項)", status: "safe", note: "ロード成功" },
+    { title: "§4 OpenCode 実行環境プロトコル (全6項目)", status: "truncated", note: "❌ 2.2KB 切り捨て (消滅)" }
+  ];
+
+  const afterAgents = [
+    { title: "§1〜§2.4 (ペルソナ・型ヒント・非同期共存)", status: "compact", note: "100% ロード" },
+    { title: "§2.5〜§2.15 (4点セット同期・Tiered Gate・記憶境界)", status: "compact", note: "100% ロード" },
+    { title: "§2.16 (Dual-UI ＆ cancel_pending 正式バグ修正)", status: "compact", note: "100% ロード" },
+    { title: "§2.17〜§2.18 (スマート宣言 ＆ Harness² ルール自己進化)", status: "compact", note: "100% ロード" },
+    { title: "§3 禁止事項 (推測禁止・手抜き省略禁止)", status: "compact", note: "100% ロード" },
+    { title: "§4 OpenCode 実行環境プロトコル (全6項目)", status: "compact", note: "100% 復活！" }
+  ];
+
+  function renderStack(elemId, items) {
+    const el = document.getElementById(elemId);
+    el.innerHTML = "";
+    items.forEach(item => {
+      const div = document.createElement("div");
+      div.className = "chunk chunk-" + item.status;
+      div.innerHTML = `<span>${item.title}</span><span class="status-badge ${item.status === 'truncated' || item.status === 'bloat' ? 'badge-ng' : 'badge-ok'}">${item.note}</span>`;
+      el.appendChild(div);
+    });
+  }
+
+  function setMode(mode) {
+    const btnBefore = document.getElementById("btn-before");
+    const btnAfter = document.getElementById("btn-after");
+    const geminiSize = document.getElementById("gemini-size");
+    const agentsSize = document.getElementById("agents-size");
+
+    if (mode === "before") {
+      btnBefore.classList.add("active");
+      btnAfter.classList.remove("active");
+      geminiSize.innerText = "43.2 KB / 24 KB枠 (19.8KB 切捨て!)";
+      geminiSize.style.color = "var(--accent-red)";
+      agentsSize.innerText = "26.3 KB / 24 KB枠 (2.2KB 切捨て!)";
+      agentsSize.style.color = "var(--accent-red)";
+      renderStack("gemini-stack", beforeGemini);
+      renderStack("agents-stack", beforeAgents);
+    } else {
+      btnAfter.classList.add("active");
+      btnBefore.classList.remove("active");
+      geminiSize.innerText = "15.4 KB / 24 KB枠 (切捨て 0 byte)";
+      geminiSize.style.color = "var(--accent-green)";
+      agentsSize.innerText = "17.1 KB / 24 KB枠 (切捨て 0 byte)";
+      agentsSize.style.color = "var(--accent-green)";
+      renderStack("gemini-stack", afterGemini);
+      renderStack("agents-stack", afterAgents);
+    }
+  }
+
+  // Initial load
+  setMode("after");
+</script>
+
+</body>
+</html>
