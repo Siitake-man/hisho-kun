@@ -149,11 +149,11 @@ def check_auth(handler: Any) -> bool:
     limiter_key = ledger_ip or client_ip
     is_trusted = is_private_ip(limiter_key)
 
-    # 🛡️ P0-3: loopback 信頼は3条件（TCPピア + Host + プロキシヘッダ無し）でのみ成立
+    # 🛡️ P0-3: loopback 信頼は3条件（TCPピア + Host + プロキシヘッダ無し）かつ is_private_ip であること
     if hasattr(handler, "_is_trusted_loopback"):
-        trusted_loopback = handler._is_trusted_loopback(client_ip, host_hdr, headers)
+        trusted_loopback = handler._is_trusted_loopback(client_ip, host_hdr, headers) and is_trusted
     else:
-        trusted_loopback = client_ip in ("127.0.0.1", "::1", "localhost")
+        trusted_loopback = (client_ip in ("127.0.0.1", "::1", "localhost")) and is_trusted
 
     # 1. 締め出し判定 (自PCの信頼済みループバック以外は同一LAN・外部問わずレート制限対象とし、総当たりを防御)
     if not trusted_loopback:
