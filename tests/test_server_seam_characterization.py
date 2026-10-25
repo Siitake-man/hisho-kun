@@ -76,11 +76,14 @@ class TestAuthChecksCharacterization(unittest.TestCase):
         self.assertTrue(DeskPetSyncHandler._is_private_ip("192.168.1.100"))
         self.assertTrue(DeskPetSyncHandler._is_private_ip("10.0.0.1"))
         self.assertTrue(DeskPetSyncHandler._is_private_ip("172.16.0.1"))
+        self.assertTrue(DeskPetSyncHandler._is_private_ip("100.64.0.1"))  # Tailscale CGNAT
+        self.assertTrue(DeskPetSyncHandler._is_private_ip("100.127.255.254"))  # Tailscale CGNAT
 
-        # 異常系: パブリック IP / 不正IP
+        # 異常系: パブリック IP / 不正IP / unknown
         self.assertFalse(DeskPetSyncHandler._is_private_ip("8.8.8.8"))
         self.assertFalse(DeskPetSyncHandler._is_private_ip("1.1.1.1"))
         self.assertFalse(DeskPetSyncHandler._is_private_ip("invalid_ip"))
+        self.assertFalse(DeskPetSyncHandler._is_private_ip("unknown"))
         self.assertFalse(DeskPetSyncHandler._is_private_ip(""))
 
     def test_infer_device_name(self) -> None:
@@ -239,6 +242,25 @@ class TestHttpdCoreCharacterization(unittest.TestCase):
         cls = local_sync_server.QuietThreadingHTTPServer
         self.assertTrue(cls.daemon_threads)
         self.assertTrue(cls.allow_reuse_address)
+
+    def test_bind_host_default_and_env(self) -> None:
+        """🛡️ P1: バインドアドレスが既定 127.0.0.1 であり、環境変数でオプトイン可能であることを検証."""
+        import os
+        from unittest.mock import patch
+
+        # 既定値: 127.0.0.1
+        with patch.dict(os.environ, {}, clear=True):
+            srv_default = local_sync_server.LocalSyncServer(port=0)
+            self.assertEqual(srv_default.host, "127.0.0.1")
+
+        # 明示引数: 0.0.0.0
+        srv_explicit = local_sync_server.LocalSyncServer(port=0, host="0.0.0.0")
+        self.assertEqual(srv_explicit.host, "0.0.0.0")
+
+        # NEO_HISHO_BIND_ALL=1
+        with patch.dict(os.environ, {"NEO_HISHO_BIND_ALL": "1"}, clear=True):
+            srv_env_all = local_sync_server.LocalSyncServer(port=0)
+            self.assertEqual(srv_env_all.host, "0.0.0.0")
 
 
 class TestToolsTabCharacterization(unittest.TestCase):

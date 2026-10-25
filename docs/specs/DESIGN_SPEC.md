@@ -1,7 +1,7 @@
 # ネオ秘書くん システム設計書 (DESIGN_SPEC.md)
 
-- **アプリバージョン**: 1.2.0 (🔒 SSOT: `version.py`・**版数規約 §6.0.1 参照**) ／ **文書進捗**: Rev 59 (仕様書更新回数連番・2026-10-11 v1.2.0 配布パッケージ生成完了・ADR-2データ境界ポリシー検証・Jules PR #23 統合)
-- **最終更新日時**: 2026-10-11 20:50 (🤖 Antigravity: **【v1.2.0 配布パッケージ生成完了 ＆ ADR-2 データ境界ポリシー検証 ＆ Jules PR #23 統合】build_exe.pyによるonedir/zip生成完了(203.8MB)、ADR-2データ境界の動作実証、Jules夜間堅牢化テスト取り込み完了**)
+- **アプリバージョン**: 1.2.0 (🔒 SSOT: `version.py`・**版数規約 §6.0.1 参照**) ／ **文書進捗**: Rev 60 (仕様書更新回数連番・2026-10-25 Grok BOT指摘是正：0.0.0.0バインド解除・ipaddress厳格化・ログ漏洩止血)
+- **最終更新日時**: 2026-10-25 12:15 (🤖 Antigravity: **【Grok BOTレビュー指摘是正 ＆ セキュリティ硬化スプリント完遂】LocalSyncServerの127.0.0.1既定バインド化、ipaddressによる厳格判定と同一LANレート制限ゼロトラスト化、err.log追跡解除と除外設定を仕様書へ反映**)
 - **アーキテクチャ方針**: 完全ローカル完結型 非ブロッキング並行システム (Tkinter Desktop Overlay × Mobile PWA × LangGraph Agent × Zero-Trust Local Bridge ＆ Cross-Platform Headless CI/CD)
 
 ---
@@ -550,6 +550,22 @@ MiniCPM-Petの秀逸な着眼点をネオ秘書くんのクリーンアーキテ
   - トークン1回発行によるゼロ秒即時締め出しを廃止。QRダイアログの表示中は安全にリロード・接続を許可し、ダイアログを閉じた際（`destroy`）に確実に `close_pairing()` を呼んで Fail-Closed を成立させる。
 - **🌟 Human-in-the-Loop 端末接続承認ロードマップ**:
   - スマホ等から接続要求が届いた際、PCペット側で接続要求を可視化・把握し、承認ダイアログ（[許可] / [拒否]）でユーザーが明示許可して永続トークンを発行する世界基準のゼロトラスト・アーキテクチャ。
+
+---
+
+### 10.7 Grok BOT指摘是正：0.0.0.0バインド解除 ＆ ゼロトラストipaddressレート制限硬化 ＆ ログ漏洩止血（2026-10-25 実装反映）
+- **127.0.0.1 既定バインド化 (`server/httpd_core.py`)**:
+  - `LocalSyncServer` の既定ホストを `"0.0.0.0"`（全インターフェース暗号化なし待ち受け）から `"127.0.0.1"`（ローカルループバック限定）に変更。
+  - 同一Wi-Fi上の他者による盗聴や不正リクエストを構造的に遮断。
+  - Tailscale経由のセキュアアクセス（`node.ts.net`）はローカルプロキシ経由（`127.0.0.1:8765`）で動作するため影響なし。LAN全開放が必要な場合のみ `NEO_HISHO_BIND_ALL=1` または `NEO_HISHO_BIND_HOST` による明示的オプトインを要求。
+- **ipaddress モジュールによる厳格IP判定 ＆ 同一LANレート制限 (`server/auth_checks.py`)**:
+  - 従来のプレフィックス文字列比較（`ip.startswith(...)`）および `"unknown"` のプライベートIP判定を廃止。
+  - Python標準の `ipaddress.ip_address()` および `ipaddress.ip_network("100.64.0.0/10")`（CGNAT/Tailscale帯）を用いた厳格なバイナリ/マスク判定に改修。不正な文字列や `"unknown"` は即座に Fail-Closed（非プライベート扱い）で遮断。
+  - 自PC（`trusted_loopback`: `127.0.0.1`, `::1`）以外の同一LAN端末・中継IPからのブルートフォース攻撃を遮断するため、プライベートIPであってもレート制限（429 Too Many Requests）の対象とするゼロトラストモデルを採用。失敗記録キーも `limiter_key`（`ledger_ip or client_ip`）に統一。
+- **実稼働ログのGit追跡解除 ＆ 機密防護**:
+  - リポジトリに誤コミットされていた `err.log`（カレンダー情報・Tailscaleノード露出）および `out.log` を `git rm --cached` で追跡解除し、`.gitignore` に `*.log`, `err.log`, `out.log` を設定。
+- **Web Pet キャッシュバスター整合 (`web_pet/index.html`)**:
+  - 全16箇所のクエリパラメータを `?v=1.1.19` から `?v=1.2.0`（`version.py` と完全一致）へ更新し、CIテスト整合性を完全担保。
 
 ---
 

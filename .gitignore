@@ -124,3 +124,13 @@ build/
 dist/
 *.spec
 !neo_hisho.spec
+
+# --- ログファイル（機密情報・実行トレースのコミット防止） ---
+*.log
+err.log
+out.log
+
+
+# --- 一時スクリプト・試作スクリプト ---
+tools/scratch/
+scratch_*.py

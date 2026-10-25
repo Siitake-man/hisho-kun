@@ -20,6 +20,7 @@
 
 from __future__ import annotations
 
+import ipaddress
 import json
 import logging
 from typing import Any, Dict, Optional
@@ -50,29 +51,39 @@ def get_bearer_token(headers: Any) -> str:
     return ""
 
 
+# Tailscale CGNAT プレフィックス (100.64.0.0/10)
+_TAILSCALE_CGNAT_NET = ipaddress.ip_network("100.64.0.0/10")
+
+
 def is_private_ip(client_ip: str) -> bool:
     """接続元IPがローカルまたは同一LAN・Tailscale内のプライベートIPか判定する。
+
+    標準の ipaddress モジュールを用いて厳格に検証する。
+    "unknown" や不正なIP文字列は Fail-Closed で False を返す。
 
     Args:
         client_ip: クライアントの IP アドレス文字列。
 
     Returns:
-        bool: プライベート/ループバック IP の場合 True。
+        bool: プライベート/ループバック/Tailscale IP の場合 True。
     """
-    if client_ip in ("127.0.0.1", "::1", "localhost", "unknown"):
+    if not client_ip or client_ip == "unknown":
+        return False
+    if client_ip == "localhost":
         return True
-    # 192.168.x.x, 10.x.x.x, 172.16.x.x - 172.31.x.x
-    if client_ip.startswith("192.168.") or client_ip.startswith("10."):
+    try:
+        ip = ipaddress.ip_address(client_ip)
+    except ValueError:
+        return False
+
+    # ループバック (127.0.0.0/8, ::1) または RFC 1918 プライベートIP
+    if ip.is_loopback or ip.is_private:
         return True
-    if client_ip.startswith("172."):
-        parts = client_ip.split(".")
-        if len(parts) >= 2 and parts[1].isdigit() and 16 <= int(parts[1]) <= 31:
-            return True
-    # Tailscale CGNAT (100.64.0.0/10: 100.64.x.x - 100.127.x.x)
-    if client_ip.startswith("100."):
-        parts = client_ip.split(".")
-        if len(parts) >= 2 and parts[1].isdigit() and 64 <= int(parts[1]) <= 127:
-            return True
+
+    # Tailscale CGNAT (100.64.0.0/10: 100.64.0.0 - 100.127.255.255)
+    if ip.version == 4 and ip in _TAILSCALE_CGNAT_NET:
+        return True
+
     return False
 
 
@@ -138,8 +149,14 @@ def check_auth(handler: Any) -> bool:
     limiter_key = ledger_ip or client_ip
     is_trusted = is_private_ip(limiter_key)
 
-    # 1. 締め出し判定 (外部IPのみ。同一LAN・Tailscale端末は再起動時のトークン不整合による誤遮断を防止)
-    if not is_trusted:
+    # 🛡️ P0-3: loopback 信頼は3条件（TCPピア + Host + プロキシヘッダ無し）でのみ成立
+    if hasattr(handler, "_is_trusted_loopback"):
+        trusted_loopback = handler._is_trusted_loopback(client_ip, host_hdr, headers)
+    else:
+        trusted_loopback = client_ip in ("127.0.0.1", "::1", "localhost")
+
+    # 1. 締め出し判定 (自PCの信頼済みループバック以外は同一LAN・外部問わずレート制限対象とし、総当たりを防御)
+    if not trusted_loopback:
         blocked, retry_after = rate_limiter.is_blocked(limiter_key)
         if blocked:
             logger.warning(
@@ -169,12 +186,6 @@ def check_auth(handler: Any) -> bool:
     bearer = get_bearer_token(headers)
 
     # 2. 有効なBearerトークンがあれば認証OK（デバイス台帳で失効状態を検査）。
-    # 🛡️ P0-3: loopback 信頼は3条件（TCPピア + Host + プロキシヘッダ無し）でのみ成立
-    if hasattr(handler, "_is_trusted_loopback"):
-        trusted_loopback = handler._is_trusted_loopback(client_ip, host_hdr, headers)
-    else:
-        trusted_loopback = client_ip in ("127.0.0.1", "::1", "localhost")
-
     if bearer:
         dev = None
         is_valid_token = False
@@ -256,9 +267,9 @@ def check_auth(handler: Any) -> bool:
     if getattr(handler, "command", "") == "GET" and trusted_loopback:
         return True
 
-    # 4. 認証失敗: 外部IPのみ失敗カウントを記録
-    if not is_trusted:
-        rate_limiter.record_failure(client_ip)
+    # 4. 認証失敗: 自PCの信頼ループバック以外は失敗カウントを記録してレート制限 (中継経由は limiter_key=ledger_ip で記録)
+    if not trusted_loopback:
+        rate_limiter.record_failure(limiter_key)
 
     logger.warning(f"🚫 [SyncAuth] 認証失敗: {getattr(handler, 'path', '')} (IP: {client_ip})")
     try:

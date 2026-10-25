@@ -19,6 +19,7 @@
 from __future__ import annotations
 
 import logging
+import os
 import socket
 import sys
 import threading
@@ -83,15 +84,29 @@ class LocalSyncServer:
         self,
         port: int = SERVER_PORT,
         handler_class: Optional[Type[BaseHTTPRequestHandler]] = None,
+        host: Optional[str] = None,
     ) -> None:
         """ローカル同期サーバーを初期化する。
 
         Args:
             port: 待受ポート番号 (0 の場合はエフェメラルポート)。
             handler_class: リクエストハンドラクラス (未指定時は DeskPetSyncHandler を遅延解決)。
+            host: 待受ホストアドレス (未指定時は 127.0.0.1、LAN公開はオプトイン)。
         """
         self.port: int = port
         self.handler_class: Optional[Type[BaseHTTPRequestHandler]] = handler_class
+
+        # 🛡️ P1: バインドアドレス (既定 127.0.0.1、LAN公開はオプトイン)
+        env_host = os.environ.get("NEO_HISHO_BIND_HOST")
+        if host is not None:
+            self.host: str = host
+        elif env_host:
+            self.host = env_host
+        elif os.environ.get("NEO_HISHO_BIND_ALL", "").lower() in ("1", "true", "yes"):
+            self.host = "0.0.0.0"
+        else:
+            self.host = "127.0.0.1"
+
         self.httpd: Optional[QuietThreadingHTTPServer] = None
         self.thread: Optional[threading.Thread] = None
         # watchdog 用状態
@@ -137,18 +152,19 @@ class LocalSyncServer:
             bool: 起動に成功した場合は True (ポート競合等は False)。
         """
         bind_port = self._bound_port if self._bound_port is not None else self.port
+        bind_host = self.host
         handler_cls = self._get_handler_class()
         try:
-            self.httpd = QuietThreadingHTTPServer(("0.0.0.0", bind_port), handler_cls)
+            self.httpd = QuietThreadingHTTPServer((bind_host, bind_port), handler_cls)
         except OSError as e:
-            logger.error(f"📱 [Watchdog] 同期サーバーのバインドに失敗しました (ポート={bind_port}): {e}")
+            logger.error(f"📱 [Watchdog] 同期サーバーのバインドに失敗しました ({bind_host}:{bind_port}): {e}")
             return False
         self._bound_port = self.httpd.server_address[1]
         self.thread = threading.Thread(target=self.httpd.serve_forever, daemon=True)
         self.thread.start()
         logger.info(
             f"📱 [Agent Bridge Hub] Desk Pet 同期サーバーが起動しました: "
-            f"http://localhost:{self._bound_port} (LAN/Bluetooth対応)"
+            f"http://{bind_host}:{self._bound_port} (Tailscale/ローカル連携)"
         )
         return True
 
